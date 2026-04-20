@@ -20,8 +20,9 @@ namespace SGP_Ephemerides
         private Tuple<DateTime, TimeZone> mLocalDateTime;
 
         private Target mTarget;
-        private SGP_Ephemerides.Sgf.Parser mTargetParser;
         private List<Target> mTargetList;
+
+        private const string NinaTargetsRootPath = @"E:\Photography\Astro Photography\Captures\Nina\Targets";
 
         private Charts.AltitudeChartForm mAltitudeChartForm;
         private Charts.AltitudeChart mAltitudeChart;
@@ -43,7 +44,6 @@ namespace SGP_Ephemerides
 
             mLocalDateTime = Tuple.Create(DateTime.Now, TimeZone.CurrentTimeZone);
             mLocation = new Location();
-            mTargetParser = new SGP_Ephemerides.Sgf.Parser();
             mTarget = new Target();
             mTargetList = new List<Target>();
 
@@ -72,7 +72,7 @@ namespace SGP_Ephemerides
 
         public void InitializeDynamicControls()
         {
-            string[] folderSelectedPaths = { @"E:\Photography\Astro Photography\Captures\SGP" };
+            string[] folderSelectedPaths = { NinaTargetsRootPath };
 
             // Add Panel that MSChart will appear in to GroupBox
             Panel_AltitudeChart = new Panel();
@@ -110,7 +110,7 @@ namespace SGP_Ephemerides
 
             Panel_AltitudeChart.Controls.Add(mAltitudeChart.mChart);
 
-            GetSGPTargets(folderSelectedPaths);
+            GetNinaTargets(folderSelectedPaths);
 
             ComboBox_SelectTarget.Text = "M31";
         }
@@ -696,10 +696,10 @@ namespace SGP_Ephemerides
         {
             mFolder = new OpenFolderDialog()
             {
-                Title = "Sequence Generator Pro Sequence Browser",
+                Title = "NINA Target Folder Browser",
                 AutoUpgradeEnabled = true,
                 CheckPathExists = false,
-                InitialDirectory = @"E:\Photography\Astro Photography\Captures\SGP",
+                InitialDirectory = NinaTargetsRootPath,
                 Multiselect = true,
                 RestoreDirectory = true
             };
@@ -708,15 +708,15 @@ namespace SGP_Ephemerides
 
             if (result.Equals(DialogResult.OK))
             {
-                GetSGPTargets(mFolder.SelectedPaths);
+                GetNinaTargets(mFolder.SelectedPaths);
             }
         }
 
-        private async void GetSGPTargets(string[] folderSelectedPaths)
+        private async void GetNinaTargets(string[] folderSelectedPaths)
         {
-            List<string> recursedTargetList = new List<string>();
-
             mTargetList.Clear();
+            CheckedListBox_SelectedSgpTargets.Items.Clear();
+            ComboBox_SelectTarget.Items.Clear();
 
             var progressHandler = new Progress<Tuple<int, int>>(value =>
             {
@@ -732,17 +732,14 @@ namespace SGP_Ephemerides
             {
                 foreach (string folder in folderSelectedPaths)
                 {
+                    List<Target> loaded = null;
                     await Task.Run(() =>
                     {
-                        mTargetList = mTargetParser.BuildObjectList(folder, progress);
+                        loaded = SGP_Ephemerides.Nina.TargetLoader.Load(folder, progress);
                     });
 
+                    if (loaded != null) mTargetList.AddRange(loaded);
                     ProgressBar_ProcessObject.Value = ProgressBar_ProcessObject.Maximum;
-
-                    foreach (Target targetObject in mTargetList)
-                    {
-                        CheckedListBox_SelectedSgpTargets.Items.Add(targetObject.Name, true);
-                    }
                 }
             }
             catch (Exception ex)
@@ -751,17 +748,18 @@ namespace SGP_Ephemerides
                 ProgressBar_ProcessObject.Value = 0;
             }
 
-            Label_SelectedTargetNumber.Text = CheckedListBox_SelectedSgpTargets.Items.Count.ToString();
-
-            // Fill combobox
-            if (mTargetList == null || mTargetList.Count == 0)
+            foreach (Target t in mTargetList)
             {
-                return;
+                CheckedListBox_SelectedSgpTargets.Items.Add(t.Name, true);
             }
 
-            foreach (Target target in mTargetList)
+            Label_SelectedTargetNumber.Text = CheckedListBox_SelectedSgpTargets.Items.Count.ToString();
+
+            if (mTargetList.Count == 0) return;
+
+            foreach (Target t in mTargetList)
             {
-                ComboBox_SelectTarget.Items.Add(target.Name);
+                ComboBox_SelectTarget.Items.Add(t.Name);
             }
         }
 

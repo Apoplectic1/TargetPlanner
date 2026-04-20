@@ -88,7 +88,7 @@
     <Compile Include="Charts\AltitudeChart.cs" />
     <Compile Include="Charts\AltitudeSeries.cs" />
     <Compile Include="Support\UIState.cs" />
-    <Compile Include="Target\Parser.cs" />
+    <Compile Include="Nina\TargetLoader.cs" />
     <Compile Include="Support\Astrometry.cs" />
     <Compile Include="Forms\MainForm.cs">
       <SubType>Form</SubType>
