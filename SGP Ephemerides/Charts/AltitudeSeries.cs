@@ -71,6 +71,14 @@ namespace SGP_Ephemerides.Charts
 
         public async void BuildSeriesList()
         {
+            // Each Target owns its AltitudeSeries, so a second build on the same Target (user
+            // re-clicks Graph Ephemeride, or opens the multi-target popup after the main chart)
+            // must start from a clean TargetSeriesList -- otherwise BuildMoonSeries and
+            // BuildDaySeries, which unconditionally create fresh Series objects, would leave
+            // duplicates next to the prior run. Year and Optimal are idempotent on their own via
+            // FindOrCreateSeries, but clearing here keeps all four series on the same lifecycle.
+            TargetSeriesList.Clear();
+
             BuildMoonSeries();
             BuildDaySeries();
             await Task.Run(() =>

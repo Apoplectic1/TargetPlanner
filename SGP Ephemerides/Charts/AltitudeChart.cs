@@ -23,7 +23,6 @@ namespace SGP_Ephemerides.Charts
         private Legend mLegend;
         private UIState mUIState;
 
-        private AltitudeSeries mAltitudeSeries;
         private Dictionary<string, StripLine> mNowLines;
 
         //################################################################################################################
@@ -39,7 +38,6 @@ namespace SGP_Ephemerides.Charts
             mSeriesList = new List<Series>();
             mSeries = new Series();
             mLegend = new Legend();
-            mAltitudeSeries = new AltitudeSeries();
             mUIState = new Support.UIState();
             mNowLines = new Dictionary<string, StripLine>();
 
@@ -57,13 +55,17 @@ namespace SGP_Ephemerides.Charts
             foreach (ChartArea area in mChartAreaList)
             {
                 Series reference = null;
-                foreach (Series s in mAltitudeSeries.TargetSeriesList)
+                foreach (Target.Target target in mTargetList)
                 {
-                    if (s.Name.EndsWith("-" + area.Name) && s.Points.Count > 0)
+                    foreach (Series s in target.mAltitudeSeries.TargetSeriesList)
                     {
-                        reference = s;
-                        break;
+                        if (s.Name.EndsWith("-" + area.Name) && s.Points.Count > 0)
+                        {
+                            reference = s;
+                            break;
+                        }
                     }
+                    if (reference != null) break;
                 }
                 if (reference == null) continue;
 
@@ -161,17 +163,20 @@ namespace SGP_Ephemerides.Charts
 
             ClearSeries();
 
-            foreach (Series series in mAltitudeSeries.TargetSeriesList)
+            foreach (Target.Target target in mTargetList)
             {
-                if (series.Name.Contains(chartAreaName))
+                foreach (Series series in target.mAltitudeSeries.TargetSeriesList)
                 {
-                    series.Enabled = true;
-                    series.LegendText = series.Name.Remove(series.Name.IndexOf("-"));
-                    AddSeries(series);
-                }
-                else
-                {
-                    series.Enabled = false;
+                    if (series.Name.Contains(chartAreaName))
+                    {
+                        series.Enabled = true;
+                        series.LegendText = series.Name.Remove(series.Name.IndexOf("-"));
+                        AddSeries(series);
+                    }
+                    else
+                    {
+                        series.Enabled = false;
+                    }
                 }
             }
 
@@ -181,12 +186,11 @@ namespace SGP_Ephemerides.Charts
 
         public void BuildTargetSeriesList()
         {
-            mAltitudeSeries.Location = Location;
-
             foreach (Target.Target target in mTargetList)
             {
-                mAltitudeSeries.Target = target;
-                mAltitudeSeries.BuildSeriesList();
+                target.mAltitudeSeries.Location = Location;
+                target.mAltitudeSeries.Target   = target;
+                target.mAltitudeSeries.BuildSeriesList();
             }
         }
 
@@ -198,11 +202,11 @@ namespace SGP_Ephemerides.Charts
         // and the chart picks up the new points automatically.
         public void RebuildOptimalData()
         {
-            mAltitudeSeries.Location = Location;
             foreach (Target.Target target in mTargetList)
             {
-                mAltitudeSeries.Target = target;
-                mAltitudeSeries.RebuildOptimalSeries();
+                target.mAltitudeSeries.Location = Location;
+                target.mAltitudeSeries.Target   = target;
+                target.mAltitudeSeries.RebuildOptimalSeries();
             }
             mChart.Invalidate();
         }
@@ -258,8 +262,11 @@ namespace SGP_Ephemerides.Charts
         public void ClearTargetList()
         {
             ClearSeries();
+            foreach (Target.Target target in mTargetList)
+            {
+                target.mAltitudeSeries.ClearTargetList();
+            }
             mTargetList.Clear();
-            mAltitudeSeries.ClearTargetList();
         }
 
         public void RemoveFromTargetList(Target.Target target)
