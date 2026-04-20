@@ -526,11 +526,16 @@ namespace SGP_Ephemerides
         private void NumericUpDown_Duration_ValueChanged(object sender, EventArgs e)
         {
             mLocation.MinutesAboveHorizon = (double)NumericUpDown_Duration.Value * 60.0;
+            if (mAltitudeChart == null) return;
+            mAltitudeChart.RebuildOptimalData();
         }
 
         private void NumericUpDown_Horizon_ValueChanged(object sender, EventArgs e)
         {
             mLocation.Horizon = (double)NumericUpDown_Horizon.Value;
+            if (mAltitudeChart == null) return;
+            mAltitudeChart.UpdateHorizonLines();
+            mAltitudeChart.RebuildOptimalData();
         }
 
         private void DatePicker_ValueChanged(object sender, EventArgs e)

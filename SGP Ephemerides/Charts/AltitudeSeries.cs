@@ -10,9 +10,28 @@ namespace SGP_Ephemerides.Charts
 {
     public class AltitudeSeries
     {
+        // Per-day intermediates that do not depend on Horizon or Duration. Populated once by
+        // BuildYearSeries and consumed on every Horizon/Duration spinner tick by
+        // BuildOptimalSeries, so the rebuild path never re-enters ComputeNight (CoordinateSharp,
+        // the actual hot path) or GetAltitudeAzimuth.
+        private struct NightCacheEntry
+        {
+            public DateTime Dusk;
+            public DateTime Dawn;
+            public double   AltDusk;         // target altitude at Dusk, degrees
+            public double   AltDawn;         // target altitude at Dawn, degrees
+            public double   LstDusk;         // Local Sidereal Time at Dusk, hours
+            public double   LstDawn;         // LST at Dawn, hours; linearized so LstDawn > LstDusk
+            public bool     TransitInNight;  // does RA_hours (mod 24) fall in [LstDusk, LstDawn]?
+            public double   YearAlt;         // max night altitude -- the Year series value
+            public bool     IsPolar;         // night.Dusk/Dawn were DateTime.MinValue
+            public DateTime SentinelX;       // X coordinate for Year and Optimal points on this day
+        }
+
         public Location.Location Location { get; set; }
         public Target.Target Target { get; set; }
         public List<Series> TargetSeriesList { get; private set; }
+        private List<NightCacheEntry> mYearCache;
 
         public AltitudeSeries()
         {
@@ -33,11 +52,46 @@ namespace SGP_Ephemerides.Charts
             ChartType = SeriesChartType.Line,
         };
 
+        // Return the existing Series by name if present so repeat calls reuse the same Series
+        // object (preserves chart binding); otherwise create and register a fresh one. This is
+        // what makes BuildYearAndOptimalSeries safe to call more than once per AltitudeSeries
+        // instance -- the Series identity survives rebuilds so mChart.Series keeps referencing
+        // the points that just got repopulated.
+        private Series FindOrCreateSeries(string name, string seriesType, Color color)
+        {
+            string fullName = name + "-" + seriesType;
+            foreach (Series existing in TargetSeriesList)
+            {
+                if (existing.Name == fullName) return existing;
+            }
+            Series fresh = MakeSeries(name, seriesType, color);
+            TargetSeriesList.Add(fresh);
+            return fresh;
+        }
+
         public async void BuildSeriesList()
         {
             BuildMoonSeries();
             BuildDaySeries();
-            await Task.Run(() => BuildYearAndOptimalSeries());
+            await Task.Run(() =>
+            {
+                BuildYearSeries();
+                BuildOptimalSeries();
+            });
+        }
+
+        // Rebuild only the Optimal series on Horizon or Duration change. Day, Moon, and Year
+        // don't depend on either input, so they stay as-is. Reads mYearCache (populated by
+        // BuildYearSeries during the initial build) instead of recomputing dusk/dawn/LSTs etc.
+        // Cold-start path: if the cache hasn't been populated yet -- e.g., the user scrubbed a
+        // spinner before the initial Task.Run completed -- build Year synchronously first.
+        public void RebuildOptimalSeries()
+        {
+            if (mYearCache == null || mYearCache.Count == 0)
+            {
+                BuildYearSeries();
+            }
+            BuildOptimalSeries();
         }
 
         private void BuildDaySeries()
@@ -75,21 +129,98 @@ namespace SGP_Ephemerides.Charts
             TargetSeriesList.Add(daySeries);
         }
 
-        // Analytic per-day Year and Optimal values. A stellar target's altitude curve is a pure
-        // sinusoid in hour angle, so on any connected time interval the max altitude is either at
-        // upper transit (HA = 0, altitude = meridianAlt) or at an endpoint -- no minute scan
-        // needed. Per day we do two GetAltitudeAzimuth calls (dusk, dawn) plus arithmetic,
-        // instead of ~600 per day.
-        private void BuildYearAndOptimalSeries()
+        // Compute-once per AltitudeSeries lifetime: walk 365 days, call ComputeNight and two
+        // GetAltitudeAzimuth calls per day, store the Horizon/Duration-independent intermediates
+        // in mYearCache, and emit the Year series. Year values are invariant to Horizon and
+        // Duration so this never needs to run on a spinner tick.
+        private void BuildYearSeries()
         {
             Location.Location locationClone = Clone(Location);
 
-            Series yearSeries    = MakeSeries(Target.Name, "Year",    new Color());
-            Series optimalSeries = MakeSeries(Target.Name, "Optimal", new Color());
+            Series yearSeries = FindOrCreateSeries(Target.Name, "Year", new Color());
+            yearSeries.Points.Clear();
+
+            double latSigned  = Location.North ?  Location.Latitude  : -Location.Latitude;
+            double decSigned  = Target.North   ?  Target.Declination : -Target.Declination;
+            double lonDegEast = Location.West  ? -Location.Longitude :  Location.Longitude;
+            double raHours    = Target.RightAscension;
+
+            double meridianAlt = Astrometry.MeridianAltitude(latSigned, decSigned);
+
+            DateTime startDay = DateTime.Now.AddDays(-DateTime.Now.Day);
+            DateTime endDay   = startDay.AddYears(1);
+            int      totalDays = (int)endDay.Subtract(startDay).TotalDays;
+
+            // Build into a local list and atomically assign at the end so a concurrent reader on
+            // the UI thread (e.g. RebuildOptimalSeries during the initial Task.Run) sees either
+            // null or a fully populated cache, never a half-filled one.
+            List<NightCacheEntry> cache = new List<NightCacheEntry>(totalDays);
+
+            for (int day = 0; day < totalDays; day++)
+            {
+                locationClone.DateTime = startDay.AddDays(day);
+                NightWindow night = Astrometry.ComputeNight(locationClone);
+
+                NightCacheEntry entry = new NightCacheEntry();
+
+                if (night.AstronomicalDusk == DateTime.MinValue || night.AstronomicalDawn == DateTime.MinValue)
+                {
+                    entry.IsPolar   = true;
+                    entry.SentinelX = startDay.AddDays(day).AddHours(12);
+                    entry.YearAlt   = -90.0;
+                    cache.Add(entry);
+                    yearSeries.Points.AddXY(entry.SentinelX, entry.YearAlt);
+                    continue;
+                }
+
+                entry.Dusk      = night.AstronomicalDusk;
+                entry.Dawn      = night.AstronomicalDawn;
+                entry.SentinelX = entry.Dawn.AddMinutes(-1);
+
+                locationClone.DateTime = entry.Dusk;
+                entry.AltDusk = Astrometry.GetAltitudeAzimuth(Target, locationClone).Item1;
+
+                locationClone.DateTime = entry.Dawn;
+                entry.AltDawn = Astrometry.GetAltitudeAzimuth(Target, locationClone).Item1;
+
+                entry.LstDusk = Astrometry.LocalSiderealTime(entry.Dusk.ToUniversalTime(), lonDegEast);
+                entry.LstDawn = Astrometry.LocalSiderealTime(entry.Dawn.ToUniversalTime(), lonDegEast);
+                if (entry.LstDawn < entry.LstDusk) entry.LstDawn += 24.0;
+
+                entry.TransitInNight = false;
+                for (int k = -1; k <= 1; k++)
+                {
+                    double t = raHours + 24.0 * k;
+                    if (t >= entry.LstDusk && t <= entry.LstDawn)
+                    {
+                        entry.TransitInNight = true;
+                        break;
+                    }
+                }
+
+                double yearAlt = Math.Max(entry.AltDusk, entry.AltDawn);
+                if (entry.TransitInNight && meridianAlt > yearAlt) yearAlt = meridianAlt;
+                entry.YearAlt = yearAlt;
+
+                cache.Add(entry);
+                yearSeries.Points.AddXY(entry.SentinelX, entry.YearAlt);
+            }
+
+            mYearCache = cache;
+        }
+
+        // Walk mYearCache to emit the Optimal series. Reads cached dusk/dawn altitudes, LSTs,
+        // and the TransitInNight flag; no ComputeNight, no GetAltitudeAzimuth. The Year-as-upper-
+        // bound pre-filter short-circuits every day where YearAlt is below the current horizon
+        // (Year is the max possible altitude that night, so if it's below horizon the whole
+        // k-loop is guaranteed to yield -90).
+        private void BuildOptimalSeries()
+        {
+            Series optimalSeries = FindOrCreateSeries(Target.Name, "Optimal", new Color());
+            optimalSeries.Points.Clear();
 
             double latSigned   = Location.North ?  Location.Latitude  : -Location.Latitude;
             double decSigned   = Target.North   ?  Target.Declination : -Target.Declination;
-            double lonDegEast  = Location.West  ? -Location.Longitude :  Location.Longitude;
             double raHours     = Target.RightAscension;
             double horizonDeg  = Location.Horizon;
             double durationHrs = Location.Duration.TotalHours;
@@ -99,71 +230,42 @@ namespace SGP_Ephemerides.Charts
 
             const double SiderealHoursPerSolarDay = 24.06570982441908;
 
-            DateTime startDay = DateTime.Now.AddDays(-DateTime.Now.Day);
-            DateTime endDay   = startDay.AddYears(1);
-            TimeSpan dayDelta = endDay.Subtract(startDay);
-
-            for (int day = 0; day < dayDelta.TotalDays; day++)
+            foreach (NightCacheEntry entry in mYearCache)
             {
-                locationClone.DateTime = startDay.AddDays(day);
-                NightWindow night = Astrometry.ComputeNight(locationClone);
-
-                if (night.AstronomicalDusk == DateTime.MinValue || night.AstronomicalDawn == DateTime.MinValue)
+                if (entry.IsPolar || entry.YearAlt < horizonDeg)
                 {
-                    DateTime sentinel = startDay.AddDays(day).AddHours(12);
-                    yearSeries.Points.AddXY(sentinel, -90.0);
-                    optimalSeries.Points.AddXY(sentinel, -90.0);
+                    optimalSeries.Points.AddXY(entry.SentinelX, -90.0);
                     continue;
                 }
-
-                locationClone.DateTime = night.AstronomicalDusk;
-                double altDusk = Astrometry.GetAltitudeAzimuth(Target, locationClone).Item1;
-
-                locationClone.DateTime = night.AstronomicalDawn;
-                double altDawn = Astrometry.GetAltitudeAzimuth(Target, locationClone).Item1;
-
-                double lstDusk = Astrometry.LocalSiderealTime(night.AstronomicalDusk.ToUniversalTime(), lonDegEast);
-                double lstDawn = Astrometry.LocalSiderealTime(night.AstronomicalDawn.ToUniversalTime(), lonDegEast);
-                if (lstDawn < lstDusk) lstDawn += 24.0;
-
-                bool transitInNight = false;
-                for (int k = -1; k <= 1; k++)
-                {
-                    double t = raHours + 24.0 * k;
-                    if (t >= lstDusk && t <= lstDawn) { transitInNight = true; break; }
-                }
-
-                double yearAlt = Math.Max(altDusk, altDawn);
-                if (transitInNight && meridianAlt > yearAlt) yearAlt = meridianAlt;
 
                 double optimalAlt = -90.0;
 
                 if (double.IsPositiveInfinity(haHorizon))
                 {
-                    double lengthSolar = (lstDawn - lstDusk) * 24.0 / SiderealHoursPerSolarDay;
+                    double lengthSolar = (entry.LstDawn - entry.LstDusk) * 24.0 / SiderealHoursPerSolarDay;
                     if (lengthSolar >= durationHrs)
                     {
-                        optimalAlt = Math.Max(altDusk, altDawn);
-                        if (transitInNight && meridianAlt > optimalAlt) optimalAlt = meridianAlt;
+                        optimalAlt = Math.Max(entry.AltDusk, entry.AltDawn);
+                        if (entry.TransitInNight && meridianAlt > optimalAlt) optimalAlt = meridianAlt;
                     }
                 }
-                else if (!double.IsNaN(haHorizon))
+                else
                 {
                     for (int k = -1; k <= 1; k++)
                     {
                         double center  = raHours + 24.0 * k;
                         double ahStart = center - haHorizon;
                         double ahEnd   = center + haHorizon;
-                        double s = Math.Max(lstDusk, ahStart);
-                        double e = Math.Min(lstDawn, ahEnd);
+                        double s = Math.Max(entry.LstDusk, ahStart);
+                        double e = Math.Min(entry.LstDawn, ahEnd);
                         if (s >= e) continue;
 
                         double lengthSolar = (e - s) * 24.0 / SiderealHoursPerSolarDay;
                         if (lengthSolar < durationHrs) continue;
 
-                        double altAtStart = (s == lstDusk) ? altDusk : horizonDeg;
-                        double altAtEnd   = (e == lstDawn) ? altDawn : horizonDeg;
-                        bool transitInWindow = (center >= s && center <= e);
+                        double altAtStart = (s == entry.LstDusk) ? entry.AltDusk : horizonDeg;
+                        double altAtEnd   = (e == entry.LstDawn) ? entry.AltDawn : horizonDeg;
+                        bool   transitInWindow = (center >= s && center <= e);
                         double windowMax = transitInWindow
                             ? meridianAlt
                             : Math.Max(altAtStart, altAtEnd);
@@ -171,12 +273,8 @@ namespace SGP_Ephemerides.Charts
                     }
                 }
 
-                yearSeries.Points.AddXY(night.AstronomicalDawn.AddMinutes(-1), yearAlt);
-                optimalSeries.Points.AddXY(night.AstronomicalDawn.AddMinutes(-1), optimalAlt);
+                optimalSeries.Points.AddXY(entry.SentinelX, optimalAlt);
             }
-
-            TargetSeriesList.Add(yearSeries);
-            TargetSeriesList.Add(optimalSeries);
         }
 
         private void BuildMoonSeries()

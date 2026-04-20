@@ -190,6 +190,47 @@ namespace SGP_Ephemerides.Charts
             }
         }
 
+        // Regenerate only the Optimal series in place for every target in the target list.
+        // Day, Moon, and Year do not depend on Horizon or Duration so they stay untouched;
+        // the Optimal recomputation walks the cache populated during the initial build and
+        // avoids any ComputeNight / GetAltitudeAzimuth calls. Series object identity is
+        // preserved (FindOrCreateSeries reuses them), so mChart.Series references stay valid
+        // and the chart picks up the new points automatically.
+        public void RebuildOptimalData()
+        {
+            mAltitudeSeries.Location = Location;
+            foreach (Target.Target target in mTargetList)
+            {
+                mAltitudeSeries.Target = target;
+                mAltitudeSeries.RebuildOptimalSeries();
+            }
+            mChart.Invalidate();
+        }
+
+        // Move the green horizon strip line to the current Location.Horizon on every chart
+        // area. Clears any prior horizon line (identified by its green color) before adding a
+        // fresh one so repeated calls don't accumulate strip lines.
+        public void UpdateHorizonLines()
+        {
+            foreach (ChartArea area in mChartAreaList)
+            {
+                List<StripLine> stale = new List<StripLine>();
+                foreach (StripLine sl in area.AxisY.StripLines)
+                {
+                    if (sl.BackColor == Color.Green) stale.Add(sl);
+                }
+                foreach (StripLine sl in stale) area.AxisY.StripLines.Remove(sl);
+
+                StripLine replacement = new StripLine();
+                replacement.Interval = 0;
+                replacement.IntervalOffset = Location.Horizon - 1;
+                replacement.StripWidth = 2;
+                replacement.BackColor = Color.Green;
+                area.AxisY.StripLines.Add(replacement);
+            }
+            mChart.Invalidate();
+        }
+
         public string ChartTitle
         {
             set
