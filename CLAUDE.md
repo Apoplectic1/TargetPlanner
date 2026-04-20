@@ -24,7 +24,7 @@ Everything runs on the UI thread except target-list parsing and year-series cons
 
 **Data model (plain POCOs):**
 - `Location/Location.cs` — latitude/longitude stored as decimal degrees with synthesized D/M/S accessors via property setter side-effects. Also carries `Horizon` (degrees), `Duration` (minimum time required above horizon for "Optimal" chart), `DateTime`, `TimeZone`.
-- `Target/Target.cs` — `RightAscension` is stored as **decimal degrees, not hours**; the setter derives `RaHours/RaMinutes/RaSeconds` from it. `Declination` setter coerces sign into the `North` bool (absolute value kept in the numeric field).
+- `Target/Target.cs` — `RightAscension` is stored as **decimal hours** (range `[0, 24)`); the setter derives `RaHours/RaMinutes/RaSeconds` from it. `Declination` setter coerces sign into the `North` bool (absolute value kept in the numeric field).
 
 **Astronomy (`Support/Astrometry.cs`):**
 - Static class with **mutable static state** (`AstronomicalDawn`, `AstronomicalDusk`, `SunAltitude`, `LunarAltitude`, `LunarPhase`, etc.). `Astrometry.Location(location)` must be called before any consumer reads those fields. It also rolls dawn/dusk forward or backward by a day depending on whether the supplied `DateTime` is before or after today's dawn, so the pair always brackets the coming night.
@@ -51,7 +51,7 @@ Everything runs on the UI thread except target-list parsing and year-series cons
 
 ## Conventions worth knowing before editing
 
-- **RA is degrees, not hours** throughout the model. The UI converts. A lot of astronomy code assumes hours, so be deliberate.
+- **RA is decimal hours** (`[0, 24)`) in `Target.RightAscension`. The UI presents D/M/S of arc only for Declination; RA D/M/S are derived hour/minute/second fields. `GetAltitudeAzimuth` consumes `RightAscension` directly as hours.
 - Default coordinates (`Penns Park`, 40.28°N 74.99°W) live in `Location`'s constructor — they are intentional defaults, not test data.
 - The hardcoded path `E:\Photography\Astro Photography\Captures\SGP` appears in two places in `MainForm.cs` (`InitializeDynamicControls` seed, `Button_BrowseTargetList_Click` dialog initial directory). Change both or neither.
 - `Forms/MainForm.Designer.cs` is ~1400 lines of generated designer code — edit via the Visual Studio designer, not by hand.

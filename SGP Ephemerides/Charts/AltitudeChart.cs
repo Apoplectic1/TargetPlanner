@@ -284,7 +284,7 @@ namespace SGP_Ephemerides.Charts
                     mChart.ChartAreas[chartAreaName].AxisY.Interval = 10;
                     mChart.ChartAreas[chartAreaName].AxisY.Maximum = 90.0;
                     mChart.ChartAreas[chartAreaName].AxisY.Minimum = 10.0;
-                    mChart.ChartAreas[chartAreaName].AxisY.Title = "Maximum Optimal Hourly Altitude";
+                    mChart.ChartAreas[chartAreaName].AxisY.Title = "Altitude at Minimum Duration";
                     break;
 
                 default:

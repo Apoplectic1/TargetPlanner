@@ -75,12 +75,11 @@ namespace SGP_Ephemerides.Charts
             TargetSeriesList.Add(daySeries);
         }
 
-        // One pass over the next year of nights produces both the "Year" series (max altitude
-        // per night) and the "Optimal" series (altitude at the moment the target first clears
-        // horizon, gated on the target being above horizon continuously for >= Duration).
-        // Emitting both from the same day/minute loop halves the GetAltitudeAzimuth cost and
-        // guarantees both series appear in TargetSeriesList at the same instant -- so the user
-        // no longer has to visit the Year chart before the Optimal chart has populated.
+        // Analytic per-day Year and Optimal values. A stellar target's altitude curve is a pure
+        // sinusoid in hour angle, so on any connected time interval the max altitude is either at
+        // upper transit (HA = 0, altitude = meridianAlt) or at an endpoint -- no minute scan
+        // needed. Per day we do two GetAltitudeAzimuth calls (dusk, dawn) plus arithmetic,
+        // instead of ~600 per day.
         private void BuildYearAndOptimalSeries()
         {
             Location.Location locationClone = Clone(Location);
@@ -88,81 +87,92 @@ namespace SGP_Ephemerides.Charts
             Series yearSeries    = MakeSeries(Target.Name, "Year",    new Color());
             Series optimalSeries = MakeSeries(Target.Name, "Optimal", new Color());
 
+            double latSigned   = Location.North ?  Location.Latitude  : -Location.Latitude;
+            double decSigned   = Target.North   ?  Target.Declination : -Target.Declination;
+            double lonDegEast  = Location.West  ? -Location.Longitude :  Location.Longitude;
+            double raHours     = Target.RightAscension;
+            double horizonDeg  = Location.Horizon;
+            double durationHrs = Location.Duration.TotalHours;
+
+            double meridianAlt = Astrometry.MeridianAltitude(latSigned, decSigned);
+            double haHorizon   = Astrometry.HourAngleAtAltitude(latSigned, decSigned, horizonDeg);
+
+            const double SiderealHoursPerSolarDay = 24.06570982441908;
+
             DateTime startDay = DateTime.Now.AddDays(-DateTime.Now.Day);
             DateTime endDay   = startDay.AddYears(1);
             TimeSpan dayDelta = endDay.Subtract(startDay);
-
-            List<Tuple<DateTime, DateTime, double>> horizonCrossingList = new List<Tuple<DateTime, DateTime, double>>();
 
             for (int day = 0; day < dayDelta.TotalDays; day++)
             {
                 locationClone.DateTime = startDay.AddDays(day);
                 NightWindow night = Astrometry.ComputeNight(locationClone);
 
-                DateTime startMinute = night.AstronomicalDusk;
-                DateTime endMinute   = night.AstronomicalDawn;
-                TimeSpan minuteDelta = endMinute.Subtract(startMinute);
-
-                DateTime point = startMinute;
-                DateTime aboveHorizonStartTime = startMinute;
-                DateTime aboveHorizonStopTime  = startMinute;
-                double   maxAltitude           = -90.0;
-                double   aboveHorizonAltitude  = -90.0;
-                bool     aboveHorizon          = false;
-
-                for (int minute = 0; minute < minuteDelta.TotalMinutes; minute++)
+                if (night.AstronomicalDusk == DateTime.MinValue || night.AstronomicalDawn == DateTime.MinValue)
                 {
-                    point = startMinute.AddMinutes(minute);
-                    locationClone.DateTime = point;
-                    Tuple<double, double> targetPosition = Astrometry.GetAltitudeAzimuth(Target, locationClone);
-                    double alt = targetPosition.Item1;
+                    DateTime sentinel = startDay.AddDays(day).AddHours(12);
+                    yearSeries.Points.AddXY(sentinel, -90.0);
+                    optimalSeries.Points.AddXY(sentinel, -90.0);
+                    continue;
+                }
 
-                    if (alt > maxAltitude) maxAltitude = alt;
+                locationClone.DateTime = night.AstronomicalDusk;
+                double altDusk = Astrometry.GetAltitudeAzimuth(Target, locationClone).Item1;
 
-                    if (alt >= locationClone.Horizon)
+                locationClone.DateTime = night.AstronomicalDawn;
+                double altDawn = Astrometry.GetAltitudeAzimuth(Target, locationClone).Item1;
+
+                double lstDusk = Astrometry.LocalSiderealTime(night.AstronomicalDusk.ToUniversalTime(), lonDegEast);
+                double lstDawn = Astrometry.LocalSiderealTime(night.AstronomicalDawn.ToUniversalTime(), lonDegEast);
+                if (lstDawn < lstDusk) lstDawn += 24.0;
+
+                bool transitInNight = false;
+                for (int k = -1; k <= 1; k++)
+                {
+                    double t = raHours + 24.0 * k;
+                    if (t >= lstDusk && t <= lstDawn) { transitInNight = true; break; }
+                }
+
+                double yearAlt = Math.Max(altDusk, altDawn);
+                if (transitInNight && meridianAlt > yearAlt) yearAlt = meridianAlt;
+
+                double optimalAlt = -90.0;
+
+                if (double.IsPositiveInfinity(haHorizon))
+                {
+                    double lengthSolar = (lstDawn - lstDusk) * 24.0 / SiderealHoursPerSolarDay;
+                    if (lengthSolar >= durationHrs)
                     {
-                        if (!aboveHorizon)                                // entering above-horizon window
-                        {
-                            aboveHorizonAltitude  = alt;
-                            aboveHorizonStartTime = point;
-                            aboveHorizon = true;
-                        }
-                        else if (alt > aboveHorizonAltitude)              // staying above; track peak
-                        {
-                            aboveHorizonAltitude = alt;
-                        }
+                        optimalAlt = Math.Max(altDusk, altDawn);
+                        if (transitInNight && meridianAlt > optimalAlt) optimalAlt = meridianAlt;
                     }
-                    else if (aboveHorizon)                                // dropping below horizon, close the window
+                }
+                else if (!double.IsNaN(haHorizon))
+                {
+                    for (int k = -1; k <= 1; k++)
                     {
-                        aboveHorizonStopTime = point;
-                        aboveHorizon = false;
-                        horizonCrossingList.Add(Tuple.Create(aboveHorizonStartTime, aboveHorizonStopTime, aboveHorizonAltitude));
+                        double center  = raHours + 24.0 * k;
+                        double ahStart = center - haHorizon;
+                        double ahEnd   = center + haHorizon;
+                        double s = Math.Max(lstDusk, ahStart);
+                        double e = Math.Min(lstDawn, ahEnd);
+                        if (s >= e) continue;
+
+                        double lengthSolar = (e - s) * 24.0 / SiderealHoursPerSolarDay;
+                        if (lengthSolar < durationHrs) continue;
+
+                        double altAtStart = (s == lstDusk) ? altDusk : horizonDeg;
+                        double altAtEnd   = (e == lstDawn) ? altDawn : horizonDeg;
+                        bool transitInWindow = (center >= s && center <= e);
+                        double windowMax = transitInWindow
+                            ? meridianAlt
+                            : Math.Max(altAtStart, altAtEnd);
+                        if (windowMax > optimalAlt) optimalAlt = windowMax;
                     }
                 }
 
-                if (aboveHorizon)                                  // still above horizon at astronomical dawn
-                {
-                    aboveHorizonStopTime = point;
-                    horizonCrossingList.Add(Tuple.Create(aboveHorizonStartTime, aboveHorizonStopTime, aboveHorizonAltitude));
-                }
-
-                double optimalAltitude        = locationClone.Horizon;
-                double maxAboveHorizonMinutes = 0;
-                foreach (var crossing in horizonCrossingList)
-                {
-                    TimeSpan crossingDelta = crossing.Item2.Subtract(crossing.Item1);
-                    if (crossingDelta >= locationClone.Duration)   // above horizon long enough to be usable?
-                    {
-                        if (crossing.Item3 > optimalAltitude)             optimalAltitude        = crossing.Item3;
-                        if (crossingDelta.TotalMinutes > maxAboveHorizonMinutes) maxAboveHorizonMinutes = crossingDelta.TotalMinutes;
-                    }
-                }
-                horizonCrossingList.Clear();
-
-                if (maxAboveHorizonMinutes <= 0) optimalAltitude = -90;
-
-                yearSeries.Points.AddXY(endMinute.AddMinutes(-1), maxAltitude);
-                optimalSeries.Points.AddXY(endMinute.AddMinutes(-1), optimalAltitude);
+                yearSeries.Points.AddXY(night.AstronomicalDawn.AddMinutes(-1), yearAlt);
+                optimalSeries.Points.AddXY(night.AstronomicalDawn.AddMinutes(-1), optimalAlt);
             }
 
             TargetSeriesList.Add(yearSeries);

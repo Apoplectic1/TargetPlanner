@@ -175,5 +175,40 @@ namespace SGP_Ephemerides.Support
 
             return Tuple.Create(altitude * 180.0 / Math.PI, azimuth);
         }
+
+        // Local Sidereal Time in hours [0, 24) at the given UTC instant and east-positive longitude.
+        // Wraps Greenwich(JD) with the longitude offset used on line 158 above.
+        public static double LocalSiderealTime(DateTime utc, double lonDegEast)
+        {
+            double julianDay = utc.ToOADate() + 2415018.5;
+            double lst = Greenwich(julianDay) + lonDegEast / 15.0;
+            lst = lst - 24.0 * Math.Floor(lst / 24.0);
+            return lst;
+        }
+
+        // Upper-transit altitude in degrees for a stellar target at declination decDeg as seen
+        // from latitude latDeg. Both inputs are signed (caller resolves North flags).
+        public static double MeridianAltitude(double latDeg, double decDeg)
+        {
+            double phi = latDeg * Math.PI / 180.0;
+            double delta = decDeg * Math.PI / 180.0;
+            double sinAlt = Math.Sin(phi) * Math.Sin(delta) + Math.Cos(phi) * Math.Cos(delta);
+            return Math.Asin(sinAlt) * 180.0 / Math.PI;
+        }
+
+        // Hour angle magnitude (hours, in (0, 12)) at which a stellar target at declination decDeg
+        // seen from latitude latDeg reaches altitude altDeg. Signed lat/dec.
+        //   NaN              -> target's max altitude is below altDeg (never reaches it)
+        //   PositiveInfinity -> target's min altitude is above altDeg (always above it)
+        public static double HourAngleAtAltitude(double latDeg, double decDeg, double altDeg)
+        {
+            double phi = latDeg * Math.PI / 180.0;
+            double delta = decDeg * Math.PI / 180.0;
+            double h = altDeg * Math.PI / 180.0;
+            double rhs = (Math.Sin(h) - Math.Sin(phi) * Math.Sin(delta)) / (Math.Cos(phi) * Math.Cos(delta));
+            if (rhs >  1.0) return double.NaN;
+            if (rhs < -1.0) return double.PositiveInfinity;
+            return Math.Acos(rhs) * 12.0 / Math.PI;
+        }
     }
 }
