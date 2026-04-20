@@ -1,4 +1,4 @@
-﻿namespace SGP_Ephemerides
+﻿namespace TargetPlanner
 {
     partial class MainForm
     {
@@ -1293,7 +1293,7 @@
             this.MainMenuStrip = this.MenuStrip_MainForm;
             this.MaximizeBox = false;
             this.Name = "MainForm";
-            this.Text = "SGP Ephemerides";
+            this.Text = "TargetPlanner";
             this.Load += new System.EventHandler(this.MainForm_Load);
             this.GroupBox_LocalConditions.ResumeLayout(false);
             this.GroupBox_SunMoon.ResumeLayout(false);

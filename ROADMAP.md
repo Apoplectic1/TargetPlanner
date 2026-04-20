@@ -1,4 +1,4 @@
-# SGP Ephemerides — Roadmap
+# TargetPlanner — Roadmap
 
 Captured 2026-04-19 for follow-up later.
 
@@ -31,7 +31,7 @@ Notable follow-through from the extraction:
 
 - `Target.mAltitudeSeries` field removed from the POCO (WinForms chart state can't live in netstandard2.0). Per-target AltitudeSeries ownership now lives in `Dictionary<Target, AltitudeSeries>` on `AltitudeChart`, preserving the recent multi-target correctness fix.
 - `Support/Astrometry.cs` slimmed to a UI state facade — math methods moved to Core; the static dawn/dusk/moon-phase properties and the `Location(...)` populator stay because MainForm binds to them.
-- Parser's namespace renamed `SGP_Ephemerides.Target` → `SGP_Ephemerides.Sgf` to unblock `using Target = Astronomy.Core.Targets.Target;` aliases in files that would otherwise hit enclosing-namespace lookup.
+- Parser's namespace was renamed `TargetPlanner.Target` → `TargetPlanner.Sgf` to unblock `using Target = Astronomy.Core.Targets.Target;` aliases in files that would otherwise hit enclosing-namespace lookup. (Parser.cs itself was subsequently retired entirely in commit `ccab2c0` when the NINA target loader replaced it.)
 - Chart code still contains its own inline versions of some Core primitives (`BuildOptimalSeries`' transit-centered / wall-pushed placement is duplicated with `Session.BestSession.For`). Deferred: refactor the chart to consume Core's versions directly (separate plan).
 
 ### Step 3 — Functional cleanup in place (no framework change)
@@ -42,7 +42,6 @@ Remaining items (the multi-target race was fixed as a prerequisite to Step 2; se
 - Centralise the dusk/dawn hour-rounding block that's copy-pasted between `BuildDaySeries` and `BuildMoonSeries`.
 - Retire or consolidate `BuildOptimalSeries`' inline transit-centered / wall-pushed math — now duplicated with `Astronomy.Core.Session.BestSession.For`. Either migrate the chart to call Core's version, or explicitly annotate the duplication as intentional (there's an argument for keeping the chart's version narrowly tuned to the `NightCacheEntry` shape).
 - Any correctness fixes that fall out of Step 1.
-- Optional: delete `Target/Parser.cs` — SGP `.sgf` support is obsolete for the user's current workflow. The namespace rename to `SGP_Ephemerides.Sgf` makes this easier to carve out cleanly.
 - `Location` and `Target` are public settable properties on `AltitudeSeries`; the shared-mutable-state smell hasn't fully gone away. Consider constructor injection or per-build parameters.
 - `Astrometry` UI state facade could stand to be renamed (`AstrometryUi` or similar) to reduce confusion now that the "math" half of Astrometry has moved to Core.
 
@@ -105,5 +104,5 @@ Known open (heading into Step 3):
 - Dusk/dawn hour-rounding duplication between `BuildDaySeries` and `BuildMoonSeries`.
 - Chart code duplicates Core's `Session.BestSession.For` math inline in `BuildOptimalSeries` — migrate or annotate.
 - `Location` / `Target` still settable properties on `AltitudeSeries` (shared-mutable-state smell).
-- `Target/Parser.cs` (SGP `.sgf`) is obsolete for the current workflow; ripe for deletion.
 - `Support/Astrometry.cs` still named `Astrometry` despite being UI-state-only after Step 2; consider renaming to `AstrometryUi`.
+- WinForms control `CheckedListBox_SelectedSgpTargets` retains the "Sgp" prefix despite the NINA target loader swap (`ccab2c0`); cosmetic rename due.

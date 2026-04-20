@@ -11,7 +11,7 @@ using System.Windows.Forms.DataVisualization.Charting;
 using Location = Astronomy.Core.Locations.Location;
 using Target   = Astronomy.Core.Targets.Target;
 
-namespace SGP_Ephemerides.Charts
+namespace TargetPlanner.Charts
 {
     public class AltitudeSeries
     {

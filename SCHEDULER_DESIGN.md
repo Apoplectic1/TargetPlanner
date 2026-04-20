@@ -8,7 +8,7 @@
 
 Two things drive this plan:
 
-1. **The roadmap calls for a shared astrometry library.** Ephemerides and XisfManager both currently duplicate or hand-roll astronomical math. Extracting a clean library lets both consume the same primitives, and opens the door to using them in other contexts (scripting, NINA plugins, future tools).
+1. **The roadmap calls for a shared astrometry library.** TargetPlanner and XisfManager both currently duplicate or hand-roll astronomical math. Extracting a clean library lets both consume the same primitives, and opens the door to using them in other contexts (scripting, NINA plugins, future tools).
 
 2. **Planned NINA Target Scheduler plugin.** An alternative to Tommy Oldham's Target Scheduler for NINA, aimed at a family of scheduling priorities:
    - **Meridian-chase**: optimize a series of targets crossing the meridian in succession.
@@ -37,7 +37,7 @@ Three reference tree are available locally on this machine. They are not modifie
   - Four projects: `NINA.Plugin.TargetScheduler` (~10 k LOC main plugin), `.Shared` (logging + constants), `.SyncService` (gRPC multi-instance sync), `.Test` (NUnit + Moq + FluentAssertions).
   - Has its own `CLAUDE.md` — prior Claude-assisted work captured conventions there; read before editing anything in that tree.
 
-- **This repo**: `E:\Projects\VisualStudio\Astronomy\SGP Ephemerides`
+- **This repo**: `E:\Projects\VisualStudio\Astronomy\TargetPlanner`
   - Current home of the analytic Year/Optimal/OptimalFloor chart machinery — effectively a prototype of the session-analysis primitives we're going to formalize.
 
 ---
@@ -127,7 +127,7 @@ Reconnaissance pass, structured by concern:
 
 - `AstroUtil.GetLocalSiderealTime(date, longitude) → hours` — LST.
 - `AstroUtil.GetHourAngle(siderealTime, ra) → Angle`.
-- `AstroUtil.GetAltitude(hourAngle, latitude, declination) → Angle` — exactly equivalent to the `AltAtHa` helper we just added to the Ephemerides codebase. We'll discard our local version once the plugin consumes NINA.Astrometry.
+- `AstroUtil.GetAltitude(hourAngle, latitude, declination) → Angle` — exactly equivalent to the `AltAtHa` helper we just added to the TargetPlanner codebase. We'll discard our local version once the plugin consumes NINA.Astrometry.
 
 ### Rise/set/transit framework
 
@@ -420,7 +420,7 @@ Because NINA.Astrometry already supplies coordinate primitives, ObserverInfo, al
 1. **Core analytics layer.** Knows nothing about NINA. Takes primitive inputs (lat, lon, dec, RA, times, horizon function). Computes transit times, visibility windows, integrated quality, best-session-placement. Pure C# with no external dependencies. Unit-testable with no NINA references.
 2. **NINA adapter.** Thin layer that accepts NINA types (`Coordinates`, `ObserverInfo`, `NighttimeData`, `CustomHorizon`) and calls into the core analytics layer, returning NINA types (or types defined by the plugin).
 
-This lets the core analytics layer be consumed by the Ephemerides tool (currently not on NINA) without dragging NINA.Astrometry in, while letting the plugin benefit from NINA's coordinate transforms and ObserverInfo without duplicating.
+This lets the core analytics layer be consumed by the TargetPlanner tool (currently not on NINA) without dragging NINA.Astrometry in, while letting the plugin benefit from NINA's coordinate transforms and ObserverInfo without duplicating.
 
 The trade-off: some duplication at the boundary between the two layers. Accept it — clarity beats DRY at architectural scale.
 
@@ -510,7 +510,7 @@ Dividing by "consume from NINA.Astrometry" vs. "add in the new library." Everyth
 
 ### Thread safety and time representation
 
-- **New library should be pure / instance-based / no static state.** Current `Astrometry.Location(...)` in the Ephemerides codebase mutates static fields for UI consumption; don't carry that forward. Mark it deprecated in Ephemerides.
+- **New library should be pure / instance-based / no static state.** Current `Astrometry.Location(...)` in the TargetPlanner codebase mutates static fields for UI consumption; don't carry that forward. Mark it deprecated in TargetPlanner.
 - **Inherit NINA's `DateTime` UTC convention** since NINA.Astrometry uses it. Enforce UTC at library boundaries via method contracts; internal calculations use Julian Date.
 - **Be aware of the NOVAS lock.** If the scheduler ever wants to parallelize per-target quality sampling across cores, route through SOFA where possible, or accept the serialization cost.
 
@@ -650,7 +650,7 @@ Imaging equipment performs setup at session start: autofocus, meridian flip chec
 
 ### Integrated quality vs. instantaneous quality
 
-The integrated-quality framing penalizes off-transit placement continuously. The `OptimalFloor` chart in Ephemerides uses a hard-cutoff floor altitude — a cruder summary. UI and scheduler must agree on what "better" means; showing both a Floor chart and a scheduled plan that disagrees confuses users.
+The integrated-quality framing penalizes off-transit placement continuously. The `OptimalFloor` chart in TargetPlanner uses a hard-cutoff floor altitude — a cruder summary. UI and scheduler must agree on what "better" means; showing both a Floor chart and a scheduled plan that disagrees confuses users.
 
 Spot-check the planner on known-good scenarios early: "should this pick transit-centered M31 over an off-transit NGC 7000?" If your intuition disagrees with the solver's plan, the quality function probably needs a nonlinear bump (`sin²(alt)` penalizes low altitudes more aggressively).
 
@@ -705,7 +705,7 @@ Core analytics layer should be pure functions — no shared mutable state, no ca
 - **LCO MILP scheduler** (papers only; internal code). MILP formulation well-documented in the literature. Useful if you ever go down the formal-optimization path.
 - **NINA.Astrometry source** at `E:\Projects\VisualStudio\Astronomy\NINA\NINA.Astrometry`. Primary reference for coordinate / time / rise-set / moon / sun primitives. Treat as the canonical implementation of these concepts.
 - **NOVAS31** (NIST C library) and **SOFA** (IAU C library) reference docs. The native DLLs bundled with NINA; their public APIs are what the managed wrappers expose.
-- **CoordinateSharp** (currently in the Ephemerides repo's `packages.config`). Redundant once we adopt NINA.Astrometry; can be dropped from the plugin but retained in Ephemerides until that tool is migrated.
+- **CoordinateSharp** (currently in the TargetPlanner repo's `packages.config`). Redundant once we adopt NINA.Astrometry; can be dropped from the plugin but retained in TargetPlanner until that tool is migrated.
 
 ### Caveats on the landscape description
 
@@ -724,7 +724,7 @@ In rough priority order:
 
 2. **Prototype `BestSessionFor` standalone.** Pull the transit-centered-vs-wall-pushed logic from the current `BuildOptimalSeries` into a standalone function that returns `(start, end, quality)`. Wire it against the existing `NightCacheEntry` and validate against the charts.
 
-3. **Design the `IHorizonProfile` interface.** Build `ScalarHorizon`, `PolylineHorizon` (wrapping NINA's `CustomHorizon`), `ObstructionTableHorizon` implementations. Convert all horizon-related primitives to take `IHorizonProfile`. Verify the existing Ephemerides chart still works with a `ScalarHorizon` wrapper.
+3. **Design the `IHorizonProfile` interface.** Build `ScalarHorizon`, `PolylineHorizon` (wrapping NINA's `CustomHorizon`), `ObstructionTableHorizon` implementations. Convert all horizon-related primitives to take `IHorizonProfile`. Verify the existing TargetPlanner chart still works with a `ScalarHorizon` wrapper.
 
 4. **Write a greedy interval scheduler prototype.** Standalone C# library, no UI. Consumes mocked `QualitySamples`. Produces a `Plan` output. Test it on three scenarios (meridian chase, narrow windows, keep busy) with hand-constructed target inputs.
 
@@ -744,7 +744,7 @@ In rough priority order:
 
 12. **UI polish.** Plan-preview timeline (TS's `PlanPreviewerViewVM` as visual reference), target database management, policy configuration, runtime monitoring.
 
-Each step is independently valuable. Even if only steps 1–3 land, the existing Ephemerides tool gets meaningfully cleaner. The plugin is a later deliverable that compounds on top.
+Each step is independently valuable. Even if only steps 1–3 land, the existing TargetPlanner tool gets meaningfully cleaner. The plugin is a later deliverable that compounds on top.
 
 ---
 

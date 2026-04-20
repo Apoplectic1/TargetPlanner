@@ -6,7 +6,7 @@ using System.Linq;
 
 using Target = Astronomy.Core.Targets.Target;
 
-namespace SGP_Ephemerides.Nina
+namespace TargetPlanner.Nina
 {
     // Loads Astronomy.Core Target objects from NINA sequence files (.json). A NINA target file
     // serializes a DeepSkyObjectContainer whose Target.InputCoordinates carries sexagesimal

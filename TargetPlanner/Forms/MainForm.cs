@@ -2,14 +2,14 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
-using SGP_Ephemerides.Support;
+using TargetPlanner.Support;
 using System.Threading.Tasks;
 using LocalLib;
 
 using Location = Astronomy.Core.Locations.Location;
 using Target   = Astronomy.Core.Targets.Target;
 
-namespace SGP_Ephemerides
+namespace TargetPlanner
 {
     public partial class MainForm : Form
     {
@@ -735,7 +735,7 @@ namespace SGP_Ephemerides
                     List<Target> loaded = null;
                     await Task.Run(() =>
                     {
-                        loaded = SGP_Ephemerides.Nina.TargetLoader.Load(folder, progress);
+                        loaded = TargetPlanner.Nina.TargetLoader.Load(folder, progress);
                     });
 
                     if (loaded != null) mTargetList.AddRange(loaded);

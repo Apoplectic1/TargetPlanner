@@ -3,7 +3,7 @@ using System;
 
 using Location = Astronomy.Core.Locations.Location;
 
-namespace SGP_Ephemerides.Support
+namespace TargetPlanner.Support
 {
     // UI state facade: refreshes the static dawn/dusk/moon-phase/etc. properties that the
     // MainForm binds to, from the current Location. The math functions that used to live on

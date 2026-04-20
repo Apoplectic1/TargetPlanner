@@ -6,8 +6,8 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{4D5AA914-559E-43EF-943A-441804DBC6A3}</ProjectGuid>
     <OutputType>WinExe</OutputType>
-    <RootNamespace>SGP_Ephemerides</RootNamespace>
-    <AssemblyName>SGP Ephemerides</AssemblyName>
+    <RootNamespace>TargetPlanner</RootNamespace>
+    <AssemblyName>TargetPlanner</AssemblyName>
     <TargetFrameworkVersion>v4.8.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
@@ -34,7 +34,7 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup>
-    <StartupObject>SGP_Ephemerides.Program</StartupObject>
+    <StartupObject>TargetPlanner.Program</StartupObject>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
     <DebugSymbols>true</DebugSymbols>

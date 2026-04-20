@@ -6,7 +6,7 @@ using System.Windows.Forms.DataVisualization.Charting;
 
 using Target = Astronomy.Core.Targets.Target;
 
-namespace SGP_Ephemerides.Charts
+namespace TargetPlanner.Charts
 {
     public partial class AltitudeChartForm : Form
     {

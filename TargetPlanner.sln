@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.29905.134
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SGP Ephemerides", "SGP Ephemerides\SGP Ephemerides.csproj", "{4D5AA914-559E-43EF-943A-441804DBC6A3}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TargetPlanner", "TargetPlanner\TargetPlanner.csproj", "{4D5AA914-559E-43EF-943A-441804DBC6A3}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Astronomy.Core", "Astronomy.Core\Astronomy.Core.csproj", "{B7F2A9D4-3C18-4E5F-9A2B-6D8F1C3E7A52}"
 EndProject

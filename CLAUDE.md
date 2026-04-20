@@ -8,26 +8,26 @@ Windows Forms desktop tool for astrophotography planning. Given a target (RA/Dec
 
 ## Build / run
 
-- Solution `SGP Ephemerides.sln` contains **two projects**:
-  - `SGP Ephemerides/SGP Ephemerides.csproj` — WinExe, `TargetFrameworkVersion = v4.8.1`, legacy-style (packages.config), entry point `SGP_Ephemerides.Program.Main`. Configurations: `Debug|AnyCPU`, `Release|AnyCPU`, `Debug|x64`, `Release|x64`.
+- Solution `TargetPlanner.sln` contains **two projects**:
+  - `TargetPlanner/TargetPlanner.csproj` — WinExe, `TargetFrameworkVersion = v4.8.1`, legacy-style (packages.config), entry point `TargetPlanner.Program.Main`. Configurations: `Debug|AnyCPU`, `Release|AnyCPU`, `Debug|x64`, `Release|x64`.
   - `Astronomy.Core/Astronomy.Core.csproj` — SDK-style class library, `TargetFramework = netstandard2.0`, PackageReference. Produces `Astronomy.Core.dll` which the WinExe project references via `ProjectReference`.
-- F5 in Visual Studio to run; otherwise `msbuild "SGP Ephemerides.sln" -restore /p:Configuration=Debug`. The `-restore` flag is required because the Core project's NuGet dependency (CoordinateSharp) is declared as a PackageReference — a plain `nuget restore` only covers the WinExe project's packages.config. `dotnet restore` / `dotnet build` still won't work because the WinExe side is legacy-style.
+- F5 in Visual Studio to run; otherwise `msbuild "TargetPlanner.sln" -restore /p:Configuration=Debug`. The `-restore` flag is required because the Core project's NuGet dependency (CoordinateSharp) is declared as a PackageReference — a plain `nuget restore` only covers the WinExe project's packages.config. `dotnet restore` / `dotnet build` still won't work because the WinExe side is legacy-style.
 - No test project exists — there is no unit test framework wired up. Do not invent build/test commands.
 
 ## External dependencies that are easy to miss
 
-- **LocalLib** is a private sibling assembly, not a NuGet package. The WinExe csproj hint path is `..\..\..\General\LocalLib\LocalLib\bin\Release\LocalLib.dll` (i.e. `E:\Projects\VisualStudio\General\LocalLib\...`). It supplies `OpenFolderDialog` used by `MainForm.Button_BrowseTargetList_Click`. If the reference is missing, the build fails; don't try to "fix" it by deleting the reference. Referenced only by Ephemerides, not by Core.
+- **LocalLib** is a private sibling assembly, not a NuGet package. The WinExe csproj hint path is `..\..\..\General\LocalLib\LocalLib\bin\Release\LocalLib.dll` (i.e. `E:\Projects\VisualStudio\General\LocalLib\...`). It supplies `OpenFolderDialog` used by `MainForm.Button_BrowseTargetList_Click`. If the reference is missing, the build fails; don't try to "fix" it by deleting the reference. Referenced only by TargetPlanner, not by Core.
 - **NuGet packages**:
   - WinExe project (`packages.config`): `CoordinateSharp 3.4.1.1`, `Newtonsoft.Json 13.0.4`. Newtonsoft is used only by `AltitudeSeries.Clone<T>`; CoordinateSharp is pulled in transitively via the Core project reference but the `packages.config` entry remains for the WinExe's own consumption paths (MoonAltitude in `BuildMoonSeries`).
   - Core project (PackageReference): `CoordinateSharp 3.4.1.1`. Single dependency. Core is deliberately not coupled to Newtonsoft, WinForms, or System.Drawing.
 
 ## Architecture
 
-The codebase is split at the assembly boundary: **`Astronomy.Core`** is pure, UI-free astronomical math plus POCOs; **`SGP Ephemerides`** is the WinForms chart/host/UI on top. Everything runs on the UI thread except target-list parsing and year-series construction, which are offloaded with `Task.Run`.
+The codebase is split at the assembly boundary: **`Astronomy.Core`** is pure, UI-free astronomical math plus POCOs; **`TargetPlanner`** is the WinForms chart/host/UI on top. Everything runs on the UI thread except target-list parsing and year-series construction, which are offloaded with `Task.Run`.
 
 ### `Astronomy.Core` — pure math, no UI
 
-Shared library targeting `netstandard2.0`. Consumed today by Ephemerides; designed to be consumed by XisfManager and a future NINA plugin without re-porting. See `SCHEDULER_DESIGN.md` for the full design rationale. Surface by subfolder:
+Shared library targeting `netstandard2.0`. Consumed today by TargetPlanner; designed to be consumed by XisfManager and a future NINA plugin without re-porting. See `SCHEDULER_DESIGN.md` for the full design rationale. Surface by subfolder:
 
 - **`Targets/Target.cs`** — POCO. `RightAscension` is **decimal hours** `[0, 24)`; the setter derives `RaHours/RaMinutes/RaSeconds` from it. `Declination` setter coerces sign into the `North` bool (absolute value kept in the numeric field). Does **not** carry any chart / WinForms state.
 - **`Locations/Location.cs`** — POCO. Latitude/longitude stored as decimal degrees with synthesized D/M/S accessors via property setter side-effects. Also carries `Horizon` (degrees), `Duration` (minimum time required above horizon for "Optimal" chart), `DateTime`, `TimeZone`.
@@ -37,7 +37,7 @@ Shared library targeting `netstandard2.0`. Consumed today by Ephemerides; design
 - **`TargetGeometry.cs`** — `MeridianAltitude`, `LowerCulminationAltitude`, `HourAngleAtAltitude` (returns `NaN` for never-reaches, `+Infinity` for always-above), `AltitudeAtHourAngle`, `AzimuthAtHourAngle`. All take signed-degrees lat/dec.
 - **`Night/NightCalculator.cs`, `Night/TwilightCalculator.cs`** — `ComputeNight(location)` (−18° astronomical default) and `TwilightCalculator.ComputeNight(location, sunAltBelowDeg)` for the three standard thresholds (−18 / −12 / −6). Both pull dawn/dusk from CoordinateSharp's `AdditionalSolarTimes`.
 - **`Horizons/IHorizonProfile.cs`** + `ScalarHorizonProfile`, `PolylineHorizonProfile`, `ObstructionTableHorizonProfile` — abstraction over a horizon altitude function `AltitudeAt(azimuth)`. Scalar wraps the legacy single-double case.
-- **`Session/`** primitives (built for the planned interval scheduler; not yet consumed by the Ephemerides chart):
+- **`Session/`** primitives (built for the planned interval scheduler; not yet consumed by the TargetPlanner chart):
   - `TransitTime.UtcAtOrAfter` — analytic LST=RA inverse.
   - `IntegratedQuality.OverSession` (Simpson, 20 points) + `IntegratedQuality.SinAltitudeOverSession` (closed form).
   - `VisibilityWindows.For` — above-horizon ∩ night.
@@ -46,11 +46,11 @@ Shared library targeting `netstandard2.0`. Consumed today by Ephemerides; design
   - `RiseSet.NextAtOrAfter` — scalar analytic and `IHorizonProfile`-aware (scalar seed + bisection refine).
 - **`Moon/MoonSeparation.cs`** — `DegreesAt` (topocentric target-moon angle) and `IntervalsAboveDeg` (night intervals above a threshold).
 
-### `SGP Ephemerides` — WinForms host
+### `TargetPlanner` — WinForms host
 
 **UI state facade (`Support/Astrometry.cs`).** Thin static class with **mutable static state** (`AstronomicalDawn`, `AstronomicalDusk`, `SunAltitude`, `LunarAltitude`, `LunarPhase`, etc.) populated by `Astrometry.Location(mLocation)`. MainForm binds its dawn/dusk/moon-phase labels to these. The math that used to live here moved to Core; `Astrometry.Location(...)` remains to populate the static cache and to roll dawn/dusk forward or backward by a day so the pair always brackets the coming night.
 
-**Target ingestion (`Target/Parser.cs`, namespace `SGP_Ephemerides.Sgf`).** `BuildObjectList(folder, IProgress)` recursively globs `*.sgf` (SGP sequence files — JSON), reads `arEventGroups[0].sName` as the target name and `arEventGroups[0].siReference.nRightAscension` / `nDeclination` as coordinates. It silently skips files whose name contains `flat` or `calibrat` (case-insensitive). Corrupt / unparseable files are skipped silently via try/catch. Called from `MainForm.GetSGPTargets` inside `Task.Run` with progress reported to `ProgressBar_ProcessObject`. **Namespace note**: Parser lives in `SGP_Ephemerides.Sgf`, not `SGP_Ephemerides.Target`, so it doesn't shadow the `Astronomy.Core.Targets.Target` type alias in files that import Core.
+**Target ingestion (`Nina/TargetLoader.cs`, namespace `TargetPlanner.Nina`).** `TargetLoader.Load(rootFolder, IProgress)` enumerates every `.json` in the root plus every subfolder except `Calibration` and `Mosaics`, parses each as a NINA `DeepSkyObjectContainer`, and converts its sexagesimal `InputCoordinates` (RAHours/RAMinutes/RASeconds, DecDegrees/DecMinutes/DecSeconds, `NegativeDec`) into `Astronomy.Core.Targets.Target` POCOs. Malformed files are skipped silently. Called from `MainForm.GetNinaTargets` inside `Task.Run` with progress reported to `ProgressBar_ProcessObject`. The root is a single constant `MainForm.NinaTargetsRootPath`, used for both the startup seed and the Browse-Target-List dialog's `InitialDirectory`.
 
 **Charting (`Charts/`):**
 - `AltitudeChart` wraps a single `System.Windows.Forms.DataVisualization.Charting.Chart` control and maintains a list of named `ChartArea`s — `"Day"`, `"Year"`, `"Optimal"`. Only one chart area is visible at a time; `ShowChartAreaSeries(name)` swaps it in, re-applies axis formatting via `SetChartAreaAxis`, and enables matching series.
@@ -65,7 +65,7 @@ Shared library targeting `netstandard2.0`. Consumed today by Ephemerides; design
 - `Forms/AltitudeChartForm` is a separate popup form used only by `Button_GraphTargetList_Click`, showing the entire ingested target list at once. It is distinct from the embedded `AltitudeChart` inside `MainForm`.
 
 **UI flow (`Forms/MainForm.cs`):**
-- `InitializeDynamicControls` constructs the embedded chart, registers the three chart areas, seeds the target list from the default SGP folder, and sets the combo box to `M31`.
+- `InitializeDynamicControls` constructs the embedded chart, registers the three chart areas, seeds the target list from `NinaTargetsRootPath`, and sets the combo box to `M31`.
 - Coordinate inputs are triple-bound (D/M/S `NumericUpDown`, decimal `TextBox`, N/S/E/W checkbox). Every handler unsubscribes the sibling handlers before writing values back to avoid feedback loops — preserve that pattern when adding inputs.
 - `mTimer` (5 s) refreshes "now" only while `CheckBox_HoldTime` is unchecked; `RadioButton_Now` vs `RadioButton_SetDateTime` governs whether date/time pickers drive the model.
 - `Button_GraphEphemeride_Click` **tears down and rebuilds** `mAltitudeChart` every click rather than mutating the existing one. Don't try to "optimize" this into an in-place update without understanding the chart-area/series lifecycle.
@@ -74,9 +74,9 @@ Shared library targeting `netstandard2.0`. Consumed today by Ephemerides; design
 ## Conventions worth knowing before editing
 
 - **RA is decimal hours** (`[0, 24)`) in `Target.RightAscension`. The UI presents D/M/S of arc only for Declination; RA D/M/S are derived hour/minute/second fields. Core's `AltAz` and `TargetGeometry` consume `RightAscension` directly as hours.
-- **Signed hemispheres** are an Ephemerides / Core convention: `Latitude`, `Longitude`, `Declination` are stored as positive magnitudes with a paired `North` / `West` flag. Core helpers that take "signed degrees" (e.g. `TargetGeometry.MeridianAltitude`) expect the caller to resolve the flag — see `AltAz.At` for the canonical resolution idiom.
-- **Type-alias usings for Core types.** Files in `SGP_Ephemerides.*` namespaces that reference `Astronomy.Core.Targets.Target` use a `using Target = Astronomy.Core.Targets.Target;` alias at the top. This is not cosmetic — C# enclosing-namespace lookup would otherwise hit the `SGP_Ephemerides.Target` namespace (if it existed) before the using directive. Parser.cs was moved to namespace `SGP_Ephemerides.Sgf` specifically to avoid this collision.
+- **Signed hemispheres** are an TargetPlanner / Core convention: `Latitude`, `Longitude`, `Declination` are stored as positive magnitudes with a paired `North` / `West` flag. Core helpers that take "signed degrees" (e.g. `TargetGeometry.MeridianAltitude`) expect the caller to resolve the flag — see `AltAz.At` for the canonical resolution idiom.
+- **Type-alias usings for Core types.** Files in `TargetPlanner.*` namespaces that reference `Astronomy.Core.Targets.Target` use a `using Target = Astronomy.Core.Targets.Target;` alias at the top. This is defensive: if a sibling `TargetPlanner.Target` namespace ever reappears, C# enclosing-namespace lookup would shadow the type otherwise. No such namespace exists today.
 - Default coordinates (`Penns Park`, 40.28°N 74.99°W) live in `Location`'s constructor — they are intentional defaults, not test data.
-- The hardcoded path `E:\Photography\Astro Photography\Captures\SGP` appears in two places in `MainForm.cs` (`InitializeDynamicControls` seed, `Button_BrowseTargetList_Click` dialog initial directory). Change both or neither.
+- The hardcoded NINA targets root (`E:\Photography\Astro Photography\Captures\Nina\Targets`) lives in a single `MainForm.NinaTargetsRootPath` constant used by both the startup seed and the Browse-Target-List dialog's `InitialDirectory`. Change in one place.
 - `Forms/MainForm.Designer.cs` is ~1400 lines of generated designer code — edit via the Visual Studio designer, not by hand.
-- **Core has no static mutable state.** `Support/Astrometry.cs` (UI state facade) is the one place where static mutable properties live — that pattern is deliberately Ephemerides-only and must not propagate into Core.
+- **Core has no static mutable state.** `Support/Astrometry.cs` (UI state facade) is the one place where static mutable properties live — that pattern is deliberately TargetPlanner-only and must not propagate into Core.

@@ -1,4 +1,4 @@
-﻿namespace SGP_Ephemerides.Support
+﻿namespace TargetPlanner.Support
 {
     public class UIState
     {
