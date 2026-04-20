@@ -13,17 +13,10 @@ namespace SGP_Ephemerides.Charts
         public Location.Location Location { get; set; }
         public Target.Target Target { get; set; }
         public List<Series> TargetSeriesList { get; private set; }
-        private Series mTargetSeries;
 
         public AltitudeSeries()
         {
             TargetSeriesList = new List<Series>();
-        }
-
-        public void jLocation(in Location.Location location) 
-        { 
-         
-            
         }
 
         public void ClearTargetList()
@@ -31,16 +24,14 @@ namespace SGP_Ephemerides.Charts
             TargetSeriesList.Clear();
         }
 
-        private void NewSeries(string name, string seriesType, Color color)
+        private static Series MakeSeries(string name, string seriesType, Color color) => new Series
         {
-            mTargetSeries = new Series
-            {
-                Name = name + "-" + seriesType,
-                Color = color,
-                IsXValueIndexed = true,
-                XValueType = ChartValueType.DateTime
-            };
-        }
+            Name = name + "-" + seriesType,
+            Color = color,
+            IsXValueIndexed = true,
+            XValueType = ChartValueType.DateTime,
+            ChartType = SeriesChartType.Line,
+        };
 
         public async void BuildSeriesList()
         {
@@ -58,13 +49,10 @@ namespace SGP_Ephemerides.Charts
             double duskOffset;
             double dawnOffset;
 
-            Location.Location locationClone = new Location.Location();
-            locationClone = Clone(Location);
-
+            Location.Location locationClone = Clone(Location);
             Support.Astrometry.Location(locationClone);
 
-            point = new DateTime();
-            NewSeries(Target.Name, "Day", new Color());
+            Series daySeries = MakeSeries(Target.Name, "Day", new Color());
 
             duskOffset = (Astrometry.AstronomicalDusk.Minute > 30.0) ? 0.0 : -1.0;
             DateTime start = Astrometry.AstronomicalDusk.AddHours(duskOffset).Date.AddHours(Astrometry.AstronomicalDusk.AddHours(duskOffset).Hour);
@@ -80,12 +68,11 @@ namespace SGP_Ephemerides.Charts
                 point = start.AddMinutes(minutes);
                 locationClone.DateTime = point;
                 targetPosition = Astrometry.GetAltitudeAzimuth(Target, locationClone);
-                mTargetSeries.Points.AddXY(point, targetPosition.Item1);
+                daySeries.Points.AddXY(point, targetPosition.Item1);
                 minutes++;
             }
 
-            mTargetSeries.ChartType = SeriesChartType.Line;
-            TargetSeriesList.Add(mTargetSeries);
+            TargetSeriesList.Add(daySeries);
         }
 
         // One pass over the next year of nights produces both the "Year" series (max altitude
@@ -98,22 +85,8 @@ namespace SGP_Ephemerides.Charts
         {
             Location.Location locationClone = Clone(Location);
 
-            Series yearSeries = new Series
-            {
-                Name = Target.Name + "-Year",
-                Color = new Color(),
-                IsXValueIndexed = true,
-                XValueType = ChartValueType.DateTime,
-                ChartType = SeriesChartType.Line,
-            };
-            Series optimalSeries = new Series
-            {
-                Name = Target.Name + "-Optimal",
-                Color = new Color(),
-                IsXValueIndexed = true,
-                XValueType = ChartValueType.DateTime,
-                ChartType = SeriesChartType.Line,
-            };
+            Series yearSeries    = MakeSeries(Target.Name, "Year",    new Color());
+            Series optimalSeries = MakeSeries(Target.Name, "Optimal", new Color());
 
             DateTime startDay = DateTime.Now.AddDays(-DateTime.Now.Day);
             DateTime endDay   = startDay.AddYears(1);
@@ -196,14 +169,10 @@ namespace SGP_Ephemerides.Charts
             int minutes;
             double duskOffset;
             double dawnOffset;
-            double LongitudeSign;
-            TimeSpan utcOffset;
-            utcOffset = TimeZoneInfo.Local.GetUtcOffset(Location.DateTime);
-            LongitudeSign = (Location.West) ? -1.0 : 1.0;
+            TimeSpan utcOffset = TimeZoneInfo.Local.GetUtcOffset(Location.DateTime);
+            double LongitudeSign = Location.West ? -1.0 : 1.0;
 
-            Location.Location locationClone = new Location.Location();
-            locationClone = Clone(Location);
-
+            Location.Location locationClone = Clone(Location);
             Support.Astrometry.Location(locationClone);
 
             duskOffset = (Astrometry.AstronomicalDusk.Minute > 30.0) ? 0.0 : -1.0;
@@ -212,25 +181,24 @@ namespace SGP_Ephemerides.Charts
             dawnOffset = (Astrometry.AstronomicalDawn.Minute > 30.0) ? 2.0 : 1.0;
             DateTime stop = Astrometry.AstronomicalDawn.AddHours(dawnOffset).Date.AddHours(Astrometry.AstronomicalDawn.AddHours(dawnOffset).Hour);
 
-            NewSeries("Moon", "Day", Color.FromArgb((int)(Astrometry.LunarIlluminationFraction * 250.0), 209, 209, 209));
+            Series moonSeries = MakeSeries("Moon", "Day",
+                Color.FromArgb((int)(Astrometry.LunarIlluminationFraction * 250.0), 209, 209, 209));
+            moonSeries.ChartType = SeriesChartType.Area;
+            moonSeries.IsVisibleInLegend = false;
 
             delta = stop.Subtract(start);
 
             minutes = 0;
             while (minutes < Convert.ToInt32(Math.Round(delta.TotalMinutes, 0)))
             {
-                DateTime point;
-
-                point = start.AddMinutes(minutes);
+                DateTime point = start.AddMinutes(minutes);
                 cCelestial = CoordinateSharp.Celestial.CalculateCelestialTimes(locationClone.Latitude, LongitudeSign * locationClone.Longitude, point, utcOffset.Hours);
-                mTargetSeries.Points.AddXY(point, cCelestial.MoonAltitude);
+                moonSeries.Points.AddXY(point, cCelestial.MoonAltitude);
 
                 minutes++;
             }
 
-            mTargetSeries.ChartType = SeriesChartType.Area;
-            mTargetSeries.IsVisibleInLegend = false;
-            TargetSeriesList.Add(mTargetSeries);
+            TargetSeriesList.Add(moonSeries);
         }
 
         public static T Clone<T>(T source)
