@@ -8,10 +8,11 @@
     <OutputType>WinExe</OutputType>
     <RootNamespace>SGP_Ephemerides</RootNamespace>
     <AssemblyName>SGP Ephemerides</AssemblyName>
-    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.8.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -58,14 +59,14 @@
     <Prefer32Bit>true</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="CoordinateSharp, Version=2.5.2.1, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\CoordinateSharp.2.5.2.1\lib\net40\CoordinateSharp.dll</HintPath>
+    <Reference Include="CoordinateSharp, Version=3.4.1.1, Culture=neutral, PublicKeyToken=f45e02df057b7725, processorArchitecture=MSIL">
+      <HintPath>..\packages\CoordinateSharp.3.4.1.1\lib\net40\CoordinateSharp.dll</HintPath>
     </Reference>
     <Reference Include="LocalLib">
       <HintPath>..\..\..\General\LocalLib\LocalLib\bin\Release\LocalLib.dll</HintPath>
     </Reference>
-    <Reference Include="Newtonsoft.Json, Version=12.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <HintPath>..\packages\Newtonsoft.Json.12.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.13.0.4\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -113,6 +114,7 @@
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DependentUpon>Resources.resx</DependentUpon>
+      <DesignTime>True</DesignTime>
     </Compile>
     <None Include="packages.config" />
     <None Include="Properties\Settings.settings">

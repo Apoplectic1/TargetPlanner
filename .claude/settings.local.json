@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//e/Projects/VisualStudio/Astronomy/**)",
+      "Read(//e/Projects/VisualStudio/General/**)",
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/18/Enterprise/MSBuild/Current/Bin/MSBuild.exe\" \"SGP Ephemerides.sln\" -t:Build -p:Configuration=Debug -nologo -verbosity:minimal)"
+    ]
+  }
+}
