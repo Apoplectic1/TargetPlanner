@@ -24,6 +24,7 @@ namespace SGP_Ephemerides.Charts
         private UIState mUIState;
 
         private AltitudeSeries mAltitudeSeries;
+        private Dictionary<string, StripLine> mNowLines;
 
         //################################################################################################################
         //################################################################################################################
@@ -40,8 +41,53 @@ namespace SGP_Ephemerides.Charts
             mLegend = new Legend();
             mAltitudeSeries = new AltitudeSeries();
             mUIState = new Support.UIState();
+            mNowLines = new Dictionary<string, StripLine>();
 
             mChart.MouseClick += new MouseEventHandler(this.Chart_MouseClick);
+        }
+
+        // Draws (or repositions) a red vertical strip line at the current time on every chart
+        // area. The target series uses IsXValueIndexed = true, so the X axis is indexed: each
+        // data point sits at integer index 0..N-1, with the point's DateTime shown only as a
+        // label. StripLine.IntervalOffset is therefore expressed in those same index units --
+        // computed as the offset (in minutes for Day, days for Year / Optimal) from the first
+        // target data point to "now".
+        public void UpdateNowLine(DateTime now)
+        {
+            foreach (ChartArea area in mChartAreaList)
+            {
+                Series reference = null;
+                foreach (Series s in mAltitudeSeries.TargetSeriesList)
+                {
+                    if (s.Name.EndsWith("-" + area.Name) && s.Points.Count > 0)
+                    {
+                        reference = s;
+                        break;
+                    }
+                }
+                if (reference == null) continue;
+
+                DateTime firstX = DateTime.FromOADate(reference.Points[0].XValue);
+                double nowIndex = area.Name == "Day"
+                    ? (now - firstX).TotalMinutes
+                    : (now - firstX).TotalDays;
+
+                StripLine line;
+                if (!mNowLines.TryGetValue(area.Name, out line))
+                {
+                    line = new StripLine
+                    {
+                        BackColor = Color.Red,
+                        Interval = 0,
+                        IntervalOffsetType = DateTimeIntervalType.Number,
+                        StripWidthType = DateTimeIntervalType.Number,
+                        StripWidth = 1.0,  // 1 index unit; ~1 min on Day, ~1 day on Year / Optimal
+                    };
+                    mNowLines[area.Name] = line;
+                    area.AxisX.StripLines.Add(line);
+                }
+                line.IntervalOffset = nowIndex - line.StripWidth / 2.0;
+            }
         }
 
         private void Chart_MouseClick(object sender, MouseEventArgs e)

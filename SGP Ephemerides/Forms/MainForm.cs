@@ -50,7 +50,7 @@ namespace SGP_Ephemerides
 
             mTimer = new System.Timers.Timer();
             mTimer.Interval = 5000;
-            mTimer.Enabled = false;
+            mTimer.Enabled = !CheckBox_HoldTime.Checked;
             mTimer.Elapsed += OnTimedEvent;
 
             Label_SelectedTargetNumber.Text = "None";
@@ -101,6 +101,7 @@ namespace SGP_Ephemerides
             mAltitudeChart.ChartTitle = "Proper Motion at " + mLocation.Name + " for evening beginning " + mLocation.DateTime.Date.ToShortDateString();
             mAltitudeChart.UIState(mUIState);
             mAltitudeChart.AddLegend();
+            mAltitudeChart.UpdateNowLine(DateTime.Now);
 
 
             mAltitudeChart.Legend = true;
@@ -275,7 +276,7 @@ namespace SGP_Ephemerides
             milliseconds = (int)(1000.0m * (NumericUpDown_RaSeconds.Value - Math.Floor(NumericUpDown_RaSeconds.Value)));
             raTimeSpanHours = new TimeSpan(0, (int)NumericUpDown_RaHours.Value, (int)NumericUpDown_RaMinutes.Value, (int)NumericUpDown_RaSeconds.Value, (int)milliseconds);
 
-            mTarget.RightAscension = Math.Round(raTimeSpanHours.TotalHours * 15.0, 6);
+            mTarget.RightAscension = Math.Round(raTimeSpanHours.TotalHours, 6);
 
             TextBox_RightAscension.TextChanged -= TextBox_RightAscension_TextChanged;
             TextBox_RightAscension.Text = mTarget.RightAscension.ToString("F6");
@@ -284,7 +285,7 @@ namespace SGP_Ephemerides
 
         private void TextBox_RightAscension_TextChanged(object sender, EventArgs e)
         {
-            double raDegrees;
+            double raHours;
             bool status;
 
             if (mTarget == null) return;
@@ -295,11 +296,11 @@ namespace SGP_Ephemerides
                 return;
             }
 
-            status = Double.TryParse(TextBox_RightAscension.Text, out raDegrees);
+            status = Double.TryParse(TextBox_RightAscension.Text, out raHours);
 
-            if (status)
+            if (status && raHours >= 0.0 && raHours < 24.0)
             {
-                mTarget.RightAscension = Math.Round(raDegrees, 6);
+                mTarget.RightAscension = Math.Round(raHours, 6);
                 TextBox_RightAscension.Text = mTarget.RightAscension.ToString("F6");
 
                 NumericUpDown_RaHours.ValueChanged   -= UpdateRightAscensionTextBox;
@@ -419,16 +420,6 @@ namespace SGP_Ephemerides
                 NumericUpDown_LatitudeDegrees.Value = degrees;
             }
 
-            if (NumericUpDown_LatitudeDegrees.Value >= 0m)
-            {
-                CheckBox_LocalNorth.Checked = true;
-            }
-
-            if (NumericUpDown_LatitudeDegrees.Value < 0m)
-            {
-                CheckBox_LocalNorth.Checked = false;
-            }
-
             // Longitude
             if (NumericUpDown_LongitudeSeconds.Value == 60.0m)
             {
@@ -527,16 +518,6 @@ namespace SGP_Ephemerides
                 degrees = NumericUpDown_DecDegrees.Value - 1.0m;
                 NumericUpDown_DecDegrees.Value = degrees;
             }
-
-            if (NumericUpDown_DecDegrees.Value >= 0m)
-            {
-                CheckBox_TargetNorth.Checked = true;
-            }
-
-            if (NumericUpDown_DecDegrees.Value < 0m)
-            {
-                CheckBox_TargetNorth.Checked = false;
-            }
         }
 
         // ************************************************************************************************************************************* *//
@@ -601,6 +582,7 @@ namespace SGP_Ephemerides
             mAltitudeChart.ChartTitle = "Proper Motion at " + mLocation.Name + " for evening beginning " + mLocation.DateTime.Date.ToShortDateString();
             mAltitudeChart.UIState(mUIState);
             mAltitudeChart.AddLegend();
+            mAltitudeChart.UpdateNowLine(DateTime.Now);
 
 
             mAltitudeChart.Legend = true;
@@ -636,6 +618,11 @@ namespace SGP_Ephemerides
 
                 Label_SunAltitudeValue.Text = Astrometry.SunAltitude.ToString("F1");
                 Label_LunarAltitudeValue.Text = Astrometry.LunarAltitude.ToString("F1");
+
+                if (mAltitudeChart != null)
+                {
+                    mAltitudeChart.UpdateNowLine(mLocalDateTime.Item1);
+                }
             }));
 
         }

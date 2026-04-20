@@ -1,0 +1,38 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+*.pdb
+*.dll.config
+
+# Visual Studio IDE state
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.VC.opendb
+
+# ReSharper / Rider
+_ReSharper*/
+*.DotSettings.user
+
+# NuGet packages (regenerate with `nuget restore`)
+packages/
+
+# Test / coverage output
+TestResults/
+[Cc]overage*/
+
+# OS noise
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# Emacs temp / backup / autosave / lock
+*~
+\#*\#
+.\#*
+TAGS
+*.elc

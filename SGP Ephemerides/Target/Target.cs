@@ -8,21 +8,19 @@ namespace SGP_Ephemerides.Target
     {
         public string Name { get; set; }
 
-        // Decimal Degrees
+        // Hours (0, 24)
         private double _RightAscension;
-        public double RightAscension 
+        public double RightAscension
         {
             get { return _RightAscension; }
-            set 
-            { 
+            set
+            {
                 _RightAscension = value;
-                RaDegrees = Math.Truncate(_RightAscension);
-                RaHours   = TimeSpan.FromHours(_RightAscension / 15.0).Hours;
-                RaMinutes = TimeSpan.FromHours(_RightAscension).Minutes;
-                RaSeconds = TimeSpan.FromHours(_RightAscension).Seconds + TimeSpan.FromHours(_RightAscension).Milliseconds / 1000.0;
+                RaHours   = Math.Floor(_RightAscension);
+                RaMinutes = Math.Floor(60.0 * (_RightAscension - RaHours));
+                RaSeconds = 3600.0 * (_RightAscension - RaHours - RaMinutes / 60.0);
             }
         }
-        public double RaDegrees { get; private set; }
         public double RaHours { get; private set; }
         public double RaMinutes { get; private set; }
         public double RaSeconds { get; private set; }

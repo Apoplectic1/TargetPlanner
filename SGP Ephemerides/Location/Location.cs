@@ -6,20 +6,22 @@ namespace SGP_Ephemerides.Location
     {
         public string Name { get; set; }
         private double _Latitude;
-        public double Latitude 
+        public double Latitude
         {
             get { return _Latitude; }
             set
             {
-                _Latitude  = value;
+                // Negative input means Southern hemisphere; positive leaves the North flag
+                // to the checkbox (the UI feeds unsigned magnitudes via the spinners).
+                if (value < 0.0) { _Latitude = -value; North = false; }
+                else             { _Latitude =  value;                 }
+
                 LatDegrees = Math.Truncate(_Latitude);
-                LatHours   = TimeSpan.FromHours(_Latitude / 15.0).Hours;
-                LatMinutes = TimeSpan.FromHours(_Latitude).Minutes;
-                LatSeconds = TimeSpan.FromHours(_Latitude).Seconds + TimeSpan.FromHours(_Latitude).Milliseconds / 1000.0;
-            } 
+                LatMinutes = Math.Floor(60.0 * (_Latitude - LatDegrees));
+                LatSeconds = 3600.0 * (_Latitude - LatDegrees - LatMinutes / 60.0);
+            }
         }
         public double LatDegrees { get; private set; }
-        public double LatHours { get; private set; }
         public double LatMinutes { get; private set; }
         public double LatSeconds { get; private set; }
         public bool North { get; set; }
@@ -31,15 +33,17 @@ namespace SGP_Ephemerides.Location
             get { return _Longitude; }
             set
             {
-                _Longitude = value;
+                // Negative input means Western hemisphere; positive leaves the West flag
+                // to the checkbox (the UI feeds unsigned magnitudes via the spinners).
+                if (value < 0.0) { _Longitude = -value; West = true; }
+                else             { _Longitude =  value;              }
+
                 LonDegrees = Math.Truncate(_Longitude);
-                LonHours   = TimeSpan.FromHours(_Longitude / 15.0).Hours;
-                LonMinutes = TimeSpan.FromHours(_Longitude).Minutes;
-                LonSeconds = TimeSpan.FromHours(_Longitude).Seconds + TimeSpan.FromHours(_Longitude).Milliseconds / 1000.0;
+                LonMinutes = Math.Floor(60.0 * (_Longitude - LonDegrees));
+                LonSeconds = 3600.0 * (_Longitude - LonDegrees - LonMinutes / 60.0);
             }
         }
         public double LonDegrees { get; private set; }
-        public double LonHours { get; private set; }
         public double LonMinutes { get; private set; }
         public double LonSeconds { get; private set; }
         public bool West { get; set; }
@@ -56,10 +60,10 @@ namespace SGP_Ephemerides.Location
         public Location()
         {
             Name = "Penns Park";
-            Latitude = 40.282835;
+            Latitude  = 40.282835;
             Longitude = 74.997369;
             North = true;
-            West = true;
+            West  = true;
             Horizon = 30;
             Duration = TimeSpan.FromMinutes(240);
             DateTime = DateTime.Now;

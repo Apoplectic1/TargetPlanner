@@ -64,7 +64,7 @@ namespace SGP_Ephemerides.Charts
         private void BuildDaySeries()
         {
             DateTime point;
-            Tuple<double, double, double> targetPosition;
+            Tuple<double, double> targetPosition;
             TimeSpan delta;
             int minutes;
             double duskOffset;
@@ -103,7 +103,7 @@ namespace SGP_Ephemerides.Charts
         private void BuildYearSeries()
         {
             DateTime point;
-            Tuple<double, double, double> targetPosition;
+            Tuple<double, double> targetPosition;
             TimeSpan dayDelta, minutedelta;
             DateTime startMinute, endMinute;
             int day, minute;
@@ -163,7 +163,7 @@ namespace SGP_Ephemerides.Charts
             DateTime point, startMinute, endMinute, aboveHorizonStartTime, aboveHorizonStopTime;
             List<Tuple<DateTime, DateTime, double>> horizonCrossingList = new List<Tuple<DateTime, DateTime, double>>();
             TimeSpan dayDelta, minutedelta, crossingDelta ;
-            Tuple<double, double, double> targetPosition;
+            Tuple<double, double> targetPosition;
             bool aboveHorizon = false;
             double maxAltitude;
             double aboveHorizonAltitude;
