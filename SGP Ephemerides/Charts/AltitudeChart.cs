@@ -325,13 +325,13 @@ namespace SGP_Ephemerides.Charts
             DateTime start;
             DateTime stop;
 
-            
+            NightWindow night = Astrometry.ComputeNight(Location);
 
             stripLine = new StripLine();
 
-            duskOffset = (Astrometry.AstronomicalDusk.Minute > 30.0) ? 0.0 : -1.0;
-            start = Astrometry.AstronomicalDusk.AddHours(duskOffset).Date.AddHours(Astrometry.AstronomicalDusk.AddHours(duskOffset).Hour);
-            stop = Astrometry.AstronomicalDusk;
+            duskOffset = (night.AstronomicalDusk.Minute > 30.0) ? 0.0 : -1.0;
+            start = night.AstronomicalDusk.AddHours(duskOffset).Date.AddHours(night.AstronomicalDusk.AddHours(duskOffset).Hour);
+            stop = night.AstronomicalDusk;
 
             delta = stop.Subtract(start);
 
@@ -352,9 +352,9 @@ namespace SGP_Ephemerides.Charts
 
             stripLine = new StripLine();
 
-            dawnOffset = (Astrometry.AstronomicalDawn.Minute > 30.0) ? 2.0 : 1.0;
-            start = Astrometry.AstronomicalDawn;
-            stop = Astrometry.AstronomicalDawn.AddHours(dawnOffset).Date.AddHours(Astrometry.AstronomicalDawn.AddHours(dawnOffset).Hour);
+            dawnOffset = (night.AstronomicalDawn.Minute > 30.0) ? 2.0 : 1.0;
+            start = night.AstronomicalDawn;
+            stop = night.AstronomicalDawn.AddHours(dawnOffset).Date.AddHours(night.AstronomicalDawn.AddHours(dawnOffset).Hour);
             delta = stop.Subtract(start);
 
             stripLine.BackSecondaryColor = Color.FromArgb(145, 255, 238, 88);
@@ -365,8 +365,8 @@ namespace SGP_Ephemerides.Charts
             stripLine.IntervalType = DateTimeIntervalType.Minutes;
             stripLine.StripWidth = delta.TotalMinutes;
 
-            start = Astrometry.AstronomicalDusk.AddHours(duskOffset).Date.AddHours(Astrometry.AstronomicalDusk.AddHours(duskOffset).Hour);
-            delta = Astrometry.AstronomicalDawn.Subtract(start);
+            start = night.AstronomicalDusk.AddHours(duskOffset).Date.AddHours(night.AstronomicalDusk.AddHours(duskOffset).Hour);
+            delta = night.AstronomicalDawn.Subtract(start);
 
             stripLine.IntervalOffset = delta.TotalMinutes + 2;
 

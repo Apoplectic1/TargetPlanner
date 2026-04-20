@@ -3,6 +3,12 @@ using System;
 
 namespace SGP_Ephemerides.Support
 {
+    public struct NightWindow
+    {
+        public DateTime AstronomicalDawn;
+        public DateTime AstronomicalDusk;
+        public double   LunarIlluminationFraction;
+    }
 
     public class Astrometry
     {
@@ -75,6 +81,53 @@ namespace SGP_Ephemerides.Support
 
         // ####################################################################################################################################
         // ####################################################################################################################################
+
+        // Pure helper: returns the night window (astronomical dusk/dawn bracketing the night at
+        // location.DateTime) plus the lunar illumination fraction, without touching any static
+        // field. Safe to call from concurrent background tasks. Use this from per-day loops; the
+        // static-mutating Location(...) above is reserved for the UI display path.
+        public static NightWindow ComputeNight(Location.Location location)
+        {
+            double LatSign  = location.North ? 1.0 : -1.0;
+            double LongSign = location.West  ? -1.0 : 1.0;
+            TimeSpan utcOffset = TimeZoneInfo.Local.GetUtcOffset(location.DateTime);
+
+            Celestial today = Celestial.CalculateCelestialTimes(
+                LatSign  * location.Latitude,
+                LongSign * location.Longitude,
+                location.DateTime, mEgagerLoad, utcOffset.Hours);
+
+            DateTime? dawnToday = today.AdditionalSolarTimes.AstronomicalDawn;
+            DateTime? duskToday = today.AdditionalSolarTimes.AstronomicalDusk;
+            double illum = today.MoonIllum.Fraction;
+
+            if (location.DateTime >= dawnToday)
+            {
+                Celestial tomorrow = Celestial.CalculateCelestialTimes(
+                    LatSign  * location.Latitude,
+                    LongSign * location.Longitude,
+                    location.DateTime.AddDays(1), mEgagerLoad, utcOffset.Hours);
+                return new NightWindow
+                {
+                    AstronomicalDawn = tomorrow.AdditionalSolarTimes.AstronomicalDawn ?? DateTime.MinValue,
+                    AstronomicalDusk = duskToday                                      ?? DateTime.MinValue,
+                    LunarIlluminationFraction = illum,
+                };
+            }
+            else
+            {
+                Celestial yesterday = Celestial.CalculateCelestialTimes(
+                    LatSign  * location.Latitude,
+                    LongSign * location.Longitude,
+                    location.DateTime.AddDays(-1), mEgagerLoad, utcOffset.Hours);
+                return new NightWindow
+                {
+                    AstronomicalDawn = dawnToday                                       ?? DateTime.MinValue,
+                    AstronomicalDusk = yesterday.AdditionalSolarTimes.AstronomicalDusk ?? DateTime.MinValue,
+                    LunarIlluminationFraction = illum,
+                };
+            }
+        }
 
         // Greenwich Mean Sidereal Time in hours [0, 24), at the instant whose Julian Date is JD.
         // USNO one-liner form: equivalent to GMST(0h UT) + 1.00273790935 * (elapsed UT hours).

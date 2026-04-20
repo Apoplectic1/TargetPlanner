@@ -50,15 +50,15 @@ namespace SGP_Ephemerides.Charts
             double dawnOffset;
 
             Location.Location locationClone = Clone(Location);
-            Support.Astrometry.Location(locationClone);
+            NightWindow night = Astrometry.ComputeNight(locationClone);
 
             Series daySeries = MakeSeries(Target.Name, "Day", new Color());
 
-            duskOffset = (Astrometry.AstronomicalDusk.Minute > 30.0) ? 0.0 : -1.0;
-            DateTime start = Astrometry.AstronomicalDusk.AddHours(duskOffset).Date.AddHours(Astrometry.AstronomicalDusk.AddHours(duskOffset).Hour);
+            duskOffset = (night.AstronomicalDusk.Minute > 30.0) ? 0.0 : -1.0;
+            DateTime start = night.AstronomicalDusk.AddHours(duskOffset).Date.AddHours(night.AstronomicalDusk.AddHours(duskOffset).Hour);
 
-            dawnOffset = (Astrometry.AstronomicalDawn.Minute > 30.0) ? 2.0 : 1.0;
-            DateTime stop = Astrometry.AstronomicalDawn.AddHours(dawnOffset).Date.AddHours(Astrometry.AstronomicalDawn.AddHours(dawnOffset).Hour);
+            dawnOffset = (night.AstronomicalDawn.Minute > 30.0) ? 2.0 : 1.0;
+            DateTime stop = night.AstronomicalDawn.AddHours(dawnOffset).Date.AddHours(night.AstronomicalDawn.AddHours(dawnOffset).Hour);
 
             delta = stop.Subtract(start);
 
@@ -97,10 +97,10 @@ namespace SGP_Ephemerides.Charts
             for (int day = 0; day < dayDelta.TotalDays; day++)
             {
                 locationClone.DateTime = startDay.AddDays(day);
-                Support.Astrometry.Location(locationClone);
+                NightWindow night = Astrometry.ComputeNight(locationClone);
 
-                DateTime startMinute = Astrometry.AstronomicalDusk;
-                DateTime endMinute   = Astrometry.AstronomicalDawn;
+                DateTime startMinute = night.AstronomicalDusk;
+                DateTime endMinute   = night.AstronomicalDawn;
                 TimeSpan minuteDelta = endMinute.Subtract(startMinute);
 
                 DateTime point = startMinute;
@@ -119,13 +119,20 @@ namespace SGP_Ephemerides.Charts
 
                     if (alt > maxAltitude) maxAltitude = alt;
 
-                    if (alt >= locationClone.Horizon && !aboveHorizon)
+                    if (alt >= locationClone.Horizon)
                     {
-                        aboveHorizonAltitude  = alt;
-                        aboveHorizonStartTime = point;
-                        aboveHorizon = true;
+                        if (!aboveHorizon)                                // entering above-horizon window
+                        {
+                            aboveHorizonAltitude  = alt;
+                            aboveHorizonStartTime = point;
+                            aboveHorizon = true;
+                        }
+                        else if (alt > aboveHorizonAltitude)              // staying above; track peak
+                        {
+                            aboveHorizonAltitude = alt;
+                        }
                     }
-                    else if (alt <= locationClone.Horizon && aboveHorizon)
+                    else if (aboveHorizon)                                // dropping below horizon, close the window
                     {
                         aboveHorizonStopTime = point;
                         aboveHorizon = false;
@@ -173,16 +180,16 @@ namespace SGP_Ephemerides.Charts
             double LongitudeSign = Location.West ? -1.0 : 1.0;
 
             Location.Location locationClone = Clone(Location);
-            Support.Astrometry.Location(locationClone);
+            NightWindow night = Astrometry.ComputeNight(locationClone);
 
-            duskOffset = (Astrometry.AstronomicalDusk.Minute > 30.0) ? 0.0 : -1.0;
-            DateTime start = Astrometry.AstronomicalDusk.AddHours(duskOffset).Date.AddHours(Astrometry.AstronomicalDusk.AddHours(duskOffset).Hour);
+            duskOffset = (night.AstronomicalDusk.Minute > 30.0) ? 0.0 : -1.0;
+            DateTime start = night.AstronomicalDusk.AddHours(duskOffset).Date.AddHours(night.AstronomicalDusk.AddHours(duskOffset).Hour);
 
-            dawnOffset = (Astrometry.AstronomicalDawn.Minute > 30.0) ? 2.0 : 1.0;
-            DateTime stop = Astrometry.AstronomicalDawn.AddHours(dawnOffset).Date.AddHours(Astrometry.AstronomicalDawn.AddHours(dawnOffset).Hour);
+            dawnOffset = (night.AstronomicalDawn.Minute > 30.0) ? 2.0 : 1.0;
+            DateTime stop = night.AstronomicalDawn.AddHours(dawnOffset).Date.AddHours(night.AstronomicalDawn.AddHours(dawnOffset).Hour);
 
             Series moonSeries = MakeSeries("Moon", "Day",
-                Color.FromArgb((int)(Astrometry.LunarIlluminationFraction * 250.0), 209, 209, 209));
+                Color.FromArgb((int)(night.LunarIlluminationFraction * 250.0), 209, 209, 209));
             moonSeries.ChartType = SeriesChartType.Area;
             moonSeries.IsVisibleInLegend = false;
 
