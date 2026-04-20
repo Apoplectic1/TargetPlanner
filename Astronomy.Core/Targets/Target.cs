@@ -1,8 +1,6 @@
-﻿using SGP_Ephemerides.Charts;
 using System;
-using System.Runtime.InteropServices;
 
-namespace SGP_Ephemerides.Target
+namespace Astronomy.Core.Targets
 {
     public class Target
     {
@@ -24,44 +22,39 @@ namespace SGP_Ephemerides.Target
         public double RaHours { get; private set; }
         public double RaMinutes { get; private set; }
         public double RaSeconds { get; private set; }
-        
+
         // Decimal Degrees
-        private double _Declination; 
-        public double Declination 
-        { 
-            get { return _Declination; } 
-            set 
-            { 
-                if (value < 0.0) 
-                { 
-                    _Declination = -value; 
-                    North = false; 
-                } 
-                else 
-                { 
-                    _Declination = value; 
-                    North = true; 
+        private double _Declination;
+        public double Declination
+        {
+            get { return _Declination; }
+            set
+            {
+                if (value < 0.0)
+                {
+                    _Declination = -value;
+                    North = false;
+                }
+                else
+                {
+                    _Declination = value;
+                    North = true;
                 }
 
                 DecDegrees = Math.Truncate(_Declination);
                 DecHours   = TimeSpan.FromHours(_Declination / 15.0).Hours;
                 DecMinutes = TimeSpan.FromHours(_Declination).Minutes;
                 DecSeconds = TimeSpan.FromHours(_Declination).Seconds + TimeSpan.FromHours(_Declination).Milliseconds / 1000.0;
-            } 
+            }
         }
         public double DecDegrees { get; private set; }
         public double DecHours { get; private set; }
         public double DecMinutes { get; private set; }
         public double DecSeconds { get; private set; }
-        public bool North { get; set; }  
+        public bool North { get; set; }
 
         public string Directory { get; set; }
         public bool Enabled { get; set; }
-
-        public AltitudeSeries mAltitudeSeries;
-
-        //################################################################################################################
-        //################################################################################################################
 
         public Target()
         {
@@ -71,10 +64,6 @@ namespace SGP_Ephemerides.Target
             Directory = string.Empty;
             North = true;
             Enabled = true;
-            mAltitudeSeries = new AltitudeSeries();
         }
-
-        //################################################################################################################
-        //################################################################################################################
     }
 }

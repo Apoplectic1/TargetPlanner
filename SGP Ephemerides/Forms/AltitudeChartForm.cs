@@ -4,6 +4,8 @@ using System.Drawing;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
 
+using Target = Astronomy.Core.Targets.Target;
+
 namespace SGP_Ephemerides.Charts
 {
     public partial class AltitudeChartForm : Form
@@ -36,14 +38,14 @@ namespace SGP_Ephemerides.Charts
             ChartForm.Invalidate();
         }
 
-        public void AddSeries(Target.Target target)
+        public void AddSeries(Target target)
         {
             //ChartForm.Series.Add(series);
         }
 
-        public void AddToTargetList(List<Target.Target> targetList)
+        public void AddToTargetList(List<Target> targetList)
         {
-            foreach (Target.Target target in targetList)
+            foreach (Target target in targetList)
             {
                 AddSeries(target);
             }

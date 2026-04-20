@@ -1,10 +1,15 @@
-﻿using Newtonsoft.Json;
-using SGP_Ephemerides.Support;
+﻿using Astronomy.Core;
+using Astronomy.Core.Night;
+using Astronomy.Core.Time;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Threading.Tasks;
 using System.Windows.Forms.DataVisualization.Charting;
+
+using Location = Astronomy.Core.Locations.Location;
+using Target   = Astronomy.Core.Targets.Target;
 
 namespace SGP_Ephemerides.Charts
 {
@@ -28,8 +33,8 @@ namespace SGP_Ephemerides.Charts
             public DateTime SentinelX;       // X coordinate for Year and Optimal points on this day
         }
 
-        public Location.Location Location { get; set; }
-        public Target.Target Target { get; set; }
+        public Location Location { get; set; }
+        public Target Target { get; set; }
         public List<Series> TargetSeriesList { get; private set; }
         private List<NightCacheEntry> mYearCache;
 
@@ -111,8 +116,8 @@ namespace SGP_Ephemerides.Charts
             double duskOffset;
             double dawnOffset;
 
-            Location.Location locationClone = Clone(Location);
-            NightWindow night = Astrometry.ComputeNight(locationClone);
+            Location locationClone = Clone(Location);
+            NightWindow night = NightCalculator.ComputeNight(locationClone);
 
             Series daySeries = MakeSeries(Target.Name, "Day", new Color());
 
@@ -129,7 +134,7 @@ namespace SGP_Ephemerides.Charts
             {
                 point = start.AddMinutes(minutes);
                 locationClone.DateTime = point;
-                targetPosition = Astrometry.GetAltitudeAzimuth(Target, locationClone);
+                targetPosition = AltAz.Of(Target, locationClone);
                 daySeries.Points.AddXY(point, targetPosition.Item1);
                 minutes++;
             }
@@ -143,7 +148,7 @@ namespace SGP_Ephemerides.Charts
         // Duration so this never needs to run on a spinner tick.
         private void BuildYearSeries()
         {
-            Location.Location locationClone = Clone(Location);
+            Location locationClone = Clone(Location);
 
             Series yearSeries = FindOrCreateSeries(Target.Name, "Year", new Color());
             yearSeries.Points.Clear();
@@ -153,7 +158,7 @@ namespace SGP_Ephemerides.Charts
             double lonDegEast = Location.West  ? -Location.Longitude :  Location.Longitude;
             double raHours    = Target.RightAscension;
 
-            double meridianAlt = Astrometry.MeridianAltitude(latSigned, decSigned);
+            double meridianAlt = TargetGeometry.MeridianAltitude(latSigned, decSigned);
 
             DateTime startDay = DateTime.Now.AddDays(-DateTime.Now.Day);
             DateTime endDay   = startDay.AddYears(1);
@@ -167,7 +172,7 @@ namespace SGP_Ephemerides.Charts
             for (int day = 0; day < totalDays; day++)
             {
                 locationClone.DateTime = startDay.AddDays(day);
-                NightWindow night = Astrometry.ComputeNight(locationClone);
+                NightWindow night = NightCalculator.ComputeNight(locationClone);
 
                 NightCacheEntry entry = new NightCacheEntry();
 
@@ -186,13 +191,13 @@ namespace SGP_Ephemerides.Charts
                 entry.SentinelX = entry.Dawn.AddMinutes(-1);
 
                 locationClone.DateTime = entry.Dusk;
-                entry.AltDusk = Astrometry.GetAltitudeAzimuth(Target, locationClone).Item1;
+                entry.AltDusk = AltAz.Of(Target, locationClone).Item1;
 
                 locationClone.DateTime = entry.Dawn;
-                entry.AltDawn = Astrometry.GetAltitudeAzimuth(Target, locationClone).Item1;
+                entry.AltDawn = AltAz.Of(Target, locationClone).Item1;
 
-                entry.LstDusk = Astrometry.LocalSiderealTime(entry.Dusk.ToUniversalTime(), lonDegEast);
-                entry.LstDawn = Astrometry.LocalSiderealTime(entry.Dawn.ToUniversalTime(), lonDegEast);
+                entry.LstDusk = SiderealTime.Local(entry.Dusk.ToUniversalTime(), lonDegEast);
+                entry.LstDawn = SiderealTime.Local(entry.Dawn.ToUniversalTime(), lonDegEast);
                 if (entry.LstDawn < entry.LstDusk) entry.LstDawn += 24.0;
 
                 entry.TransitInNight = false;
@@ -217,15 +222,38 @@ namespace SGP_Ephemerides.Charts
             mYearCache = cache;
         }
 
-        // Walk mYearCache to emit the Optimal series. Reads cached dusk/dawn altitudes, LSTs,
-        // and the TransitInNight flag; no ComputeNight, no GetAltitudeAzimuth. The Year-as-upper-
-        // bound pre-filter short-circuits every day where YearAlt is below the current horizon
-        // (Year is the max possible altitude that night, so if it's below horizon the whole
-        // k-loop is guaranteed to yield -90).
+        // Walk mYearCache to emit the three Optimal-area curves:
+        //   Optimal               -- peak altitude reached inside any above-horizon window of
+        //                            length >= Duration on that night.
+        //   OptimalFloor          -- lowest altitude experienced during the best D-hour session
+        //                            that fits inside such a window; the session is transit-
+        //                            centered when possible, otherwise pushed against the window
+        //                            wall closer to transit.
+        //   OptimalFloorCentered  -- floor of a strictly transit-centered D-hour session. Emits
+        //                            xIdealDeg iff the centered session [T - dL/2, T + dL/2]
+        //                            fits inside [LstDusk, LstDawn] for some shifted transit
+        //                            T = RA + 24k, and xIdealDeg >= Horizon; else -90. Useful
+        //                            when you specifically want a session symmetric about the
+        //                            meridian (e.g., to balance hour angle / field orientation).
+        //
+        // All three read cached dusk/dawn altitudes, LSTs, and TransitInNight from mYearCache;
+        // no ComputeNight, no GetAltitudeAzimuth. The Year-as-upper-bound pre-filter short-
+        // circuits every day where YearAlt is below the current horizon.
+        //
+        // Floor placement (OptimalFloor): for each qualifying above-horizon window [s, e] with
+        // shifted transit T = RA + 24k, the best D-hour session is transit-centered if
+        // [T - dL/2, T + dL/2] fits; otherwise it's pushed against the wall of [s, e] closer to
+        // T. The floor altitude is then AltAtHa evaluated at the session endpoint farther from
+        // transit -- which is always the session's low point since alt(HA) is monotone away
+        // from HA=0.
         private void BuildOptimalSeries()
         {
-            Series optimalSeries = FindOrCreateSeries(Target.Name, "Optimal", new Color());
+            Series optimalSeries         = FindOrCreateSeries(Target.Name, "Optimal",              new Color());
+            Series optimalFloorSeries    = FindOrCreateSeries(Target.Name, "OptimalFloor",         new Color());
+            Series optimalCenteredSeries = FindOrCreateSeries(Target.Name, "OptimalFloorCentered", new Color());
             optimalSeries.Points.Clear();
+            optimalFloorSeries.Points.Clear();
+            optimalCenteredSeries.Points.Clear();
 
             double latSigned   = Location.North ?  Location.Latitude  : -Location.Latitude;
             double decSigned   = Target.North   ?  Target.Declination : -Target.Declination;
@@ -233,20 +261,42 @@ namespace SGP_Ephemerides.Charts
             double horizonDeg  = Location.Horizon;
             double durationHrs = Location.Duration.TotalHours;
 
-            double meridianAlt = Astrometry.MeridianAltitude(latSigned, decSigned);
-            double haHorizon   = Astrometry.HourAngleAtAltitude(latSigned, decSigned, horizonDeg);
+            double meridianAlt = TargetGeometry.MeridianAltitude(latSigned, decSigned);
+            double haHorizon   = TargetGeometry.HourAngleAtAltitude(latSigned, decSigned, horizonDeg);
 
             const double SiderealHoursPerSolarDay = 24.06570982441908;
+            double durationLst = durationHrs * SiderealHoursPerSolarDay / 24.0;
+            double halfDurationLst = durationLst / 2.0;
+            double xIdealDeg = TargetGeometry.AltitudeAtHourAngle(halfDurationLst, latSigned, decSigned);
 
             foreach (NightCacheEntry entry in mYearCache)
             {
                 if (entry.IsPolar || entry.YearAlt < horizonDeg)
                 {
                     optimalSeries.Points.AddXY(entry.SentinelX, -90.0);
+                    optimalFloorSeries.Points.AddXY(entry.SentinelX, -90.0);
+                    optimalCenteredSeries.Points.AddXY(entry.SentinelX, -90.0);
                     continue;
                 }
 
-                double optimalAlt = -90.0;
+                double optimalAlt  = -90.0;
+                double floorAlt    = -90.0;
+                double centeredAlt = -90.0;
+
+                // Strict transit-centered floor: does a symmetric D-hour session around some
+                // shifted transit fit inside the night window, AND does xIdealDeg clear Horizon?
+                if (xIdealDeg >= horizonDeg)
+                {
+                    for (int k = -1; k <= 1; k++)
+                    {
+                        double t = raHours + 24.0 * k;
+                        if (t - halfDurationLst >= entry.LstDusk && t + halfDurationLst <= entry.LstDawn)
+                        {
+                            centeredAlt = xIdealDeg;
+                            break;
+                        }
+                    }
+                }
 
                 if (double.IsPositiveInfinity(haHorizon))
                 {
@@ -255,6 +305,30 @@ namespace SGP_Ephemerides.Charts
                     {
                         optimalAlt = Math.Max(entry.AltDusk, entry.AltDawn);
                         if (entry.TransitInNight && meridianAlt > optimalAlt) optimalAlt = meridianAlt;
+
+                        // Shifted transit closest to the night (only one of k=-1,0,1 can be).
+                        double nightMid = 0.5 * (entry.LstDusk + entry.LstDawn);
+                        double t = raHours;
+                        double bestDist = Math.Abs(t - nightMid);
+                        for (int k = -1; k <= 1; k += 2)
+                        {
+                            double cand = raHours + 24.0 * k;
+                            double dist = Math.Abs(cand - nightMid);
+                            if (dist < bestDist) { bestDist = dist; t = cand; }
+                        }
+
+                        if (t - halfDurationLst >= entry.LstDusk && t + halfDurationLst <= entry.LstDawn)
+                        {
+                            floorAlt = xIdealDeg;
+                        }
+                        else if (t < entry.LstDusk + halfDurationLst)
+                        {
+                            floorAlt = TargetGeometry.AltitudeAtHourAngle(entry.LstDusk + durationLst - t, latSigned, decSigned);
+                        }
+                        else
+                        {
+                            floorAlt = TargetGeometry.AltitudeAtHourAngle(entry.LstDawn - durationLst - t, latSigned, decSigned);
+                        }
                     }
                 }
                 else
@@ -271,6 +345,7 @@ namespace SGP_Ephemerides.Charts
                         double lengthSolar = (e - s) * 24.0 / SiderealHoursPerSolarDay;
                         if (lengthSolar < durationHrs) continue;
 
+                        // Peak altitude in this window.
                         double altAtStart = (s == entry.LstDusk) ? entry.AltDusk : horizonDeg;
                         double altAtEnd   = (e == entry.LstDawn) ? entry.AltDawn : horizonDeg;
                         bool   transitInWindow = (center >= s && center <= e);
@@ -278,10 +353,28 @@ namespace SGP_Ephemerides.Charts
                             ? meridianAlt
                             : Math.Max(altAtStart, altAtEnd);
                         if (windowMax > optimalAlt) optimalAlt = windowMax;
+
+                        // Floor altitude: best D-hour session placement within [s, e].
+                        double windowFloor;
+                        if (center - halfDurationLst >= s && center + halfDurationLst <= e)
+                        {
+                            windowFloor = xIdealDeg;
+                        }
+                        else if (center < s + halfDurationLst)
+                        {
+                            windowFloor = TargetGeometry.AltitudeAtHourAngle(s + durationLst - center, latSigned, decSigned);
+                        }
+                        else
+                        {
+                            windowFloor = TargetGeometry.AltitudeAtHourAngle(e - durationLst - center, latSigned, decSigned);
+                        }
+                        if (windowFloor > floorAlt) floorAlt = windowFloor;
                     }
                 }
 
                 optimalSeries.Points.AddXY(entry.SentinelX, optimalAlt);
+                optimalFloorSeries.Points.AddXY(entry.SentinelX, floorAlt);
+                optimalCenteredSeries.Points.AddXY(entry.SentinelX, centeredAlt);
             }
         }
 
@@ -295,8 +388,8 @@ namespace SGP_Ephemerides.Charts
             TimeSpan utcOffset = TimeZoneInfo.Local.GetUtcOffset(Location.DateTime);
             double LongitudeSign = Location.West ? -1.0 : 1.0;
 
-            Location.Location locationClone = Clone(Location);
-            NightWindow night = Astrometry.ComputeNight(locationClone);
+            Location locationClone = Clone(Location);
+            NightWindow night = NightCalculator.ComputeNight(locationClone);
 
             duskOffset = (night.AstronomicalDusk.Minute > 30.0) ? 0.0 : -1.0;
             DateTime start = night.AstronomicalDusk.AddHours(duskOffset).Date.AddHours(night.AstronomicalDusk.AddHours(duskOffset).Hour);

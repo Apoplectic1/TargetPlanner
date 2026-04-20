@@ -1,6 +1,6 @@
-﻿using System;
+using System;
 
-namespace SGP_Ephemerides.Location
+namespace Astronomy.Core.Locations
 {
     public class Location
     {

@@ -1,9 +1,13 @@
-﻿using System;
+﻿using Astronomy.Core.Night;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
 using SGP_Ephemerides.Support;
+
+using Location = Astronomy.Core.Locations.Location;
+using Target   = Astronomy.Core.Targets.Target;
 
 namespace SGP_Ephemerides.Charts
 {
@@ -12,16 +16,22 @@ namespace SGP_Ephemerides.Charts
         public Chart mChart { get; set; }
         private List<ChartArea> mChartAreaList;
 
-        public Location.Location Location { get; set; }
+        public Location Location { get; set; }
         public bool Legend { set { mLegend.Enabled = value; } }
 
         private ChartArea mChartArea;
-        private List<Target.Target> mTargetList;
-        private Target.Target mTarget;
+        private List<Target> mTargetList;
+        private Target mTarget;
         private List<Series> mSeriesList;
         private Series mSeries;
         private Legend mLegend;
         private UIState mUIState;
+
+        // Per-target AltitudeSeries state. Target POCO no longer carries its own (it lives in
+        // Astronomy.Core which can't depend on WinForms charts), so the chart layer owns the
+        // per-target mapping here. Lifetime tied to this AltitudeChart instance; a fresh chart
+        // on Graph-Ephemeride click starts empty, same as the old Target.mAltitudeSeries pattern.
+        private Dictionary<Target, AltitudeSeries> mSeriesByTarget;
 
         private Dictionary<string, StripLine> mNowLines;
 
@@ -33,15 +43,26 @@ namespace SGP_Ephemerides.Charts
             mChart = new Chart();
             mChartAreaList = new List<ChartArea>();
             //mChart.ChartAreas.Add(mChartArea);
-            mTargetList = new List<Target.Target>();
-            mTarget = new Target.Target();
+            mTargetList = new List<Target>();
+            mTarget = new Target();
             mSeriesList = new List<Series>();
             mSeries = new Series();
             mLegend = new Legend();
             mUIState = new Support.UIState();
+            mSeriesByTarget = new Dictionary<Target, AltitudeSeries>();
             mNowLines = new Dictionary<string, StripLine>();
 
             mChart.MouseClick += new MouseEventHandler(this.Chart_MouseClick);
+        }
+
+        private AltitudeSeries SeriesFor(Target target)
+        {
+            if (!mSeriesByTarget.TryGetValue(target, out AltitudeSeries series))
+            {
+                series = new AltitudeSeries();
+                mSeriesByTarget[target] = series;
+            }
+            return series;
         }
 
         // Draws (or repositions) a red vertical strip line at the current time on every chart
@@ -55,9 +76,9 @@ namespace SGP_Ephemerides.Charts
             foreach (ChartArea area in mChartAreaList)
             {
                 Series reference = null;
-                foreach (Target.Target target in mTargetList)
+                foreach (Target target in mTargetList)
                 {
-                    foreach (Series s in target.mAltitudeSeries.TargetSeriesList)
+                    foreach (Series s in SeriesFor(target).TargetSeriesList)
                     {
                         if (s.Name.EndsWith("-" + area.Name) && s.Points.Count > 0)
                         {
@@ -163,9 +184,9 @@ namespace SGP_Ephemerides.Charts
 
             ClearSeries();
 
-            foreach (Target.Target target in mTargetList)
+            foreach (Target target in mTargetList)
             {
-                foreach (Series series in target.mAltitudeSeries.TargetSeriesList)
+                foreach (Series series in SeriesFor(target).TargetSeriesList)
                 {
                     if (series.Name.Contains(chartAreaName))
                     {
@@ -186,11 +207,11 @@ namespace SGP_Ephemerides.Charts
 
         public void BuildTargetSeriesList()
         {
-            foreach (Target.Target target in mTargetList)
+            foreach (Target target in mTargetList)
             {
-                target.mAltitudeSeries.Location = Location;
-                target.mAltitudeSeries.Target   = target;
-                target.mAltitudeSeries.BuildSeriesList();
+                SeriesFor(target).Location = Location;
+                SeriesFor(target).Target   = target;
+                SeriesFor(target).BuildSeriesList();
             }
         }
 
@@ -202,11 +223,11 @@ namespace SGP_Ephemerides.Charts
         // and the chart picks up the new points automatically.
         public void RebuildOptimalData()
         {
-            foreach (Target.Target target in mTargetList)
+            foreach (Target target in mTargetList)
             {
-                target.mAltitudeSeries.Location = Location;
-                target.mAltitudeSeries.Target   = target;
-                target.mAltitudeSeries.RebuildOptimalSeries();
+                SeriesFor(target).Location = Location;
+                SeriesFor(target).Target   = target;
+                SeriesFor(target).RebuildOptimalSeries();
             }
             mChart.Invalidate();
         }
@@ -262,26 +283,26 @@ namespace SGP_Ephemerides.Charts
         public void ClearTargetList()
         {
             ClearSeries();
-            foreach (Target.Target target in mTargetList)
+            foreach (Target target in mTargetList)
             {
-                target.mAltitudeSeries.ClearTargetList();
+                SeriesFor(target).ClearTargetList();
             }
             mTargetList.Clear();
         }
 
-        public void RemoveFromTargetList(Target.Target target)
+        public void RemoveFromTargetList(Target target)
         {
 
         }
 
-        public void AddToTargetList(Target.Target target)
+        public void AddToTargetList(Target target)
         {
             mTargetList.Add(target);
         }
 
-        public void AddToTargetList(List<Target.Target> targetList)
+        public void AddToTargetList(List<Target> targetList)
         {
-            foreach (Target.Target target in targetList)
+            foreach (Target target in targetList)
             {
                 AddToTargetList(target);
             }
@@ -373,7 +394,7 @@ namespace SGP_Ephemerides.Charts
             DateTime start;
             DateTime stop;
 
-            NightWindow night = Astrometry.ComputeNight(Location);
+            NightWindow night = NightCalculator.ComputeNight(Location);
 
             stripLine = new StripLine();
 

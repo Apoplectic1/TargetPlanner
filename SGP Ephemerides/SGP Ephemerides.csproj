@@ -88,9 +88,7 @@
     <Compile Include="Charts\AltitudeChart.cs" />
     <Compile Include="Charts\AltitudeSeries.cs" />
     <Compile Include="Support\UIState.cs" />
-    <Compile Include="Target\Target.cs" />
     <Compile Include="Target\Parser.cs" />
-    <Compile Include="Location\Location.cs" />
     <Compile Include="Support\Astrometry.cs" />
     <Compile Include="Forms\MainForm.cs">
       <SubType>Form</SubType>
@@ -129,6 +127,12 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Astronomy.Core\Astronomy.Core.csproj">
+      <Project>{B7F2A9D4-3C18-4E5F-9A2B-6D8F1C3E7A52}</Project>
+      <Name>Astronomy.Core</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

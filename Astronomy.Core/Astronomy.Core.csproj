@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>Astronomy.Core</RootNamespace>
+    <AssemblyName>Astronomy.Core</AssemblyName>
+    <LangVersion>7.3</LangVersion>
+    <Deterministic>true</Deterministic>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ProjectGuid>{B7F2A9D4-3C18-4E5F-9A2B-6D8F1C3E7A52}</ProjectGuid>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CoordinateSharp" Version="3.4.1.1" />
+  </ItemGroup>
+
+</Project>

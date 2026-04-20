@@ -6,6 +6,8 @@ using SGP_Ephemerides.Support;
 using System.Threading.Tasks;
 using LocalLib;
 
+using Location = Astronomy.Core.Locations.Location;
+using Target   = Astronomy.Core.Targets.Target;
 
 namespace SGP_Ephemerides
 {
@@ -14,12 +16,12 @@ namespace SGP_Ephemerides
         private System.Timers.Timer mTimer;
         private OpenFolderDialog mFolder;
 
-        private Location.Location mLocation;
+        private Location mLocation;
         private Tuple<DateTime, TimeZone> mLocalDateTime;
 
-        private Target.Target mTarget;
-        private Target.Parser mTargetParser;
-        private List<Target.Target> mTargetList;
+        private Target mTarget;
+        private SGP_Ephemerides.Sgf.Parser mTargetParser;
+        private List<Target> mTargetList;
 
         private Charts.AltitudeChartForm mAltitudeChartForm;
         private Charts.AltitudeChart mAltitudeChart;
@@ -40,10 +42,10 @@ namespace SGP_Ephemerides
             TimePicker.CustomFormat = "  hh:mm tt";
 
             mLocalDateTime = Tuple.Create(DateTime.Now, TimeZone.CurrentTimeZone);
-            mLocation = new Location.Location();
-            mTargetParser = new Target.Parser();
-            mTarget = new Target.Target();
-            mTargetList = new List<Target.Target>();
+            mLocation = new Location();
+            mTargetParser = new SGP_Ephemerides.Sgf.Parser();
+            mTarget = new Target();
+            mTargetList = new List<Target>();
 
             mUIState = new UIState();
 
@@ -558,7 +560,7 @@ namespace SGP_Ephemerides
         {
             Panel_AltitudeChart.Controls.Clear();
 
-            foreach (Target.Target target in mTargetList)
+            foreach (Target target in mTargetList)
             {
                 if (target.Name == ComboBox_SelectTarget.Text)
                 {
@@ -737,7 +739,7 @@ namespace SGP_Ephemerides
 
                     ProgressBar_ProcessObject.Value = ProgressBar_ProcessObject.Maximum;
 
-                    foreach (Target.Target targetObject in mTargetList)
+                    foreach (Target targetObject in mTargetList)
                     {
                         CheckedListBox_SelectedSgpTargets.Items.Add(targetObject.Name, true);
                     }
@@ -757,7 +759,7 @@ namespace SGP_Ephemerides
                 return;
             }
 
-            foreach (Target.Target target in mTargetList)
+            foreach (Target target in mTargetList)
             {
                 ComboBox_SelectTarget.Items.Add(target.Name);
             }
@@ -788,7 +790,7 @@ namespace SGP_Ephemerides
         private void ShowCheckBoxObjectToolTip(object sender, MouseEventArgs e)
         {
             string name;
-            Target.Target found;
+            Target found;
 
             if (mToolTipIndex != this.CheckedListBox_SelectedSgpTargets.IndexFromPoint(e.Location))
             {

@@ -4,13 +4,15 @@ using System.IO;
 using System.Linq;
 using Newtonsoft.Json.Linq;
 
-namespace SGP_Ephemerides.Target
+using Target = Astronomy.Core.Targets.Target;
+
+namespace SGP_Ephemerides.Sgf
 {
     public class Parser
     {
-        private List<SGP_Ephemerides.Target.Target> ObjectList { get; set; }
+        private List<Target> ObjectList { get; set; }
         private JObject mSgfFile;
-        private SGP_Ephemerides.Target.Target mObject;
+        private Target mObject;
         
         public Parser()
         {
@@ -89,7 +91,7 @@ namespace SGP_Ephemerides.Target
             }
         }
 
-        public List<SGP_Ephemerides.Target.Target> BuildObjectList(string sequenceFolder, IProgress<Tuple<int, int>> progress)
+        public List<Target> BuildObjectList(string sequenceFolder, IProgress<Tuple<int, int>> progress)
         {
             List<string> recursedTargetList;
 
@@ -119,7 +121,7 @@ namespace SGP_Ephemerides.Target
                         continue;
                     }
 
-                    mObject = new SGP_Ephemerides.Target.Target();
+                    mObject = new Target();
 
                     mObject.Name = ObjectName;
                     mObject.Directory = target;
