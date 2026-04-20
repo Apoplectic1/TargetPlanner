@@ -46,19 +46,7 @@ namespace SGP_Ephemerides.Charts
         {
             BuildMoonSeries();
             BuildDaySeries();
-            await Task.Run(() =>
-            {
-                BuildYearSeries();
-            });
-            await Task.Run(() =>
-            {
-                BuildYearOptimalSeries();
-            });
-        }
-
-        public void BuildYearSeriesList()
-        {
-            BuildYearSeries();
+            await Task.Run(() => BuildYearAndOptimalSeries());
         }
 
         private void BuildDaySeries()
@@ -100,166 +88,105 @@ namespace SGP_Ephemerides.Charts
             TargetSeriesList.Add(mTargetSeries);
         }
 
-        private void BuildYearSeries()
+        // One pass over the next year of nights produces both the "Year" series (max altitude
+        // per night) and the "Optimal" series (altitude at the moment the target first clears
+        // horizon, gated on the target being above horizon continuously for >= Duration).
+        // Emitting both from the same day/minute loop halves the GetAltitudeAzimuth cost and
+        // guarantees both series appear in TargetSeriesList at the same instant -- so the user
+        // no longer has to visit the Year chart before the Optimal chart has populated.
+        private void BuildYearAndOptimalSeries()
         {
-            DateTime point;
-            Tuple<double, double> targetPosition;
-            TimeSpan dayDelta, minutedelta;
-            DateTime startMinute, endMinute;
-            int day, minute;
-            double maxAltitude;
+            Location.Location locationClone = Clone(Location);
 
-            Location.Location locationClone = new Location.Location();
-            locationClone = Clone(Location);
-
-            NewSeries(Target.Name, "Year", new Color());
-
-            startMinute = new DateTime();
-            endMinute = new DateTime();
-            point = new DateTime();
-
-            DateTime startDay = new DateTime();
-            startDay = DateTime.Now.AddDays(-DateTime.Now.Day);
-
-            DateTime endDay = new DateTime();
-            endDay = DateTime.Now.AddDays(-DateTime.Now.Day).AddYears(1);
-
-
-            dayDelta = endDay.Subtract(startDay);
-
-            day = 0;
-            while (day < dayDelta.TotalDays)
+            Series yearSeries = new Series
             {
-                locationClone.DateTime = startDay.AddDays(day);
+                Name = Target.Name + "-Year",
+                Color = new Color(),
+                IsXValueIndexed = true,
+                XValueType = ChartValueType.DateTime,
+                ChartType = SeriesChartType.Line,
+            };
+            Series optimalSeries = new Series
+            {
+                Name = Target.Name + "-Optimal",
+                Color = new Color(),
+                IsXValueIndexed = true,
+                XValueType = ChartValueType.DateTime,
+                ChartType = SeriesChartType.Line,
+            };
 
-                Support.Astrometry.Location(locationClone);
+            DateTime startDay = DateTime.Now.AddDays(-DateTime.Now.Day);
+            DateTime endDay   = startDay.AddYears(1);
+            TimeSpan dayDelta = endDay.Subtract(startDay);
 
-                startMinute = Astrometry.AstronomicalDusk;
-                endMinute = Astrometry.AstronomicalDawn;
-                minutedelta = endMinute.Subtract(startMinute);
-
-                minute = 0;
-                maxAltitude = -90.0;
-                while (minute < minutedelta.TotalMinutes)
-                {
-                    point = startMinute.AddMinutes(minute);
-                    locationClone.DateTime = point;
-                    targetPosition = Astrometry.GetAltitudeAzimuth(Target, locationClone);
-
-                    maxAltitude = (targetPosition.Item1 < maxAltitude) ? maxAltitude : targetPosition.Item1;
-                    minute += 1;
-                }
-
-                mTargetSeries.Points.AddXY(endMinute.AddMinutes(-1), maxAltitude);
-                day++;
-            }
-
-            mTargetSeries.ChartType = SeriesChartType.Line;
-            TargetSeriesList.Add(mTargetSeries);
-        }
-
-        private void BuildYearOptimalSeries()
-        {
-            DateTime point, startMinute, endMinute, aboveHorizonStartTime, aboveHorizonStopTime;
             List<Tuple<DateTime, DateTime, double>> horizonCrossingList = new List<Tuple<DateTime, DateTime, double>>();
-            TimeSpan dayDelta, minutedelta, crossingDelta ;
-            Tuple<double, double> targetPosition;
-            bool aboveHorizon = false;
-            double maxAltitude;
-            double aboveHorizonAltitude;
-            double maxAboveHorizonMinutes;
-            int day, minute;
 
-            Location.Location locationClone = new Location.Location();
-            locationClone = Clone(Location);
-
-            NewSeries(Target.Name, "Optimal", new Color());
-
-            startMinute = new DateTime();
-            endMinute = new DateTime();
-            point = new DateTime();
-
-            DateTime startDay = new DateTime();
-            startDay = DateTime.Now.AddDays(-DateTime.Now.Day);
-
-            DateTime endDay = new DateTime();
-            endDay = DateTime.Now.AddDays(-DateTime.Now.Day).AddYears(1);
-
-
-            dayDelta = endDay.Subtract(startDay);
-
-            day = 0;
-            while (day < dayDelta.TotalDays)
+            for (int day = 0; day < dayDelta.TotalDays; day++)
             {
                 locationClone.DateTime = startDay.AddDays(day);
-
                 Support.Astrometry.Location(locationClone);
 
-                startMinute = Astrometry.AstronomicalDusk;
-                endMinute = Astrometry.AstronomicalDawn;
-                minutedelta = endMinute.Subtract(startMinute);
+                DateTime startMinute = Astrometry.AstronomicalDusk;
+                DateTime endMinute   = Astrometry.AstronomicalDawn;
+                TimeSpan minuteDelta = endMinute.Subtract(startMinute);
 
-                aboveHorizonStartTime = startMinute;
-                aboveHorizonStopTime = startMinute;
+                DateTime point = startMinute;
+                DateTime aboveHorizonStartTime = startMinute;
+                DateTime aboveHorizonStopTime  = startMinute;
+                double   maxAltitude           = -90.0;
+                double   aboveHorizonAltitude  = -90.0;
+                bool     aboveHorizon          = false;
 
-                minute = 0;
-                maxAltitude = -90.0;
-                aboveHorizon = false;
-                aboveHorizonAltitude = -90.0;
-                while (minute < minutedelta.TotalMinutes)
+                for (int minute = 0; minute < minuteDelta.TotalMinutes; minute++)
                 {
                     point = startMinute.AddMinutes(minute);
                     locationClone.DateTime = point;
-                    targetPosition = Astrometry.GetAltitudeAzimuth(Target, locationClone);
+                    Tuple<double, double> targetPosition = Astrometry.GetAltitudeAzimuth(Target, locationClone);
+                    double alt = targetPosition.Item1;
 
-                    maxAltitude = (targetPosition.Item1 < maxAltitude) ? maxAltitude : targetPosition.Item1;
+                    if (alt > maxAltitude) maxAltitude = alt;
 
-                    if ((targetPosition.Item1 >= locationClone.Horizon) && (aboveHorizon == false))  // Mark time target the first time it rises above horizon
+                    if (alt >= locationClone.Horizon && !aboveHorizon)
                     {
-                        aboveHorizonAltitude = targetPosition.Item1;
+                        aboveHorizonAltitude  = alt;
                         aboveHorizonStartTime = point;
                         aboveHorizon = true;
                     }
-
-                    if ((targetPosition.Item1 <= locationClone.Horizon) && (aboveHorizon == true))  // Mark time target falls below horizon after being above horizon
+                    else if (alt <= locationClone.Horizon && aboveHorizon)
                     {
                         aboveHorizonStopTime = point;
                         aboveHorizon = false;
                         horizonCrossingList.Add(Tuple.Create(aboveHorizonStartTime, aboveHorizonStopTime, aboveHorizonAltitude));
                     }
-
-                    minute += 1;
                 }
 
-                if (aboveHorizon == true) // Target was above horizon at Astonimical Dawn
+                if (aboveHorizon)                                  // still above horizon at astronomical dawn
                 {
                     aboveHorizonStopTime = point;
                     horizonCrossingList.Add(Tuple.Create(aboveHorizonStartTime, aboveHorizonStopTime, aboveHorizonAltitude));
                 }
 
-                // Deal with multiple above -> below's. Cheat: just take first time
-                maxAboveHorizonMinutes = 0;
-                aboveHorizonAltitude = locationClone.Horizon;
-                foreach (var item in horizonCrossingList)
+                double optimalAltitude        = locationClone.Horizon;
+                double maxAboveHorizonMinutes = 0;
+                foreach (var crossing in horizonCrossingList)
                 {
-                    crossingDelta = item.Item2.Subtract(item.Item1);
-                    if (crossingDelta >= locationClone.Duration)   // Was target above horizon for at least the minimum Duration?
+                    TimeSpan crossingDelta = crossing.Item2.Subtract(crossing.Item1);
+                    if (crossingDelta >= locationClone.Duration)   // above horizon long enough to be usable?
                     {
-                        aboveHorizonAltitude   = (item.Item3 > aboveHorizonAltitude) ? item.Item3 : aboveHorizonAltitude;
-                        maxAboveHorizonMinutes = (crossingDelta.TotalMinutes > maxAboveHorizonMinutes) ? crossingDelta.TotalMinutes : maxAboveHorizonMinutes;
+                        if (crossing.Item3 > optimalAltitude)             optimalAltitude        = crossing.Item3;
+                        if (crossingDelta.TotalMinutes > maxAboveHorizonMinutes) maxAboveHorizonMinutes = crossingDelta.TotalMinutes;
                     }
                 }
                 horizonCrossingList.Clear();
 
-                maxAltitude = (maxAboveHorizonMinutes > 0) ? maxAltitude : -90;
-                aboveHorizonAltitude = (maxAboveHorizonMinutes > 0) ? aboveHorizonAltitude : -90;
+                if (maxAboveHorizonMinutes <= 0) optimalAltitude = -90;
 
-                mTargetSeries.Points.AddXY(endMinute.AddMinutes(-1), aboveHorizonAltitude); // maxAltitude);
-                day++;
+                yearSeries.Points.AddXY(endMinute.AddMinutes(-1), maxAltitude);
+                optimalSeries.Points.AddXY(endMinute.AddMinutes(-1), optimalAltitude);
             }
 
-            mTargetSeries.ChartType = SeriesChartType.Line;
-            TargetSeriesList.Add(mTargetSeries);
+            TargetSeriesList.Add(yearSeries);
+            TargetSeriesList.Add(optimalSeries);
         }
 
         private void BuildMoonSeries()
