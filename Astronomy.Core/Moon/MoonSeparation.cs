@@ -19,6 +19,9 @@ namespace Astronomy.Core.Moon
         // law of cosines. Result is always in [0, 180].
         public static double DegreesAt(Target target, Location location, DateTime utc)
         {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            if (location == null) throw new ArgumentNullException(nameof(location));
+
             var targetAltAz = AltAz.At(target, location, utc);
             double tAlt = targetAltAz.Item1;
             double tAz  = targetAltAz.Item2;
@@ -55,6 +58,9 @@ namespace Astronomy.Core.Moon
         public static IReadOnlyList<(DateTime Start, DateTime End)> IntervalsAboveDeg(
             Target target, Location location, NightWindow night, double minSepDeg)
         {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            if (location == null) throw new ArgumentNullException(nameof(location));
+
             var result = new List<(DateTime Start, DateTime End)>();
             if (night.AstronomicalDusk == DateTime.MinValue ||
                 night.AstronomicalDawn == DateTime.MinValue) return result;

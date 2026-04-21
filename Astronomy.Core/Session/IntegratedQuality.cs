@@ -19,6 +19,8 @@ namespace Astronomy.Core.Session
             DateTime startUtc, TimeSpan duration,
             Func<double, double> altitudeQuality)
         {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            if (location == null) throw new ArgumentNullException(nameof(location));
             if (altitudeQuality == null) throw new ArgumentNullException(nameof(altitudeQuality));
 
             double latDeg = location.North ? location.Latitude : -location.Latitude;
@@ -56,6 +58,9 @@ namespace Astronomy.Core.Session
             Target target, Location location,
             DateTime startUtc, TimeSpan duration)
         {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            if (location == null) throw new ArgumentNullException(nameof(location));
+
             double latDeg = location.North ? location.Latitude : -location.Latitude;
             double decDeg = target.North ? target.Declination : -target.Declination;
             double lonDegEast = location.West ? -location.Longitude : location.Longitude;

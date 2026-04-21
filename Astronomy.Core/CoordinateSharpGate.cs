@@ -26,6 +26,7 @@ namespace Astronomy.Core
             double latitude, double longitude, DateTime dateTime,
             EagerLoad eagerLoad, double utcOffsetHours)
         {
+            if (eagerLoad == null) throw new ArgumentNullException(nameof(eagerLoad));
             lock (sLock)
             {
                 return Celestial.CalculateCelestialTimes(

@@ -12,6 +12,9 @@ namespace Astronomy.Core
         // the target.North / location.North / location.West flags.
         public static Tuple<double, double> At(Target target, Location location, DateTime utc)
         {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            if (location == null) throw new ArgumentNullException(nameof(location));
+
             double raHours = target.RightAscension;
             double decDeg = target.North ? target.Declination : -target.Declination;
             double latDeg = location.North ? location.Latitude : -location.Latitude;
@@ -30,6 +33,8 @@ namespace Astronomy.Core
         // locationClone.DateTime between calls.
         public static Tuple<double, double> Of(Target target, Location location)
         {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            if (location == null) throw new ArgumentNullException(nameof(location));
             return At(target, location, location.DateTime.ToUniversalTime());
         }
     }

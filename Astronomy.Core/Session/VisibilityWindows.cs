@@ -25,6 +25,10 @@ namespace Astronomy.Core.Session
         public static IReadOnlyList<(DateTime Start, DateTime End)> For(
             Target target, Location location, NightWindow night, IHorizonProfile horizon)
         {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            if (location == null) throw new ArgumentNullException(nameof(location));
+            if (horizon == null) throw new ArgumentNullException(nameof(horizon));
+
             var result = new List<(DateTime Start, DateTime End)>();
 
             double latDeg = location.North ? location.Latitude : -location.Latitude;

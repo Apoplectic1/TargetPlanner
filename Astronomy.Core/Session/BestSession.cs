@@ -25,7 +25,12 @@ namespace Astronomy.Core.Session
             TimeSpan minDuration, TimeSpan maxDuration,
             Func<double, double> altitudeQuality)
         {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            if (location == null) throw new ArgumentNullException(nameof(location));
+            if (horizon == null) throw new ArgumentNullException(nameof(horizon));
             if (altitudeQuality == null) throw new ArgumentNullException(nameof(altitudeQuality));
+            if (minDuration <= TimeSpan.Zero)
+                throw new ArgumentException("minDuration must be positive", nameof(minDuration));
             if (minDuration > maxDuration)
                 throw new ArgumentException("minDuration must be <= maxDuration");
 

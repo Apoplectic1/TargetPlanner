@@ -17,6 +17,8 @@ namespace Astronomy.Core.Night
 
         public static NightWindow ComputeNight(Location location)
         {
+            if (location == null) throw new ArgumentNullException(nameof(location));
+
             double LatSign  = location.North ?  1.0 : -1.0;
             double LongSign = location.West  ? -1.0 :  1.0;
             TimeSpan utcOffset = TimeZoneInfo.Local.GetUtcOffset(location.DateTime);

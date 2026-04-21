@@ -20,6 +20,8 @@ namespace Astronomy.Core.Session
             Target target, Location location, NightWindow night,
             TimeSpan slotSize, Func<double, double> altitudeQuality)
         {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            if (location == null) throw new ArgumentNullException(nameof(location));
             if (altitudeQuality == null) throw new ArgumentNullException(nameof(altitudeQuality));
             if (slotSize <= TimeSpan.Zero) throw new ArgumentException("slotSize must be positive");
 

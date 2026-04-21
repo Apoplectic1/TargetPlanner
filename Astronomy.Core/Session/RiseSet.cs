@@ -17,6 +17,9 @@ namespace Astronomy.Core.Session
         public static (DateTime? Rise, DateTime? Set) NextAtOrAfter(
             Target target, Location location, DateTime searchFromUtc, double horizonDeg)
         {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            if (location == null) throw new ArgumentNullException(nameof(location));
+
             double latDeg = location.North ? location.Latitude : -location.Latitude;
             double decDeg = target.North ? target.Declination : -target.Declination;
             double haHorizon = TargetGeometry.HourAngleAtAltitude(latDeg, decDeg, horizonDeg);
@@ -48,6 +51,8 @@ namespace Astronomy.Core.Session
         public static (DateTime? Rise, DateTime? Set) NextAtOrAfter(
             Target target, Location location, DateTime searchFromUtc, IHorizonProfile horizon)
         {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            if (location == null) throw new ArgumentNullException(nameof(location));
             if (horizon == null) throw new ArgumentNullException(nameof(horizon));
 
             // Seed from the scalar lower-bound fast-path.

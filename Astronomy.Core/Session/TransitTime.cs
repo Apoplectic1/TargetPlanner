@@ -15,6 +15,9 @@ namespace Astronomy.Core.Session
         // finding, constant cost.
         public static DateTime UtcAtOrAfter(Target target, Location location, DateTime searchFromUtc)
         {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            if (location == null) throw new ArgumentNullException(nameof(location));
+
             double lonDegEast = location.West ? -location.Longitude : location.Longitude;
             double raHours = target.RightAscension;
 

@@ -22,6 +22,8 @@ namespace Astronomy.Core.Night
         // NotSupportedException -- the generalized bisection solve is deferred.
         public static NightWindow ComputeNight(Location location, double sunAltBelowDeg)
         {
+            if (location == null) throw new ArgumentNullException(nameof(location));
+
             const double tol = 0.01;
             bool isAstro = Math.Abs(sunAltBelowDeg - AstronomicalTwilightSunAlt) < tol;
             bool isNaut  = Math.Abs(sunAltBelowDeg - NauticalTwilightSunAlt)     < tol;
