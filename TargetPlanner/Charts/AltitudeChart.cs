@@ -22,9 +22,6 @@ namespace TargetPlanner.Charts
 
         private ChartArea mChartArea;
         private List<Target> mTargetList;
-        private Target mTarget;
-        private List<Series> mSeriesList;
-        private Series mSeries;
         private Legend mLegend;
         private UIState mUIState;
 
@@ -45,9 +42,6 @@ namespace TargetPlanner.Charts
             mChartAreaList = new List<ChartArea>();
             //mChart.ChartAreas.Add(mChartArea);
             mTargetList = new List<Target>();
-            mTarget = new Target();
-            mSeriesList = new List<Series>();
-            mSeries = new Series();
             mLegend = new Legend();
             mUIState = new Support.UIState();
             mSeriesByTarget = new Dictionary<Target, AltitudeSeries>();

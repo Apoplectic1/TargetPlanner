@@ -96,15 +96,14 @@ namespace TargetPlanner.Nina
             bool negative = coords["NegativeDec"] != null && (bool)coords["NegativeDec"];
             if (negative) decDegrees = -decDegrees;
 
-            // Target.Declination setter resolves the sign into the North flag automatically.
-            return new Target
-            {
-                Name = name,
-                RightAscension = Math.Round(raHours,    6),
-                Declination    = Math.Round(decDegrees, 6),
-                Directory      = path,
-                Enabled        = true,
-            };
+            // The Target ctor normalizes a negative declination into (magnitude, north=false).
+            return new Target(
+                name:           name,
+                rightAscension: Math.Round(raHours, 6),
+                declination:    Math.Round(decDegrees, 6),
+                north:          true,
+                directory:      path,
+                enabled:        true);
         }
     }
 }

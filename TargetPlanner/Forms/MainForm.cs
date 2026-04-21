@@ -53,7 +53,7 @@ namespace TargetPlanner
 
             mLocalDateTime = Tuple.Create(DateTime.Now, TimeZoneInfo.Local);
             mLocation = PickStartupLocation();
-            mTarget = new Target();
+            mTarget = Target.Default;
             mTargetList = new List<Target>();
 
             mUIState = new UIState();
@@ -251,7 +251,7 @@ namespace TargetPlanner
                     NumericUpDown_LatitudeSeconds.ValueChanged += UpdateLatitudeTextBox;
 
                     mLocation = mLocation.With(north: CheckBox_LocalNorth.Checked, west: CheckBox_LocalWest.Checked);
-                    mTarget.North = CheckBox_TargetNorth.Checked;
+                    mTarget = mTarget.With(north: CheckBox_TargetNorth.Checked);
                 }
             }
         }
@@ -309,7 +309,7 @@ namespace TargetPlanner
                     NumericUpDown_LongitudeSeconds.ValueChanged += UpdateLongitudeTextBox;
 
                     mLocation = mLocation.With(north: CheckBox_LocalNorth.Checked, west: CheckBox_LocalWest.Checked);
-                    mTarget.North = CheckBox_TargetNorth.Checked;
+                    mTarget = mTarget.With(north: CheckBox_TargetNorth.Checked);
                 }
             }
         }
@@ -327,7 +327,7 @@ namespace TargetPlanner
             milliseconds = (int)(1000.0m * (NumericUpDown_RaSeconds.Value - Math.Floor(NumericUpDown_RaSeconds.Value)));
             raTimeSpanHours = new TimeSpan(0, (int)NumericUpDown_RaHours.Value, (int)NumericUpDown_RaMinutes.Value, (int)NumericUpDown_RaSeconds.Value, (int)milliseconds);
 
-            mTarget.RightAscension = Math.Round(raTimeSpanHours.TotalHours, 6);
+            mTarget = mTarget.With(rightAscension: Math.Round(raTimeSpanHours.TotalHours, 6));
 
             TextBox_RightAscension.TextChanged -= TextBox_RightAscension_TextChanged;
             TextBox_RightAscension.Text = mTarget.RightAscension.ToString("F6");
@@ -351,7 +351,7 @@ namespace TargetPlanner
 
             if (status && raHours >= 0.0 && raHours < 24.0)
             {
-                mTarget.RightAscension = Math.Round(raHours, 6);
+                mTarget = mTarget.With(rightAscension: Math.Round(raHours, 6));
                 TextBox_RightAscension.Text = mTarget.RightAscension.ToString("F6");
 
                 NumericUpDown_RaHours.ValueChanged   -= UpdateRightAscensionTextBox;
@@ -367,7 +367,7 @@ namespace TargetPlanner
                 NumericUpDown_RaSeconds.ValueChanged += UpdateRightAscensionTextBox;
 
                 mLocation = mLocation.With(north: CheckBox_LocalNorth.Checked, west: CheckBox_LocalWest.Checked);
-                mTarget.North = CheckBox_TargetNorth.Checked;
+                mTarget = mTarget.With(north: CheckBox_TargetNorth.Checked);
             }
         }
 
@@ -384,7 +384,7 @@ namespace TargetPlanner
 
             declination = (double)NumericUpDown_DecDegrees.Value + (double)NumericUpDown_DecMinutes.Value / 60.0 + (double)NumericUpDown_DecSeconds.Value / 3600.0;
 
-            mTarget.Declination = Math.Round(declination, 6);
+            mTarget = mTarget.With(declination: Math.Round(declination, 6));
 
             TextBox_Declination.TextChanged -= TextBox_Declination_TextChanged;
             TextBox_Declination.Text = mTarget.Declination.ToString("F6");
@@ -408,7 +408,7 @@ namespace TargetPlanner
             {
                 if ((declination <= 90.0) && (declination >= -90.0))
                 {
-                    mTarget.Declination = Math.Round(Math.Abs(declination), 6);
+                    mTarget = mTarget.With(declination: Math.Round(Math.Abs(declination), 6));
                     TextBox_Declination.Text = mTarget.Declination.ToString("F6");
 
                     CheckBox_TargetNorth.Checked = mTarget.North;
@@ -426,7 +426,7 @@ namespace TargetPlanner
                     NumericUpDown_DecSeconds.ValueChanged += UpdateDeclinationTextBox;
 
                     mLocation = mLocation.With(north: CheckBox_LocalNorth.Checked, west: CheckBox_LocalWest.Checked);
-                    mTarget.North = CheckBox_TargetNorth.Checked;
+                    mTarget = mTarget.With(north: CheckBox_TargetNorth.Checked);
                 }
             }
         }
@@ -836,7 +836,7 @@ namespace TargetPlanner
 
         private void CheckBox_TargetNorth_CheckedChanged(object sender, EventArgs e)
         {
-            mTarget.North = CheckBox_TargetNorth.Checked;
+            mTarget = mTarget.With(north: CheckBox_TargetNorth.Checked);
         }
 
         private void CheckBox_LocalNorth_CheckedChanged(object sender, EventArgs e)

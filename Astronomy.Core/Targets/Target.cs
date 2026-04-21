@@ -2,66 +2,75 @@ using System;
 
 namespace Astronomy.Core.Targets
 {
-    public class Target
+    // Immutable deep-sky target. Every property is read-only; mutations produce a new
+    // instance via With(...). Construction takes a full parameter set; callers use
+    // Target.Default for the M31 defaults.
+    //
+    // RA is stored as decimal hours [0, 24). Declination is stored as a non-negative
+    // magnitude with hemisphere in the North flag, matching the Location convention.
+    // A negative declination passed to the constructor is normalized into
+    // (positive magnitude, flipped North).
+    //
+    // D/M/S accessors (RaHours/RaMinutes/RaSeconds and DecDegrees/DecMinutes/DecSeconds)
+    // are computed on read -- no stored fields, no possibility of drift. The DMS breakdown
+    // for Declination is a direct decimal-degree decomposition (degrees + minutes/60 +
+    // seconds/3600), consistent with Location's LatDegrees / LatMinutes / LatSeconds;
+    // the previous implementation routed through TimeSpan.FromHours and produced values
+    // that matched hours-of-declination rather than degrees-of-declination.
+    public sealed class Target
     {
-        public string Name { get; set; }
+        public string  Name           { get; }
+        public double  RightAscension { get; }   // decimal hours [0, 24)
+        public double  Declination    { get; }   // non-negative magnitude in degrees
+        public bool    North          { get; }
+        public string  Directory      { get; }
+        public bool    Enabled        { get; }
 
-        // Hours (0, 24)
-        private double _RightAscension;
-        public double RightAscension
+        public double RaHours   => Math.Floor(RightAscension);
+        public double RaMinutes => Math.Floor(60.0 * (RightAscension - RaHours));
+        public double RaSeconds => 3600.0 * (RightAscension - RaHours - RaMinutes / 60.0);
+
+        public double DecDegrees => Math.Truncate(Declination);
+        public double DecMinutes => Math.Floor(60.0 * (Declination - DecDegrees));
+        public double DecSeconds => 3600.0 * (Declination - DecDegrees - DecMinutes / 60.0);
+
+        public Target(
+            string name,
+            double rightAscension,
+            double declination, bool north,
+            string directory,
+            bool enabled)
         {
-            get { return _RightAscension; }
-            set
-            {
-                _RightAscension = value;
-                RaHours   = Math.Floor(_RightAscension);
-                RaMinutes = Math.Floor(60.0 * (_RightAscension - RaHours));
-                RaSeconds = 3600.0 * (_RightAscension - RaHours - RaMinutes / 60.0);
-            }
+            // Negative declination flips the hemisphere flag, matching Location's convention.
+            if (declination < 0) { declination = -declination; north = !north; }
+
+            Name           = name ?? "Custom";
+            RightAscension = rightAscension;
+            Declination    = declination;
+            North          = north;
+            Directory      = directory ?? string.Empty;
+            Enabled        = enabled;
         }
-        public double RaHours { get; private set; }
-        public double RaMinutes { get; private set; }
-        public double RaSeconds { get; private set; }
 
-        // Decimal Degrees
-        private double _Declination;
-        public double Declination
-        {
-            get { return _Declination; }
-            set
-            {
-                // Negative input flips North to false (Southern hemisphere); positive or zero
-                // leaves the North flag to the caller. This matches the Latitude / Longitude
-                // convention in Location and prevents JSON round-trips or UI magnitude writes
-                // from silently overwriting the hemisphere flag. Callers that want to change
-                // hemisphere independently (e.g. a user toggling the North checkbox) assign
-                // the North property directly.
-                if (value < 0.0) { _Declination = -value; North = false; }
-                else             { _Declination =  value;                 }
+        public Target With(
+            string name = null,
+            double? rightAscension = null,
+            double? declination = null, bool? north = null,
+            string directory = null,
+            bool? enabled = null)
+            => new Target(
+                name           ?? this.Name,
+                rightAscension ?? this.RightAscension,
+                declination    ?? this.Declination,
+                north          ?? this.North,
+                directory      ?? this.Directory,
+                enabled        ?? this.Enabled);
 
-                DecDegrees = Math.Truncate(_Declination);
-                DecHours   = TimeSpan.FromHours(_Declination / 15.0).Hours;
-                DecMinutes = TimeSpan.FromHours(_Declination).Minutes;
-                DecSeconds = TimeSpan.FromHours(_Declination).Seconds + TimeSpan.FromHours(_Declination).Milliseconds / 1000.0;
-            }
-        }
-        public double DecDegrees { get; private set; }
-        public double DecHours { get; private set; }
-        public double DecMinutes { get; private set; }
-        public double DecSeconds { get; private set; }
-        public bool North { get; set; }
-
-        public string Directory { get; set; }
-        public bool Enabled { get; set; }
-
-        public Target()
-        {
-            Name = "M31";
-            RightAscension = 0.712306;
-            Declination = 41.269167;
-            Directory = string.Empty;
-            North = true;
-            Enabled = true;
-        }
+        public static Target Default => new Target(
+            name:           "M31",
+            rightAscension: 0.712306,
+            declination:    41.269167, north: true,
+            directory:      string.Empty,
+            enabled:        true);
     }
 }
