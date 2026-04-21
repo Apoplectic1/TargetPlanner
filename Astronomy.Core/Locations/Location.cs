@@ -27,10 +27,15 @@ namespace Astronomy.Core.Locations
         public DateTime      DateTime     { get; }
         public TimeZoneInfo  TimeZoneInfo { get; }
 
+        // Sexagesimal latitude components derived from the stored magnitude. LatDegrees is the
+        // whole-degrees digit of the DMS breakdown (always non-negative), NOT a synonym for
+        // decimal Latitude. Hemisphere lives in the North flag, not in the sign of LatDegrees.
         public double LatDegrees => Math.Truncate(Latitude);
         public double LatMinutes => Math.Floor(60.0 * (Latitude - LatDegrees));
         public double LatSeconds => 3600.0 * (Latitude - LatDegrees - LatMinutes / 60.0);
 
+        // Sexagesimal longitude components. LonDegrees is non-negative; direction lives in the
+        // West flag.
         public double LonDegrees => Math.Truncate(Longitude);
         public double LonMinutes => Math.Floor(60.0 * (Longitude - LonDegrees));
         public double LonSeconds => 3600.0 * (Longitude - LonDegrees - LonMinutes / 60.0);

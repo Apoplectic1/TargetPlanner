@@ -26,10 +26,17 @@ namespace Astronomy.Core.Targets
         public string  Directory      { get; }
         public bool    Enabled        { get; }
 
+        // Sexagesimal RA components derived from RightAscension. "RaHours" is the whole-hours
+        // digit of the DMS breakdown, NOT a synonym for decimal RightAscension -- don't feed
+        // RaHours into altitude math that expects hours-as-a-float.
         public double RaHours   => Math.Floor(RightAscension);
         public double RaMinutes => Math.Floor(60.0 * (RightAscension - RaHours));
         public double RaSeconds => 3600.0 * (RightAscension - RaHours - RaMinutes / 60.0);
 
+        // Sexagesimal Dec components derived from the stored magnitude. DecDegrees is always
+        // non-negative (hemisphere lives in the North flag), so a southern declination of
+        // -30.5 reports DecDegrees = 30, DecMinutes = 30, North = false -- the sign is not
+        // re-applied to the D/M/S triple.
         public double DecDegrees => Math.Truncate(Declination);
         public double DecMinutes => Math.Floor(60.0 * (Declination - DecDegrees));
         public double DecSeconds => 3600.0 * (Declination - DecDegrees - DecMinutes / 60.0);
