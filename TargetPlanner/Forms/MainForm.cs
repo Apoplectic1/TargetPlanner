@@ -950,22 +950,19 @@ namespace TargetPlanner
 
         private void ShowCheckBoxObjectToolTip(object sender, MouseEventArgs e)
         {
-            string name;
-            Target found;
+            if (mToolTipIndex == this.CheckedListBox_SelectedTargets.IndexFromPoint(e.Location)) return;
 
-            if (mToolTipIndex != this.CheckedListBox_SelectedTargets.IndexFromPoint(e.Location))
-            {
-                mToolTipIndex = CheckedListBox_SelectedTargets.IndexFromPoint(CheckedListBox_SelectedTargets.PointToClient(MousePosition));
-                if (mToolTipIndex > -1)
-                {
-                    name = CheckedListBox_SelectedTargets.Items[mToolTipIndex].ToString();
-                    found = mTargetList.Find(x => x.Name == name);
-                    mToolTip.SetToolTip(CheckedListBox_SelectedTargets, found.Directory);
-                    mToolTip.AutoPopDelay = 5000;
-                    mToolTip.InitialDelay = 2000;
-                    mToolTip.ReshowDelay = 2000;
-                }
-            }
+            mToolTipIndex = CheckedListBox_SelectedTargets.IndexFromPoint(CheckedListBox_SelectedTargets.PointToClient(MousePosition));
+            if (mToolTipIndex < 0) return;
+
+            string name = CheckedListBox_SelectedTargets.Items[mToolTipIndex].ToString();
+            Target found = mTargetList.Find(x => x.Name == name);
+            if (found == null) return;
+
+            mToolTip.SetToolTip(CheckedListBox_SelectedTargets, found.Directory);
+            mToolTip.AutoPopDelay = 5000;
+            mToolTip.InitialDelay = 2000;
+            mToolTip.ReshowDelay = 2000;
         }
 
         private void RadioButton_Day_CheckedChanged(object sender, EventArgs e)
@@ -998,24 +995,17 @@ namespace TargetPlanner
 
         private void ComboBox_SelectTarget_SelectedIndexChanged(object sender, EventArgs e)
         {
-            try
-            {
-                string selectedTargetName = ComboBox_SelectTarget.Text;
+            // Validate-then-assign: if the Find returns null (combobox text doesn't match any
+            // loaded target), leave mTarget pointing at the previous valid target. Assigning
+            // null to mTarget and bailing would leak a null through to BuildTargetSeriesList ->
+            // SeriesFor(null) -> ArgumentNullException on the next Graph click.
+            string selectedTargetName = ComboBox_SelectTarget.Text;
+            Target found = mTargetList.Find(t => t.Name == selectedTargetName);
+            if (found == null) return;
 
-                mTarget = mTargetList.Find(target => target.Name == selectedTargetName);
-
-                if (mTarget == null)
-                {
-                    return;
-                }
-
-                TextBox_RightAscension.Text = mTarget.RightAscension.ToString();
-                TextBox_Declination.Text = mTarget.Declination.ToString();
-            }
-            catch
-            {
-                return;
-            }
+            mTarget = found;
+            TextBox_RightAscension.Text = mTarget.RightAscension.ToString();
+            TextBox_Declination.Text = mTarget.Declination.ToString();
         }
 
         private void Button_ClearAllTargets_Click(object sender, EventArgs e)

@@ -57,6 +57,12 @@ namespace TargetPlanner.Charts
 
         private AltitudeSeries SeriesFor(Target target)
         {
+            // Fail-fast on null. Previously the Dictionary.TryGetValue call threw
+            // ArgumentNullException from deep in mscorlib; surfacing the check here makes
+            // callers' responsibility explicit. Callers should skip null entries when
+            // iterating mTargetList rather than rely on this guard.
+            if (target == null) throw new ArgumentNullException(nameof(target));
+
             if (!mSeriesByTarget.TryGetValue(target, out AltitudeSeries series))
             {
                 series = new AltitudeSeries();
@@ -78,6 +84,7 @@ namespace TargetPlanner.Charts
                 Series reference = null;
                 foreach (Target target in mTargetList)
                 {
+                    if (target == null) continue;
                     foreach (Series s in SeriesFor(target).TargetSeriesList)
                     {
                         if (s.Name.EndsWith("-" + area.Name) && s.Points.Count > 0)
@@ -186,6 +193,7 @@ namespace TargetPlanner.Charts
 
             foreach (Target target in mTargetList)
             {
+                if (target == null) continue;
                 foreach (Series series in SeriesFor(target).TargetSeriesList)
                 {
                     if (series.Name.Contains(chartAreaName))
@@ -209,6 +217,7 @@ namespace TargetPlanner.Charts
         {
             foreach (Target target in mTargetList)
             {
+                if (target == null) continue;
                 SeriesFor(target).Location = Location;
                 SeriesFor(target).Target   = target;
                 SeriesFor(target).BuildSeriesList();
@@ -225,6 +234,7 @@ namespace TargetPlanner.Charts
         {
             foreach (Target target in mTargetList)
             {
+                if (target == null) continue;
                 SeriesFor(target).Location = Location;
                 SeriesFor(target).Target   = target;
                 SeriesFor(target).RebuildOptimalSeries();
@@ -285,6 +295,7 @@ namespace TargetPlanner.Charts
             ClearSeries();
             foreach (Target target in mTargetList)
             {
+                if (target == null) continue;
                 SeriesFor(target).ClearTargetList();
             }
             mTargetList.Clear();
