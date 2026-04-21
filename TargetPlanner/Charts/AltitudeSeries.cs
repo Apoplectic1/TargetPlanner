@@ -209,7 +209,7 @@ namespace TargetPlanner.Charts
 
                 NightCacheEntry entry = new NightCacheEntry();
 
-                if (night.AstronomicalDusk == DateTime.MinValue || night.AstronomicalDawn == DateTime.MinValue)
+                if (!night.IsValid)
                 {
                     entry.IsPolar   = true;
                     entry.SentinelX = startDay.AddDays(day).AddHours(12);

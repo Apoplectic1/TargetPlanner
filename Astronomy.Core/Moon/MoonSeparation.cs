@@ -62,8 +62,7 @@ namespace Astronomy.Core.Moon
             if (location == null) throw new ArgumentNullException(nameof(location));
 
             var result = new List<(DateTime Start, DateTime End)>();
-            if (night.AstronomicalDusk == DateTime.MinValue ||
-                night.AstronomicalDawn == DateTime.MinValue) return result;
+            if (!night.IsValid) return result;
 
             DateTime startUtc = night.AstronomicalDusk.ToUniversalTime();
             DateTime endUtc   = night.AstronomicalDawn.ToUniversalTime();

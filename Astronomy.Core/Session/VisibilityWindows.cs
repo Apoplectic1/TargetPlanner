@@ -40,8 +40,7 @@ namespace Astronomy.Core.Session
             double haHorizon = TargetGeometry.HourAngleAtAltitude(latDeg, decDeg, horizonDeg);
             if (double.IsNaN(haHorizon)) return result; // never reaches horizon
 
-            if (night.AstronomicalDusk == DateTime.MinValue ||
-                night.AstronomicalDawn == DateTime.MinValue) return result;
+            if (!night.IsValid) return result;
 
             DateTime duskUtc = night.AstronomicalDusk.ToUniversalTime();
             DateTime dawnUtc = night.AstronomicalDawn.ToUniversalTime();
