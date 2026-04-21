@@ -129,7 +129,12 @@ namespace TargetPlanner.Charts
             {
                 LegendItem legendItem = (LegendItem)result.Object;
 
-                Series series = mChart.Series[legendItem.SeriesName];
+                // Indexer throws ArgumentException if the legend label doesn't map to a current
+                // Series; that can happen if the click arrives during a chart rebuild, or if
+                // the legend was populated from a Series that was since removed.
+                int idx = mChart.Series.IndexOf(legendItem.SeriesName);
+                if (idx < 0) return;
+                Series series = mChart.Series[idx];
 
                 if (series.Color == Color.Empty)
                 {
@@ -186,6 +191,12 @@ namespace TargetPlanner.Charts
 
         public void ShowChartAreaSeries(string chartAreaName)
         {
+            // Guard the ChartAreas indexer at :214 (and the ones in AddHorizonLine /
+            // SetChartAreaAxis / AddDawnDuskGradient further down) against an unknown area
+            // name. An unknown name would throw ArgumentException from the indexer; early
+            // return is safer than propagating to a UI event handler.
+            if (mChartAreaList.All(ca => ca.Name != chartAreaName)) return;
+
             AddChartAreaToChart(chartAreaName);
 
             AddHorizonLine(chartAreaName);
@@ -328,6 +339,10 @@ namespace TargetPlanner.Charts
             {
                 series.Enabled = false;
             }
+
+            // Every case below indexes mChart.ChartAreas[chartAreaName]; bail out up front if
+            // the area isn't present so the indexer never throws ArgumentException.
+            if (mChart.ChartAreas.IndexOf(chartAreaName) < 0) return;
 
             switch (chartAreaName)
             {

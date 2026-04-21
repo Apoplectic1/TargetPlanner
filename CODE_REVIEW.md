@@ -296,6 +296,14 @@ Listed there; note here that they block writing proper XML docs.
 
 ---
 
+## Investigations that didn't pan out
+
+### Optimal-chart positive spike — not a thread-safety artifact
+Originally thought to be caused by cross-thread `Series.Points` mutation (W0 compute/render split) or CoordinateSharp concurrency (W0 `CoordinateSharpGate`). **Neither fix eliminated it.** User confirmed determinism across runs. Remaining theories:
+ 1. **Rendering artifact.** `-90.0` sentinel day adjacent to a real-altitude day: the chart's line segment runs from the off-chart sentinel (below Y-axis minimum of 10) up to the real value — visually an upward vertical line. Fix would be `DataPoint.IsEmpty = true` on sentinel points plus `Series.EmptyPointStyle.BorderWidth = 0` so the chart breaks the line instead of drawing through. Moved out of Wave 1 since it's a P2 polish, not correctness. Track as **P2-Ren.1** — render sentinel `-90` points as empty.
+ 2. **Math anomaly.** One-day isolated high value with legitimate low neighbors. Requires a step-through of `RenderOptimalSeries` on the specific spike date with logged `(entry.YearAlt, entry.TransitInNight, ahStart, ahEnd, s, e, windowMax, floorAlt, centeredAlt)` to tell. Not yet investigated.
+User asked to defer; track here so we don't retrace these theories.
+
 ## Cross-cutting themes
 
 Rather than category-by-category, here are the root issues that generate most of the findings. Fixing these collapses many P2s.
