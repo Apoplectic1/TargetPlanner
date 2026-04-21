@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
 using TargetPlanner.Support;
@@ -82,10 +83,10 @@ namespace TargetPlanner.Charts
             foreach (ChartArea area in mChartAreaList)
             {
                 Series reference = null;
-                foreach (Target target in mTargetList)
+                foreach (Target target in mTargetList.ToList())
                 {
                     if (target == null) continue;
-                    foreach (Series s in SeriesFor(target).TargetSeriesList)
+                    foreach (Series s in SeriesFor(target).TargetSeriesList.ToList())
                     {
                         if (s.Name.EndsWith("-" + area.Name) && s.Points.Count > 0)
                         {
@@ -191,10 +192,10 @@ namespace TargetPlanner.Charts
 
             ClearSeries();
 
-            foreach (Target target in mTargetList)
+            foreach (Target target in mTargetList.ToList())
             {
                 if (target == null) continue;
-                foreach (Series series in SeriesFor(target).TargetSeriesList)
+                foreach (Series series in SeriesFor(target).TargetSeriesList.ToList())
                 {
                     if (series.Name.Contains(chartAreaName))
                     {
@@ -215,7 +216,7 @@ namespace TargetPlanner.Charts
 
         public void BuildTargetSeriesList()
         {
-            foreach (Target target in mTargetList)
+            foreach (Target target in mTargetList.ToList())
             {
                 if (target == null) continue;
                 SeriesFor(target).Location = Location;
@@ -234,7 +235,7 @@ namespace TargetPlanner.Charts
         // and the chart picks up the new points automatically.
         public void RebuildOptimalData()
         {
-            foreach (Target target in mTargetList)
+            foreach (Target target in mTargetList.ToList())
             {
                 if (target == null) continue;
                 SeriesFor(target).Location = Location;
@@ -295,7 +296,7 @@ namespace TargetPlanner.Charts
         public void ClearTargetList()
         {
             ClearSeries();
-            foreach (Target target in mTargetList)
+            foreach (Target target in mTargetList.ToList())
             {
                 if (target == null) continue;
                 SeriesFor(target).ClearTargetList();
