@@ -41,6 +41,15 @@ namespace TargetPlanner
         // to "Custom".
         private bool mSyncingLocationUI;
 
+        // Four triple-bound coordinate inputs. Each wraps three NumericUpDowns (degrees /
+        // hours + minutes + seconds), a decimal TextBox, and an optional hemisphere CheckBox,
+        // owning the "update one of the four surfaces and keep the others in sync" plumbing
+        // that previously lived in four near-identical handler pairs directly on MainForm.
+        private CoordinateInput mLatitudeInput;
+        private CoordinateInput mLongitudeInput;
+        private CoordinateInput mRaInput;
+        private CoordinateInput mDecInput;
+
         public MainForm()
         {
             InitializeComponent();
@@ -96,11 +105,37 @@ namespace TargetPlanner
             mToolTip?.Dispose();
             mAltitudeChart?.Dispose();
             mAltitudeChartForm?.Dispose();
+            mLatitudeInput?.Dispose();
+            mLongitudeInput?.Dispose();
+            mRaInput?.Dispose();
+            mDecInput?.Dispose();
         }
 
         public void InitializeDynamicControls()
         {
             string[] folderSelectedPaths = { NinaTargetsRootPath };
+
+            // Construct the four triple-bound coordinate helpers before Sync... pushes values
+            // into them. Each helper owns the per-field wiring that used to live in the
+            // UpdateXxxTextBox / TextBox_Xxx_TextChanged / CheckBox_Xxx_CheckedChanged
+            // handlers directly on this form.
+            mLatitudeInput = new CoordinateInput(
+                NumericUpDown_LatitudeDegrees, NumericUpDown_LatitudeMinutes, NumericUpDown_LatitudeSeconds,
+                TextBox_Latitude, CheckBox_LocalNorth, maxMagnitude: 90.0);
+            mLongitudeInput = new CoordinateInput(
+                NumericUpDown_LongitudeDegrees, NumericUpDown_LongitudeMinutes, NumericUpDown_LongitudeSeconds,
+                TextBox_Longitude, CheckBox_LocalWest, maxMagnitude: 180.0);
+            mRaInput = new CoordinateInput(
+                NumericUpDown_RaHours, NumericUpDown_RaMinutes, NumericUpDown_RaSeconds,
+                TextBox_RightAscension, hemisphere: null, maxMagnitude: 24.0);
+            mDecInput = new CoordinateInput(
+                NumericUpDown_DecDegrees, NumericUpDown_DecMinutes, NumericUpDown_DecSeconds,
+                TextBox_Declination, CheckBox_TargetNorth, maxMagnitude: 90.0);
+
+            mLatitudeInput.ValueChanged  += OnLatitudeEdited;
+            mLongitudeInput.ValueChanged += OnLongitudeEdited;
+            mRaInput.ValueChanged        += OnRightAscensionEdited;
+            mDecInput.ValueChanged       += OnDeclinationEdited;
 
             // Populate ComboBox_Location from settings, select the startup location, then
             // push mLocation's values into the lat/lon/N/W/Horizon/Duration inputs.
@@ -116,23 +151,7 @@ namespace TargetPlanner
             ComboBox_Location.SelectedIndexChanged += ComboBox_Location_SelectionIndexChanged;
 
             SyncLocationUIFromModel();
-
-            // Flip the location combo to "Custom" the moment the user changes a geographic
-            // field (lat / lon / N / W). Horizon and Duration are analysis preferences that
-            // are independent of location identity -- editing them does not rename the
-            // selected location. These handlers sit alongside the per-field handlers already
-            // wired in the Designer; the mSyncingLocationUI guard keeps programmatic syncs
-            // from tripping them.
-            NumericUpDown_LatitudeDegrees.ValueChanged  += OnLocationEdited;
-            NumericUpDown_LatitudeMinutes.ValueChanged  += OnLocationEdited;
-            NumericUpDown_LatitudeSeconds.ValueChanged  += OnLocationEdited;
-            NumericUpDown_LongitudeDegrees.ValueChanged += OnLocationEdited;
-            NumericUpDown_LongitudeMinutes.ValueChanged += OnLocationEdited;
-            NumericUpDown_LongitudeSeconds.ValueChanged += OnLocationEdited;
-            TextBox_Latitude.TextChanged                += OnLocationEdited;
-            TextBox_Longitude.TextChanged               += OnLocationEdited;
-            CheckBox_LocalNorth.CheckedChanged          += OnLocationEdited;
-            CheckBox_LocalWest.CheckedChanged           += OnLocationEdited;
+            SyncTargetUIFromModel();
 
             // Add Panel that MSChart will appear in to GroupBox
             Panel_AltitudeChart = new Panel();
@@ -200,365 +219,44 @@ namespace TargetPlanner
             Label_MoonSetValue.Text = Astrometry.LunarSet.ToShortTimeString();
         }
 
-        // ---------- Latitude ----------
-        private void UpdateLatitudeTextBox(object sender, EventArgs e)
+        // ---------- Coordinate-input callbacks (ValueChanged from CoordinateInput) ----------
+        //
+        // Each of these fires only for user-driven edits (spinner tick, textbox edit, or
+        // hemisphere checkbox flip). Programmatic writes via SetProgrammatic during
+        // SyncLocationUIFromModel / SyncTargetUIFromModel suppress the event, so these
+        // callbacks are only ever invoked with the helper's Magnitude / Positive already
+        // reflecting the user's intent.
+        //
+        // Every location-side callback funnels into OnLocationEdited so the combo flips to
+        // "Custom" on any geographic change; RA/Dec do not affect the location combo.
+        private void OnLatitudeEdited(object sender, EventArgs e)
         {
-            double latitude;
-
-            ScrollNumericLocationCounters();
-
-            latitude = (double)NumericUpDown_LatitudeDegrees.Value + (double)NumericUpDown_LatitudeMinutes.Value / 60.0 + (double)NumericUpDown_LatitudeSeconds.Value / 3600.0;
-
-            mLocation = mLocation.With(latitude: Math.Round(latitude, 6));
-
-            TextBox_Latitude.TextChanged -= TextBox_Latitude_TextChanged;
-            TextBox_Latitude.Text = mLocation.Latitude.ToString("F6");
-            TextBox_Latitude.TextChanged += TextBox_Latitude_TextChanged;
+            mLocation = mLocation.With(
+                latitude: Math.Round(mLatitudeInput.Magnitude, 6),
+                north:    mLatitudeInput.Positive);
+            OnLocationEdited(sender, e);
         }
 
-        private void TextBox_Latitude_TextChanged(object sender, EventArgs e)
+        private void OnLongitudeEdited(object sender, EventArgs e)
         {
-            bool status;
-            double latitude;
-
-
-            if (System.Text.RegularExpressions.Regex.IsMatch(TextBox_Latitude.Text, "  ^ [0-9]"))
-            {
-                TextBox_Latitude.Text = "";
-                return;
-            }
-
-            status = Double.TryParse(TextBox_Latitude.Text, out latitude);
-
-            if (status)
-            {
-                if (latitude <= 180.0)
-                {
-                    mLocation = mLocation.With(latitude: Math.Round(latitude, 6));
-                    TextBox_Latitude.Text = mLocation.Latitude.ToString("F6");
-
-                    CheckBox_LocalNorth.Checked = mLocation.North;
-
-                    NumericUpDown_LatitudeDegrees.ValueChanged -= UpdateLatitudeTextBox;
-                    NumericUpDown_LatitudeMinutes.ValueChanged -= UpdateLatitudeTextBox;
-                    NumericUpDown_LatitudeSeconds.ValueChanged -= UpdateLatitudeTextBox;
-
-                    NumericUpDown_LatitudeDegrees.Value = (decimal)mLocation.LatDegrees;
-                    NumericUpDown_LatitudeMinutes.Value = (decimal)mLocation.LatMinutes;
-                    NumericUpDown_LatitudeSeconds.Value = (decimal)mLocation.LatSeconds;
-
-                    NumericUpDown_LatitudeDegrees.ValueChanged += UpdateLatitudeTextBox;
-                    NumericUpDown_LatitudeMinutes.ValueChanged += UpdateLatitudeTextBox;
-                    NumericUpDown_LatitudeSeconds.ValueChanged += UpdateLatitudeTextBox;
-
-                    mLocation = mLocation.With(north: CheckBox_LocalNorth.Checked, west: CheckBox_LocalWest.Checked);
-                    mTarget = mTarget.With(north: CheckBox_TargetNorth.Checked);
-                }
-            }
+            mLocation = mLocation.With(
+                longitude: Math.Round(mLongitudeInput.Magnitude, 6),
+                west:      mLongitudeInput.Positive);
+            OnLocationEdited(sender, e);
         }
 
-        // ---------- Longitude ----------
-        private void UpdateLongitudeTextBox(object sender, EventArgs e)
+        private void OnRightAscensionEdited(object sender, EventArgs e)
         {
-            double longitude;
-
-            ScrollNumericLocationCounters();
-
-            longitude = (double)NumericUpDown_LongitudeDegrees.Value + (double)NumericUpDown_LongitudeMinutes.Value / 60.0 + (double)NumericUpDown_LongitudeSeconds.Value / 3600.0;
-
-            mLocation = mLocation.With(longitude: Math.Round(longitude, 6));
-
-            TextBox_Longitude.TextChanged -= TextBox_Longitude_TextChanged;
-            TextBox_Longitude.Text = mLocation.Longitude.ToString("F6");
-            TextBox_Longitude.TextChanged += TextBox_Longitude_TextChanged;
-        }
-
-        private void TextBox_Longitude_TextChanged(object sender, EventArgs e)
-        {
-            bool status;
-            double longitude;
-
-            if (System.Text.RegularExpressions.Regex.IsMatch(TextBox_Longitude.Text, "  ^ [0-9]"))
-            {
-                TextBox_Longitude.Text = "";
-                return;
-            }
-
-            status = Double.TryParse(TextBox_Longitude.Text, out longitude);
-
-            if (status)
-            {
-                if (longitude <= 90.0)
-                {
-                    mLocation = mLocation.With(longitude: Math.Round(longitude, 6));
-                    TextBox_Longitude.Text = mLocation.Longitude.ToString("F6");
-
-                    CheckBox_LocalWest.Checked = mLocation.West;
-
-                    NumericUpDown_LongitudeDegrees.ValueChanged -= UpdateLongitudeTextBox;
-                    NumericUpDown_LongitudeMinutes.ValueChanged -= UpdateLongitudeTextBox;
-                    NumericUpDown_LongitudeSeconds.ValueChanged -= UpdateLongitudeTextBox;
-
-                    NumericUpDown_LongitudeDegrees.Value = (decimal)mLocation.LonDegrees;
-                    NumericUpDown_LongitudeMinutes.Value = (decimal)mLocation.LonMinutes;
-                    NumericUpDown_LongitudeSeconds.Value = (decimal)mLocation.LonSeconds;
-
-                    NumericUpDown_LongitudeDegrees.ValueChanged += UpdateLongitudeTextBox;
-                    NumericUpDown_LongitudeMinutes.ValueChanged += UpdateLongitudeTextBox;
-                    NumericUpDown_LongitudeSeconds.ValueChanged += UpdateLongitudeTextBox;
-
-                    mLocation = mLocation.With(north: CheckBox_LocalNorth.Checked, west: CheckBox_LocalWest.Checked);
-                    mTarget = mTarget.With(north: CheckBox_TargetNorth.Checked);
-                }
-            }
-        }
-
-        // ---------- Right Ascension ----------
-        private void UpdateRightAscensionTextBox(object sender, EventArgs e)
-        {
-            TimeSpan raTimeSpanHours;
-            double milliseconds;
-
-            ScrollNumericLocationCounters();
-
-            milliseconds = (int)(1000.0m * (NumericUpDown_RaSeconds.Value - Math.Floor(NumericUpDown_RaSeconds.Value)));
-            raTimeSpanHours = new TimeSpan(0, (int)NumericUpDown_RaHours.Value, (int)NumericUpDown_RaMinutes.Value, (int)NumericUpDown_RaSeconds.Value, (int)milliseconds);
-
-            mTarget = mTarget.With(rightAscension: Math.Round(raTimeSpanHours.TotalHours, 6));
-
-            TextBox_RightAscension.TextChanged -= TextBox_RightAscension_TextChanged;
-            TextBox_RightAscension.Text = mTarget.RightAscension.ToString("F6");
-            TextBox_RightAscension.TextChanged += TextBox_RightAscension_TextChanged;
-        }
-
-        private void TextBox_RightAscension_TextChanged(object sender, EventArgs e)
-        {
-            double raHours;
-            bool status;
-
             if (mTarget == null) return;
-
-            if (System.Text.RegularExpressions.Regex.IsMatch(TextBox_RightAscension.Text, "  ^ [0-9]"))
-            {
-                TextBox_RightAscension.Text = "";
-                return;
-            }
-
-            status = Double.TryParse(TextBox_RightAscension.Text, out raHours);
-
-            if (status && raHours >= 0.0 && raHours < 24.0)
-            {
-                mTarget = mTarget.With(rightAscension: Math.Round(raHours, 6));
-                TextBox_RightAscension.Text = mTarget.RightAscension.ToString("F6");
-
-                NumericUpDown_RaHours.ValueChanged   -= UpdateRightAscensionTextBox;
-                NumericUpDown_RaMinutes.ValueChanged -= UpdateRightAscensionTextBox;
-                NumericUpDown_RaSeconds.ValueChanged -= UpdateRightAscensionTextBox;
-
-                NumericUpDown_RaHours.Value   = (decimal)mTarget.RaHours;
-                NumericUpDown_RaMinutes.Value = (decimal)mTarget.RaMinutes;
-                NumericUpDown_RaSeconds.Value = (decimal)mTarget.RaSeconds;
-
-                NumericUpDown_RaHours.ValueChanged   += UpdateRightAscensionTextBox;
-                NumericUpDown_RaMinutes.ValueChanged += UpdateRightAscensionTextBox;
-                NumericUpDown_RaSeconds.ValueChanged += UpdateRightAscensionTextBox;
-
-                mLocation = mLocation.With(north: CheckBox_LocalNorth.Checked, west: CheckBox_LocalWest.Checked);
-                mTarget = mTarget.With(north: CheckBox_TargetNorth.Checked);
-            }
+            mTarget = mTarget.With(rightAscension: Math.Round(mRaInput.Magnitude, 6));
         }
 
-        // ---------- Declination ----------
-        private void UpdateDeclinationTextBox(object sender, EventArgs e)
+        private void OnDeclinationEdited(object sender, EventArgs e)
         {
-            double declination;
-
             if (mTarget == null) return;
-
-            ScrollNumericLocationCounters();
-
-            declination = (double)NumericUpDown_DecDegrees.Value + (double)NumericUpDown_DecMinutes.Value / 60.0 + (double)NumericUpDown_DecSeconds.Value / 3600.0;
-
-            mTarget = mTarget.With(declination: Math.Round(declination, 6));
-
-            TextBox_Declination.TextChanged -= TextBox_Declination_TextChanged;
-            TextBox_Declination.Text = mTarget.Declination.ToString("F6");
-            TextBox_Declination.TextChanged += TextBox_Declination_TextChanged;
-        }
-
-        private void TextBox_Declination_TextChanged(object sender, EventArgs e)
-        {
-            bool status;
-            double declination;
-
-            if (System.Text.RegularExpressions.Regex.IsMatch(TextBox_Declination.Text, "  ^ [0-9]"))
-            {
-                TextBox_Declination.Text = "";
-                return;
-            }
-
-            status = Double.TryParse(TextBox_Declination.Text, out declination);
-
-            if (status)
-            {
-                if ((declination <= 90.0) && (declination >= -90.0))
-                {
-                    mTarget = mTarget.With(declination: Math.Round(Math.Abs(declination), 6));
-                    TextBox_Declination.Text = mTarget.Declination.ToString("F6");
-
-                    CheckBox_TargetNorth.Checked = mTarget.North;
-
-                    NumericUpDown_DecDegrees.ValueChanged -= UpdateDeclinationTextBox;
-                    NumericUpDown_DecMinutes.ValueChanged -= UpdateDeclinationTextBox;
-                    NumericUpDown_DecSeconds.ValueChanged -= UpdateDeclinationTextBox;
-
-                    NumericUpDown_DecDegrees.Value = (decimal)mTarget.DecDegrees;
-                    NumericUpDown_DecMinutes.Value = (decimal)mTarget.DecMinutes;
-                    NumericUpDown_DecSeconds.Value = (decimal)mTarget.DecSeconds;
-
-                    NumericUpDown_DecDegrees.ValueChanged += UpdateDeclinationTextBox;
-                    NumericUpDown_DecMinutes.ValueChanged += UpdateDeclinationTextBox;
-                    NumericUpDown_DecSeconds.ValueChanged += UpdateDeclinationTextBox;
-
-                    mLocation = mLocation.With(north: CheckBox_LocalNorth.Checked, west: CheckBox_LocalWest.Checked);
-                    mTarget = mTarget.With(north: CheckBox_TargetNorth.Checked);
-                }
-            }
-        }
-
-        public void ScrollNumericLocationCounters()
-        {
-            // Latitude
-            if (NumericUpDown_LatitudeSeconds.Value == 60.0m)
-            {
-                decimal minutes;
-                NumericUpDown_LatitudeSeconds.Value = 0m;
-                minutes = NumericUpDown_LatitudeMinutes.Value + 1.0m;
-                NumericUpDown_LatitudeMinutes.Value = minutes;
-            }
-
-            if (NumericUpDown_LatitudeSeconds.Value == -0.01m)
-            {
-                decimal minutes;
-                NumericUpDown_LatitudeSeconds.Value = 59.99m;
-                minutes = NumericUpDown_LatitudeMinutes.Value - 1.0m;
-                NumericUpDown_LatitudeMinutes.Value = minutes;
-            }
-
-            if (NumericUpDown_LatitudeMinutes.Value == 60.0m)
-            {
-                decimal degrees;
-                NumericUpDown_LatitudeMinutes.Value = 0;
-                degrees = NumericUpDown_LatitudeDegrees.Value + 1.0m;
-                NumericUpDown_LatitudeDegrees.Value = degrees;
-            }
-
-            if (NumericUpDown_LatitudeMinutes.Value == -1m)
-            {
-                decimal degrees;
-                NumericUpDown_LatitudeMinutes.Value = 59.0m;
-                degrees = NumericUpDown_LatitudeDegrees.Value - 1.0m;
-                NumericUpDown_LatitudeDegrees.Value = degrees;
-            }
-
-            // Longitude
-            if (NumericUpDown_LongitudeSeconds.Value == 60.0m)
-            {
-                decimal minutes;
-                NumericUpDown_LongitudeSeconds.Value = 0m;
-                minutes = NumericUpDown_LongitudeMinutes.Value + 1.0m;
-                NumericUpDown_LongitudeMinutes.Value = minutes;
-            }
-
-            if (NumericUpDown_LongitudeSeconds.Value == -0.01m)
-            {
-                decimal minutes;
-                NumericUpDown_LongitudeSeconds.Value = 59.99m;
-                minutes = NumericUpDown_LongitudeMinutes.Value - 1.0m;
-                NumericUpDown_LongitudeMinutes.Value = minutes;
-            }
-
-            if (NumericUpDown_LongitudeMinutes.Value == 60.0m)
-            {
-                decimal degrees;
-                NumericUpDown_LongitudeMinutes.Value = 0;
-                degrees = NumericUpDown_LongitudeDegrees.Value + 1.0m;
-                NumericUpDown_LongitudeDegrees.Value = degrees;
-            }
-
-            if (NumericUpDown_LongitudeMinutes.Value == -1m)
-            {
-                decimal degrees;
-                NumericUpDown_LongitudeMinutes.Value = 59.0m;
-                degrees = NumericUpDown_LongitudeDegrees.Value - 1.0m;
-                NumericUpDown_LongitudeDegrees.Value = degrees;
-            }
-
-            // Right Ascension
-            if (NumericUpDown_RaSeconds.Value == 60.0m)
-            {
-                decimal minutes;
-                NumericUpDown_RaSeconds.Value = 0m;
-                minutes = NumericUpDown_RaMinutes.Value + 1.0m;
-                NumericUpDown_RaMinutes.Value = minutes;
-            }
-
-            if (NumericUpDown_RaSeconds.Value == -0.01m)
-            {
-                decimal minutes;
-                NumericUpDown_RaSeconds.Value = 59.99m;
-                minutes = NumericUpDown_RaMinutes.Value - 1.0m;
-                NumericUpDown_RaMinutes.Value = minutes;
-            }
-
-            if (NumericUpDown_RaMinutes.Value == 60.0m)
-            {
-                decimal degrees;
-                NumericUpDown_RaMinutes.Value = 0;
-                degrees = NumericUpDown_RaHours.Value + 1.0m;
-                NumericUpDown_RaHours.Value = degrees;
-            }
-
-            if (NumericUpDown_RaMinutes.Value == -1m)
-            {
-                decimal degrees;
-                NumericUpDown_RaMinutes.Value = 59.0m;
-                degrees = NumericUpDown_RaHours.Value - 1.0m;
-                NumericUpDown_RaHours.Value = degrees;
-            }
-
-            // Declination
-            if (NumericUpDown_DecSeconds.Value == 60.0m)
-            {
-                decimal minutes;
-                NumericUpDown_DecSeconds.Value = 0m;
-                minutes = NumericUpDown_DecMinutes.Value + 1.0m;
-                NumericUpDown_DecMinutes.Value = minutes;
-            }
-
-            if (NumericUpDown_DecSeconds.Value == -0.01m)
-            {
-                decimal minutes;
-                NumericUpDown_DecSeconds.Value = 59.99m;
-                minutes = NumericUpDown_DecMinutes.Value - 1.0m;
-                NumericUpDown_DecMinutes.Value = minutes;
-            }
-
-            if (NumericUpDown_DecMinutes.Value == 60.0m)
-            {
-                decimal degrees;
-                NumericUpDown_DecMinutes.Value = 0;
-                degrees = NumericUpDown_DecDegrees.Value + 1.0m;
-                NumericUpDown_DecDegrees.Value = degrees;
-            }
-
-            if (NumericUpDown_DecMinutes.Value == -1m)
-            {
-                decimal degrees;
-                NumericUpDown_DecMinutes.Value = 59.0m;
-                degrees = NumericUpDown_DecDegrees.Value - 1.0m;
-                NumericUpDown_DecDegrees.Value = degrees;
-            }
+            mTarget = mTarget.With(
+                declination: Math.Round(mDecInput.Magnitude, 6),
+                north:       mDecInput.Positive);
         }
 
         private void NumericUpDown_Duration_ValueChanged(object sender, EventArgs e)
@@ -639,11 +337,6 @@ namespace TargetPlanner
             mAltitudeChart.Legend = true;
 
             Panel_AltitudeChart.Controls.Add(mAltitudeChart.mChart);
-        }
-
-        private void CheckBox_LocalWest_CheckedChanged(object sender, EventArgs e)
-        {
-            mLocation = mLocation.With(west: CheckBox_LocalWest.Checked);
         }
 
         private void CheckBox_HoldTime_CheckedChanged(object sender, EventArgs e)
@@ -766,56 +459,38 @@ namespace TargetPlanner
             return Astronomy.Core.Locations.Location.Default;
         }
 
-        // Push mLocation into the lat / lon / N / W / Horizon / Duration inputs. Unsubscribes
-        // per-field handlers while writing so the existing triple-binding (spinners <-> textbox
-        // <-> checkbox) doesn't thrash during the sync, and sets mSyncingLocationUI so
-        // OnLocationEdited treats the writes as programmatic.
+        // Push mLocation into the lat / lon / N / W / Horizon / Duration inputs. The two
+        // CoordinateInput helpers handle all their own suppress-during-write plumbing; for
+        // Horizon / Duration (single-spinner, not triple-bound) we unsubscribe/re-subscribe
+        // around the write directly. mSyncingLocationUI still gates OnLocationEdited so the
+        // sync itself doesn't flip the combo to "Custom".
         private void SyncLocationUIFromModel()
         {
             mSyncingLocationUI = true;
             try
             {
-                NumericUpDown_LatitudeDegrees.ValueChanged  -= UpdateLatitudeTextBox;
-                NumericUpDown_LatitudeMinutes.ValueChanged  -= UpdateLatitudeTextBox;
-                NumericUpDown_LatitudeSeconds.ValueChanged  -= UpdateLatitudeTextBox;
-                NumericUpDown_LongitudeDegrees.ValueChanged -= UpdateLongitudeTextBox;
-                NumericUpDown_LongitudeMinutes.ValueChanged -= UpdateLongitudeTextBox;
-                NumericUpDown_LongitudeSeconds.ValueChanged -= UpdateLongitudeTextBox;
-                TextBox_Latitude.TextChanged                -= TextBox_Latitude_TextChanged;
-                TextBox_Longitude.TextChanged               -= TextBox_Longitude_TextChanged;
-                CheckBox_LocalNorth.CheckedChanged          -= CheckBox_LocalNorth_CheckedChanged;
-                CheckBox_LocalWest.CheckedChanged           -= CheckBox_LocalWest_CheckedChanged;
-                NumericUpDown_Horizon.ValueChanged          -= NumericUpDown_Horizon_ValueChanged;
-                NumericUpDown_Duration.ValueChanged         -= NumericUpDown_Duration_ValueChanged;
+                mLatitudeInput.SetProgrammatic(mLocation.Latitude,  positive: mLocation.North);
+                mLongitudeInput.SetProgrammatic(mLocation.Longitude, positive: mLocation.West);
 
-                CheckBox_LocalNorth.Checked = mLocation.North;
-                CheckBox_LocalWest.Checked  = mLocation.West;
-                TextBox_Latitude.Text       = mLocation.Latitude.ToString("F6");
-                TextBox_Longitude.Text      = mLocation.Longitude.ToString("F6");
-
-                NumericUpDown_LatitudeDegrees.Value  = ClampToRange(NumericUpDown_LatitudeDegrees,  (decimal)mLocation.LatDegrees);
-                NumericUpDown_LatitudeMinutes.Value  = ClampToRange(NumericUpDown_LatitudeMinutes,  (decimal)mLocation.LatMinutes);
-                NumericUpDown_LatitudeSeconds.Value  = ClampToRange(NumericUpDown_LatitudeSeconds,  (decimal)Math.Round(mLocation.LatSeconds, 2));
-                NumericUpDown_LongitudeDegrees.Value = ClampToRange(NumericUpDown_LongitudeDegrees, (decimal)mLocation.LonDegrees);
-                NumericUpDown_LongitudeMinutes.Value = ClampToRange(NumericUpDown_LongitudeMinutes, (decimal)mLocation.LonMinutes);
-                NumericUpDown_LongitudeSeconds.Value = ClampToRange(NumericUpDown_LongitudeSeconds, (decimal)Math.Round(mLocation.LonSeconds, 2));
-                NumericUpDown_Horizon.Value          = ClampToRange(NumericUpDown_Horizon,          (decimal)mLocation.Horizon);
-                NumericUpDown_Duration.Value         = ClampToRange(NumericUpDown_Duration,         (decimal)mLocation.Duration.TotalHours);
-
-                NumericUpDown_LatitudeDegrees.ValueChanged  += UpdateLatitudeTextBox;
-                NumericUpDown_LatitudeMinutes.ValueChanged  += UpdateLatitudeTextBox;
-                NumericUpDown_LatitudeSeconds.ValueChanged  += UpdateLatitudeTextBox;
-                NumericUpDown_LongitudeDegrees.ValueChanged += UpdateLongitudeTextBox;
-                NumericUpDown_LongitudeMinutes.ValueChanged += UpdateLongitudeTextBox;
-                NumericUpDown_LongitudeSeconds.ValueChanged += UpdateLongitudeTextBox;
-                TextBox_Latitude.TextChanged                += TextBox_Latitude_TextChanged;
-                TextBox_Longitude.TextChanged               += TextBox_Longitude_TextChanged;
-                CheckBox_LocalNorth.CheckedChanged          += CheckBox_LocalNorth_CheckedChanged;
-                CheckBox_LocalWest.CheckedChanged           += CheckBox_LocalWest_CheckedChanged;
-                NumericUpDown_Horizon.ValueChanged          += NumericUpDown_Horizon_ValueChanged;
-                NumericUpDown_Duration.ValueChanged         += NumericUpDown_Duration_ValueChanged;
+                NumericUpDown_Horizon.ValueChanged  -= NumericUpDown_Horizon_ValueChanged;
+                NumericUpDown_Duration.ValueChanged -= NumericUpDown_Duration_ValueChanged;
+                NumericUpDown_Horizon.Value  = ClampToRange(NumericUpDown_Horizon,  (decimal)mLocation.Horizon);
+                NumericUpDown_Duration.Value = ClampToRange(NumericUpDown_Duration, (decimal)mLocation.Duration.TotalHours);
+                NumericUpDown_Horizon.ValueChanged  += NumericUpDown_Horizon_ValueChanged;
+                NumericUpDown_Duration.ValueChanged += NumericUpDown_Duration_ValueChanged;
             }
             finally { mSyncingLocationUI = false; }
+        }
+
+        // Push mTarget into the RA / Dec coordinate inputs. No equivalent guard flag because
+        // OnRightAscensionEdited / OnDeclinationEdited don't have the combo-flip side effect
+        // that SyncLocationUIFromModel has to suppress; SetProgrammatic already skips
+        // ValueChanged.
+        private void SyncTargetUIFromModel()
+        {
+            if (mTarget == null) return;
+            mRaInput.SetProgrammatic(mTarget.RightAscension, positive: true);
+            mDecInput.SetProgrammatic(mTarget.Declination,    positive: mTarget.North);
         }
 
         private static decimal ClampToRange(NumericUpDown spinner, decimal value)
@@ -823,16 +498,6 @@ namespace TargetPlanner
             if (value < spinner.Minimum) return spinner.Minimum;
             if (value > spinner.Maximum) return spinner.Maximum;
             return value;
-        }
-
-        private void CheckBox_TargetNorth_CheckedChanged(object sender, EventArgs e)
-        {
-            mTarget = mTarget.With(north: CheckBox_TargetNorth.Checked);
-        }
-
-        private void CheckBox_LocalNorth_CheckedChanged(object sender, EventArgs e)
-        {
-            mLocation = mLocation.With(north: CheckBox_LocalNorth.Checked);
         }
         private void Button_BrowseTargetList_Click(object sender, EventArgs e)
         {
@@ -990,8 +655,7 @@ namespace TargetPlanner
             if (found == null) return;
 
             mTarget = found;
-            TextBox_RightAscension.Text = mTarget.RightAscension.ToString();
-            TextBox_Declination.Text = mTarget.Declination.ToString();
+            SyncTargetUIFromModel();
         }
 
         private void Button_ClearAllTargets_Click(object sender, EventArgs e)

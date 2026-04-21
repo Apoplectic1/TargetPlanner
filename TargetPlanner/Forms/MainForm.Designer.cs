@@ -394,7 +394,6 @@
             this.CheckBox_LocalNorth.TabIndex = 25;
             this.CheckBox_LocalNorth.Text = "North";
             this.CheckBox_LocalNorth.UseVisualStyleBackColor = true;
-            this.CheckBox_LocalNorth.CheckedChanged += new System.EventHandler(this.CheckBox_LocalNorth_CheckedChanged);
             // 
             // Label_Hours
             // 
@@ -507,7 +506,6 @@
             this.NumericUpDown_LatitudeMinutes.Size = new System.Drawing.Size(55, 20);
             this.NumericUpDown_LatitudeMinutes.TabIndex = 3;
             this.NumericUpDown_LatitudeMinutes.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_LatitudeMinutes.ValueChanged += new System.EventHandler(this.UpdateLatitudeTextBox);
             // 
             // Label_LocalHorizon
             // 
@@ -536,7 +534,6 @@
             this.NumericUpDown_LatitudeDegrees.Size = new System.Drawing.Size(55, 20);
             this.NumericUpDown_LatitudeDegrees.TabIndex = 2;
             this.NumericUpDown_LatitudeDegrees.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_LatitudeDegrees.ValueChanged += new System.EventHandler(this.UpdateLatitudeTextBox);
             // 
             // Label_LocalLatitudeText
             // 
@@ -569,7 +566,6 @@
             this.NumericUpDown_LongitudeDegrees.Size = new System.Drawing.Size(55, 20);
             this.NumericUpDown_LongitudeDegrees.TabIndex = 6;
             this.NumericUpDown_LongitudeDegrees.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_LongitudeDegrees.ValueChanged += new System.EventHandler(this.UpdateLongitudeTextBox);
             // 
             // NumericUpDown_LongitudeMinutes
             // 
@@ -589,7 +585,6 @@
             this.NumericUpDown_LongitudeMinutes.Size = new System.Drawing.Size(55, 20);
             this.NumericUpDown_LongitudeMinutes.TabIndex = 7;
             this.NumericUpDown_LongitudeMinutes.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_LongitudeMinutes.ValueChanged += new System.EventHandler(this.UpdateLongitudeTextBox);
             // 
             // Label_LocalLatDegreeColon
             // 
@@ -611,7 +606,6 @@
             this.CheckBox_LocalWest.TabIndex = 10;
             this.CheckBox_LocalWest.Text = "West";
             this.CheckBox_LocalWest.UseVisualStyleBackColor = true;
-            this.CheckBox_LocalWest.CheckedChanged += new System.EventHandler(this.CheckBox_LocalWest_CheckedChanged);
             // 
             // Label_LocalLonDegreeColon
             // 
@@ -630,7 +624,6 @@
             this.TextBox_Longitude.TabIndex = 9;
             this.TextBox_Longitude.Text = " ";
             this.TextBox_Longitude.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.TextBox_Longitude.TextChanged += new System.EventHandler(this.TextBox_Longitude_TextChanged);
             // 
             // Label_LocalLatMinuteColon
             // 
@@ -652,7 +645,6 @@
             this.TextBox_Latitude.TabIndex = 5;
             this.TextBox_Latitude.Text = " ";
             this.TextBox_Latitude.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.TextBox_Latitude.TextChanged += new System.EventHandler(this.TextBox_Latitude_TextChanged);
             // 
             // Label_LocalLonMinuteColon
             // 
@@ -687,7 +679,6 @@
             this.NumericUpDown_LongitudeSeconds.Size = new System.Drawing.Size(65, 20);
             this.NumericUpDown_LongitudeSeconds.TabIndex = 8;
             this.NumericUpDown_LongitudeSeconds.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_LongitudeSeconds.ValueChanged += new System.EventHandler(this.UpdateLongitudeTextBox);
             // 
             // NumericUpDown_LatitudeSeconds
             // 
@@ -713,7 +704,6 @@
             this.NumericUpDown_LatitudeSeconds.Size = new System.Drawing.Size(65, 20);
             this.NumericUpDown_LatitudeSeconds.TabIndex = 4;
             this.NumericUpDown_LatitudeSeconds.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_LatitudeSeconds.ValueChanged += new System.EventHandler(this.UpdateLatitudeTextBox);
             // 
             // GroupBox_LocalDateTime
             // 
@@ -859,7 +849,6 @@
             this.CheckBox_TargetNorth.TabIndex = 26;
             this.CheckBox_TargetNorth.Text = "North";
             this.CheckBox_TargetNorth.UseVisualStyleBackColor = true;
-            this.CheckBox_TargetNorth.CheckedChanged += new System.EventHandler(this.CheckBox_TargetNorth_CheckedChanged);
             // 
             // TextBox_RightAscension
             // 
@@ -872,8 +861,6 @@
             this.TextBox_RightAscension.Text = " ";
             this.TextBox_RightAscension.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             this.TextBox_RightAscension.WordWrap = false;
-            this.TextBox_RightAscension.TextChanged += new System.EventHandler(this.TextBox_RightAscension_TextChanged);
-            this.TextBox_RightAscension.MouseLeave += new System.EventHandler(this.TextBox_RightAscension_TextChanged);
             // 
             // NumericUpDown_RaMinutes
             // 
@@ -893,7 +880,6 @@
             this.NumericUpDown_RaMinutes.Size = new System.Drawing.Size(55, 20);
             this.NumericUpDown_RaMinutes.TabIndex = 14;
             this.NumericUpDown_RaMinutes.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_RaMinutes.ValueChanged += new System.EventHandler(this.UpdateRightAscensionTextBox);
             // 
             // TextBox_Declination
             // 
@@ -903,7 +889,6 @@
             this.TextBox_Declination.TabIndex = 20;
             this.TextBox_Declination.Text = " ";
             this.TextBox_Declination.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.TextBox_Declination.TextChanged += new System.EventHandler(this.TextBox_Declination_TextChanged);
             // 
             // Button_ClearEphemeride
             // 
@@ -947,7 +932,6 @@
             this.NumericUpDown_RaHours.Size = new System.Drawing.Size(55, 20);
             this.NumericUpDown_RaHours.TabIndex = 13;
             this.NumericUpDown_RaHours.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_RaHours.ValueChanged += new System.EventHandler(this.UpdateRightAscensionTextBox);
             // 
             // NumericUpDown_RaSeconds
             // 
@@ -973,7 +957,6 @@
             this.NumericUpDown_RaSeconds.Size = new System.Drawing.Size(65, 20);
             this.NumericUpDown_RaSeconds.TabIndex = 15;
             this.NumericUpDown_RaSeconds.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_RaSeconds.ValueChanged += new System.EventHandler(this.UpdateRightAscensionTextBox);
             // 
             // NumericUpDown_DecMinutes
             // 
@@ -993,7 +976,6 @@
             this.NumericUpDown_DecMinutes.Size = new System.Drawing.Size(55, 20);
             this.NumericUpDown_DecMinutes.TabIndex = 18;
             this.NumericUpDown_DecMinutes.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_DecMinutes.ValueChanged += new System.EventHandler(this.UpdateDeclinationTextBox);
             // 
             // Label_TargetDeclinationText
             // 
@@ -1064,7 +1046,6 @@
             this.NumericUpDown_DecSeconds.Size = new System.Drawing.Size(65, 20);
             this.NumericUpDown_DecSeconds.TabIndex = 19;
             this.NumericUpDown_DecSeconds.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_DecSeconds.ValueChanged += new System.EventHandler(this.UpdateDeclinationTextBox);
             // 
             // NumericUpDown_DecDegrees
             // 
@@ -1084,7 +1065,6 @@
             this.NumericUpDown_DecDegrees.Size = new System.Drawing.Size(55, 20);
             this.NumericUpDown_DecDegrees.TabIndex = 17;
             this.NumericUpDown_DecDegrees.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_DecDegrees.ValueChanged += new System.EventHandler(this.UpdateDeclinationTextBox);
             // 
             // RadioButton_Optimal
             // 

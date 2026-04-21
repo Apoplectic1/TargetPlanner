@@ -91,6 +91,7 @@
     <Compile Include="Settings\NamedLocationSetting.cs" />
     <Compile Include="Settings\SettingsStore.cs" />
     <Compile Include="Support\UIState.cs" />
+    <Compile Include="Support\CoordinateInput.cs" />
     <Compile Include="Nina\TargetLoader.cs" />
     <Compile Include="Support\Astrometry.cs" />
     <Compile Include="Forms\MainForm.cs">
