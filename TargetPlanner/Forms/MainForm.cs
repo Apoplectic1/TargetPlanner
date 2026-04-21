@@ -18,7 +18,7 @@ namespace TargetPlanner
         private OpenFolderDialog mFolder;
 
         private Location mLocation;
-        private Tuple<DateTime, TimeZoneInfo> mLocalDateTime;
+        private (DateTime When, TimeZoneInfo Zone) mLocalDateTime;
 
         private Target mTarget;
         private List<Target> mTargetList;
@@ -51,7 +51,7 @@ namespace TargetPlanner
 
             mAppSettings = SettingsStore.Load();
 
-            mLocalDateTime = Tuple.Create(DateTime.Now, TimeZoneInfo.Local);
+            mLocalDateTime = (DateTime.Now, TimeZoneInfo.Local);
             mLocation = PickStartupLocation();
             mTarget = Target.Default;
             mTargetList = new List<Target>();
@@ -186,8 +186,8 @@ namespace TargetPlanner
 
         private void UpdateLocalDateTimeEvents()
         {
-            mLocalDateTime = Tuple.Create(DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZoneInfo.Local);
-            mLocation = mLocation.With(dateTime: mLocalDateTime.Item1, timeZoneInfo: mLocalDateTime.Item2);
+            mLocalDateTime = (DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZoneInfo.Local);
+            mLocation = mLocation.With(dateTime: mLocalDateTime.When, timeZoneInfo: mLocalDateTime.Zone);
             Astrometry.Location(mLocation);
 
             Label_AstronomicalDuskValue.Text = Astrometry.AstronomicalDusk.ToShortTimeString();
@@ -582,7 +582,7 @@ namespace TargetPlanner
 
         private void DatePicker_ValueChanged(object sender, EventArgs e)
         {
-            mLocalDateTime = Tuple.Create(DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZoneInfo.Local);
+            mLocalDateTime = (DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZoneInfo.Local);
             RadioButton_Now.Checked = false;
             RadioButton_SetDateTime.Checked = true;
             UpdateLocalDateTimeEvents();
@@ -590,7 +590,7 @@ namespace TargetPlanner
 
         private void TimePicker_ValueChanged(object sender, EventArgs e)
         {
-            mLocalDateTime = Tuple.Create(DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZoneInfo.Local);
+            mLocalDateTime = (DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZoneInfo.Local);
             RadioButton_Now.Checked = false;
             RadioButton_SetDateTime.Checked = true;
             UpdateLocalDateTimeEvents();
@@ -655,14 +655,14 @@ namespace TargetPlanner
             // Now on the UI thread courtesy of Timer.SynchronizingObject = this, so the
             // Invoke indirection is no longer needed. Direct mLocation writes + UI updates
             // are safe.
-            mLocalDateTime = Tuple.Create(DateTime.Now, TimeZoneInfo.Local);
-            mLocation = mLocation.With(dateTime: mLocalDateTime.Item1, timeZoneInfo: mLocalDateTime.Item2);
+            mLocalDateTime = (DateTime.Now, TimeZoneInfo.Local);
+            mLocation = mLocation.With(dateTime: mLocalDateTime.When, timeZoneInfo: mLocalDateTime.Zone);
 
             DatePicker.ValueChanged -= DatePicker_ValueChanged;
             TimePicker.ValueChanged -= TimePicker_ValueChanged;
 
-            TimePicker.Value = mLocalDateTime.Item1;
-            DatePicker.Value = mLocalDateTime.Item1;
+            TimePicker.Value = mLocalDateTime.When;
+            DatePicker.Value = mLocalDateTime.When;
 
             DatePicker.ValueChanged += DatePicker_ValueChanged;
             TimePicker.ValueChanged += TimePicker_ValueChanged;
@@ -672,13 +672,13 @@ namespace TargetPlanner
 
             if (mAltitudeChart != null)
             {
-                mAltitudeChart.UpdateNowLine(mLocalDateTime.Item1);
+                mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
             }
         }
 
         private void RadioButton_Now_CheckedChanged(object sender, EventArgs e)
         {
-            mLocalDateTime = Tuple.Create(DateTime.Now, TimeZoneInfo.Local);
+            mLocalDateTime = (DateTime.Now, TimeZoneInfo.Local);
             UpdateUI();
             UpdateLocalDateTimeEvents();
 
@@ -860,13 +860,13 @@ namespace TargetPlanner
             CheckedListBox_SelectedTargets.Items.Clear();
             ComboBox_SelectTarget.Items.Clear();
 
-            var progressHandler = new Progress<Tuple<int, int>>(value =>
+            var progressHandler = new Progress<(int Current, int Total)>(value =>
             {
-                ProgressBar_ProcessObject.Maximum = value.Item2;
-                ProgressBar_ProcessObject.Value = value.Item1;
+                ProgressBar_ProcessObject.Maximum = value.Total;
+                ProgressBar_ProcessObject.Value = value.Current;
             });
 
-            var progress = progressHandler as IProgress<Tuple<int, int>>;
+            var progress = progressHandler as IProgress<(int Current, int Total)>;
 
             ProgressBar_ProcessObject.Value = 0;
 

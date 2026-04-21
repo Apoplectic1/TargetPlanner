@@ -22,14 +22,14 @@ namespace TargetPlanner.Nina
         private static readonly HashSet<string> ExcludedSubfolders = new HashSet<string>(
             StringComparer.OrdinalIgnoreCase) { "Calibration", "Mosaics" };
 
-        public static List<Target> Load(string rootFolder, IProgress<Tuple<int, int>> progress)
+        public static List<Target> Load(string rootFolder, IProgress<(int Current, int Total)> progress)
         {
             var result = new List<Target>();
             if (string.IsNullOrWhiteSpace(rootFolder) || !Directory.Exists(rootFolder))
                 return result;
 
             List<string> files = EnumerateTargetFiles(rootFolder).ToList();
-            progress?.Report(Tuple.Create(0, files.Count));
+            progress?.Report((0, files.Count));
 
             int i = 0;
             foreach (string file in files)
@@ -48,7 +48,7 @@ namespace TargetPlanner.Nina
                     System.Diagnostics.Debug.WriteLine(
                         $"TargetLoader: skipping '{file}' -- {ex.GetType().Name}: {ex.Message}");
                 }
-                progress?.Report(Tuple.Create(i, files.Count));
+                progress?.Report((i, files.Count));
             }
 
             return result;
