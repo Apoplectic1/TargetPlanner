@@ -33,7 +33,14 @@ namespace TargetPlanner.Settings
                     }
                 }
             }
-            catch (Exception) { }
+            catch (Exception ex)
+            {
+                // Corrupt file, permission denied, disk error, malformed JSON -- fall back to
+                // defaults silently from the user's perspective, but leave a diagnostic trail
+                // so "why did my saved locations disappear?" is traceable.
+                System.Diagnostics.Debug.WriteLine(
+                    $"SettingsStore.Load failed at '{FilePath}': {ex.GetType().Name}: {ex.Message}");
+            }
 
             return new AppSettings
             {
@@ -51,7 +58,13 @@ namespace TargetPlanner.Settings
                 string json = JsonConvert.SerializeObject(settings, Formatting.Indented);
                 File.WriteAllText(FilePath, json);
             }
-            catch (Exception) { }
+            catch (Exception ex)
+            {
+                // Disk full, permission denied, antivirus lock -- silent failure for the user,
+                // but log so the root cause is recoverable.
+                System.Diagnostics.Debug.WriteLine(
+                    $"SettingsStore.Save failed at '{FilePath}': {ex.GetType().Name}: {ex.Message}");
+            }
         }
 
         private static List<NamedLocationSetting> BuildDefaultNamedLocations()
