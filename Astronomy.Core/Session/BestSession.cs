@@ -18,8 +18,9 @@ namespace Astronomy.Core.Session
         // Quality is computed via IntegratedQuality.OverSession using the caller-supplied
         // altitudeQuality function.
         //
-        // For Phase 5 this uses the scalar-horizon VisibilityWindows fast-path; it will pick
-        // up the horizon-profile-aware refinement automatically once Phase 6 wires that in.
+        // Currently uses the scalar-horizon VisibilityWindows fast-path; will pick up the
+        // azimuth-aware horizon-profile refinement automatically once VisibilityWindows gains
+        // it (see the comment on VisibilityWindows.For for the pending refinement).
         public static (DateTime Start, DateTime End, double Quality)? For(
             Target target, Location location, NightWindow night, IHorizonProfile horizon,
             TimeSpan minDuration, TimeSpan maxDuration,

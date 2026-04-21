@@ -36,9 +36,6 @@ namespace TargetPlanner.Charts
 
         private Dictionary<string, StripLine> mNowLines;
 
-        //################################################################################################################
-        //################################################################################################################
-
         public AltitudeChart(Location location)
         {
             if (location == null) throw new ArgumentNullException(nameof(location));
@@ -148,8 +145,6 @@ namespace TargetPlanner.Charts
             }
         }
 
-        //################################################################################################################
-        //################################################################################################################
         public void UIState(Support.UIState state)
         {
             mUIState = state;
@@ -313,11 +308,6 @@ namespace TargetPlanner.Charts
                 SeriesFor(target).ClearTargetList();
             }
             mTargetList.Clear();
-        }
-
-        public void RemoveFromTargetList(Target target)
-        {
-
         }
 
         public void AddToTargetList(Target target)

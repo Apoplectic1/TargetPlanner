@@ -3,21 +3,20 @@ using CoordinateSharp;
 
 namespace Astronomy.Core
 {
-    // Serializes CoordinateSharp's CalculateCelestialTimes across threads. CoordinateSharp
-    // 3.4.1.1 has internal state accessed during Celestial computation that is not safe under
-    // concurrent calls: when the chart's background Task.Run hammers it for a 365-day year
-    // scan while the UI thread also calls it (AltitudeSeries.BuildMoonSeries,
-    // AltitudeChart.AddDawnDuskGradient, Astrometry.Location, ...), occasional days come back
-    // with a null AdditionalSolarTimes.AstronomicalDawn or AstronomicalDusk. NightCalculator
-    // maps that to DateTime.MinValue, BuildYearSeries reads it as "polar", and
-    // BuildOptimalSeries emits -90 for that single day -- producing the random-position
-    // spikes on the Optimal chart that shift from run to run. Every CoordinateSharp call in
-    // this codebase routes through this gate.
+    // Serializes CoordinateSharp's Celestial.CalculateCelestialTimes across threads.
+    // CoordinateSharp 3.4.1.1 has internal state accessed during Celestial computation that
+    // is not safe under concurrent calls -- two calls racing can produce occasional results
+    // with null AdditionalSolarTimes entries (AstronomicalDawn / Dusk etc.) that would
+    // otherwise have been valid. Routing every call in Astronomy.Core (and its consumers)
+    // through this gate eliminates that failure mode.
     //
-    // The lock is held only around CalculateCelestialTimes itself; the returned Celestial
-    // object is constructed with EagerLoadType.Celestial, so reads of AdditionalSolarTimes,
-    // MoonIllum, SunAltitude, MoonAltitude, etc. are field lookups on the locally-owned
-    // instance and do not need to be under the lock.
+    // The lock is held only around CalculateCelestialTimes itself; the returned Celestial is
+    // constructed with EagerLoadType.Celestial, so reads of AdditionalSolarTimes, MoonIllum,
+    // SunAltitude, MoonAltitude, etc. are field lookups on the locally-owned instance and do
+    // not need to be under the lock.
+    //
+    // THREAD-SAFETY: the returned Celestial is not itself thread-safe; callers must not share
+    // a single returned instance across threads.
     public static class CoordinateSharpGate
     {
         private static readonly object sLock = new object();

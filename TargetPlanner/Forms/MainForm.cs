@@ -172,8 +172,6 @@ namespace TargetPlanner
             ComboBox_SelectTarget.Text = "M31";
         }
 
-        // ************************************************************************************************************************************* *//
-
         private void UpdateUI()
         {
             CheckBox_LocalNorth.Checked = mLocation.North;
@@ -202,9 +200,7 @@ namespace TargetPlanner
             Label_MoonSetValue.Text = Astrometry.LunarSet.ToShortTimeString();
         }
 
-        // ************************************************************************************************************************************* *//
-        // ****************** Latitude ********************************************************************************************************* *//
-        // ************************************************************************************************************************************* *//
+        // ---------- Latitude ----------
         private void UpdateLatitudeTextBox(object sender, EventArgs e)
         {
             double latitude;
@@ -261,9 +257,7 @@ namespace TargetPlanner
             }
         }
 
-        // ************************************************************************************************************************************* *//
-        // ****************** Longitude ******************************************************************************************************** *//
-        // ************************************************************************************************************************************* *//
+        // ---------- Longitude ----------
         private void UpdateLongitudeTextBox(object sender, EventArgs e)
         {
             double longitude;
@@ -319,9 +313,7 @@ namespace TargetPlanner
             }
         }
 
-        // ************************************************************************************************************************************* *//
-        // ****************** Right Ascention ************************************************************************************************** *//
-        // ************************************************************************************************************************************* *//
+        // ---------- Right Ascension ----------
         private void UpdateRightAscensionTextBox(object sender, EventArgs e)
         {
             TimeSpan raTimeSpanHours;
@@ -376,9 +368,7 @@ namespace TargetPlanner
             }
         }
 
-        // ************************************************************************************************************************************* *//
-        // ************** Declination ********************************************************************************************************** *//
-        // ************************************************************************************************************************************* *//
+        // ---------- Declination ----------
         private void UpdateDeclinationTextBox(object sender, EventArgs e)
         {
             double declination;
@@ -436,9 +426,6 @@ namespace TargetPlanner
             }
         }
 
-        // ************************************************************************************************************************************* *//
-        // ************************************************************************************************************************************* *//
-        // ************************************************************************************************************************************* *//
         public void ScrollNumericLocationCounters()
         {
             // Latitude
@@ -574,9 +561,6 @@ namespace TargetPlanner
             }
         }
 
-        // ************************************************************************************************************************************* *//
-        // ************************************************************************************************************************************* *//
-        // ************************************************************************************************************************************* *//
         private void NumericUpDown_Duration_ValueChanged(object sender, EventArgs e)
         {
             TimeSpan newDuration = TimeSpan.FromMinutes((double)NumericUpDown_Duration.Value * 60.0);
@@ -646,7 +630,7 @@ namespace TargetPlanner
             mAltitudeChart.BuildTargetSeriesList();
             mAltitudeChart.ShowChartAreaSeries("Day");
 
-            mAltitudeChart.ChartTitle = "Proper Motion at " + mLocation.Name + " for evening beginning " + mLocation.DateTime.Date.ToShortDateString();
+            mAltitudeChart.ChartTitle = "Altitude at " + mLocation.Name + " for evening beginning " + mLocation.DateTime.Date.ToShortDateString();
             mAltitudeChart.UIState(mUIState);
             mAltitudeChart.AddLegend();
             mAltitudeChart.UpdateNowLine(DateTime.Now);
@@ -713,9 +697,7 @@ namespace TargetPlanner
             ComboBox_SelectTarget.Text = "M31";
             CheckBox_TargetNorth.Checked = true;
         }
-        // ************************************************************************************************************************************* *//
-        // *********** ComboBox_Location ******************************************************************************************************* *//
-        // ************************************************************************************************************************************* *//
+        // ---------- ComboBox_Location ----------
         private void ComboBox_Location_SelectionIndexChanged(object sender, EventArgs e)
         {
             if (ComboBox_Location.SelectedItem == null) return;
@@ -843,10 +825,6 @@ namespace TargetPlanner
             return value;
         }
 
-        // ************************************************************************************************************************************* *//
-        // *********** ComboBox_Location ******************************************************************************************************* *//
-        // ************************************************************************************************************************************* *//
-
         private void CheckBox_TargetNorth_CheckedChanged(object sender, EventArgs e)
         {
             mTarget = mTarget.With(north: CheckBox_TargetNorth.Checked);
@@ -945,7 +923,7 @@ namespace TargetPlanner
             mAltitudeChartForm?.Dispose();
             mAltitudeChartForm = new Charts.AltitudeChartForm();
 
-            mAltitudeChartForm.ChartTitle = "Poper Motion at " + mLocation.Name + " for evening beginning " + mLocation.DateTime.Date.ToShortDateString();
+            mAltitudeChartForm.ChartTitle = "Altitude at " + mLocation.Name + " for evening beginning " + mLocation.DateTime.Date.ToShortDateString();
             mAltitudeChartForm.AstronomicalDawn = Astrometry.AstronomicalDawn;
             mAltitudeChartForm.AstronomicalDusk = Astrometry.AstronomicalDusk;
             mAltitudeChartForm.AddDawnDuskGradient();

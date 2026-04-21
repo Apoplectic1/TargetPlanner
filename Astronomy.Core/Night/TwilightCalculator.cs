@@ -17,9 +17,10 @@ namespace Astronomy.Core.Night
         // default but lets callers (e.g. narrowband broadband schedulers) pick nautical
         // (-12) or civil (-6) twilight instead.
         //
-        // Phase 7 supports the three standard thresholds (-18, -12, -6) through
+        // Only the three standard thresholds (-18, -12, -6) are supported, courtesy of
         // CoordinateSharp's prebuilt AdditionalSolarTimes. Arbitrary sunAltBelowDeg will throw
-        // NotSupportedException -- the generalized bisection solve is deferred.
+        // NotSupportedException -- a generalized bisection solve against sun altitude could
+        // lift that restriction.
         public static NightWindow ComputeNight(Location location, double sunAltBelowDeg)
         {
             if (location == null) throw new ArgumentNullException(nameof(location));

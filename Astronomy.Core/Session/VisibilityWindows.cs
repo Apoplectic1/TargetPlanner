@@ -16,8 +16,8 @@ namespace Astronomy.Core.Session
         // contiguous UTC intervals where the target is both above the horizon profile and
         // between astronomical dusk and dawn.
         //
-        // Phase 5 uses horizon.MinAltitude as a scalar fast-path -- treating the profile as flat
-        // at its minimum. Phase 6 will introduce an azimuth-aware refinement. For targets whose
+        // Currently uses horizon.MinAltitude as a scalar fast-path -- treating the profile as
+        // flat at its minimum. An azimuth-aware refinement is pending. For targets whose
         // visibility is determined by ridges, trees, or buildings with sharp azimuth features,
         // the current result is a conservative lower bound on visible time (the target is at
         // least above MinAltitude during the reported windows; it may clear the full profile

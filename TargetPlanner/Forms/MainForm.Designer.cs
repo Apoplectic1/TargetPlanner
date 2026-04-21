@@ -88,7 +88,7 @@
             this.TextBox_RightAscension = new System.Windows.Forms.TextBox();
             this.NumericUpDown_RaMinutes = new System.Windows.Forms.NumericUpDown();
             this.TextBox_Declination = new System.Windows.Forms.TextBox();
-            this.Button_ClearEphemride = new System.Windows.Forms.Button();
+            this.Button_ClearEphemeride = new System.Windows.Forms.Button();
             this.Label_DecMinuteColon = new System.Windows.Forms.Label();
             this.Button_GraphEphemeride = new System.Windows.Forms.Button();
             this.NumericUpDown_RaHours = new System.Windows.Forms.NumericUpDown();
@@ -808,7 +808,7 @@
             this.GroupBox_CoordinateSelection.Controls.Add(this.TextBox_RightAscension);
             this.GroupBox_CoordinateSelection.Controls.Add(this.NumericUpDown_RaMinutes);
             this.GroupBox_CoordinateSelection.Controls.Add(this.TextBox_Declination);
-            this.GroupBox_CoordinateSelection.Controls.Add(this.Button_ClearEphemride);
+            this.GroupBox_CoordinateSelection.Controls.Add(this.Button_ClearEphemeride);
             this.GroupBox_CoordinateSelection.Controls.Add(this.Label_DecMinuteColon);
             this.GroupBox_CoordinateSelection.Controls.Add(this.Button_GraphEphemeride);
             this.GroupBox_CoordinateSelection.Controls.Add(this.NumericUpDown_RaHours);
@@ -905,15 +905,15 @@
             this.TextBox_Declination.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             this.TextBox_Declination.TextChanged += new System.EventHandler(this.TextBox_Declination_TextChanged);
             // 
-            // Button_ClearEphemride
+            // Button_ClearEphemeride
             // 
-            this.Button_ClearEphemride.Location = new System.Drawing.Point(245, 107);
-            this.Button_ClearEphemride.Name = "Button_ClearEphemride";
-            this.Button_ClearEphemride.Size = new System.Drawing.Size(66, 23);
-            this.Button_ClearEphemride.TabIndex = 35;
-            this.Button_ClearEphemride.Text = "Clear";
-            this.Button_ClearEphemride.UseVisualStyleBackColor = true;
-            this.Button_ClearEphemride.Click += new System.EventHandler(this.Button_ClearEphemeride_Click);
+            this.Button_ClearEphemeride.Location = new System.Drawing.Point(245, 107);
+            this.Button_ClearEphemeride.Name = "Button_ClearEphemeride";
+            this.Button_ClearEphemeride.Size = new System.Drawing.Size(66, 23);
+            this.Button_ClearEphemeride.TabIndex = 35;
+            this.Button_ClearEphemeride.Text = "Clear";
+            this.Button_ClearEphemeride.UseVisualStyleBackColor = true;
+            this.Button_ClearEphemeride.Click += new System.EventHandler(this.Button_ClearEphemeride_Click);
             // 
             // Label_DecMinuteColon
             // 
@@ -1385,7 +1385,7 @@
         private System.Windows.Forms.Button Button_GraphTargetList;
         private System.Windows.Forms.CheckedListBox CheckedListBox_SelectedTargets;
         private System.Windows.Forms.Label Label_SelectedTargetNumber;
-        private System.Windows.Forms.Button Button_ClearEphemride;
+        private System.Windows.Forms.Button Button_ClearEphemeride;
         private System.Windows.Forms.Label Label_MinDuration;
         private System.Windows.Forms.Label Label_Degrees;
         private System.Windows.Forms.Label Label_Hours;

@@ -23,7 +23,7 @@ namespace TargetPlanner.Support
         public static string LunarPhase { get; private set; }
         public static double LunarIlluminationFraction { get; private set; }
 
-        private static EagerLoad mEgagerLoad = EagerLoad.Create(EagerLoadType.Celestial);
+        private static EagerLoad mEagerLoad = EagerLoad.Create(EagerLoadType.Celestial);
         private static DateTime? mDuskToday;
         private static DateTime? mDawnToday;
         private static DateTime? mDuskYesterday;
@@ -33,8 +33,6 @@ namespace TargetPlanner.Support
         {
         }
 
-        // ################################################################################################################################
-        // ################################################################################################################################
         public static void Location(Location localLocation)
         {
             double LatSign  = localLocation.North ? 1.0 : -1.0;
@@ -44,7 +42,7 @@ namespace TargetPlanner.Support
             mLocal = CoordinateSharpGate.Calculate(
                 LatSign  * localLocation.Latitude,
                 LongSign * localLocation.Longitude,
-                localLocation.DateTime, mEgagerLoad, utcOffset.Hours);
+                localLocation.DateTime, mEagerLoad, utcOffset.Hours);
 
             SunAltitude = mLocal.SunAltitude;
             LunarAltitude = mLocal.MoonAltitude;
@@ -61,7 +59,7 @@ namespace TargetPlanner.Support
                 mLocal = CoordinateSharpGate.Calculate(
                     LatSign  * localLocation.Latitude,
                     LongSign * localLocation.Longitude,
-                    localLocation.DateTime.AddDays(1), mEgagerLoad, utcOffset.Hours);
+                    localLocation.DateTime.AddDays(1), mEagerLoad, utcOffset.Hours);
                 mDawnTomorrow = mLocal.AdditionalSolarTimes.AstronomicalDawn;
 
                 AstronomicalDawn = mDawnTomorrow ?? DateTime.MinValue;
@@ -72,7 +70,7 @@ namespace TargetPlanner.Support
                 mLocal = CoordinateSharpGate.Calculate(
                     LatSign  * localLocation.Latitude,
                     LongSign * localLocation.Longitude,
-                    localLocation.DateTime.AddDays(-1), mEgagerLoad, utcOffset.Hours);
+                    localLocation.DateTime.AddDays(-1), mEagerLoad, utcOffset.Hours);
                 mDuskYesterday = mLocal.AdditionalSolarTimes.AstronomicalDusk;
 
                 AstronomicalDawn = mDawnToday     ?? DateTime.MinValue;

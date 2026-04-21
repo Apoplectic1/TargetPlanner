@@ -10,7 +10,8 @@ namespace Astronomy.Core.Night
     //
     // Parameterized sun-altitude threshold (civil / nautical / custom) is not yet implemented
     // -- CoordinateSharp only exposes the three fixed thresholds through its SolarTimes
-    // property. Will be generalized in Phase 7 via a direct solar-altitude solve.
+    // property. A direct solar-altitude solve would generalize this; see TwilightCalculator
+    // for the bounded-choice variant in the meantime.
     public static class NightCalculator
     {
         private static readonly EagerLoad mEagerLoad = EagerLoad.Create(EagerLoadType.Celestial);
