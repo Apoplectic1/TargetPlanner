@@ -33,16 +33,14 @@ namespace TargetPlanner.Settings
 
         public Location ToLocation()
         {
-            return new Location
-            {
-                Name = Name,
-                Latitude = Latitude,
-                Longitude = Longitude,
-                North = North,
-                West = West,
-                Horizon = Horizon,
-                Duration = TimeSpan.FromMinutes(DurationMinutes),
-            };
+            return new Location(
+                name:         Name,
+                latitude:     Latitude, north: North,
+                longitude:    Longitude, west:  West,
+                horizon:      Horizon,
+                duration:     TimeSpan.FromMinutes(DurationMinutes),
+                dateTime:     DateTime.Now,
+                timeZoneInfo: TimeZoneInfo.Local);
         }
     }
 }

@@ -58,7 +58,7 @@ namespace TargetPlanner.Settings
         {
             return new List<NamedLocationSetting>
             {
-                NamedLocationSetting.FromLocation(new Location()),
+                NamedLocationSetting.FromLocation(Location.Default),
             };
         }
     }

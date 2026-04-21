@@ -1,7 +1,6 @@
 ﻿using Astronomy.Core;
 using Astronomy.Core.Night;
 using Astronomy.Core.Time;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -138,32 +137,25 @@ namespace TargetPlanner.Charts
 
         private void BuildDaySeries()
         {
-            DateTime point;
-            Tuple<double, double> targetPosition;
-            TimeSpan delta;
-            int minutes;
-            double duskOffset;
-            double dawnOffset;
-
-            Location locationClone = Clone(Location);
-            NightWindow night = NightCalculator.ComputeNight(locationClone);
+            NightWindow night = NightCalculator.ComputeNight(Location);
 
             Series daySeries = MakeSeries(Target.Name, "Day", new Color());
 
-            duskOffset = (night.AstronomicalDusk.Minute > 30.0) ? 0.0 : -1.0;
+            double duskOffset = (night.AstronomicalDusk.Minute > 30.0) ? 0.0 : -1.0;
             DateTime start = night.AstronomicalDusk.AddHours(duskOffset).Date.AddHours(night.AstronomicalDusk.AddHours(duskOffset).Hour);
 
-            dawnOffset = (night.AstronomicalDawn.Minute > 30.0) ? 2.0 : 1.0;
+            double dawnOffset = (night.AstronomicalDawn.Minute > 30.0) ? 2.0 : 1.0;
             DateTime stop = night.AstronomicalDawn.AddHours(dawnOffset).Date.AddHours(night.AstronomicalDawn.AddHours(dawnOffset).Hour);
 
-            delta = stop.Subtract(start);
+            TimeSpan delta = stop.Subtract(start);
 
-            minutes = 0;
+            int minutes = 0;
             while (minutes < Convert.ToInt32(Math.Round(delta.TotalMinutes, 0)))
             {
-                point = start.AddMinutes(minutes);
-                locationClone.DateTime = point;
-                targetPosition = AltAz.Of(Target, locationClone);
+                DateTime point = start.AddMinutes(minutes);
+                // Location is immutable; ask AltAz to evaluate at `point` via a With-variant
+                // instead of mutating a clone in place.
+                Tuple<double, double> targetPosition = AltAz.Of(Target, Location.With(dateTime: point));
                 daySeries.Points.AddXY(point, targetPosition.Item1);
                 minutes++;
             }
@@ -180,8 +172,6 @@ namespace TargetPlanner.Charts
         // mYearCache on the UI thread before rendering.
         private List<NightCacheEntry> ComputeYearCache()
         {
-            Location locationClone = Clone(Location);
-
             double latSigned  = Location.North ?  Location.Latitude  : -Location.Latitude;
             double decSigned  = Target.North   ?  Target.Declination : -Target.Declination;
             double lonDegEast = Location.West  ? -Location.Longitude :  Location.Longitude;
@@ -197,8 +187,9 @@ namespace TargetPlanner.Charts
 
             for (int day = 0; day < totalDays; day++)
             {
-                locationClone.DateTime = startDay.AddDays(day);
-                NightWindow night = NightCalculator.ComputeNight(locationClone);
+                // Location is immutable; each per-day DateTime becomes a new With-variant.
+                Location dayLoc = Location.With(dateTime: startDay.AddDays(day));
+                NightWindow night = NightCalculator.ComputeNight(dayLoc);
 
                 NightCacheEntry entry = new NightCacheEntry();
 
@@ -215,11 +206,8 @@ namespace TargetPlanner.Charts
                 entry.Dawn      = night.AstronomicalDawn;
                 entry.SentinelX = entry.Dawn.AddMinutes(-1);
 
-                locationClone.DateTime = entry.Dusk;
-                entry.AltDusk = AltAz.Of(Target, locationClone).Item1;
-
-                locationClone.DateTime = entry.Dawn;
-                entry.AltDawn = AltAz.Of(Target, locationClone).Item1;
+                entry.AltDusk = AltAz.Of(Target, Location.With(dateTime: entry.Dusk)).Item1;
+                entry.AltDawn = AltAz.Of(Target, Location.With(dateTime: entry.Dawn)).Item1;
 
                 entry.LstDusk = SiderealTime.Local(entry.Dusk.ToUniversalTime(), lonDegEast);
                 entry.LstDawn = SiderealTime.Local(entry.Dawn.ToUniversalTime(), lonDegEast);
@@ -432,21 +420,15 @@ namespace TargetPlanner.Charts
 
         private void BuildMoonSeries()
         {
-            CoordinateSharp.Celestial cCelestial;
-            TimeSpan delta;
-            int minutes;
-            double duskOffset;
-            double dawnOffset;
             TimeSpan utcOffset = TimeZoneInfo.Local.GetUtcOffset(Location.DateTime);
-            double LongitudeSign = Location.West ? -1.0 : 1.0;
+            double longitudeSign = Location.West ? -1.0 : 1.0;
 
-            Location locationClone = Clone(Location);
-            NightWindow night = NightCalculator.ComputeNight(locationClone);
+            NightWindow night = NightCalculator.ComputeNight(Location);
 
-            duskOffset = (night.AstronomicalDusk.Minute > 30.0) ? 0.0 : -1.0;
+            double duskOffset = (night.AstronomicalDusk.Minute > 30.0) ? 0.0 : -1.0;
             DateTime start = night.AstronomicalDusk.AddHours(duskOffset).Date.AddHours(night.AstronomicalDusk.AddHours(duskOffset).Hour);
 
-            dawnOffset = (night.AstronomicalDawn.Minute > 30.0) ? 2.0 : 1.0;
+            double dawnOffset = (night.AstronomicalDawn.Minute > 30.0) ? 2.0 : 1.0;
             DateTime stop = night.AstronomicalDawn.AddHours(dawnOffset).Date.AddHours(night.AstronomicalDawn.AddHours(dawnOffset).Hour);
 
             Series moonSeries = MakeSeries("Moon", "Day",
@@ -454,37 +436,20 @@ namespace TargetPlanner.Charts
             moonSeries.ChartType = SeriesChartType.Area;
             moonSeries.IsVisibleInLegend = false;
 
-            delta = stop.Subtract(start);
+            TimeSpan delta = stop.Subtract(start);
 
-            minutes = 0;
+            int minutes = 0;
             while (minutes < Convert.ToInt32(Math.Round(delta.TotalMinutes, 0)))
             {
                 DateTime point = start.AddMinutes(minutes);
-                cCelestial = CoordinateSharpGate.Calculate(locationClone.Latitude, LongitudeSign * locationClone.Longitude, point, utcOffset.Hours);
+                CoordinateSharp.Celestial cCelestial = CoordinateSharpGate.Calculate(
+                    Location.Latitude, longitudeSign * Location.Longitude, point, utcOffset.Hours);
                 moonSeries.Points.AddXY(point, cCelestial.MoonAltitude);
 
                 minutes++;
             }
 
             TargetSeriesList.Add(moonSeries);
-        }
-
-        public static T Clone<T>(T source)
-        {
-            // JsonConvert.DeserializeObject<T>(serialized) can return null if the serialized
-            // payload is the string "null", empty, or otherwise unparseable as T. Callers
-            // (BuildDaySeries, BuildMoonSeries, ComputeYearCache) dereference the clone's
-            // properties immediately, so a silent null would surface as a
-            // NullReferenceException far from here. Fail loudly with a descriptive message.
-            var serialized = JsonConvert.SerializeObject(source);
-            T clone = JsonConvert.DeserializeObject<T>(serialized);
-            if (clone == null)
-            {
-                throw new InvalidOperationException(
-                    $"AltitudeSeries.Clone<{typeof(T).Name}> produced a null deserialized value " +
-                    $"from source '{source}'. Serialized payload: '{serialized}'.");
-            }
-            return clone;
         }
     }
 }

@@ -2,72 +2,96 @@ using System;
 
 namespace Astronomy.Core.Locations
 {
-    public class Location
+    // Immutable observer location. Every property is read-only; mutations produce a new
+    // instance via With(...). Construction takes a full parameter set so every caller is
+    // explicit about what it means; use Location.Default for the Penns Park defaults.
+    //
+    // Hemisphere convention: Latitude and Longitude are stored as non-negative magnitudes,
+    // with direction carried by the North / West bool flags. A negative magnitude passed to
+    // the constructor is normalized (flipped to positive) and the corresponding hemisphere
+    // flag is inverted, so `new Location(..., latitude: -40, north: true, ...)` produces
+    // { Latitude: 40, North: false } -- the sign takes precedence over the flag.
+    //
+    // D/M/S derivations (LatDegrees/LatMinutes/LatSeconds and the Longitude equivalents) are
+    // computed on read instead of stored as fields. No possibility of the derived values
+    // falling out of sync with the decimal value.
+    public sealed class Location
     {
-        public string Name { get; set; }
-        private double _Latitude;
-        public double Latitude
+        public string        Name         { get; }
+        public double        Latitude     { get; }
+        public bool          North        { get; }
+        public double        Longitude    { get; }
+        public bool          West         { get; }
+        public double        Horizon      { get; }
+        public TimeSpan      Duration     { get; }
+        public DateTime      DateTime     { get; }
+        public TimeZoneInfo  TimeZoneInfo { get; }
+
+        public double LatDegrees => Math.Truncate(Latitude);
+        public double LatMinutes => Math.Floor(60.0 * (Latitude - LatDegrees));
+        public double LatSeconds => 3600.0 * (Latitude - LatDegrees - LatMinutes / 60.0);
+
+        public double LonDegrees => Math.Truncate(Longitude);
+        public double LonMinutes => Math.Floor(60.0 * (Longitude - LonDegrees));
+        public double LonSeconds => 3600.0 * (Longitude - LonDegrees - LonMinutes / 60.0);
+
+        public double MinutesAboveHorizon => Duration.TotalMinutes;
+
+        public Location(
+            string name,
+            double latitude, bool north,
+            double longitude, bool west,
+            double horizon,
+            TimeSpan duration,
+            DateTime dateTime,
+            TimeZoneInfo timeZoneInfo)
         {
-            get { return _Latitude; }
-            set
-            {
-                // Negative input means Southern hemisphere; positive leaves the North flag
-                // to the checkbox (the UI feeds unsigned magnitudes via the spinners).
-                if (value < 0.0) { _Latitude = -value; North = false; }
-                else             { _Latitude =  value;                 }
+            // Sign normalization: negative magnitude flips the hemisphere flag so the stored
+            // state is always (non-negative magnitude, explicit hemisphere).
+            if (latitude < 0) { latitude = -latitude; north = !north; }
+            if (longitude < 0) { longitude = -longitude; west = !west; }
 
-                LatDegrees = Math.Truncate(_Latitude);
-                LatMinutes = Math.Floor(60.0 * (_Latitude - LatDegrees));
-                LatSeconds = 3600.0 * (_Latitude - LatDegrees - LatMinutes / 60.0);
-            }
+            Name         = name ?? "Custom";
+            Latitude     = latitude;
+            North        = north;
+            Longitude    = longitude;
+            West         = west;
+            Horizon      = horizon;
+            Duration     = duration;
+            DateTime     = dateTime;
+            TimeZoneInfo = timeZoneInfo ?? TimeZoneInfo.Local;
         }
-        public double LatDegrees { get; private set; }
-        public double LatMinutes { get; private set; }
-        public double LatSeconds { get; private set; }
-        public bool North { get; set; }
 
+        // Named-argument builder. Callers pass only the fields they want to change:
+        //     mLocation = mLocation.With(horizon: 35.0);
+        //     mLocation = mLocation.With(latitude: 40.3, north: true);
+        public Location With(
+            string name = null,
+            double? latitude = null, bool? north = null,
+            double? longitude = null, bool? west = null,
+            double? horizon = null,
+            TimeSpan? duration = null,
+            DateTime? dateTime = null,
+            TimeZoneInfo timeZoneInfo = null)
+            => new Location(
+                name         ?? this.Name,
+                latitude     ?? this.Latitude,
+                north        ?? this.North,
+                longitude    ?? this.Longitude,
+                west         ?? this.West,
+                horizon      ?? this.Horizon,
+                duration     ?? this.Duration,
+                dateTime     ?? this.DateTime,
+                timeZoneInfo ?? this.TimeZoneInfo);
 
-        private double _Longitude;
-        public double Longitude
-        {
-            get { return _Longitude; }
-            set
-            {
-                // Negative input means Western hemisphere; positive leaves the West flag
-                // to the checkbox (the UI feeds unsigned magnitudes via the spinners).
-                if (value < 0.0) { _Longitude = -value; West = true; }
-                else             { _Longitude =  value;              }
-
-                LonDegrees = Math.Truncate(_Longitude);
-                LonMinutes = Math.Floor(60.0 * (_Longitude - LonDegrees));
-                LonSeconds = 3600.0 * (_Longitude - LonDegrees - LonMinutes / 60.0);
-            }
-        }
-        public double LonDegrees { get; private set; }
-        public double LonMinutes { get; private set; }
-        public double LonSeconds { get; private set; }
-        public bool West { get; set; }
-
-        public double Horizon { get; set; }
-        public double MinutesAboveHorizon { get { return Duration.TotalMinutes; } set { Duration = TimeSpan.FromMinutes(value); } }
-        public TimeSpan Duration { get; set; }
-        public DateTime DateTime { get; set; }
-        public TimeZoneInfo TimeZoneInfo { get; set; }
-        public bool DayChart { get; set; }
-        public bool YearChart { get; set; }
-        public bool OptimalChart { get; set; }
-
-        public Location()
-        {
-            Name = "Penns Park";
-            Latitude  = 40.282835;
-            Longitude = 74.997369;
-            North = true;
-            West  = true;
-            Horizon = 30;
-            Duration = TimeSpan.FromMinutes(240);
-            DateTime = DateTime.Now;
-            TimeZoneInfo = TimeZoneInfo.Local;
-        }
+        // Penns Park defaults, freshly instantiated on each access (DateTime = now).
+        public static Location Default => new Location(
+            name:         "Penns Park",
+            latitude:     40.282835, north: true,
+            longitude:    74.997369, west:  true,
+            horizon:      30,
+            duration:     TimeSpan.FromMinutes(240),
+            dateTime:     DateTime.Now,
+            timeZoneInfo: TimeZoneInfo.Local);
     }
 }

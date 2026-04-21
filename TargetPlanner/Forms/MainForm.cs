@@ -184,8 +184,7 @@ namespace TargetPlanner
         private void UpdateLocalDateTimeEvents()
         {
             mLocalDateTime = Tuple.Create(DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZoneInfo.Local);
-            mLocation.DateTime = mLocalDateTime.Item1;
-            mLocation.TimeZoneInfo = mLocalDateTime.Item2;
+            mLocation = mLocation.With(dateTime: mLocalDateTime.Item1, timeZoneInfo: mLocalDateTime.Item2);
             Astrometry.Location(mLocation);
 
             Label_AstronomicalDuskValue.Text = Astrometry.AstronomicalDusk.ToShortTimeString();
@@ -209,7 +208,7 @@ namespace TargetPlanner
 
             latitude = (double)NumericUpDown_LatitudeDegrees.Value + (double)NumericUpDown_LatitudeMinutes.Value / 60.0 + (double)NumericUpDown_LatitudeSeconds.Value / 3600.0;
 
-            mLocation.Latitude = Math.Round(latitude, 6);
+            mLocation = mLocation.With(latitude: Math.Round(latitude, 6));
 
             TextBox_Latitude.TextChanged -= TextBox_Latitude_TextChanged;
             TextBox_Latitude.Text = mLocation.Latitude.ToString("F6");
@@ -234,7 +233,7 @@ namespace TargetPlanner
             {
                 if (latitude <= 180.0)
                 {
-                    mLocation.Latitude = Math.Round(latitude, 6);
+                    mLocation = mLocation.With(latitude: Math.Round(latitude, 6));
                     TextBox_Latitude.Text = mLocation.Latitude.ToString("F6");
 
                     CheckBox_LocalNorth.Checked = mLocation.North;
@@ -251,8 +250,7 @@ namespace TargetPlanner
                     NumericUpDown_LatitudeMinutes.ValueChanged += UpdateLatitudeTextBox;
                     NumericUpDown_LatitudeSeconds.ValueChanged += UpdateLatitudeTextBox;
 
-                    mLocation.North = CheckBox_LocalNorth.Checked;
-                    mLocation.West = CheckBox_LocalWest.Checked;
+                    mLocation = mLocation.With(north: CheckBox_LocalNorth.Checked, west: CheckBox_LocalWest.Checked);
                     mTarget.North = CheckBox_TargetNorth.Checked;
                 }
             }
@@ -269,7 +267,7 @@ namespace TargetPlanner
 
             longitude = (double)NumericUpDown_LongitudeDegrees.Value + (double)NumericUpDown_LongitudeMinutes.Value / 60.0 + (double)NumericUpDown_LongitudeSeconds.Value / 3600.0;
 
-            mLocation.Longitude = Math.Round(longitude, 6);
+            mLocation = mLocation.With(longitude: Math.Round(longitude, 6));
 
             TextBox_Longitude.TextChanged -= TextBox_Longitude_TextChanged;
             TextBox_Longitude.Text = mLocation.Longitude.ToString("F6");
@@ -293,7 +291,7 @@ namespace TargetPlanner
             {
                 if (longitude <= 90.0)
                 {
-                    mLocation.Longitude = Math.Round(longitude, 6);
+                    mLocation = mLocation.With(longitude: Math.Round(longitude, 6));
                     TextBox_Longitude.Text = mLocation.Longitude.ToString("F6");
 
                     CheckBox_LocalWest.Checked = mLocation.West;
@@ -310,8 +308,7 @@ namespace TargetPlanner
                     NumericUpDown_LongitudeMinutes.ValueChanged += UpdateLongitudeTextBox;
                     NumericUpDown_LongitudeSeconds.ValueChanged += UpdateLongitudeTextBox;
 
-                    mLocation.North = CheckBox_LocalNorth.Checked;
-                    mLocation.West = CheckBox_LocalWest.Checked;
+                    mLocation = mLocation.With(north: CheckBox_LocalNorth.Checked, west: CheckBox_LocalWest.Checked);
                     mTarget.North = CheckBox_TargetNorth.Checked;
                 }
             }
@@ -369,8 +366,7 @@ namespace TargetPlanner
                 NumericUpDown_RaMinutes.ValueChanged += UpdateRightAscensionTextBox;
                 NumericUpDown_RaSeconds.ValueChanged += UpdateRightAscensionTextBox;
 
-                mLocation.North = CheckBox_LocalNorth.Checked;
-                mLocation.West = CheckBox_LocalWest.Checked;
+                mLocation = mLocation.With(north: CheckBox_LocalNorth.Checked, west: CheckBox_LocalWest.Checked);
                 mTarget.North = CheckBox_TargetNorth.Checked;
             }
         }
@@ -429,8 +425,7 @@ namespace TargetPlanner
                     NumericUpDown_DecMinutes.ValueChanged += UpdateDeclinationTextBox;
                     NumericUpDown_DecSeconds.ValueChanged += UpdateDeclinationTextBox;
 
-                    mLocation.North = CheckBox_LocalNorth.Checked;
-                    mLocation.West = CheckBox_LocalWest.Checked;
+                    mLocation = mLocation.With(north: CheckBox_LocalNorth.Checked, west: CheckBox_LocalWest.Checked);
                     mTarget.North = CheckBox_TargetNorth.Checked;
                 }
             }
@@ -579,14 +574,14 @@ namespace TargetPlanner
         // ************************************************************************************************************************************* *//
         private void NumericUpDown_Duration_ValueChanged(object sender, EventArgs e)
         {
-            mLocation.MinutesAboveHorizon = (double)NumericUpDown_Duration.Value * 60.0;
+            mLocation = mLocation.With(duration: TimeSpan.FromMinutes((double)NumericUpDown_Duration.Value * 60.0));
             if (mAltitudeChart == null) return;
             mAltitudeChart.RebuildOptimalData();
         }
 
         private void NumericUpDown_Horizon_ValueChanged(object sender, EventArgs e)
         {
-            mLocation.Horizon = (double)NumericUpDown_Horizon.Value;
+            mLocation = mLocation.With(horizon: (double)NumericUpDown_Horizon.Value);
             if (mAltitudeChart == null) return;
             mAltitudeChart.UpdateHorizonLines();
             mAltitudeChart.RebuildOptimalData();
@@ -628,7 +623,7 @@ namespace TargetPlanner
             mAltitudeChart.mChart.BackColor = Color.FromArgb(255, 239, 235, 233);
 
 
-            mLocation.DateTime = DateTime.Now;
+            mLocation = mLocation.With(dateTime: DateTime.Now);
 
             mAltitudeChart.Location = mLocation;
             mAltitudeChart.AddChartAreaToList("Day");
@@ -651,7 +646,7 @@ namespace TargetPlanner
 
         private void CheckBox_LocalWest_CheckedChanged(object sender, EventArgs e)
         {
-            mLocation.West = CheckBox_LocalWest.Checked;
+            mLocation = mLocation.With(west: CheckBox_LocalWest.Checked);
         }
 
         private void CheckBox_HoldTime_CheckedChanged(object sender, EventArgs e)
@@ -664,8 +659,7 @@ namespace TargetPlanner
             // Invoke indirection is no longer needed. Direct mLocation writes + UI updates
             // are safe.
             mLocalDateTime = Tuple.Create(DateTime.Now, TimeZoneInfo.Local);
-            mLocation.DateTime = mLocalDateTime.Item1;
-            mLocation.TimeZoneInfo = mLocalDateTime.Item2;
+            mLocation = mLocation.With(dateTime: mLocalDateTime.Item1, timeZoneInfo: mLocalDateTime.Item2);
 
             DatePicker.ValueChanged -= DatePicker_ValueChanged;
             TimePicker.ValueChanged -= TimePicker_ValueChanged;
@@ -719,16 +713,17 @@ namespace TargetPlanner
                 // User explicitly chose "Custom" -- clear lat/lon so they can type fresh
                 // values. Preserve Horizon / Duration / N / W: those are independent of the
                 // location name and the user may have deliberately tuned them.
-                mLocation.Name = "Custom";
-                mLocation.Latitude = 0;
-                mLocation.Longitude = 0;
+                mLocation = mLocation.With(name: "Custom", latitude: 0, longitude: 0);
                 SyncLocationUIFromModel();
             }
             else
             {
                 NamedLocationSetting named = mAppSettings.NamedLocations.Find(x => x.Name == name);
                 if (named == null) return;
-                CopyIntoLocation(named.ToLocation());
+                // Preserve the current DateTime / TimeZoneInfo across the switch -- the user's
+                // date/time selection shouldn't reset when they swap locations.
+                Location loaded = named.ToLocation();
+                mLocation = loaded.With(dateTime: mLocation.DateTime, timeZoneInfo: mLocation.TimeZoneInfo);
                 SyncLocationUIFromModel();
             }
 
@@ -756,7 +751,7 @@ namespace TargetPlanner
             ComboBox_Location.SelectedItem = "Custom";
             ComboBox_Location.SelectedIndexChanged += ComboBox_Location_SelectionIndexChanged;
 
-            mLocation.Name = "Custom";
+            mLocation = mLocation.With(name: "Custom");
             mAppSettings.LastSelectedLocationName = "Custom";
             // Not saving on every edit -- settings are persisted on form close.
         }
@@ -771,21 +766,9 @@ namespace TargetPlanner
             }
             if (mAppSettings.NamedLocations.Count > 0)
                 return mAppSettings.NamedLocations[0].ToLocation();
-            return new Location();
-        }
-
-        // Overwrite mLocation's mutable state from source. Don't swap the mLocation reference --
-        // other components (e.g. mAltitudeChart.Location) hold it. DateTime / TimeZone are
-        // preserved so the user's date selection survives a location switch.
-        private void CopyIntoLocation(Location source)
-        {
-            mLocation.Name = source.Name;
-            mLocation.Latitude = source.Latitude;
-            mLocation.Longitude = source.Longitude;
-            mLocation.North = source.North;
-            mLocation.West = source.West;
-            mLocation.Horizon = source.Horizon;
-            mLocation.Duration = source.Duration;
+            // Fully qualify: MainForm inherits Control.Location (type Point), which shadows
+            // the `using Location = ...` alias in member-access context.
+            return Astronomy.Core.Locations.Location.Default;
         }
 
         // Push mLocation into the lat / lon / N / W / Horizon / Duration inputs. Unsubscribes
@@ -858,7 +841,7 @@ namespace TargetPlanner
 
         private void CheckBox_LocalNorth_CheckedChanged(object sender, EventArgs e)
         {
-            mLocation.North = CheckBox_LocalNorth.Checked;
+            mLocation = mLocation.With(north: CheckBox_LocalNorth.Checked);
         }
         private void Button_BrowseTargetList_Click(object sender, EventArgs e)
         {
