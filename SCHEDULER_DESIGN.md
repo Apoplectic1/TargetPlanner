@@ -23,7 +23,7 @@ Local horizon will eventually be a 360° azimuth→altitude profile (user-entere
 
 ## Local reference sources
 
-Three reference tree are available locally on this machine. They are not modified by work in this repo — they're reference material only.
+Four local trees are relevant to this effort. The first two are reference-only — not modified by work in this repo. The last two are first-party projects the user maintains.
 
 - **NINA codebase**: `E:\Projects\VisualStudio\Astronomy\NINA`
   - Tracked branches: `master` (release line, currently NINA 3.2.0.9001) and `develop` (bleeding edge).
@@ -39,6 +39,14 @@ Three reference tree are available locally on this machine. They are not modifie
 
 - **This repo**: `E:\Projects\VisualStudio\Astronomy\TargetPlanner`
   - Current home of the analytic Year/Optimal/OptimalFloor chart machinery — effectively a prototype of the session-analysis primitives we're going to formalize.
+  - Also the current home of `Astronomy.Core` (netstandard2.0, CoordinateSharp-only), which XisfFileManager and the future NINA plugin are both expected to consume.
+
+- **XisfFileManager**: `E:\Projects\VisualStudio\Astronomy\XisfFileManager` (GitHub: `Apoplectic1/XisfManager`)
+  - Sibling WinForms app on `net10.0-windows`, SDK-style, ~77 files / ~11.3 k LOC, no test project. Browses / renames XISF files and manages calibration frames; already has a **Target Scheduler tab** that reads NINA's `schedulerdb.sqlite` directly and loads `Project` / `Target` / `ExposurePlan` / `AcquiredImage` rows into memory. See `XisfFileManager/TargetScheduler/SqlLiteManager.cs`.
+  - Candidate host for the **intermediate interval-scheduler prototype** — step 4 in "Suggested next steps" — before the scheduler is promoted into a standalone NINA plugin. Rationale: the corpus a planner needs (target list, exposure plans, acquired-image history) is already loaded and on-screen, and the app has no astrometry of its own yet, so wiring in `Astronomy.Core` is a clean addition rather than a duplication.
+  - Framework / dependency fit: `net10.0-windows` consumes `netstandard2.0` `Astronomy.Core` via ProjectReference with no friction. No CoordinateSharp conflict (XFM has none; Core brings its own). No `Astronomy.Core` reference yet.
+  - Branches: `master`, `development`, `TargetScheduler`, `C++/CLI_for_PCL_Library`. Check the `TargetScheduler` branch for prior experiments before starting new scheduler work.
+  - The `\\BIRDWATCHER\SchedulerPlugin\schedulerdb.sqlite` UNC path is **intentional**, not a portability bug. `BIRDWATCHER` is the user's imaging PC — the machine connected to the telescope/camera that runs NINA during live sessions — and is where the future scheduler plugin will ultimately be deployed. XFM on the dev workstation reaches the canonical `schedulerdb.sqlite` over SMB. Any prototype that assumes a local DB file should still work against this SMB path unchanged.
 
 ---
 
@@ -700,7 +708,7 @@ Core analytics layer should be pure functions — no shared mutable state, no ca
 ## References worth studying
 
 - **astroplan** (Python, astropy). Open-source reference for this exact problem shape. Study the `Observer` / `FixedTarget` / `Constraint` / `Scheduler` class decomposition. The constraint composition pattern (`constraints = [c1, c2, c3]`; scheduler evaluates the conjunction) is worth mirroring in C# via `IObservabilityConstraint`.
-- **NINA's Target Scheduler plugin** — full source at `E:\Projects\VisualStudio\Astronomy\TargetScheduler_Clone\nina.plugin.targetscheduler`. Same platform, same user population, different (score-based) architecture. Study to understand what users currently expect and where it falls short.
+- **NINA's Target Scheduler plugin** — full source at `E:\Projects\VisualStudio\Astronomy\TargetScheduler_Clone\nina.plugin.targetscheduler`; user guide at <https://tcpalmer.github.io/nina-scheduler/>. Same platform, same user population, different (score-based) architecture. Study to understand what users currently expect and where it falls short.
 - **LSST Feature-Based Scheduler** (Python, open source). Larger scale; same underlying "objective function over visibility windows" philosophy. Architectural inspiration, not direct code reuse.
 - **LCO MILP scheduler** (papers only; internal code). MILP formulation well-documented in the literature. Useful if you ever go down the formal-optimization path.
 - **NINA.Astrometry source** at `E:\Projects\VisualStudio\Astronomy\NINA\NINA.Astrometry`. Primary reference for coordinate / time / rise-set / moon / sun primitives. Treat as the canonical implementation of these concepts.
