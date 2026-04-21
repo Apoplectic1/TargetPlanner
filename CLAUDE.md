@@ -29,7 +29,7 @@ The codebase is split at the assembly boundary: **`Astronomy.Core`** is pure, UI
 
 Shared library targeting `netstandard2.0`. Consumed today by TargetPlanner; designed to be consumed by XisfManager and a future NINA plugin without re-porting. See `SCHEDULER_DESIGN.md` for the full design rationale. Surface by subfolder:
 
-- **`Targets/Target.cs`** — POCO. `RightAscension` is **decimal hours** `[0, 24)`; the setter derives `RaHours/RaMinutes/RaSeconds` from it. `Declination` setter coerces sign into the `North` bool (absolute value kept in the numeric field). Does **not** carry any chart / WinForms state.
+- **`Targets/Target.cs`** — POCO. `RightAscension` is **decimal hours** `[0, 24)`; the setter derives `RaHours/RaMinutes/RaSeconds` from it. `Declination` setter takes a signed value: negative flips `North` to false and stores the magnitude; non-negative stores the value as-is and leaves `North` untouched (so a caller passing magnitude alongside an independent `North` assignment is no longer overwritten). Does **not** carry any chart / WinForms state.
 - **`Locations/Location.cs`** — POCO. Latitude/longitude stored as decimal degrees with synthesized D/M/S accessors via property setter side-effects. Also carries `Horizon` (degrees), `Duration` (minimum time required above horizon for "Optimal" chart), `DateTime`, `TimeZoneInfo`.
 - **`Night/NightWindow.cs`** — struct: `AstronomicalDawn`, `AstronomicalDusk`, `LunarIlluminationFraction`.
 - **`Time/JulianDate.cs`, `Time/SiderealTime.cs`** — JD from UTC; GMST from JD; LST from UTC + east-longitude.

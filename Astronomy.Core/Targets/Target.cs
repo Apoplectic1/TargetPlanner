@@ -30,16 +30,14 @@ namespace Astronomy.Core.Targets
             get { return _Declination; }
             set
             {
-                if (value < 0.0)
-                {
-                    _Declination = -value;
-                    North = false;
-                }
-                else
-                {
-                    _Declination = value;
-                    North = true;
-                }
+                // Negative input flips North to false (Southern hemisphere); positive or zero
+                // leaves the North flag to the caller. This matches the Latitude / Longitude
+                // convention in Location and prevents JSON round-trips or UI magnitude writes
+                // from silently overwriting the hemisphere flag. Callers that want to change
+                // hemisphere independently (e.g. a user toggling the North checkbox) assign
+                // the North property directly.
+                if (value < 0.0) { _Declination = -value; North = false; }
+                else             { _Declination =  value;                 }
 
                 DecDegrees = Math.Truncate(_Declination);
                 DecHours   = TimeSpan.FromHours(_Declination / 15.0).Hours;
