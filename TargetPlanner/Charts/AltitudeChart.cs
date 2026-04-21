@@ -327,7 +327,7 @@ namespace TargetPlanner.Charts
                     mChart.ChartAreas[chartAreaName].AxisY.Interval = 10;
                     mChart.ChartAreas[chartAreaName].AxisY.Maximum = 90.0;
                     mChart.ChartAreas[chartAreaName].AxisY.Minimum = 10.0;
-                    mChart.ChartAreas[chartAreaName].AxisY.Title = "Maximum Altitude";
+                    mChart.ChartAreas[chartAreaName].AxisY.Title = "Altitude";
 
                     AddDawnDuskGradient(chartAreaName);
                     break;

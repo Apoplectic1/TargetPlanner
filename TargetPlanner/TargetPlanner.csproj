@@ -87,6 +87,9 @@
     </Compile>
     <Compile Include="Charts\AltitudeChart.cs" />
     <Compile Include="Charts\AltitudeSeries.cs" />
+    <Compile Include="Settings\AppSettings.cs" />
+    <Compile Include="Settings\NamedLocationSetting.cs" />
+    <Compile Include="Settings\SettingsStore.cs" />
     <Compile Include="Support\UIState.cs" />
     <Compile Include="Nina\TargetLoader.cs" />
     <Compile Include="Support\Astrometry.cs" />

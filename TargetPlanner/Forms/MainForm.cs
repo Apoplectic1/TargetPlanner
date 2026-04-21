@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
+using TargetPlanner.Settings;
 using TargetPlanner.Support;
 using System.Threading.Tasks;
 using LocalLib;
@@ -33,6 +34,12 @@ namespace TargetPlanner
         private Panel Panel_AltitudeChart;
 
         private UIState mUIState;
+        private AppSettings mAppSettings;
+
+        // Guard flag: set while SyncLocationUIFromModel is programmatically updating location
+        // inputs so OnLocationEdited doesn't mistake a sync for a user edit and flip the combo
+        // to "Custom".
+        private bool mSyncingLocationUI;
 
         public MainForm()
         {
@@ -42,8 +49,10 @@ namespace TargetPlanner
             TimePicker.Format = DateTimePickerFormat.Custom;
             TimePicker.CustomFormat = "  hh:mm tt";
 
+            mAppSettings = SettingsStore.Load();
+
             mLocalDateTime = Tuple.Create(DateTime.Now, TimeZone.CurrentTimeZone);
-            mLocation = new Location();
+            mLocation = PickStartupLocation();
             mTarget = new Target();
             mTargetList = new List<Target>();
 
@@ -70,9 +79,46 @@ namespace TargetPlanner
             mToolTip.ReshowDelay = 2000;
         }
 
+        private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            SettingsStore.Save(mAppSettings);
+        }
+
         public void InitializeDynamicControls()
         {
             string[] folderSelectedPaths = { NinaTargetsRootPath };
+
+            // Populate ComboBox_Location from settings, select the startup location, then
+            // push mLocation's values into the lat/lon/N/W/Horizon/Duration inputs.
+            ComboBox_Location.SelectedIndexChanged -= ComboBox_Location_SelectionIndexChanged;
+            ComboBox_Location.Items.Clear();
+            foreach (NamedLocationSetting nl in mAppSettings.NamedLocations)
+                ComboBox_Location.Items.Add(nl.Name);
+            ComboBox_Location.Items.Add("Custom");
+            if (ComboBox_Location.Items.Contains(mLocation.Name))
+                ComboBox_Location.SelectedItem = mLocation.Name;
+            else if (ComboBox_Location.Items.Count > 0)
+                ComboBox_Location.SelectedIndex = 0;
+            ComboBox_Location.SelectedIndexChanged += ComboBox_Location_SelectionIndexChanged;
+
+            SyncLocationUIFromModel();
+
+            // Flip the location combo to "Custom" the moment the user changes a geographic
+            // field (lat / lon / N / W). Horizon and Duration are analysis preferences that
+            // are independent of location identity -- editing them does not rename the
+            // selected location. These handlers sit alongside the per-field handlers already
+            // wired in the Designer; the mSyncingLocationUI guard keeps programmatic syncs
+            // from tripping them.
+            NumericUpDown_LatitudeDegrees.ValueChanged  += OnLocationEdited;
+            NumericUpDown_LatitudeMinutes.ValueChanged  += OnLocationEdited;
+            NumericUpDown_LatitudeSeconds.ValueChanged  += OnLocationEdited;
+            NumericUpDown_LongitudeDegrees.ValueChanged += OnLocationEdited;
+            NumericUpDown_LongitudeMinutes.ValueChanged += OnLocationEdited;
+            NumericUpDown_LongitudeSeconds.ValueChanged += OnLocationEdited;
+            TextBox_Latitude.TextChanged                += OnLocationEdited;
+            TextBox_Longitude.TextChanged               += OnLocationEdited;
+            CheckBox_LocalNorth.CheckedChanged          += OnLocationEdited;
+            CheckBox_LocalWest.CheckedChanged           += OnLocationEdited;
 
             // Add Panel that MSChart will appear in to GroupBox
             Panel_AltitudeChart = new Panel();
@@ -100,7 +146,7 @@ namespace TargetPlanner
             mAltitudeChart.ShowChartAreaSeries("Day");
 
 
-            mAltitudeChart.ChartTitle = "Proper Motion at " + mLocation.Name + " for evening beginning " + mLocation.DateTime.Date.ToShortDateString();
+            mAltitudeChart.ChartTitle = "Altitude at " + mLocation.Name + " for evening beginning " + mLocation.DateTime.Date.ToShortDateString();
             mAltitudeChart.UIState(mUIState);
             mAltitudeChart.AddLegend();
             mAltitudeChart.UpdateNowLine(DateTime.Now);
@@ -660,23 +706,140 @@ namespace TargetPlanner
         // ************************************************************************************************************************************* *//
         private void ComboBox_Location_SelectionIndexChanged(object sender, EventArgs e)
         {
-            if (ComboBox_Location.SelectedItem != null)
-            {
-                if (ComboBox_Location.SelectedItem.ToString() == "Penns Park")
-                {
-                    GroupBox_CoordinateSelection.Enabled = true;
-                }
+            if (ComboBox_Location.SelectedItem == null) return;
+            string name = ComboBox_Location.SelectedItem.ToString();
 
-                if (ComboBox_Location.SelectedItem.ToString() == "SGP Sequence")
-                {
-                    GroupBox_SgpSequence.Enabled = true;
-                }
+            if (name == "Custom")
+            {
+                // User explicitly chose "Custom" -- clear lat/lon so they can type fresh
+                // values. Preserve Horizon / Duration / N / W: those are independent of the
+                // location name and the user may have deliberately tuned them.
+                mLocation.Name = "Custom";
+                mLocation.Latitude = 0;
+                mLocation.Longitude = 0;
+                SyncLocationUIFromModel();
             }
+            else
+            {
+                NamedLocationSetting named = mAppSettings.NamedLocations.Find(x => x.Name == name);
+                if (named == null) return;
+                CopyIntoLocation(named.ToLocation());
+                SyncLocationUIFromModel();
+            }
+
+            mAppSettings.LastSelectedLocationName = name;
+            SettingsStore.Save(mAppSettings);
         }
 
+        // DropDown nulls the current selection so re-picking the same item (e.g. "Penns Park"
+        // after a manual edit auto-switched us to "Custom") still fires SelectedIndexChanged.
         private void ComboBox_Location_DropDown(object sender, EventArgs e)
         {
             ComboBox_Location.SelectedItem = null;
+        }
+
+        // Fired by every location-input event (lat/lon spinners, textboxes, N/W checkboxes,
+        // Horizon, Duration). If the user edited a field by hand, flip the combo to "Custom"
+        // so the combo label always matches the currently-displayed values.
+        private void OnLocationEdited(object sender, EventArgs e)
+        {
+            if (mSyncingLocationUI) return;
+            if (ComboBox_Location.SelectedItem != null &&
+                ComboBox_Location.SelectedItem.ToString() == "Custom") return;
+
+            ComboBox_Location.SelectedIndexChanged -= ComboBox_Location_SelectionIndexChanged;
+            ComboBox_Location.SelectedItem = "Custom";
+            ComboBox_Location.SelectedIndexChanged += ComboBox_Location_SelectionIndexChanged;
+
+            mLocation.Name = "Custom";
+            mAppSettings.LastSelectedLocationName = "Custom";
+            // Not saving on every edit -- settings are persisted on form close.
+        }
+
+        private Location PickStartupLocation()
+        {
+            string preferred = mAppSettings.LastSelectedLocationName;
+            if (!string.IsNullOrEmpty(preferred) && preferred != "Custom")
+            {
+                NamedLocationSetting match = mAppSettings.NamedLocations.Find(x => x.Name == preferred);
+                if (match != null) return match.ToLocation();
+            }
+            if (mAppSettings.NamedLocations.Count > 0)
+                return mAppSettings.NamedLocations[0].ToLocation();
+            return new Location();
+        }
+
+        // Overwrite mLocation's mutable state from source. Don't swap the mLocation reference --
+        // other components (e.g. mAltitudeChart.Location) hold it. DateTime / TimeZone are
+        // preserved so the user's date selection survives a location switch.
+        private void CopyIntoLocation(Location source)
+        {
+            mLocation.Name = source.Name;
+            mLocation.Latitude = source.Latitude;
+            mLocation.Longitude = source.Longitude;
+            mLocation.North = source.North;
+            mLocation.West = source.West;
+            mLocation.Horizon = source.Horizon;
+            mLocation.Duration = source.Duration;
+        }
+
+        // Push mLocation into the lat / lon / N / W / Horizon / Duration inputs. Unsubscribes
+        // per-field handlers while writing so the existing triple-binding (spinners <-> textbox
+        // <-> checkbox) doesn't thrash during the sync, and sets mSyncingLocationUI so
+        // OnLocationEdited treats the writes as programmatic.
+        private void SyncLocationUIFromModel()
+        {
+            mSyncingLocationUI = true;
+            try
+            {
+                NumericUpDown_LatitudeDegrees.ValueChanged  -= UpdateLatitudeTextBox;
+                NumericUpDown_LatitudeMinutes.ValueChanged  -= UpdateLatitudeTextBox;
+                NumericUpDown_LatitudeSeconds.ValueChanged  -= UpdateLatitudeTextBox;
+                NumericUpDown_LongitudeDegrees.ValueChanged -= UpdateLongitudeTextBox;
+                NumericUpDown_LongitudeMinutes.ValueChanged -= UpdateLongitudeTextBox;
+                NumericUpDown_LongitudeSeconds.ValueChanged -= UpdateLongitudeTextBox;
+                TextBox_Latitude.TextChanged                -= TextBox_Latitude_TextChanged;
+                TextBox_Longitude.TextChanged               -= TextBox_Longitude_TextChanged;
+                CheckBox_LocalNorth.CheckedChanged          -= CheckBox_LocalNorth_CheckedChanged;
+                CheckBox_LocalWest.CheckedChanged           -= CheckBox_LocalWest_CheckedChanged;
+                NumericUpDown_Horizon.ValueChanged          -= NumericUpDown_Horizon_ValueChanged;
+                NumericUpDown_Duration.ValueChanged         -= NumericUpDown_Duration_ValueChanged;
+
+                CheckBox_LocalNorth.Checked = mLocation.North;
+                CheckBox_LocalWest.Checked  = mLocation.West;
+                TextBox_Latitude.Text       = mLocation.Latitude.ToString("F6");
+                TextBox_Longitude.Text      = mLocation.Longitude.ToString("F6");
+
+                NumericUpDown_LatitudeDegrees.Value  = ClampToRange(NumericUpDown_LatitudeDegrees,  (decimal)mLocation.LatDegrees);
+                NumericUpDown_LatitudeMinutes.Value  = ClampToRange(NumericUpDown_LatitudeMinutes,  (decimal)mLocation.LatMinutes);
+                NumericUpDown_LatitudeSeconds.Value  = ClampToRange(NumericUpDown_LatitudeSeconds,  (decimal)Math.Round(mLocation.LatSeconds, 2));
+                NumericUpDown_LongitudeDegrees.Value = ClampToRange(NumericUpDown_LongitudeDegrees, (decimal)mLocation.LonDegrees);
+                NumericUpDown_LongitudeMinutes.Value = ClampToRange(NumericUpDown_LongitudeMinutes, (decimal)mLocation.LonMinutes);
+                NumericUpDown_LongitudeSeconds.Value = ClampToRange(NumericUpDown_LongitudeSeconds, (decimal)Math.Round(mLocation.LonSeconds, 2));
+                NumericUpDown_Horizon.Value          = ClampToRange(NumericUpDown_Horizon,          (decimal)mLocation.Horizon);
+                NumericUpDown_Duration.Value         = ClampToRange(NumericUpDown_Duration,         (decimal)mLocation.Duration.TotalHours);
+
+                NumericUpDown_LatitudeDegrees.ValueChanged  += UpdateLatitudeTextBox;
+                NumericUpDown_LatitudeMinutes.ValueChanged  += UpdateLatitudeTextBox;
+                NumericUpDown_LatitudeSeconds.ValueChanged  += UpdateLatitudeTextBox;
+                NumericUpDown_LongitudeDegrees.ValueChanged += UpdateLongitudeTextBox;
+                NumericUpDown_LongitudeMinutes.ValueChanged += UpdateLongitudeTextBox;
+                NumericUpDown_LongitudeSeconds.ValueChanged += UpdateLongitudeTextBox;
+                TextBox_Latitude.TextChanged                += TextBox_Latitude_TextChanged;
+                TextBox_Longitude.TextChanged               += TextBox_Longitude_TextChanged;
+                CheckBox_LocalNorth.CheckedChanged          += CheckBox_LocalNorth_CheckedChanged;
+                CheckBox_LocalWest.CheckedChanged           += CheckBox_LocalWest_CheckedChanged;
+                NumericUpDown_Horizon.ValueChanged          += NumericUpDown_Horizon_ValueChanged;
+                NumericUpDown_Duration.ValueChanged         += NumericUpDown_Duration_ValueChanged;
+            }
+            finally { mSyncingLocationUI = false; }
+        }
+
+        private static decimal ClampToRange(NumericUpDown spinner, decimal value)
+        {
+            if (value < spinner.Minimum) return spinner.Minimum;
+            if (value > spinner.Maximum) return spinner.Maximum;
+            return value;
         }
 
         // ************************************************************************************************************************************* *//
@@ -715,7 +878,7 @@ namespace TargetPlanner
         private async void GetNinaTargets(string[] folderSelectedPaths)
         {
             mTargetList.Clear();
-            CheckedListBox_SelectedSgpTargets.Items.Clear();
+            CheckedListBox_SelectedTargets.Items.Clear();
             ComboBox_SelectTarget.Items.Clear();
 
             var progressHandler = new Progress<Tuple<int, int>>(value =>
@@ -750,10 +913,10 @@ namespace TargetPlanner
 
             foreach (Target t in mTargetList)
             {
-                CheckedListBox_SelectedSgpTargets.Items.Add(t.Name, true);
+                CheckedListBox_SelectedTargets.Items.Add(t.Name, true);
             }
 
-            Label_SelectedTargetNumber.Text = CheckedListBox_SelectedSgpTargets.Items.Count.ToString();
+            Label_SelectedTargetNumber.Text = CheckedListBox_SelectedTargets.Items.Count.ToString();
 
             if (mTargetList.Count == 0) return;
 
@@ -790,14 +953,14 @@ namespace TargetPlanner
             string name;
             Target found;
 
-            if (mToolTipIndex != this.CheckedListBox_SelectedSgpTargets.IndexFromPoint(e.Location))
+            if (mToolTipIndex != this.CheckedListBox_SelectedTargets.IndexFromPoint(e.Location))
             {
-                mToolTipIndex = CheckedListBox_SelectedSgpTargets.IndexFromPoint(CheckedListBox_SelectedSgpTargets.PointToClient(MousePosition));
+                mToolTipIndex = CheckedListBox_SelectedTargets.IndexFromPoint(CheckedListBox_SelectedTargets.PointToClient(MousePosition));
                 if (mToolTipIndex > -1)
                 {
-                    name = CheckedListBox_SelectedSgpTargets.Items[mToolTipIndex].ToString();
+                    name = CheckedListBox_SelectedTargets.Items[mToolTipIndex].ToString();
                     found = mTargetList.Find(x => x.Name == name);
-                    mToolTip.SetToolTip(CheckedListBox_SelectedSgpTargets, found.Directory);
+                    mToolTip.SetToolTip(CheckedListBox_SelectedTargets, found.Directory);
                     mToolTip.AutoPopDelay = 5000;
                     mToolTip.InitialDelay = 2000;
                     mToolTip.ReshowDelay = 2000;
@@ -832,10 +995,6 @@ namespace TargetPlanner
                 mAltitudeChart.ShowChartAreaSeries("Optimal");
             }
         }
-        private void CheckBox_ChartDuration_CheckedChanged(object sender, EventArgs e)
-        {
-            mUIState.DurationChart = CheckBox_ChartDuration.Checked;
-        }
 
         private void ComboBox_SelectTarget_SelectedIndexChanged(object sender, EventArgs e)
         {
@@ -861,20 +1020,20 @@ namespace TargetPlanner
 
         private void Button_ClearAllTargets_Click(object sender, EventArgs e)
         {
-            for (int i = 0; i < CheckedListBox_SelectedSgpTargets.Items.Count; i++)
-                CheckedListBox_SelectedSgpTargets.SetItemCheckState(i, CheckState.Unchecked);
+            for (int i = 0; i < CheckedListBox_SelectedTargets.Items.Count; i++)
+                CheckedListBox_SelectedTargets.SetItemCheckState(i, CheckState.Unchecked);
 
 
-            Label_SelectedTargetNumber.Text = CheckedListBox_SelectedSgpTargets.Items.Count.ToString();
+            Label_SelectedTargetNumber.Text = CheckedListBox_SelectedTargets.Items.Count.ToString();
         }
 
         private void Button_SelectAllTargets_Click(object sender, EventArgs e)
         {
 
-            for (int i = 0; i < CheckedListBox_SelectedSgpTargets.Items.Count; i++)
-                CheckedListBox_SelectedSgpTargets.SetItemCheckState(i, CheckState.Checked);
+            for (int i = 0; i < CheckedListBox_SelectedTargets.Items.Count; i++)
+                CheckedListBox_SelectedTargets.SetItemCheckState(i, CheckState.Checked);
 
-            Label_SelectedTargetNumber.Text = CheckedListBox_SelectedSgpTargets.Items.Count.ToString();
+            Label_SelectedTargetNumber.Text = CheckedListBox_SelectedTargets.Items.Count.ToString();
 
         }
     }
