@@ -32,13 +32,23 @@ namespace TargetPlanner.Charts
             public DateTime SentinelX;       // X coordinate for Year and Optimal points on this day
         }
 
-        public Location Location { get; set; }
-        public Target Target { get; set; }
+        // Init-only snapshot: Location and Target are captured at construction and cannot be
+        // swapped afterward. Spinner edits on the main form update mLocation there; the
+        // chart's copy stays frozen until the next Graph-click tear-and-rebuild. The one
+        // exception is Horizon / Duration, which are scrub-able post-hoc via
+        // RebuildOptimalSeries(horizon, duration) -- those two analysis parameters are
+        // passed explicitly per call rather than being read from this snapshot.
+        public Location Location { get; }
+        public Target Target { get; }
         public List<Series> TargetSeriesList { get; private set; }
         private List<NightCacheEntry> mYearCache;
 
-        public AltitudeSeries()
+        public AltitudeSeries(Location location, Target target)
         {
+            if (location == null) throw new ArgumentNullException(nameof(location));
+            if (target == null)   throw new ArgumentNullException(nameof(target));
+            Location = location;
+            Target = target;
             TargetSeriesList = new List<Series>();
         }
 
@@ -111,7 +121,10 @@ namespace TargetPlanner.Charts
 
                 mYearCache = cache;
                 RenderYearSeries();
-                RenderOptimalSeries();
+                // Initial render uses the snapshot's Horizon and Duration; Horizon / Duration
+                // spinner scrubs later call RebuildOptimalSeries(horizon, duration) with fresh
+                // values without touching the snapshot.
+                RenderOptimalSeries(Location.Horizon, Location.Duration);
             }
             catch (Exception ex)
             {
@@ -125,14 +138,17 @@ namespace TargetPlanner.Charts
         // the initial build) instead of recomputing dusk/dawn/LSTs etc. Cold-start path: if
         // the cache hasn't been populated yet -- e.g., the user scrubbed a spinner before the
         // initial Task.Run completed -- build Year synchronously first on the UI thread.
-        public void RebuildOptimalSeries()
+        //
+        // Horizon and Duration are passed explicitly rather than read from the snapshot so
+        // scrubbing a spinner updates the rendered curve without mutating the snapshot.
+        public void RebuildOptimalSeries(double horizon, TimeSpan duration)
         {
             if (mYearCache == null || mYearCache.Count == 0)
             {
                 mYearCache = ComputeYearCache();
                 RenderYearSeries();
             }
-            RenderOptimalSeries();
+            RenderOptimalSeries(horizon, duration);
         }
 
         private void BuildDaySeries()
@@ -284,7 +300,11 @@ namespace TargetPlanner.Charts
         // Null guard: see RenderYearSeries. RebuildOptimalSeries should have populated the
         // cache before calling this, but the defensive check here lets a spinner scrub during
         // the initial async build no-op cleanly instead of throwing.
-        private void RenderOptimalSeries()
+        //
+        // Horizon and duration are passed as parameters (not read from Location) so scrubbing
+        // the Horizon / Duration spinners updates the rendered curve without requiring us to
+        // mutate the chart's frozen Location snapshot.
+        private void RenderOptimalSeries(double horizon, TimeSpan duration)
         {
             if (mYearCache == null) return;
 
@@ -298,8 +318,8 @@ namespace TargetPlanner.Charts
             double latSigned   = Location.North ?  Location.Latitude  : -Location.Latitude;
             double decSigned   = Target.North   ?  Target.Declination : -Target.Declination;
             double raHours     = Target.RightAscension;
-            double horizonDeg  = Location.Horizon;
-            double durationHrs = Location.Duration.TotalHours;
+            double horizonDeg  = horizon;
+            double durationHrs = duration.TotalHours;
 
             double meridianAlt = TargetGeometry.MeridianAltitude(latSigned, decSigned);
             double haHorizon   = TargetGeometry.HourAngleAtAltitude(latSigned, decSigned, horizonDeg);

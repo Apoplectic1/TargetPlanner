@@ -17,7 +17,10 @@ namespace TargetPlanner.Charts
         public Chart mChart { get; set; }
         private List<ChartArea> mChartAreaList;
 
-        public Location Location { get; set; }
+        // Init-only snapshot set at construction. Horizon / Duration live-scrub paths pass
+        // the current values through RebuildOptimalData(horizon, duration) /
+        // UpdateHorizonLines(horizon) instead of mutating the snapshot.
+        public Location Location { get; }
         public bool Legend { set { mLegend.Enabled = value; } }
 
         private ChartArea mChartArea;
@@ -36,11 +39,13 @@ namespace TargetPlanner.Charts
         //################################################################################################################
         //################################################################################################################
 
-        public AltitudeChart()
+        public AltitudeChart(Location location)
         {
+            if (location == null) throw new ArgumentNullException(nameof(location));
+            Location = location;
+
             mChart = new Chart();
             mChartAreaList = new List<ChartArea>();
-            //mChart.ChartAreas.Add(mChartArea);
             mTargetList = new List<Target>();
             mLegend = new Legend();
             mUIState = new Support.UIState();
@@ -60,7 +65,9 @@ namespace TargetPlanner.Charts
 
             if (!mSeriesByTarget.TryGetValue(target, out AltitudeSeries series))
             {
-                series = new AltitudeSeries();
+                // AltitudeSeries is an immutable snapshot: Location and Target are captured
+                // here and cannot be reassigned later.
+                series = new AltitudeSeries(Location, target);
                 mSeriesByTarget[target] = series;
             }
             return series;
@@ -224,8 +231,8 @@ namespace TargetPlanner.Charts
             foreach (Target target in mTargetList.ToList())
             {
                 if (target == null) continue;
-                SeriesFor(target).Location = Location;
-                SeriesFor(target).Target   = target;
+                // SeriesFor(target) captures Location and target into the new AltitudeSeries
+                // on first access; no per-call property assignment needed.
                 // Fire-and-forget: BuildSeriesList owns its own try/catch for diagnostics.
                 // The discard suppresses CS4014 and documents the intent explicitly.
                 _ = SeriesFor(target).BuildSeriesList();
@@ -238,22 +245,21 @@ namespace TargetPlanner.Charts
         // avoids any ComputeNight / GetAltitudeAzimuth calls. Series object identity is
         // preserved (FindOrCreateSeries reuses them), so mChart.Series references stay valid
         // and the chart picks up the new points automatically.
-        public void RebuildOptimalData()
+        public void RebuildOptimalData(double horizon, TimeSpan duration)
         {
             foreach (Target target in mTargetList.ToList())
             {
                 if (target == null) continue;
-                SeriesFor(target).Location = Location;
-                SeriesFor(target).Target   = target;
-                SeriesFor(target).RebuildOptimalSeries();
+                SeriesFor(target).RebuildOptimalSeries(horizon, duration);
             }
             mChart.Invalidate();
         }
 
-        // Move the green horizon strip line to the current Location.Horizon on every chart
-        // area. Clears any prior horizon line (identified by its green color) before adding a
-        // fresh one so repeated calls don't accumulate strip lines.
-        public void UpdateHorizonLines()
+        // Move the green horizon strip line to the given horizon altitude on every chart
+        // area. Clears any prior horizon line (identified by its green color) before adding
+        // a fresh one so repeated calls don't accumulate strip lines. Horizon is passed in
+        // rather than read from the snapshot so spinner-scrub updates the line live.
+        public void UpdateHorizonLines(double horizon)
         {
             foreach (ChartArea area in mChartAreaList)
             {
@@ -266,7 +272,7 @@ namespace TargetPlanner.Charts
 
                 StripLine replacement = new StripLine();
                 replacement.Interval = 0;
-                replacement.IntervalOffset = Location.Horizon - 1;
+                replacement.IntervalOffset = horizon - 1;
                 replacement.StripWidth = 2;
                 replacement.BackColor = Color.Green;
                 area.AxisY.StripLines.Add(replacement);

@@ -134,15 +134,11 @@ namespace TargetPlanner
             GroupBox_AltitudeChart.Controls.Add(Panel_AltitudeChart);
 
             // Add actual Altitude Chart to Panel
-            mAltitudeChart = new Charts.AltitudeChart();
+            mAltitudeChart = new Charts.AltitudeChart(mLocation);
             mAltitudeChart.mChart.Location = new Point(5, 5);
             mAltitudeChart.mChart.Size = new Size(Panel_AltitudeChart.Width - 10, Panel_AltitudeChart.Size.Height - 10);
             mAltitudeChart.mChart.BackColor = Color.FromArgb(255, 239, 235, 233);
 
-            mAltitudeChart.ClearTargetList();
-            mAltitudeChart.ClearChartAreaList();
-
-            mAltitudeChart.Location = mLocation;
             mAltitudeChart.AddChartAreaToList("Day");
             mAltitudeChart.AddChartAreaToList("Year");
             mAltitudeChart.AddChartAreaToList("Optimal");
@@ -574,17 +570,21 @@ namespace TargetPlanner
         // ************************************************************************************************************************************* *//
         private void NumericUpDown_Duration_ValueChanged(object sender, EventArgs e)
         {
-            mLocation = mLocation.With(duration: TimeSpan.FromMinutes((double)NumericUpDown_Duration.Value * 60.0));
+            TimeSpan newDuration = TimeSpan.FromMinutes((double)NumericUpDown_Duration.Value * 60.0);
+            mLocation = mLocation.With(duration: newDuration);
             if (mAltitudeChart == null) return;
-            mAltitudeChart.RebuildOptimalData();
+            // Pass the scrubbed value explicitly; the chart's snapshot keeps its Graph-click
+            // Horizon / Duration but the rendered curve follows the spinner live.
+            mAltitudeChart.RebuildOptimalData(mLocation.Horizon, newDuration);
         }
 
         private void NumericUpDown_Horizon_ValueChanged(object sender, EventArgs e)
         {
-            mLocation = mLocation.With(horizon: (double)NumericUpDown_Horizon.Value);
+            double newHorizon = (double)NumericUpDown_Horizon.Value;
+            mLocation = mLocation.With(horizon: newHorizon);
             if (mAltitudeChart == null) return;
-            mAltitudeChart.UpdateHorizonLines();
-            mAltitudeChart.RebuildOptimalData();
+            mAltitudeChart.UpdateHorizonLines(newHorizon);
+            mAltitudeChart.RebuildOptimalData(newHorizon, mLocation.Duration);
         }
 
         private void DatePicker_ValueChanged(object sender, EventArgs e)
@@ -616,16 +616,16 @@ namespace TargetPlanner
                 }
             }
 
-            // Add actual Altitude Chart to Panel
-            mAltitudeChart = new Charts.AltitudeChart();
+            mLocation = mLocation.With(dateTime: DateTime.Now);
+
+            // Add actual Altitude Chart to Panel. The chart captures mLocation as its
+            // frozen snapshot at construction; subsequent spinner edits won't leak into
+            // the chart's stored Location.
+            mAltitudeChart = new Charts.AltitudeChart(mLocation);
             mAltitudeChart.mChart.Location = new Point(5, 5);
             mAltitudeChart.mChart.Size = new Size(Panel_AltitudeChart.Width - 10, Panel_AltitudeChart.Size.Height - 10);
             mAltitudeChart.mChart.BackColor = Color.FromArgb(255, 239, 235, 233);
 
-
-            mLocation = mLocation.With(dateTime: DateTime.Now);
-
-            mAltitudeChart.Location = mLocation;
             mAltitudeChart.AddChartAreaToList("Day");
             mAltitudeChart.AddChartAreaToList("Year");
             mAltitudeChart.AddChartAreaToList("Optimal");
