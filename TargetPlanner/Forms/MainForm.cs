@@ -87,6 +87,15 @@ namespace TargetPlanner
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
             SettingsStore.Save(mAppSettings);
+
+            // Dispose long-lived resources the form owns. Without this, the Timer keeps
+            // firing on the thread pool even after the form closes, the ToolTip leaks a
+            // native handle, and any still-open target-list popup stays alive in memory.
+            mTimer?.Stop();
+            mTimer?.Dispose();
+            mToolTip?.Dispose();
+            mAltitudeChart?.Dispose();
+            mAltitudeChartForm?.Dispose();
         }
 
         public void InitializeDynamicControls()
@@ -605,7 +614,11 @@ namespace TargetPlanner
 
         private void Button_GraphEphemeride_Click(object sender, EventArgs e)
         {
+            // Remove the old chart's Control from its parent, then dispose the AltitudeChart
+            // (which disposes the underlying Chart, releasing its GDI handles). Without this,
+            // every Graph click leaks a Chart control's native resources.
             Panel_AltitudeChart.Controls.Clear();
+            mAltitudeChart?.Dispose();
 
             foreach (Target target in mTargetList)
             {
@@ -926,6 +939,10 @@ namespace TargetPlanner
             }
 
             Label_SelectedTargetNumber.Text = mTargetList.Count.ToString();
+            // Repeat clicks used to accumulate floating popup forms. Close + dispose the
+            // prior instance before spawning a new one.
+            mAltitudeChartForm?.Close();
+            mAltitudeChartForm?.Dispose();
             mAltitudeChartForm = new Charts.AltitudeChartForm();
 
             mAltitudeChartForm.ChartTitle = "Poper Motion at " + mLocation.Name + " for evening beginning " + mLocation.DateTime.Date.ToShortDateString();

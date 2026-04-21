@@ -12,7 +12,7 @@ using Target   = Astronomy.Core.Targets.Target;
 
 namespace TargetPlanner.Charts
 {
-    public class AltitudeChart
+    public class AltitudeChart : IDisposable
     {
         public Chart mChart { get; set; }
         private List<ChartArea> mChartAreaList;
@@ -478,6 +478,18 @@ namespace TargetPlanner.Charts
         public void ClearLegend()
         {
             mChart.Legends.Clear();
+        }
+
+        // Dispose the underlying Chart control. Series / ChartAreas / StripLines owned by the
+        // Chart are disposed transitively. Safe to call more than once. Callers that swap the
+        // AltitudeChart (Button_GraphEphemeride_Click's tear-and-rebuild) should Dispose the
+        // prior instance before replacing; repeated clicks otherwise leak GDI handles.
+        private bool mDisposed;
+        public void Dispose()
+        {
+            if (mDisposed) return;
+            mDisposed = true;
+            mChart?.Dispose();
         }
     }
 }
