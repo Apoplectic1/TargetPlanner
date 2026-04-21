@@ -52,7 +52,7 @@ namespace Astronomy.Core.Locations
         public double MinutesAboveHorizon { get { return Duration.TotalMinutes; } set { Duration = TimeSpan.FromMinutes(value); } }
         public TimeSpan Duration { get; set; }
         public DateTime DateTime { get; set; }
-        public TimeZone TimeZone { get; set; }
+        public TimeZoneInfo TimeZoneInfo { get; set; }
         public bool DayChart { get; set; }
         public bool YearChart { get; set; }
         public bool OptimalChart { get; set; }
@@ -67,7 +67,7 @@ namespace Astronomy.Core.Locations
             Horizon = 30;
             Duration = TimeSpan.FromMinutes(240);
             DateTime = DateTime.Now;
-            TimeZone = TimeZone.CurrentTimeZone;
+            TimeZoneInfo = TimeZoneInfo.Local;
         }
     }
 }

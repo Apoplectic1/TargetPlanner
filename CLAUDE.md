@@ -30,7 +30,7 @@ The codebase is split at the assembly boundary: **`Astronomy.Core`** is pure, UI
 Shared library targeting `netstandard2.0`. Consumed today by TargetPlanner; designed to be consumed by XisfManager and a future NINA plugin without re-porting. See `SCHEDULER_DESIGN.md` for the full design rationale. Surface by subfolder:
 
 - **`Targets/Target.cs`** — POCO. `RightAscension` is **decimal hours** `[0, 24)`; the setter derives `RaHours/RaMinutes/RaSeconds` from it. `Declination` setter coerces sign into the `North` bool (absolute value kept in the numeric field). Does **not** carry any chart / WinForms state.
-- **`Locations/Location.cs`** — POCO. Latitude/longitude stored as decimal degrees with synthesized D/M/S accessors via property setter side-effects. Also carries `Horizon` (degrees), `Duration` (minimum time required above horizon for "Optimal" chart), `DateTime`, `TimeZone`.
+- **`Locations/Location.cs`** — POCO. Latitude/longitude stored as decimal degrees with synthesized D/M/S accessors via property setter side-effects. Also carries `Horizon` (degrees), `Duration` (minimum time required above horizon for "Optimal" chart), `DateTime`, `TimeZoneInfo`.
 - **`Night/NightWindow.cs`** — struct: `AstronomicalDawn`, `AstronomicalDusk`, `LunarIlluminationFraction`.
 - **`Time/JulianDate.cs`, `Time/SiderealTime.cs`** — JD from UTC; GMST from JD; LST from UTC + east-longitude.
 - **`AltAz.cs`** — `AltAz.At(target, location, utc)` and `AltAz.Of(target, location)` (reads `location.DateTime.ToUniversalTime()`). Returns `Tuple<altitude, azimuth>` in degrees. Replaces the old `GetAltitudeAzimuth`.

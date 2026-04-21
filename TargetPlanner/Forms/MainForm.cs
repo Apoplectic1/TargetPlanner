@@ -18,7 +18,7 @@ namespace TargetPlanner
         private OpenFolderDialog mFolder;
 
         private Location mLocation;
-        private Tuple<DateTime, TimeZone> mLocalDateTime;
+        private Tuple<DateTime, TimeZoneInfo> mLocalDateTime;
 
         private Target mTarget;
         private List<Target> mTargetList;
@@ -51,7 +51,7 @@ namespace TargetPlanner
 
             mAppSettings = SettingsStore.Load();
 
-            mLocalDateTime = Tuple.Create(DateTime.Now, TimeZone.CurrentTimeZone);
+            mLocalDateTime = Tuple.Create(DateTime.Now, TimeZoneInfo.Local);
             mLocation = PickStartupLocation();
             mTarget = new Target();
             mTargetList = new List<Target>();
@@ -178,9 +178,9 @@ namespace TargetPlanner
 
         private void UpdateLocalDateTimeEvents()
         {
-            mLocalDateTime = Tuple.Create(DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZone.CurrentTimeZone);
+            mLocalDateTime = Tuple.Create(DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZoneInfo.Local);
             mLocation.DateTime = mLocalDateTime.Item1;
-            mLocation.TimeZone = mLocalDateTime.Item2;
+            mLocation.TimeZoneInfo = mLocalDateTime.Item2;
             Astrometry.Location(mLocation);
 
             Label_AstronomicalDuskValue.Text = Astrometry.AstronomicalDusk.ToShortTimeString();
@@ -589,7 +589,7 @@ namespace TargetPlanner
 
         private void DatePicker_ValueChanged(object sender, EventArgs e)
         {
-            mLocalDateTime = Tuple.Create(DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZone.CurrentTimeZone);
+            mLocalDateTime = Tuple.Create(DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZoneInfo.Local);
             RadioButton_Now.Checked = false;
             RadioButton_SetDateTime.Checked = true;
             UpdateLocalDateTimeEvents();
@@ -597,7 +597,7 @@ namespace TargetPlanner
 
         private void TimePicker_ValueChanged(object sender, EventArgs e)
         {
-            mLocalDateTime = Tuple.Create(DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZone.CurrentTimeZone);
+            mLocalDateTime = Tuple.Create(DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZoneInfo.Local);
             RadioButton_Now.Checked = false;
             RadioButton_SetDateTime.Checked = true;
             UpdateLocalDateTimeEvents();
@@ -655,9 +655,9 @@ namespace TargetPlanner
         }
         private void OnTimedEvent(System.Object source, System.Timers.ElapsedEventArgs e)
         {
-            mLocalDateTime = Tuple.Create(DateTime.Now, TimeZone.CurrentTimeZone);
+            mLocalDateTime = Tuple.Create(DateTime.Now, TimeZoneInfo.Local);
             mLocation.DateTime = mLocalDateTime.Item1;
-            mLocation.TimeZone = mLocalDateTime.Item2;
+            mLocation.TimeZoneInfo = mLocalDateTime.Item2;
 
             Invoke(new Action(() =>
             {
@@ -683,7 +683,7 @@ namespace TargetPlanner
 
         private void RadioButton_Now_CheckedChanged(object sender, EventArgs e)
         {
-            mLocalDateTime = Tuple.Create(DateTime.Now, TimeZone.CurrentTimeZone);
+            mLocalDateTime = Tuple.Create(DateTime.Now, TimeZoneInfo.Local);
             UpdateUI();
             UpdateLocalDateTimeEvents();
 
