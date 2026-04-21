@@ -249,8 +249,14 @@ namespace TargetPlanner.Charts
         // UI-thread-only: push the cached Year altitudes into the chart's Year series. Keep
         // this strictly separate from ComputeYearCache -- every Points.Clear / AddXY call
         // eventually triggers Chart.Invalidate(), which is illegal off the UI thread.
+        //
+        // Null guard: mYearCache is null until BuildSeriesList's Task.Run completes (or forever
+        // if the compute threw). A UI-thread caller (e.g. RebuildOptimalSeries via a spinner
+        // scrub) that races the initial build could hit this path before the cache exists.
         private void RenderYearSeries()
         {
+            if (mYearCache == null) return;
+
             Series yearSeries = FindOrCreateSeries(Target.Name, "Year", new Color());
             yearSeries.Points.Clear();
             foreach (NightCacheEntry entry in mYearCache)
@@ -286,8 +292,14 @@ namespace TargetPlanner.Charts
         // UI-thread-only: walks mYearCache and writes the three Optimal-area series. All math
         // is local arithmetic -- no CoordinateSharp, no ComputeNight -- so this is fast enough
         // to call synchronously from spinner handlers.
+        //
+        // Null guard: see RenderYearSeries. RebuildOptimalSeries should have populated the
+        // cache before calling this, but the defensive check here lets a spinner scrub during
+        // the initial async build no-op cleanly instead of throwing.
         private void RenderOptimalSeries()
         {
+            if (mYearCache == null) return;
+
             Series optimalSeries         = FindOrCreateSeries(Target.Name, "Optimal",              new Color());
             Series optimalFloorSeries    = FindOrCreateSeries(Target.Name, "OptimalFloor",         new Color());
             Series optimalCenteredSeries = FindOrCreateSeries(Target.Name, "OptimalFloorCentered", new Color());
