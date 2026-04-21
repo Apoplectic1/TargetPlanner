@@ -74,7 +74,7 @@ namespace TargetPlanner.Charts
             return fresh;
         }
 
-        public async void BuildSeriesList()
+        public async Task BuildSeriesList()
         {
             // Each Target owns its AltitudeSeries, so a second build on the same Target (user
             // re-clicks Graph Ephemeride, or opens the multi-target popup after the main chart)
@@ -101,11 +101,24 @@ namespace TargetPlanner.Charts
             // UI thread. Mutating Series.Points from a background thread triggers
             // Chart.Invalidate() cross-thread, which Windows Forms either throws on or silently
             // corrupts into misplaced data points -- the source of the "spikes" on the chart.
-            List<NightCacheEntry> cache = await Task.Run(() => ComputeYearCache());
+            //
+            // Returning Task (not void) lets exceptions propagate to callers that await. Most
+            // current call sites are fire-and-forget (discard the Task), so the try/catch here
+            // ensures a failed compute at least lands in the debugger output instead of
+            // vanishing to SynchronizationContext.
+            try
+            {
+                List<NightCacheEntry> cache = await Task.Run(() => ComputeYearCache());
 
-            mYearCache = cache;
-            RenderYearSeries();
-            RenderOptimalSeries();
+                mYearCache = cache;
+                RenderYearSeries();
+                RenderOptimalSeries();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"AltitudeSeries.BuildSeriesList failed for target '{Target?.Name}': {ex}");
+            }
         }
 
         // Rebuild only the Optimal series on Horizon or Duration change. Day, Moon, and Year

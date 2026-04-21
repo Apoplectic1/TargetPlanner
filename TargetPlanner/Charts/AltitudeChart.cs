@@ -220,7 +220,9 @@ namespace TargetPlanner.Charts
                 if (target == null) continue;
                 SeriesFor(target).Location = Location;
                 SeriesFor(target).Target   = target;
-                SeriesFor(target).BuildSeriesList();
+                // Fire-and-forget: BuildSeriesList owns its own try/catch for diagnostics.
+                // The discard suppresses CS4014 and documents the intent explicitly.
+                _ = SeriesFor(target).BuildSeriesList();
             }
         }
 
