@@ -42,8 +42,10 @@ namespace Astronomy.Core.Session
 
             if (!night.IsValid) return result;
 
-            DateTime duskUtc = night.AstronomicalDusk.ToUniversalTime();
-            DateTime dawnUtc = night.AstronomicalDawn.ToUniversalTime();
+            // NightWindow exposes AstronomicalDusk / AstronomicalDawn as Kind=Utc. No
+            // conversion needed here -- see NightCalculator for the offset-recovery rationale.
+            DateTime duskUtc = night.AstronomicalDusk;
+            DateTime dawnUtc = night.AstronomicalDawn;
 
             double lstDusk = SiderealTime.Local(duskUtc, lonDegEast);
             double lstDawn = SiderealTime.Local(dawnUtc, lonDegEast);

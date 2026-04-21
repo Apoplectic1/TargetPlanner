@@ -17,6 +17,11 @@ namespace Astronomy.Core.Night
         // default but lets callers (e.g. narrowband broadband schedulers) pick nautical
         // (-12) or civil (-6) twilight instead.
         //
+        // Returned AstronomicalDawn / AstronomicalDusk are DateTimeKind.Utc. See
+        // NightCalculator.ComputeNight for the offset-recovery rationale (DateTimeOffset with
+        // the same fixed offset we passed to CoordinateSharp, not .ToUniversalTime() which
+        // would re-derive via Windows DST rules).
+        //
         // Only the three standard thresholds (-18, -12, -6) are supported, courtesy of
         // CoordinateSharp's prebuilt AdditionalSolarTimes. Arbitrary sunAltBelowDeg will throw
         // NotSupportedException -- a generalized bisection solve against sun altitude could
@@ -49,7 +54,7 @@ namespace Astronomy.Core.Night
             (DateTime? dawn, DateTime? dusk) = GetTimes(today, isAstro, isNaut);
             double illum = today.MoonIllum.Fraction;
 
-            if (location.DateTime >= dawn)
+            if (dawn.HasValue && location.DateTime >= dawn.Value)
             {
                 Celestial tomorrow = CoordinateSharpGate.Calculate(
                     LatSign  * location.Latitude,
@@ -58,8 +63,8 @@ namespace Astronomy.Core.Night
                 (DateTime? tomorrowDawn, _) = GetTimes(tomorrow, isAstro, isNaut);
                 return new NightWindow
                 {
-                    AstronomicalDawn = tomorrowDawn ?? DateTime.MinValue,
-                    AstronomicalDusk = dusk          ?? DateTime.MinValue,
+                    AstronomicalDawn = ToUtc(tomorrowDawn, utcOffset),
+                    AstronomicalDusk = ToUtc(dusk,         utcOffset),
                     LunarIlluminationFraction = illum,
                 };
             }
@@ -72,8 +77,8 @@ namespace Astronomy.Core.Night
                 (_, DateTime? yesterdayDusk) = GetTimes(yesterday, isAstro, isNaut);
                 return new NightWindow
                 {
-                    AstronomicalDawn = dawn           ?? DateTime.MinValue,
-                    AstronomicalDusk = yesterdayDusk  ?? DateTime.MinValue,
+                    AstronomicalDawn = ToUtc(dawn,           utcOffset),
+                    AstronomicalDusk = ToUtc(yesterdayDusk,  utcOffset),
                     LunarIlluminationFraction = illum,
                 };
             }
@@ -84,6 +89,13 @@ namespace Astronomy.Core.Night
             if (isAstro) return (c.AdditionalSolarTimes.AstronomicalDawn, c.AdditionalSolarTimes.AstronomicalDusk);
             if (isNaut)  return (c.AdditionalSolarTimes.NauticalDawn,     c.AdditionalSolarTimes.NauticalDusk);
             return (c.AdditionalSolarTimes.CivilDawn, c.AdditionalSolarTimes.CivilDusk);
+        }
+
+        private static DateTime ToUtc(DateTime? maybe, TimeSpan offset)
+        {
+            if (!maybe.HasValue) return DateTime.MinValue;
+            DateTime asUnspec = DateTime.SpecifyKind(maybe.Value, DateTimeKind.Unspecified);
+            return new DateTimeOffset(asUnspec, offset).UtcDateTime;
         }
     }
 }

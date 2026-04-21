@@ -52,6 +52,10 @@ namespace Astronomy.Core
         }
 
         // Overload that reads the UTC instant from location.DateTime.ToUniversalTime().
+        // Accepts location.DateTime with any DateTimeKind: Local and Unspecified are treated
+        // as local and converted via Windows rules; Utc is a no-op. So callers that want to
+        // evaluate at a NightWindow-sourced instant (Kind=Utc, see NightCalculator) can pass
+        // it through Location.With(dateTime: night.AstronomicalDusk) without first converting.
         public static AltAz Of(Target target, Location location)
         {
             if (target == null) throw new ArgumentNullException(nameof(target));

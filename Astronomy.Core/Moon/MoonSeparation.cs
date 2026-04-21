@@ -64,8 +64,10 @@ namespace Astronomy.Core.Moon
             var result = new List<(DateTime Start, DateTime End)>();
             if (!night.IsValid) return result;
 
-            DateTime startUtc = night.AstronomicalDusk.ToUniversalTime();
-            DateTime endUtc   = night.AstronomicalDawn.ToUniversalTime();
+            // NightWindow exposes AstronomicalDusk / AstronomicalDawn as Kind=Utc. See
+            // NightCalculator for the offset-recovery rationale.
+            DateTime startUtc = night.AstronomicalDusk;
+            DateTime endUtc   = night.AstronomicalDawn;
             TimeSpan sampleSize = TimeSpan.FromMinutes(10);
 
             DateTime tPrev = startUtc;

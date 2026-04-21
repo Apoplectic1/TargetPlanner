@@ -29,8 +29,10 @@ namespace Astronomy.Core.Session
 
             if (!night.IsValid) return result;
 
-            DateTime startUtc = night.AstronomicalDusk.ToUniversalTime();
-            DateTime endUtc   = night.AstronomicalDawn.ToUniversalTime();
+            // NightWindow exposes AstronomicalDusk / AstronomicalDawn as Kind=Utc. See
+            // NightCalculator for the offset-recovery rationale.
+            DateTime startUtc = night.AstronomicalDusk;
+            DateTime endUtc   = night.AstronomicalDawn;
 
             DateTime cursor = startUtc;
             while (cursor < endUtc)

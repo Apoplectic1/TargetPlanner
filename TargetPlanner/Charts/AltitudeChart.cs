@@ -414,12 +414,17 @@ namespace TargetPlanner.Charts
             DateTime stop;
 
             NightWindow night = NightCalculator.ComputeNight(Location);
+            // NightWindow fields are UTC as of the Core DST fix; convert to local here because
+            // the X axis is plotted in wall-clock time and the stripline positions are computed
+            // by wall-clock minute/hour.
+            DateTime duskLocal = night.AstronomicalDusk.ToLocalTime();
+            DateTime dawnLocal = night.AstronomicalDawn.ToLocalTime();
 
             stripLine = new StripLine();
 
-            duskOffset = (night.AstronomicalDusk.Minute > 30.0) ? 0.0 : -1.0;
-            start = night.AstronomicalDusk.AddHours(duskOffset).Date.AddHours(night.AstronomicalDusk.AddHours(duskOffset).Hour);
-            stop = night.AstronomicalDusk;
+            duskOffset = (duskLocal.Minute > 30.0) ? 0.0 : -1.0;
+            start = duskLocal.AddHours(duskOffset).Date.AddHours(duskLocal.AddHours(duskOffset).Hour);
+            stop = duskLocal;
 
             delta = stop.Subtract(start);
 
@@ -440,9 +445,9 @@ namespace TargetPlanner.Charts
 
             stripLine = new StripLine();
 
-            dawnOffset = (night.AstronomicalDawn.Minute > 30.0) ? 2.0 : 1.0;
-            start = night.AstronomicalDawn;
-            stop = night.AstronomicalDawn.AddHours(dawnOffset).Date.AddHours(night.AstronomicalDawn.AddHours(dawnOffset).Hour);
+            dawnOffset = (dawnLocal.Minute > 30.0) ? 2.0 : 1.0;
+            start = dawnLocal;
+            stop = dawnLocal.AddHours(dawnOffset).Date.AddHours(dawnLocal.AddHours(dawnOffset).Hour);
             delta = stop.Subtract(start);
 
             stripLine.BackSecondaryColor = Color.FromArgb(145, 255, 238, 88);
@@ -453,8 +458,8 @@ namespace TargetPlanner.Charts
             stripLine.IntervalType = DateTimeIntervalType.Minutes;
             stripLine.StripWidth = delta.TotalMinutes;
 
-            start = night.AstronomicalDusk.AddHours(duskOffset).Date.AddHours(night.AstronomicalDusk.AddHours(duskOffset).Hour);
-            delta = night.AstronomicalDawn.Subtract(start);
+            start = duskLocal.AddHours(duskOffset).Date.AddHours(duskLocal.AddHours(duskOffset).Hour);
+            delta = dawnLocal.Subtract(start);
 
             stripLine.IntervalOffset = delta.TotalMinutes + 2;
 

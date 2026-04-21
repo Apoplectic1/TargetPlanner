@@ -154,14 +154,18 @@ namespace TargetPlanner.Charts
         private void BuildDaySeries()
         {
             NightWindow night = NightCalculator.ComputeNight(Location);
+            // NightWindow fields are UTC as of the Core DST fix; convert to local once here
+            // because the minute-loop rounds to wall-clock hour boundaries for the X axis.
+            DateTime duskLocal = night.AstronomicalDusk.ToLocalTime();
+            DateTime dawnLocal = night.AstronomicalDawn.ToLocalTime();
 
             Series daySeries = MakeSeries(Target.Name, "Day", new Color());
 
-            double duskOffset = (night.AstronomicalDusk.Minute > 30.0) ? 0.0 : -1.0;
-            DateTime start = night.AstronomicalDusk.AddHours(duskOffset).Date.AddHours(night.AstronomicalDusk.AddHours(duskOffset).Hour);
+            double duskOffset = (duskLocal.Minute > 30.0) ? 0.0 : -1.0;
+            DateTime start = duskLocal.AddHours(duskOffset).Date.AddHours(duskLocal.AddHours(duskOffset).Hour);
 
-            double dawnOffset = (night.AstronomicalDawn.Minute > 30.0) ? 2.0 : 1.0;
-            DateTime stop = night.AstronomicalDawn.AddHours(dawnOffset).Date.AddHours(night.AstronomicalDawn.AddHours(dawnOffset).Hour);
+            double dawnOffset = (dawnLocal.Minute > 30.0) ? 2.0 : 1.0;
+            DateTime stop = dawnLocal.AddHours(dawnOffset).Date.AddHours(dawnLocal.AddHours(dawnOffset).Hour);
 
             TimeSpan delta = stop.Subtract(start);
 
@@ -218,13 +222,24 @@ namespace TargetPlanner.Charts
                     continue;
                 }
 
+                // night.AstronomicalDusk / AstronomicalDawn are Kind=Utc (see NightCalculator).
+                // Cached as-is; downstream math (AltAz.Of, SiderealTime.Local) wants UTC anyway.
                 entry.Dusk      = night.AstronomicalDusk;
                 entry.Dawn      = night.AstronomicalDawn;
+                // SentinelX is the X-axis coordinate for Year/Optimal points. Kept in UTC
+                // here; the chart's X axis is DateTime-valued and Windows renders Kind=Utc
+                // values against the local time zone, so the visual is wall-clock local.
                 entry.SentinelX = entry.Dawn.AddMinutes(-1);
 
+                // AltAz.Of internally calls location.DateTime.ToUniversalTime(), which is a
+                // no-op on Kind=Utc -- so entry.Dusk / Dawn feed through unchanged to the
+                // altitude math.
                 entry.AltDusk = AltAzCalculator.Of(Target, Location.With(dateTime: entry.Dusk)).Altitude;
                 entry.AltDawn = AltAzCalculator.Of(Target, Location.With(dateTime: entry.Dawn)).Altitude;
 
+                // .ToUniversalTime() on Kind=Utc is a no-op; left in place to advertise that
+                // SiderealTime.Local wants a UTC instant, so future refactors don't quietly
+                // swap in a Kind=Local value and shift LST by the local offset.
                 entry.LstDusk = SiderealTime.Local(entry.Dusk.ToUniversalTime(), lonDegEast);
                 entry.LstDawn = SiderealTime.Local(entry.Dawn.ToUniversalTime(), lonDegEast);
                 if (entry.LstDawn < entry.LstDusk) entry.LstDawn += 24.0;
@@ -444,12 +459,16 @@ namespace TargetPlanner.Charts
             double longitudeSign = Location.West ? -1.0 : 1.0;
 
             NightWindow night = NightCalculator.ComputeNight(Location);
+            // NightWindow fields are UTC as of the Core DST fix; convert to local once here
+            // because the minute-loop rounds to wall-clock hour boundaries for the X axis.
+            DateTime duskLocal = night.AstronomicalDusk.ToLocalTime();
+            DateTime dawnLocal = night.AstronomicalDawn.ToLocalTime();
 
-            double duskOffset = (night.AstronomicalDusk.Minute > 30.0) ? 0.0 : -1.0;
-            DateTime start = night.AstronomicalDusk.AddHours(duskOffset).Date.AddHours(night.AstronomicalDusk.AddHours(duskOffset).Hour);
+            double duskOffset = (duskLocal.Minute > 30.0) ? 0.0 : -1.0;
+            DateTime start = duskLocal.AddHours(duskOffset).Date.AddHours(duskLocal.AddHours(duskOffset).Hour);
 
-            double dawnOffset = (night.AstronomicalDawn.Minute > 30.0) ? 2.0 : 1.0;
-            DateTime stop = night.AstronomicalDawn.AddHours(dawnOffset).Date.AddHours(night.AstronomicalDawn.AddHours(dawnOffset).Hour);
+            double dawnOffset = (dawnLocal.Minute > 30.0) ? 2.0 : 1.0;
+            DateTime stop = dawnLocal.AddHours(dawnOffset).Date.AddHours(dawnLocal.AddHours(dawnOffset).Hour);
 
             Series moonSeries = MakeSeries("Moon", "Day",
                 Color.FromArgb((int)(night.LunarIlluminationFraction * 250.0), 209, 209, 209));
