@@ -86,9 +86,9 @@ namespace Astronomy.Core.Session
             for (int i = 0; i < 30; i++)  // 2^-30 of a 4-hour span = sub-second precision
             {
                 DateTime mid = new DateTime((lo.Ticks + hi.Ticks) / 2, DateTimeKind.Utc);
-                var altAz = AltAz.At(target, location, mid);
-                double targetAlt = altAz.Item1;
-                double targetAz  = altAz.Item2;
+                AltAz coords = AltAzCalculator.At(target, location, mid);
+                double targetAlt = coords.Altitude;
+                double targetAz  = coords.Azimuth;
                 double profileAlt = horizon.AltitudeAt(targetAz);
 
                 bool targetAbove = targetAlt > profileAlt;

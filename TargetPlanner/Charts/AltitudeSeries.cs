@@ -169,10 +169,10 @@ namespace TargetPlanner.Charts
             while (minutes < Convert.ToInt32(Math.Round(delta.TotalMinutes, 0)))
             {
                 DateTime point = start.AddMinutes(minutes);
-                // Location is immutable; ask AltAz to evaluate at `point` via a With-variant
-                // instead of mutating a clone in place.
-                Tuple<double, double> targetPosition = AltAz.Of(Target, Location.With(dateTime: point));
-                daySeries.Points.AddXY(point, targetPosition.Item1);
+                // Location is immutable; ask AltAzCalculator to evaluate at `point` via a
+                // With-variant instead of mutating a clone in place.
+                AltAz targetPosition = AltAzCalculator.Of(Target, Location.With(dateTime: point));
+                daySeries.Points.AddXY(point, targetPosition.Altitude);
                 minutes++;
             }
 
@@ -222,8 +222,8 @@ namespace TargetPlanner.Charts
                 entry.Dawn      = night.AstronomicalDawn;
                 entry.SentinelX = entry.Dawn.AddMinutes(-1);
 
-                entry.AltDusk = AltAz.Of(Target, Location.With(dateTime: entry.Dusk)).Item1;
-                entry.AltDawn = AltAz.Of(Target, Location.With(dateTime: entry.Dawn)).Item1;
+                entry.AltDusk = AltAzCalculator.Of(Target, Location.With(dateTime: entry.Dusk)).Altitude;
+                entry.AltDawn = AltAzCalculator.Of(Target, Location.With(dateTime: entry.Dawn)).Altitude;
 
                 entry.LstDusk = SiderealTime.Local(entry.Dusk.ToUniversalTime(), lonDegEast);
                 entry.LstDawn = SiderealTime.Local(entry.Dawn.ToUniversalTime(), lonDegEast);

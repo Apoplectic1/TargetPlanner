@@ -5,12 +5,35 @@ using Astronomy.Core.Time;
 
 namespace Astronomy.Core
 {
-    public static class AltAz
+    // Topocentric horizontal coordinates: altitude (degrees above the mathematical horizon,
+    // 0 = horizon, positive = up; never adjusted for refraction) and azimuth (degrees from
+    // North, clockwise, [0, 360)). Replaces the previous `Tuple<double, double>` return
+    // from AltAz.At/Of so callers unpack by meaning (altitude / azimuth) instead of by
+    // position (Item1 / Item2).
+    public readonly struct AltAz
     {
-        // Altitude (degrees) and azimuth (degrees from North, clockwise) of target seen from
-        // location at the given UTC instant. Signed hemispheres are resolved internally from
-        // the target.North / location.North / location.West flags.
-        public static Tuple<double, double> At(Target target, Location location, DateTime utc)
+        public double Altitude { get; }
+        public double Azimuth  { get; }
+
+        public AltAz(double altitude, double azimuth)
+        {
+            Altitude = altitude;
+            Azimuth = azimuth;
+        }
+
+        public void Deconstruct(out double altitude, out double azimuth)
+        {
+            altitude = Altitude;
+            azimuth  = Azimuth;
+        }
+    }
+
+    // Static helper: produces an AltAz for a target seen from a location at a given UTC
+    // instant. Signed hemispheres are resolved internally from the target.North /
+    // location.North / location.West flags so callers pass the unsigned magnitudes.
+    public static class AltAzCalculator
+    {
+        public static AltAz At(Target target, Location location, DateTime utc)
         {
             if (target == null) throw new ArgumentNullException(nameof(target));
             if (location == null) throw new ArgumentNullException(nameof(location));
@@ -25,13 +48,11 @@ namespace Astronomy.Core
 
             double altitude = TargetGeometry.AltitudeAtHourAngle(hourAngle, latDeg, decDeg);
             double azimuth  = TargetGeometry.AzimuthAtHourAngle(hourAngle, latDeg, decDeg);
-            return Tuple.Create(altitude, azimuth);
+            return new AltAz(altitude, azimuth);
         }
 
         // Overload that reads the UTC instant from location.DateTime.ToUniversalTime().
-        // Preserves the call pattern from the pre-extraction code that mutates
-        // locationClone.DateTime between calls.
-        public static Tuple<double, double> Of(Target target, Location location)
+        public static AltAz Of(Target target, Location location)
         {
             if (target == null) throw new ArgumentNullException(nameof(target));
             if (location == null) throw new ArgumentNullException(nameof(location));

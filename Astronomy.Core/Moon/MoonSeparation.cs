@@ -22,9 +22,9 @@ namespace Astronomy.Core.Moon
             if (target == null) throw new ArgumentNullException(nameof(target));
             if (location == null) throw new ArgumentNullException(nameof(location));
 
-            var targetAltAz = AltAz.At(target, location, utc);
-            double tAlt = targetAltAz.Item1;
-            double tAz  = targetAltAz.Item2;
+            AltAz targetAltAz = AltAzCalculator.At(target, location, utc);
+            double tAlt = targetAltAz.Altitude;
+            double tAz  = targetAltAz.Azimuth;
 
             double LatSign  = location.North ?  1.0 : -1.0;
             double LongSign = location.West  ? -1.0 :  1.0;
