@@ -61,6 +61,11 @@ namespace TargetPlanner
 
             mTimer = new System.Timers.Timer();
             mTimer.Interval = 5000;
+            // Fire OnTimedEvent on the UI thread via this Form as the synchronizing object.
+            // Previously the Elapsed handler ran on a thread-pool thread and had to Invoke
+            // back to the UI thread for every label update, and its direct writes to
+            // mLocation.DateTime / .TimeZoneInfo raced with UI-thread reads.
+            mTimer.SynchronizingObject = this;
             mTimer.Enabled = !CheckBox_HoldTime.Checked;
             mTimer.Elapsed += OnTimedEvent;
 
@@ -655,30 +660,29 @@ namespace TargetPlanner
         }
         private void OnTimedEvent(System.Object source, System.Timers.ElapsedEventArgs e)
         {
+            // Now on the UI thread courtesy of Timer.SynchronizingObject = this, so the
+            // Invoke indirection is no longer needed. Direct mLocation writes + UI updates
+            // are safe.
             mLocalDateTime = Tuple.Create(DateTime.Now, TimeZoneInfo.Local);
             mLocation.DateTime = mLocalDateTime.Item1;
             mLocation.TimeZoneInfo = mLocalDateTime.Item2;
 
-            Invoke(new Action(() =>
+            DatePicker.ValueChanged -= DatePicker_ValueChanged;
+            TimePicker.ValueChanged -= TimePicker_ValueChanged;
+
+            TimePicker.Value = mLocalDateTime.Item1;
+            DatePicker.Value = mLocalDateTime.Item1;
+
+            DatePicker.ValueChanged += DatePicker_ValueChanged;
+            TimePicker.ValueChanged += TimePicker_ValueChanged;
+
+            Label_SunAltitudeValue.Text = Astrometry.SunAltitude.ToString("F1");
+            Label_LunarAltitudeValue.Text = Astrometry.LunarAltitude.ToString("F1");
+
+            if (mAltitudeChart != null)
             {
-                DatePicker.ValueChanged -= DatePicker_ValueChanged;
-                TimePicker.ValueChanged -= TimePicker_ValueChanged;
-
-                TimePicker.Value = mLocalDateTime.Item1;// DateTime.Now;
-                DatePicker.Value = mLocalDateTime.Item1; //DateTime.Now;
-
-                DatePicker.ValueChanged += DatePicker_ValueChanged;
-                TimePicker.ValueChanged -= TimePicker_ValueChanged;
-
-                Label_SunAltitudeValue.Text = Astrometry.SunAltitude.ToString("F1");
-                Label_LunarAltitudeValue.Text = Astrometry.LunarAltitude.ToString("F1");
-
-                if (mAltitudeChart != null)
-                {
-                    mAltitudeChart.UpdateNowLine(mLocalDateTime.Item1);
-                }
-            }));
-
+                mAltitudeChart.UpdateNowLine(mLocalDateTime.Item1);
+            }
         }
 
         private void RadioButton_Now_CheckedChanged(object sender, EventArgs e)
