@@ -5,6 +5,17 @@ using Astronomy.Core.Targets;
 
 namespace Astronomy.Core.Session
 {
+    // Distinguishes the three outcomes of a rise/set lookup. Previously the API returned
+    // (null, null) for both Circumpolar and NeverRises and the consumer had to probe the
+    // current altitude to disambiguate. RiseSetState lets a scheduler branch on the shape
+    // directly without an extra AltAz call.
+    public enum RiseSetState
+    {
+        Found,        // Rise and / or Set are populated with valid DateTimes.
+        Circumpolar,  // Target is always above the horizon at this location.
+        NeverRises    // Target never reaches the horizon at this location.
+    }
+
     public static class RiseSet
     {
         private const double SiderealHoursPerSolarDay = 24.06570982441908;
@@ -12,9 +23,14 @@ namespace Astronomy.Core.Session
 
         // Next UTC rise and set of target at or after searchFromUtc, using a scalar horizon.
         // Analytic: derives both times from the next transit plus/minus the hour angle at which
-        // the target is at horizonDeg. Returns (null, null) for circumpolar or never-rises
-        // targets; callers can disambiguate by calling AltAz at any probe time.
-        public static (DateTime? Rise, DateTime? Set) NextAtOrAfter(
+        // the target is at horizonDeg.
+        //
+        // State == Circumpolar: target never sets below horizonDeg from this location; Rise
+        //   and Set are both null.
+        // State == NeverRises: target never reaches horizonDeg from this location; Rise and
+        //   Set are both null.
+        // State == Found: Rise and Set are non-null.
+        public static (RiseSetState State, DateTime? Rise, DateTime? Set) NextAtOrAfter(
             Target target, Location location, DateTime searchFromUtc, double horizonDeg)
         {
             if (target == null) throw new ArgumentNullException(nameof(target));
@@ -24,8 +40,8 @@ namespace Astronomy.Core.Session
             double decDeg = target.North ? target.Declination : -target.Declination;
             double haHorizon = TargetGeometry.HourAngleAtAltitude(latDeg, decDeg, horizonDeg);
 
-            if (double.IsNaN(haHorizon)) return (null, null);              // never reaches horizon
-            if (double.IsPositiveInfinity(haHorizon)) return (null, null); // always above horizon
+            if (double.IsNaN(haHorizon))               return (RiseSetState.NeverRises, null, null);
+            if (double.IsPositiveInfinity(haHorizon))  return (RiseSetState.Circumpolar, null, null);
 
             double haSolarHours = haHorizon * 24.0 / SiderealHoursPerSolarDay;
 
@@ -40,7 +56,7 @@ namespace Astronomy.Core.Session
                 : candidateRise.AddHours(SiderealDayInSolarHours);
 
             // Set for this transit cycle is >= nextTransit >= searchFromUtc, so always valid.
-            return (nextRise, candidateSet);
+            return (RiseSetState.Found, nextRise, candidateSet);
         }
 
         // Same as above but against a horizon profile. The scalar fast-path seeds a Newton/
@@ -48,16 +64,17 @@ namespace Astronomy.Core.Session
         // iteration. For profiles that are close to flat the result converges in 2-3 iterations
         // and matches the scalar case exactly; for heavily non-monotonic profiles (ridges /
         // buildings) bisection is the safer choice than Newton so we use that here.
-        public static (DateTime? Rise, DateTime? Set) NextAtOrAfter(
+        public static (RiseSetState State, DateTime? Rise, DateTime? Set) NextAtOrAfter(
             Target target, Location location, DateTime searchFromUtc, IHorizonProfile horizon)
         {
             if (target == null) throw new ArgumentNullException(nameof(target));
             if (location == null) throw new ArgumentNullException(nameof(location));
             if (horizon == null) throw new ArgumentNullException(nameof(horizon));
 
-            // Seed from the scalar lower-bound fast-path.
+            // Seed from the scalar lower-bound fast-path. Circumpolar / NeverRises pass
+            // straight through with Rise / Set null.
             var seed = NextAtOrAfter(target, location, searchFromUtc, horizon.MinAltitude);
-            if (seed.Rise == null && seed.Set == null) return (null, null);
+            if (seed.State != RiseSetState.Found) return seed;
 
             DateTime? rise = seed.Rise.HasValue
                 ? Refine(target, location, horizon, seed.Rise.Value, isRise: true)
@@ -66,7 +83,7 @@ namespace Astronomy.Core.Session
                 ? Refine(target, location, horizon, seed.Set.Value, isRise: false)
                 : (DateTime?)null;
 
-            return (rise, set);
+            return (RiseSetState.Found, rise, set);
         }
 
         // Bisection-refine a scalar-seed candidate crossing time against the profile. The
