@@ -471,8 +471,20 @@ namespace TargetPlanner.Charts
 
         public static T Clone<T>(T source)
         {
+            // JsonConvert.DeserializeObject<T>(serialized) can return null if the serialized
+            // payload is the string "null", empty, or otherwise unparseable as T. Callers
+            // (BuildDaySeries, BuildMoonSeries, ComputeYearCache) dereference the clone's
+            // properties immediately, so a silent null would surface as a
+            // NullReferenceException far from here. Fail loudly with a descriptive message.
             var serialized = JsonConvert.SerializeObject(source);
-            return JsonConvert.DeserializeObject<T>(serialized);
+            T clone = JsonConvert.DeserializeObject<T>(serialized);
+            if (clone == null)
+            {
+                throw new InvalidOperationException(
+                    $"AltitudeSeries.Clone<{typeof(T).Name}> produced a null deserialized value " +
+                    $"from source '{source}'. Serialized payload: '{serialized}'.");
+            }
+            return clone;
         }
     }
 }
