@@ -40,9 +40,13 @@ namespace TargetPlanner.Nina
                     Target t = ParseTargetFile(file);
                     if (t != null) result.Add(t);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Silently skip unparseable / malformed files, matching the prior SGP parser.
+                    // Skip unparseable / malformed files but leave a diagnostic trail. The
+                    // previous bare catch dropped both the path and the reason on the floor,
+                    // which made "target X missing from the list" an unsolvable mystery.
+                    System.Diagnostics.Debug.WriteLine(
+                        $"TargetLoader: skipping '{file}' -- {ex.GetType().Name}: {ex.Message}");
                 }
                 progress?.Report(Tuple.Create(i, files.Count));
             }
