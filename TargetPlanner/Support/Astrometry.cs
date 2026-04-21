@@ -1,3 +1,4 @@
+using Astronomy.Core;
 using CoordinateSharp;
 using System;
 
@@ -40,7 +41,7 @@ namespace TargetPlanner.Support
             double LongSign = localLocation.West  ? -1.0 : 1.0;
             TimeSpan utcOffset = TimeZoneInfo.Local.GetUtcOffset(localLocation.DateTime);
 
-            mLocal = Celestial.CalculateCelestialTimes(
+            mLocal = CoordinateSharpGate.Calculate(
                 LatSign  * localLocation.Latitude,
                 LongSign * localLocation.Longitude,
                 localLocation.DateTime, mEgagerLoad, utcOffset.Hours);
@@ -57,7 +58,7 @@ namespace TargetPlanner.Support
 
             if (localLocation.DateTime >= mDawnToday)
             {
-                mLocal = Celestial.CalculateCelestialTimes(
+                mLocal = CoordinateSharpGate.Calculate(
                     LatSign  * localLocation.Latitude,
                     LongSign * localLocation.Longitude,
                     localLocation.DateTime.AddDays(1), mEgagerLoad, utcOffset.Hours);
@@ -68,7 +69,7 @@ namespace TargetPlanner.Support
             }
             else
             {
-                mLocal = Celestial.CalculateCelestialTimes(
+                mLocal = CoordinateSharpGate.Calculate(
                     LatSign  * localLocation.Latitude,
                     LongSign * localLocation.Longitude,
                     localLocation.DateTime.AddDays(-1), mEgagerLoad, utcOffset.Hours);

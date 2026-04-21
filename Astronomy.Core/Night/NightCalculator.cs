@@ -21,7 +21,7 @@ namespace Astronomy.Core.Night
             double LongSign = location.West  ? -1.0 :  1.0;
             TimeSpan utcOffset = TimeZoneInfo.Local.GetUtcOffset(location.DateTime);
 
-            Celestial today = Celestial.CalculateCelestialTimes(
+            Celestial today = CoordinateSharpGate.Calculate(
                 LatSign  * location.Latitude,
                 LongSign * location.Longitude,
                 location.DateTime, mEagerLoad, utcOffset.Hours);
@@ -32,7 +32,7 @@ namespace Astronomy.Core.Night
 
             if (location.DateTime >= dawnToday)
             {
-                Celestial tomorrow = Celestial.CalculateCelestialTimes(
+                Celestial tomorrow = CoordinateSharpGate.Calculate(
                     LatSign  * location.Latitude,
                     LongSign * location.Longitude,
                     location.DateTime.AddDays(1), mEagerLoad, utcOffset.Hours);
@@ -45,7 +45,7 @@ namespace Astronomy.Core.Night
             }
             else
             {
-                Celestial yesterday = Celestial.CalculateCelestialTimes(
+                Celestial yesterday = CoordinateSharpGate.Calculate(
                     LatSign  * location.Latitude,
                     LongSign * location.Longitude,
                     location.DateTime.AddDays(-1), mEagerLoad, utcOffset.Hours);

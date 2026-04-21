@@ -29,7 +29,7 @@ namespace Astronomy.Core.Moon
             // Pass the UTC instant straight through with utcOffset = 0 hours; CoordinateSharp
             // treats the DateTime argument as local to the offset so this effectively asks for
             // "celestial times at this UTC".
-            Celestial c = Celestial.CalculateCelestialTimes(
+            Celestial c = CoordinateSharpGate.Calculate(
                 LatSign  * location.Latitude,
                 LongSign * location.Longitude,
                 utc, mEagerLoad, 0.0);

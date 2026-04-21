@@ -86,25 +86,41 @@ namespace TargetPlanner.Charts
 
             BuildMoonSeries();
             BuildDaySeries();
-            await Task.Run(() =>
-            {
-                BuildYearSeries();
-                BuildOptimalSeries();
-            });
+
+            // Pre-allocate every Series up front on the UI thread so the background compute
+            // phase never touches TargetSeriesList (which AltitudeChart.ShowChartAreaSeries /
+            // UpdateNowLine iterate concurrently on the UI thread).
+            FindOrCreateSeries(Target.Name, "Year",                 new Color());
+            FindOrCreateSeries(Target.Name, "Optimal",              new Color());
+            FindOrCreateSeries(Target.Name, "OptimalFloor",         new Color());
+            FindOrCreateSeries(Target.Name, "OptimalFloorCentered", new Color());
+
+            // Compute the 365-day cache on a background thread (the CoordinateSharp-heavy
+            // part). The continuation resumes on the UI thread via the captured
+            // SynchronizationContext, so every Series.Points mutation below is safely on the
+            // UI thread. Mutating Series.Points from a background thread triggers
+            // Chart.Invalidate() cross-thread, which Windows Forms either throws on or silently
+            // corrupts into misplaced data points -- the source of the "spikes" on the chart.
+            List<NightCacheEntry> cache = await Task.Run(() => ComputeYearCache());
+
+            mYearCache = cache;
+            RenderYearSeries();
+            RenderOptimalSeries();
         }
 
         // Rebuild only the Optimal series on Horizon or Duration change. Day, Moon, and Year
-        // don't depend on either input, so they stay as-is. Reads mYearCache (populated by
-        // BuildYearSeries during the initial build) instead of recomputing dusk/dawn/LSTs etc.
-        // Cold-start path: if the cache hasn't been populated yet -- e.g., the user scrubbed a
-        // spinner before the initial Task.Run completed -- build Year synchronously first.
+        // don't depend on either input, so they stay as-is. Reads mYearCache (populated during
+        // the initial build) instead of recomputing dusk/dawn/LSTs etc. Cold-start path: if
+        // the cache hasn't been populated yet -- e.g., the user scrubbed a spinner before the
+        // initial Task.Run completed -- build Year synchronously first on the UI thread.
         public void RebuildOptimalSeries()
         {
             if (mYearCache == null || mYearCache.Count == 0)
             {
-                BuildYearSeries();
+                mYearCache = ComputeYearCache();
+                RenderYearSeries();
             }
-            BuildOptimalSeries();
+            RenderOptimalSeries();
         }
 
         private void BuildDaySeries()
@@ -142,16 +158,16 @@ namespace TargetPlanner.Charts
             TargetSeriesList.Add(daySeries);
         }
 
-        // Compute-once per AltitudeSeries lifetime: walk 365 days, call ComputeNight and two
-        // GetAltitudeAzimuth calls per day, store the Horizon/Duration-independent intermediates
-        // in mYearCache, and emit the Year series. Year values are invariant to Horizon and
+        // Walk 365 days, call ComputeNight and two AltAz.Of calls per day, return the
+        // Horizon/Duration-independent intermediates. Year values are invariant to Horizon and
         // Duration so this never needs to run on a spinner tick.
-        private void BuildYearSeries()
+        //
+        // Pure compute: no WinForms Series.Points access, no mYearCache assignment. Safe to
+        // run on a background thread via Task.Run. The caller assigns the returned list to
+        // mYearCache on the UI thread before rendering.
+        private List<NightCacheEntry> ComputeYearCache()
         {
             Location locationClone = Clone(Location);
-
-            Series yearSeries = FindOrCreateSeries(Target.Name, "Year", new Color());
-            yearSeries.Points.Clear();
 
             double latSigned  = Location.North ?  Location.Latitude  : -Location.Latitude;
             double decSigned  = Target.North   ?  Target.Declination : -Target.Declination;
@@ -164,9 +180,6 @@ namespace TargetPlanner.Charts
             DateTime endDay   = startDay.AddYears(1);
             int      totalDays = (int)endDay.Subtract(startDay).TotalDays;
 
-            // Build into a local list and atomically assign at the end so a concurrent reader on
-            // the UI thread (e.g. RebuildOptimalSeries during the initial Task.Run) sees either
-            // null or a fully populated cache, never a half-filled one.
             List<NightCacheEntry> cache = new List<NightCacheEntry>(totalDays);
 
             for (int day = 0; day < totalDays; day++)
@@ -182,7 +195,6 @@ namespace TargetPlanner.Charts
                     entry.SentinelX = startDay.AddDays(day).AddHours(12);
                     entry.YearAlt   = -90.0;
                     cache.Add(entry);
-                    yearSeries.Points.AddXY(entry.SentinelX, entry.YearAlt);
                     continue;
                 }
 
@@ -216,10 +228,22 @@ namespace TargetPlanner.Charts
                 entry.YearAlt = yearAlt;
 
                 cache.Add(entry);
-                yearSeries.Points.AddXY(entry.SentinelX, entry.YearAlt);
             }
 
-            mYearCache = cache;
+            return cache;
+        }
+
+        // UI-thread-only: push the cached Year altitudes into the chart's Year series. Keep
+        // this strictly separate from ComputeYearCache -- every Points.Clear / AddXY call
+        // eventually triggers Chart.Invalidate(), which is illegal off the UI thread.
+        private void RenderYearSeries()
+        {
+            Series yearSeries = FindOrCreateSeries(Target.Name, "Year", new Color());
+            yearSeries.Points.Clear();
+            foreach (NightCacheEntry entry in mYearCache)
+            {
+                yearSeries.Points.AddXY(entry.SentinelX, entry.YearAlt);
+            }
         }
 
         // Walk mYearCache to emit the three Optimal-area curves:
@@ -246,7 +270,10 @@ namespace TargetPlanner.Charts
         // T. The floor altitude is then AltAtHa evaluated at the session endpoint farther from
         // transit -- which is always the session's low point since alt(HA) is monotone away
         // from HA=0.
-        private void BuildOptimalSeries()
+        // UI-thread-only: walks mYearCache and writes the three Optimal-area series. All math
+        // is local arithmetic -- no CoordinateSharp, no ComputeNight -- so this is fast enough
+        // to call synchronously from spinner handlers.
+        private void RenderOptimalSeries()
         {
             Series optimalSeries         = FindOrCreateSeries(Target.Name, "Optimal",              new Color());
             Series optimalFloorSeries    = FindOrCreateSeries(Target.Name, "OptimalFloor",         new Color());
@@ -408,7 +435,7 @@ namespace TargetPlanner.Charts
             while (minutes < Convert.ToInt32(Math.Round(delta.TotalMinutes, 0)))
             {
                 DateTime point = start.AddMinutes(minutes);
-                cCelestial = CoordinateSharp.Celestial.CalculateCelestialTimes(locationClone.Latitude, LongitudeSign * locationClone.Longitude, point, utcOffset.Hours);
+                cCelestial = CoordinateSharpGate.Calculate(locationClone.Latitude, LongitudeSign * locationClone.Longitude, point, utcOffset.Hours);
                 moonSeries.Points.AddXY(point, cCelestial.MoonAltitude);
 
                 minutes++;
