@@ -156,7 +156,8 @@ namespace TargetPlanner
 
             Panel_AltitudeChart.Controls.Add(mAltitudeChart.mChart);
 
-            GetNinaTargets(folderSelectedPaths);
+            // Fire-and-forget; GetNinaTargets owns its own try/catch for diagnostics.
+            _ = GetNinaTargets(folderSelectedPaths);
 
             ComboBox_SelectTarget.Text = "M31";
         }
@@ -871,11 +872,11 @@ namespace TargetPlanner
 
             if (result.Equals(DialogResult.OK))
             {
-                GetNinaTargets(mFolder.SelectedPaths);
+                _ = GetNinaTargets(mFolder.SelectedPaths);
             }
         }
 
-        private async void GetNinaTargets(string[] folderSelectedPaths)
+        private async Task GetNinaTargets(string[] folderSelectedPaths)
         {
             mTargetList.Clear();
             CheckedListBox_SelectedTargets.Items.Clear();
@@ -907,7 +908,10 @@ namespace TargetPlanner
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                // Log the full exception (stack + type) before surfacing a shorter user-facing
+                // message; the bare catch used to swallow the stack trace entirely.
+                System.Diagnostics.Debug.WriteLine($"GetNinaTargets failed: {ex}");
+                MessageBox.Show(ex.Message, "Target load failed", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 ProgressBar_ProcessObject.Value = 0;
             }
 
