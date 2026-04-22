@@ -83,7 +83,15 @@ namespace TargetPlanner.Charts
             return fresh;
         }
 
-        public async Task BuildSeriesList()
+        // phaseProgress (if non-null) is reported exactly three times per successful build:
+        //   "Day"     -- after the synchronous minute-loop Day and Moon series are populated.
+        //   "Year"    -- after the Task.Run background compute + UI-thread RenderYearSeries.
+        //   "Optimal" -- after RenderOptimalSeries lands the three Optimal-area curves.
+        // Progress reports are marshalled back to the IProgress<string>'s creation context,
+        // so the subscriber (e.g. a ProgressBar Value setter) runs on the UI thread.
+        // On exception, a phase may not tick -- subscribers that track a tick count should
+        // not rely on exact counts to infer success.
+        public async Task BuildSeriesList(IProgress<string> phaseProgress = null)
         {
             // Each Target owns its AltitudeSeries, so a second build on the same Target (user
             // re-clicks Graph Target, or opens the multi-target popup after the main chart)
@@ -95,6 +103,7 @@ namespace TargetPlanner.Charts
 
             BuildMoonSeries();
             BuildDaySeries();
+            phaseProgress?.Report("Day");
 
             // Pre-allocate every Series up front on the UI thread so the background compute
             // phase never touches TargetSeriesList (which AltitudeChart.ShowChartAreaSeries /
@@ -121,10 +130,12 @@ namespace TargetPlanner.Charts
 
                 mYearCache = cache;
                 RenderYearSeries();
+                phaseProgress?.Report("Year");
                 // Initial render uses the snapshot's Horizon and Duration; Horizon / Duration
                 // spinner scrubs later call RebuildOptimalSeries(horizon, duration) with fresh
                 // values without touching the snapshot.
                 RenderOptimalSeries(Location.Horizon, Location.Duration);
+                phaseProgress?.Report("Optimal");
             }
             catch (Exception ex)
             {

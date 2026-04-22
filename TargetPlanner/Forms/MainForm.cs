@@ -50,6 +50,13 @@ namespace TargetPlanner
         private CoordinateInput mRaInput;
         private CoordinateInput mDecInput;
 
+        // Incremented on every Graph click so stale Progress<string> callbacks from a prior
+        // (still in-flight) AltitudeSeries.BuildSeriesList don't tick ProgressBar_MultiTarget-
+        // Processing after the user has already launched a new chart build. Captured by value
+        // in the Progress<string> closure, so each click's callbacks are stamped and can be
+        // identified as stale later.
+        private int mChartBuildGeneration;
+
         public MainForm()
         {
             InitializeComponent();
@@ -307,11 +314,13 @@ namespace TargetPlanner
 
             mLocation = mLocation.With(dateTime: DateTime.Now);
 
+            IProgress<string> phaseProgress = BeginChartBuildProgress(targetCount: 1);
+
             // Reload-in-place: keep the Chart control, its ChartAreas, its Legend, and any
             // user zoom / legend-color-toggle state alive. The chart was constructed once
             // in InitializeDynamicControls. Reload resets only the transient state (series,
             // strip lines, per-target AltitudeSeries cache, target list, Location snapshot).
-            mAltitudeChart.ReloadWithTargets(mLocation, new[] { mTarget });
+            mAltitudeChart.ReloadWithTargets(mLocation, new[] { mTarget }, phaseProgress);
 
             // Snap the radio button state to Day so the UI and the active chart area agree.
             // Setting Checked=true only fires CheckedChanged if the value actually changes,
@@ -565,6 +574,13 @@ namespace TargetPlanner
                 return;
             }
 
+            // Reset the multi-target progress bar on either Graph button click (matches
+            // Button_GraphTarget). The popup is currently visual-only (AltitudeChartForm.
+            // AddSeries is a stub), so there's nothing to tick here -- we just make sure a
+            // leftover "100%" from a prior Button_GraphTarget click isn't misleading.
+            mChartBuildGeneration++;
+            ProgressBar_MultiTargetProcessing.Value = 0;
+
             Label_SelectedTargetNumber.Text = mTargetList.Count.ToString();
             // Repeat clicks used to accumulate floating popup forms. Close + dispose the
             // prior instance before spawning a new one.
@@ -650,6 +666,31 @@ namespace TargetPlanner
             }
             return "Altitude at " + mLocation.Name
                  + " for Year beginning " + mLocation.DateTime.ToString("MMMM yyyy");
+        }
+
+        // Reset ProgressBar_MultiTargetProcessing and return an IProgress<string> that ticks
+        // it once per phase ("Day" / "Year" / "Optimal") for each of targetCount targets.
+        // Progress<T> marshals Report callbacks back to the creation thread (here, the UI
+        // thread), so the Value increment is safe even though AltitudeSeries.BuildSeriesList
+        // fires the first phase synchronously and the next two from a Task.Run continuation.
+        //
+        // Generation guarding: each call bumps mChartBuildGeneration and captures its value.
+        // If the user clicks Graph again before the prior build's Task.Run completes, the
+        // stale callbacks compare-mismatch and no-op -- the new click's bar stays truthful.
+        private IProgress<string> BeginChartBuildProgress(int targetCount)
+        {
+            int thisGeneration = ++mChartBuildGeneration;
+
+            ProgressBar_MultiTargetProcessing.Minimum = 0;
+            ProgressBar_MultiTargetProcessing.Maximum = Math.Max(1, targetCount * 3);
+            ProgressBar_MultiTargetProcessing.Value   = 0;
+
+            return new Progress<string>(_ =>
+            {
+                if (thisGeneration != mChartBuildGeneration) return;  // stale -- a newer click superseded us
+                if (ProgressBar_MultiTargetProcessing.Value < ProgressBar_MultiTargetProcessing.Maximum)
+                    ProgressBar_MultiTargetProcessing.Value += 1;
+            });
         }
 
         private void ComboBox_SelectTarget_SelectedIndexChanged(object sender, EventArgs e)
