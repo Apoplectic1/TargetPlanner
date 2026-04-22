@@ -78,9 +78,7 @@
             this.DatePicker = new System.Windows.Forms.DateTimePicker();
             this.TimePicker = new System.Windows.Forms.DateTimePicker();
             this.GroupBox_TimeModeControls = new System.Windows.Forms.GroupBox();
-            this.CheckBox_HoldTime = new System.Windows.Forms.CheckBox();
-            this.RadioButton_SetDateTime = new System.Windows.Forms.RadioButton();
-            this.RadioButton_Now = new System.Windows.Forms.RadioButton();
+            this.Button_Now = new System.Windows.Forms.Button();
             this.GroupBox_CoordinateSelection = new System.Windows.Forms.GroupBox();
             this.ComboBox_SelectTarget = new System.Windows.Forms.ComboBox();
             this.Label_TargetName = new System.Windows.Forms.Label();
@@ -745,9 +743,7 @@
             // 
             // GroupBox_TimeModeControls
             // 
-            this.GroupBox_TimeModeControls.Controls.Add(this.CheckBox_HoldTime);
-            this.GroupBox_TimeModeControls.Controls.Add(this.RadioButton_SetDateTime);
-            this.GroupBox_TimeModeControls.Controls.Add(this.RadioButton_Now);
+            this.GroupBox_TimeModeControls.Controls.Add(this.Button_Now);
             this.GroupBox_TimeModeControls.Location = new System.Drawing.Point(105, 19);
             this.GroupBox_TimeModeControls.Name = "GroupBox_TimeModeControls";
             this.GroupBox_TimeModeControls.Size = new System.Drawing.Size(253, 41);
@@ -755,39 +751,15 @@
             this.GroupBox_TimeModeControls.TabStop = false;
             this.GroupBox_TimeModeControls.Text = "Time Mode";
             // 
-            // CheckBox_HoldTime
-            // 
-            this.CheckBox_HoldTime.AutoSize = true;
-            this.CheckBox_HoldTime.Location = new System.Drawing.Point(189, 19);
-            this.CheckBox_HoldTime.Name = "CheckBox_HoldTime";
-            this.CheckBox_HoldTime.Size = new System.Drawing.Size(48, 17);
-            this.CheckBox_HoldTime.TabIndex = 2;
-            this.CheckBox_HoldTime.Text = "Hold";
-            this.CheckBox_HoldTime.UseVisualStyleBackColor = true;
-            this.CheckBox_HoldTime.CheckedChanged += new System.EventHandler(this.CheckBox_HoldTime_CheckedChanged);
-            // 
-            // RadioButton_SetDateTime
-            // 
-            this.RadioButton_SetDateTime.AutoSize = true;
-            this.RadioButton_SetDateTime.Location = new System.Drawing.Point(71, 18);
-            this.RadioButton_SetDateTime.Name = "RadioButton_SetDateTime";
-            this.RadioButton_SetDateTime.Size = new System.Drawing.Size(114, 17);
-            this.RadioButton_SetDateTime.TabIndex = 1;
-            this.RadioButton_SetDateTime.Text = "Set Time and Date";
-            this.RadioButton_SetDateTime.UseVisualStyleBackColor = true;
-            // 
-            // RadioButton_Now
-            // 
-            this.RadioButton_Now.AutoSize = true;
-            this.RadioButton_Now.Checked = true;
-            this.RadioButton_Now.Location = new System.Drawing.Point(18, 18);
-            this.RadioButton_Now.Name = "RadioButton_Now";
-            this.RadioButton_Now.Size = new System.Drawing.Size(47, 17);
-            this.RadioButton_Now.TabIndex = 0;
-            this.RadioButton_Now.TabStop = true;
-            this.RadioButton_Now.Text = "Now";
-            this.RadioButton_Now.UseVisualStyleBackColor = true;
-            this.RadioButton_Now.CheckedChanged += new System.EventHandler(this.RadioButton_Now_CheckedChanged);
+            // Button_Now
+            //
+            this.Button_Now.Location = new System.Drawing.Point(18, 16);
+            this.Button_Now.Name = "Button_Now";
+            this.Button_Now.Size = new System.Drawing.Size(66, 23);
+            this.Button_Now.TabIndex = 0;
+            this.Button_Now.Text = "Now";
+            this.Button_Now.UseVisualStyleBackColor = true;
+            this.Button_Now.Click += new System.EventHandler(this.Button_Now_Click);
             // 
             // GroupBox_CoordinateSelection
             // 
@@ -1338,10 +1310,8 @@
         private System.Windows.Forms.Label Label_MoonRiseValue;
         private System.Windows.Forms.Label Label_MoonRise;
         private System.Windows.Forms.GroupBox GroupBox_TimeModeControls;
-        private System.Windows.Forms.RadioButton RadioButton_SetDateTime;
-        private System.Windows.Forms.RadioButton RadioButton_Now;
         private System.Windows.Forms.GroupBox GroupBox_LocalDateTimeControls;
-        private System.Windows.Forms.CheckBox CheckBox_HoldTime;
+        private System.Windows.Forms.Button Button_Now;
         private System.Windows.Forms.Label Label_SunAltitudeValue;
         private System.Windows.Forms.Label Label_SunAltitude;
         private System.Windows.Forms.Label Label_LunarPhaseValue;
