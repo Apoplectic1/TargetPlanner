@@ -17,10 +17,15 @@ namespace TargetPlanner.Charts
         public Chart mChart { get; set; }
         private List<ChartArea> mChartAreaList;
 
-        // Init-only snapshot set at construction. Horizon / Duration live-scrub paths pass
-        // the current values through RebuildOptimalData(horizon, duration) /
-        // UpdateHorizonLines(horizon) instead of mutating the snapshot.
-        public Location Location { get; }
+        // Snapshot set at construction and at each ReloadWithTargets call. Horizon /
+        // Duration live-scrub paths pass the current values through
+        // RebuildOptimalData(horizon, duration) / UpdateHorizonLines(horizon) instead of
+        // mutating the snapshot. The immutable-mid-flight invariant the background
+        // AltitudeSeries Tasks rely on is preserved: Reload discards mSeriesByTarget so
+        // every subsequent SeriesFor(target) call produces a fresh AltitudeSeries against
+        // the new Location, and in-flight Tasks from the prior cycle still reference their
+        // own frozen Location.
+        public Location Location { get; private set; }
         public bool Legend { set { mLegend.Enabled = value; } }
 
         private ChartArea mChartArea;
@@ -168,21 +173,25 @@ namespace TargetPlanner.Charts
             mChartAreaList.Add(mChartArea);
         }
 
+        // Populate mChart.ChartAreas once (on first call) from the registered mChartAreaList,
+        // then on every subsequent call just flip each area's Visible flag. The previous
+        // implementation cleared mChart.ChartAreas and re-added the selected area on every
+        // radio-button switch, which also nuked the user's zoom and legend-color-toggle state.
+        // Keeping the ChartArea instances resident preserves that state across switches.
         private void AddChartAreaToChart(string chartAreaName)
         {
-            mChart.ChartAreas.Clear();
-
-            foreach (ChartArea chartArea in mChartAreaList)
+            if (mChart.ChartAreas.Count == 0)
             {
-                chartArea.Visible = false;
-
-                if (chartArea.Name == chartAreaName)
-                {
-                    mChartArea = chartArea;
-                }
+                foreach (ChartArea area in mChartAreaList)
+                    mChart.ChartAreas.Add(area);
             }
 
-            mChart.ChartAreas.Add(mChartArea);
+            foreach (ChartArea area in mChartAreaList)
+            {
+                bool active = area.Name == chartAreaName;
+                area.Visible = active;
+                if (active) mChartArea = area;
+            }
         }
 
         public void ShowChartAreaSeries(string chartAreaName)
@@ -232,6 +241,43 @@ namespace TargetPlanner.Charts
                 // The discard suppresses CS4014 and documents the intent explicitly.
                 _ = SeriesFor(target).BuildSeriesList();
             }
+        }
+
+        // Reset all transient state on this chart for a fresh Graph-click cycle, swap in a new
+        // Location / target list, and kick off BuildTargetSeriesList. Keeps the Chart control,
+        // its ChartArea instances, its Legend, and any user zoom / legend-color-toggle state
+        // alive across reloads -- only series, strip lines, per-target AltitudeSeries cache,
+        // target list, and the Location snapshot actually change.
+        //
+        // Safe even if a prior cycle's Task.Run continuations are still in flight: those still
+        // reference their own frozen Location via the old AltitudeSeries instances captured
+        // before mSeriesByTarget.Clear(). They write to their own TargetSeriesList's Series
+        // objects, which are no longer in mChart.Series -- so the writes land on disconnected
+        // data and do not cross-contaminate the new cycle.
+        public void ReloadWithTargets(Location newLocation, IEnumerable<Target> targets)
+        {
+            if (newLocation == null) throw new ArgumentNullException(nameof(newLocation));
+            if (targets == null)     throw new ArgumentNullException(nameof(targets));
+
+            mChart.Series.Clear();
+            foreach (ChartArea area in mChartAreaList)
+            {
+                area.AxisX.StripLines.Clear();  // dawn/dusk gradient + now line
+                area.AxisY.StripLines.Clear();  // horizon line
+            }
+            mNowLines.Clear();
+            mSeriesByTarget.Clear();
+            mTargetList.Clear();
+
+            Location = newLocation;
+
+            foreach (Target t in targets)
+            {
+                if (t == null) continue;
+                mTargetList.Add(t);
+            }
+
+            BuildTargetSeriesList();
         }
 
         // Regenerate only the Optimal series in place for every target in the target list.

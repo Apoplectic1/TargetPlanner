@@ -296,12 +296,6 @@ namespace TargetPlanner
 
         private void Button_GraphEphemeride_Click(object sender, EventArgs e)
         {
-            // Remove the old chart's Control from its parent, then dispose the AltitudeChart
-            // (which disposes the underlying Chart, releasing its GDI handles). Without this,
-            // every Graph click leaks a Chart control's native resources.
-            Panel_AltitudeChart.Controls.Clear();
-            mAltitudeChart?.Dispose();
-
             foreach (Target target in mTargetList)
             {
                 if (target.Name == ComboBox_SelectTarget.Text)
@@ -313,30 +307,14 @@ namespace TargetPlanner
 
             mLocation = mLocation.With(dateTime: DateTime.Now);
 
-            // Add actual Altitude Chart to Panel. The chart captures mLocation as its
-            // frozen snapshot at construction; subsequent spinner edits won't leak into
-            // the chart's stored Location.
-            mAltitudeChart = new Charts.AltitudeChart(mLocation);
-            mAltitudeChart.mChart.Location = new Point(5, 5);
-            mAltitudeChart.mChart.Size = new Size(Panel_AltitudeChart.Width - 10, Panel_AltitudeChart.Size.Height - 10);
-            mAltitudeChart.mChart.BackColor = Color.FromArgb(255, 239, 235, 233);
-
-            mAltitudeChart.AddChartAreaToList("Day");
-            mAltitudeChart.AddChartAreaToList("Year");
-            mAltitudeChart.AddChartAreaToList("Optimal");
-            mAltitudeChart.AddToTargetList(mTarget);
-            mAltitudeChart.BuildTargetSeriesList();
-            mAltitudeChart.ShowChartAreaSeries("Day");
-
+            // Reload-in-place: keep the Chart control, its ChartAreas, its Legend, and any
+            // user zoom / legend-color-toggle state alive. The chart was constructed once
+            // in InitializeDynamicControls. Reload resets only the transient state (series,
+            // strip lines, per-target AltitudeSeries cache, target list, Location snapshot).
+            mAltitudeChart.ReloadWithTargets(mLocation, new[] { mTarget });
             mAltitudeChart.ChartTitle = "Altitude at " + mLocation.Name + " for evening beginning " + mLocation.DateTime.Date.ToShortDateString();
-            mAltitudeChart.UIState(mUIState);
-            mAltitudeChart.AddLegend();
+            mAltitudeChart.ShowChartAreaSeries("Day");
             mAltitudeChart.UpdateNowLine(DateTime.Now);
-
-
-            mAltitudeChart.Legend = true;
-
-            Panel_AltitudeChart.Controls.Add(mAltitudeChart.mChart);
         }
 
         private void CheckBox_HoldTime_CheckedChanged(object sender, EventArgs e)
