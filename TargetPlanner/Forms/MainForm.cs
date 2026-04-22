@@ -313,6 +313,39 @@ namespace TargetPlanner
             mAltitudeChart.UpdateNowLine(DateTime.Now);
         }
 
+        // Graph every checked target from CheckedListBox_SelectedTargets on the embedded
+        // chart. Mirrors Button_GraphTarget but with N targets instead of one -- progress-bar
+        // Maximum scales with the count, and ReloadWithTargets renders them all at once.
+        private void Button_GraphAllTargets_Click(object sender, EventArgs e)
+        {
+            if (mTargetList == null || mTargetList.Count == 0) return;
+
+            // Gather Target objects for checked names. CheckedItems holds the display strings
+            // (Target.Name was the thing added in GetNinaTargets); resolve back to Target
+            // instances from mTargetList.
+            var checkedNames = new HashSet<string>();
+            foreach (object item in CheckedListBox_SelectedTargets.CheckedItems)
+                checkedNames.Add(item.ToString());
+
+            if (checkedNames.Count == 0) return;
+
+            var checkedTargets = new List<Target>();
+            foreach (Target t in mTargetList)
+            {
+                if (t != null && checkedNames.Contains(t.Name)) checkedTargets.Add(t);
+            }
+            if (checkedTargets.Count == 0) return;
+
+            IProgress<string> phaseProgress = BeginChartBuildProgress(targetCount: checkedTargets.Count);
+
+            mAltitudeChart.ReloadWithTargets(mLocation, checkedTargets, phaseProgress);
+
+            RadioButton_Day.Checked = true;
+            mAltitudeChart.ShowChartAreaSeries("Day");
+            mAltitudeChart.ChartTitle = FormatChartTitle("Day");
+            mAltitudeChart.UpdateNowLine(DateTime.Now);
+        }
+
         // Snap the observation moment back to the current wall-clock time. Replaces the
         // prior Now/SetDateTime/Hold trio plus the 5-second polling timer with a single
         // explicit user action: set mLocalDateTime to now, push into the pickers (without

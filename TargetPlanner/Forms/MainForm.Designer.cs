@@ -103,6 +103,7 @@
             this.RadioButton_Year = new System.Windows.Forms.RadioButton();
             this.RadioButton_Day = new System.Windows.Forms.RadioButton();
             this.GroupBox_Sequence = new System.Windows.Forms.GroupBox();
+            this.Button_GraphAllTargets = new System.Windows.Forms.Button();
             this.Button_SelectAllTargets = new System.Windows.Forms.Button();
             this.Button_ClearAllTargets = new System.Windows.Forms.Button();
             this.ProgressBar_ProcessObject = new System.Windows.Forms.ProgressBar();
@@ -1075,6 +1076,7 @@
             // 
             // GroupBox_Sequence
             // 
+            this.GroupBox_Sequence.Controls.Add(this.Button_GraphAllTargets);
             this.GroupBox_Sequence.Controls.Add(this.Button_SelectAllTargets);
             this.GroupBox_Sequence.Controls.Add(this.Button_ClearAllTargets);
             this.GroupBox_Sequence.Controls.Add(this.ProgressBar_ProcessObject);
@@ -1149,6 +1151,16 @@
             this.Button_BrowseTargetList.Text = "Browse";
             this.Button_BrowseTargetList.UseVisualStyleBackColor = true;
             this.Button_BrowseTargetList.Click += new System.EventHandler(this.Button_BrowseTargetList_Click);
+            //
+            // Button_GraphAllTargets
+            //
+            this.Button_GraphAllTargets.Location = new System.Drawing.Point(95, 20);
+            this.Button_GraphAllTargets.Name = "Button_GraphAllTargets";
+            this.Button_GraphAllTargets.Size = new System.Drawing.Size(66, 23);
+            this.Button_GraphAllTargets.TabIndex = 1;
+            this.Button_GraphAllTargets.Text = "Graph";
+            this.Button_GraphAllTargets.UseVisualStyleBackColor = true;
+            this.Button_GraphAllTargets.Click += new System.EventHandler(this.Button_GraphAllTargets_Click);
             // 
             // Label_SelectedTargetNumber
             // 
@@ -1344,6 +1356,7 @@
         private System.Windows.Forms.Label Label_Phase;
         private System.Windows.Forms.ComboBox ComboBox_SelectTarget;
         private System.Windows.Forms.Button Button_SelectAllTargets;
+        private System.Windows.Forms.Button Button_GraphAllTargets;
         private System.Windows.Forms.Button Button_ClearAllTargets;
         private System.Windows.Forms.ProgressBar ProgressBar_MultiTargetProcessing;
         private System.Windows.Forms.ProgressBar ProgressBar_ProcessObject;
