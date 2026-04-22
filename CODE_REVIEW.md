@@ -68,7 +68,7 @@ Audit was triggered by a cluster of runtime exceptions hit in a single repro ses
 ## Category 2 — State ownership & null safety
 
 ### P1-2.1 Null-target crash chain
-`TargetPlanner/Forms/MainForm.cs:999-1019` sets `mTarget = mTargetList.Find(...)` and bails with `return` when null — but the null assignment persists. Next `Button_GraphEphemeride_Click` passes `null` to `AltitudeChart.AddToTargetList`, which flows into `AltitudeChart.SeriesFor(target)` at `TargetPlanner/Charts/AltitudeChart.cs:58-65` — `Dictionary.TryGetValue(null)` throws `ArgumentNullException`. Source of the `key` ArgNull we hit today. Three fixes chainable:
+`TargetPlanner/Forms/MainForm.cs:999-1019` sets `mTarget = mTargetList.Find(...)` and bails with `return` when null — but the null assignment persists. Next `Button_GraphTarget_Click` passes `null` to `AltitudeChart.AddToTargetList`, which flows into `AltitudeChart.SeriesFor(target)` at `TargetPlanner/Charts/AltitudeChart.cs:58-65` — `Dictionary.TryGetValue(null)` throws `ArgumentNullException`. Source of the `key` ArgNull we hit today. Three fixes chainable:
  1. In the handler, use a temp local and only assign `mTarget` after the Find succeeds.
  2. In `SeriesFor`, guard `if (target == null) return /* null or sentinel */;`.
  3. In every iteration over `mTargetList`, skip nulls.
@@ -180,7 +180,7 @@ Already captured in P1-2.1 but worth separating: the anti-pattern is "assign to 
 `TargetPlanner/Forms/MainForm.cs:635, 940` — "Poper Motion" (should be "Proper"). Also inconsistent: line 149 says "Altitude" while 635 says "Proper Motion". Pick one and apply everywhere.
 
 ### P3-6.2 Typos in comments / identifiers
-Several: `// ****** Right Ascention ******` (`MainForm.cs:315`, should be Ascension); `Button_ClearEphemride` vs `Button_ClearEphemeride_Click` (`MainForm.Designer.cs` vs `.cs`); `mEgagerLoad` in `Support/Astrometry.cs:25` (should be `mEagerLoad`); "jLocation" stub referenced in commit `70bb331` — verify it's gone.
+Several: `// ****** Right Ascention ******` (`MainForm.cs:315`, should be Ascension); `Button_ClearEphemride` vs `Button_ClearEphemeride_Click` (the entire "Ephemeride" vocabulary was later renamed to "Target" -- current identifier is `Button_ClearTarget_Click`) (`MainForm.Designer.cs` vs `.cs`); `mEgagerLoad` in `Support/Astrometry.cs:25` (should be `mEagerLoad`); "jLocation" stub referenced in commit `70bb331` — verify it's gone.
 
 ### P3-6.3 Banner comments 110+ asterisks wide
 `TargetPlanner/Forms/MainForm.cs:164, 195-197, 255-257, 314-316, 372-374, 433-435, 571-573, 704-706, 845-847`, also ComboBox_Location sandwich comments at `659-684`. Replace with `#region ... #endregion` or delete.
@@ -213,8 +213,8 @@ Several: `// ****** Right Ascention ******` (`MainForm.cs:315`, should be Ascens
 ### P2-7.2 `mNowLines` references survive chart rebuild
 `TargetPlanner/Charts/AltitudeChart.cs:36, 53, 99`. Dictionary isn't cleared when the outer chart is rebuilt (new `AltitudeChart` instance — but in the "keep the chart" fix above, this matters). Either clear in a reset method or bind lifetime explicitly.
 
-### P2-7.3 `mChartAreaList` not cleared in `Button_GraphEphemeride_Click`
-`TargetPlanner/Charts/AltitudeChart.cs:144-159`, called from `TargetPlanner/Forms/MainForm.cs:628-630`. `MainForm.InitializeDynamicControls` calls `ClearChartAreaList()` first (`:138`), but `Button_GraphEphemeride_Click` does not. On repeat clicks, chart areas accumulate.
+### P2-7.3 `mChartAreaList` not cleared in `Button_GraphTarget_Click`
+`TargetPlanner/Charts/AltitudeChart.cs:144-159`, called from `TargetPlanner/Forms/MainForm.cs:628-630`. `MainForm.InitializeDynamicControls` calls `ClearChartAreaList()` first (`:138`), but `Button_GraphTarget_Click` does not. On repeat clicks, chart areas accumulate.
 
 ### P2-7.4 `AddChartAreaToChart` clears all ChartAreas on every radio switch
 `TargetPlanner/Charts/AltitudeChart.cs:162-176`. Radio button → `ShowChartAreaSeries` → `AddChartAreaToChart` clears `mChart.ChartAreas` and re-adds the one selected area. User zoom / legend state lost every switch. Prefer `Visible = true/false` on existing areas.

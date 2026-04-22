@@ -86,7 +86,7 @@ namespace TargetPlanner.Charts
         public async Task BuildSeriesList()
         {
             // Each Target owns its AltitudeSeries, so a second build on the same Target (user
-            // re-clicks Graph Ephemeride, or opens the multi-target popup after the main chart)
+            // re-clicks Graph Target, or opens the multi-target popup after the main chart)
             // must start from a clean TargetSeriesList -- otherwise BuildMoonSeries and
             // BuildDaySeries, which unconditionally create fresh Series objects, would leave
             // duplicates next to the prior run. Year and Optimal are idempotent on their own via

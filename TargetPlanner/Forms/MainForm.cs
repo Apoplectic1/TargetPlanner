@@ -294,7 +294,7 @@ namespace TargetPlanner
             UpdateLocalDateTimeEvents();
         }
 
-        private void Button_GraphEphemeride_Click(object sender, EventArgs e)
+        private void Button_GraphTarget_Click(object sender, EventArgs e)
         {
             foreach (Target target in mTargetList)
             {
@@ -369,7 +369,7 @@ namespace TargetPlanner
             TimePicker.ValueChanged -= TimePicker_ValueChanged;
         }
 
-        private void Button_ClearEphemeride_Click(object sender, EventArgs e)
+        private void Button_ClearTarget_Click(object sender, EventArgs e)
         {
             ComboBox_SelectTarget.Text = "M31";
             CheckBox_TargetNorth.Checked = true;
@@ -575,7 +575,7 @@ namespace TargetPlanner
             mAltitudeChartForm.ChartTitle = "Altitude at " + mLocation.Name + " for evening beginning " + mLocation.DateTime.Date.ToShortDateString();
 
             // Keep the embedded chart's radio state and view in sync: pressing either Graph
-            // button selects the Day view on the embedded chart, matching Button_GraphEphemeride.
+            // button selects the Day view on the embedded chart, matching Button_GraphTarget.
             RadioButton_Day.Checked = true;
             mAltitudeChart.ShowChartAreaSeries("Day");
             mAltitudeChart.ChartTitle = FormatChartTitle("Day");

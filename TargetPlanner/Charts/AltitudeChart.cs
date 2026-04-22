@@ -36,7 +36,7 @@ namespace TargetPlanner.Charts
         // Per-target AltitudeSeries state. Target POCO no longer carries its own (it lives in
         // Astronomy.Core which can't depend on WinForms charts), so the chart layer owns the
         // per-target mapping here. Lifetime tied to this AltitudeChart instance; a fresh chart
-        // on Graph-Ephemeride click starts empty, same as the old Target.mAltitudeSeries pattern.
+        // on Graph-Target click starts empty, same as the old Target.mAltitudeSeries pattern.
         private Dictionary<Target, AltitudeSeries> mSeriesByTarget;
 
         private Dictionary<string, StripLine> mNowLines;
@@ -532,7 +532,7 @@ namespace TargetPlanner.Charts
 
         // Dispose the underlying Chart control. Series / ChartAreas / StripLines owned by the
         // Chart are disposed transitively. Safe to call more than once. Callers that swap the
-        // AltitudeChart (Button_GraphEphemeride_Click's tear-and-rebuild) should Dispose the
+        // AltitudeChart (Button_GraphTarget_Click's tear-and-rebuild) should Dispose the
         // prior instance before replacing; repeated clicks otherwise leak GDI handles.
         private bool mDisposed;
         public void Dispose()

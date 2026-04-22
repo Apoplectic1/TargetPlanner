@@ -68,7 +68,7 @@ Shared library targeting `netstandard2.0`. Consumed today by TargetPlanner; desi
 - `InitializeDynamicControls` constructs the embedded chart, registers the three chart areas, seeds the target list from `NinaTargetsRootPath`, and sets the combo box to `M31`.
 - Coordinate inputs are triple-bound (D/M/S `NumericUpDown`, decimal `TextBox`, N/S/E/W checkbox). Every handler unsubscribes the sibling handlers before writing values back to avoid feedback loops — preserve that pattern when adding inputs.
 - `mTimer` (5 s) refreshes "now" only while `CheckBox_HoldTime` is unchecked; `RadioButton_Now` vs `RadioButton_SetDateTime` governs whether date/time pickers drive the model.
-- `Button_GraphEphemeride_Click` **tears down and rebuilds** `mAltitudeChart` every click rather than mutating the existing one. Don't try to "optimize" this into an in-place update without understanding the chart-area/series lifecycle.
+- `Button_GraphTarget_Click` reloads the long-lived `mAltitudeChart` **in place** via `AltitudeChart.ReloadWithTargets(Location, IEnumerable<Target>)`. The chart control, its ChartAreas, and the legend live for the form's lifetime; Reload resets only the transient state (series, strip lines, per-target cache, target list, Location snapshot). Don't revert this to a tear-and-rebuild — the user's zoom and legend-color-toggle state is meant to survive Graph clicks.
 - `NumericUpDown_Horizon_ValueChanged` / `NumericUpDown_Duration_ValueChanged` call `mAltitudeChart.RebuildOptimalData()` (and `UpdateHorizonLines()` for Horizon) — surgical, no full teardown. The cache-backed Optimal rebuild makes spinner scrubbing effectively instant.
 
 ## Conventions worth knowing before editing

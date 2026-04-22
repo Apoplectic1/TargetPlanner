@@ -33,7 +33,7 @@ namespace TargetPlanner.Charts
             ChartForm.ChartAreas[0].AxisX.StripLines.Add(stripLine);
         }
 
-        private void EphemeridesChart_Load(object sender, EventArgs e)
+        private void AltitudeChartForm_Load(object sender, EventArgs e)
         {
             ChartForm.Invalidate();
         }
@@ -87,7 +87,7 @@ namespace TargetPlanner.Charts
             this.ChartForm.Name = "ChartForm";
             this.ChartForm.Size = new Size(1248, 369);
             this.ChartForm.TabIndex = 0;
-            this.ChartForm.Text = "Ephemerides Chart";
+            this.ChartForm.Text = "Altitude Chart";
             this.ChartForm.MouseClick += new MouseEventHandler(this.ChartForm_MouseClick);
             // 
             // menuStrip1
@@ -105,17 +105,17 @@ namespace TargetPlanner.Charts
             this.fileToolStripMenuItem.Size = new Size(37, 20);
             this.fileToolStripMenuItem.Text = "File";
             // 
-            // EphemeridesChartForm
-            // 
+            // AltitudeChartForm
+            //
             this.AutoScaleDimensions = new SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new Size(1248, 393);
             this.Controls.Add(this.ChartForm);
             this.Controls.Add(this.menuStrip1);
             this.MainMenuStrip = this.menuStrip1;
-            this.Name = "EphemeridesChartForm";
-            this.Text = "Target Ephemerides";
-            this.Load += new EventHandler(this.EphemeridesChart_Load);
+            this.Name = "AltitudeChartForm";
+            this.Text = "Target Altitudes";
+            this.Load += new EventHandler(this.AltitudeChartForm_Load);
             ((System.ComponentModel.ISupportInitialize)(this.ChartForm)).EndInit();
             this.menuStrip1.ResumeLayout(false);
             this.menuStrip1.PerformLayout();

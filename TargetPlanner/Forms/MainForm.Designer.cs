@@ -88,9 +88,9 @@
             this.TextBox_RightAscension = new System.Windows.Forms.TextBox();
             this.NumericUpDown_RaMinutes = new System.Windows.Forms.NumericUpDown();
             this.TextBox_Declination = new System.Windows.Forms.TextBox();
-            this.Button_ClearEphemeride = new System.Windows.Forms.Button();
+            this.Button_ClearTarget = new System.Windows.Forms.Button();
             this.Label_DecMinuteColon = new System.Windows.Forms.Label();
-            this.Button_GraphEphemeride = new System.Windows.Forms.Button();
+            this.Button_GraphTarget = new System.Windows.Forms.Button();
             this.NumericUpDown_RaHours = new System.Windows.Forms.NumericUpDown();
             this.NumericUpDown_RaSeconds = new System.Windows.Forms.NumericUpDown();
             this.NumericUpDown_DecMinutes = new System.Windows.Forms.NumericUpDown();
@@ -107,6 +107,7 @@
             this.GroupBox_Sequence = new System.Windows.Forms.GroupBox();
             this.Button_SelectAllTargets = new System.Windows.Forms.Button();
             this.Button_ClearAllTargets = new System.Windows.Forms.Button();
+            this.ProgressBar_ProcessObject = new System.Windows.Forms.ProgressBar();
             this.CheckedListBox_SelectedTargets = new System.Windows.Forms.CheckedListBox();
             this.Label_Targets = new System.Windows.Forms.Label();
             this.Button_GraphTargetList = new System.Windows.Forms.Button();
@@ -117,7 +118,6 @@
             this.FileToolStripMenuItem_MainForm = new System.Windows.Forms.ToolStripMenuItem();
             this.GroupBox_AltitudeChart = new System.Windows.Forms.GroupBox();
             this.ProgressBar_MultiTargetProcessing = new System.Windows.Forms.ProgressBar();
-            this.ProgressBar_ProcessObject = new System.Windows.Forms.ProgressBar();
             this.GroupBox_LocalConditions.SuspendLayout();
             this.GroupBox_SunMoon.SuspendLayout();
             this.GroupBox_LocalLocation.SuspendLayout();
@@ -798,9 +798,9 @@
             this.GroupBox_CoordinateSelection.Controls.Add(this.TextBox_RightAscension);
             this.GroupBox_CoordinateSelection.Controls.Add(this.NumericUpDown_RaMinutes);
             this.GroupBox_CoordinateSelection.Controls.Add(this.TextBox_Declination);
-            this.GroupBox_CoordinateSelection.Controls.Add(this.Button_ClearEphemeride);
+            this.GroupBox_CoordinateSelection.Controls.Add(this.Button_ClearTarget);
             this.GroupBox_CoordinateSelection.Controls.Add(this.Label_DecMinuteColon);
-            this.GroupBox_CoordinateSelection.Controls.Add(this.Button_GraphEphemeride);
+            this.GroupBox_CoordinateSelection.Controls.Add(this.Button_GraphTarget);
             this.GroupBox_CoordinateSelection.Controls.Add(this.NumericUpDown_RaHours);
             this.GroupBox_CoordinateSelection.Controls.Add(this.NumericUpDown_RaSeconds);
             this.GroupBox_CoordinateSelection.Controls.Add(this.NumericUpDown_DecMinutes);
@@ -890,15 +890,15 @@
             this.TextBox_Declination.Text = " ";
             this.TextBox_Declination.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
-            // Button_ClearEphemeride
+            // Button_ClearTarget
             // 
-            this.Button_ClearEphemeride.Location = new System.Drawing.Point(245, 107);
-            this.Button_ClearEphemeride.Name = "Button_ClearEphemeride";
-            this.Button_ClearEphemeride.Size = new System.Drawing.Size(66, 23);
-            this.Button_ClearEphemeride.TabIndex = 35;
-            this.Button_ClearEphemeride.Text = "Clear";
-            this.Button_ClearEphemeride.UseVisualStyleBackColor = true;
-            this.Button_ClearEphemeride.Click += new System.EventHandler(this.Button_ClearEphemeride_Click);
+            this.Button_ClearTarget.Location = new System.Drawing.Point(245, 107);
+            this.Button_ClearTarget.Name = "Button_ClearTarget";
+            this.Button_ClearTarget.Size = new System.Drawing.Size(66, 23);
+            this.Button_ClearTarget.TabIndex = 35;
+            this.Button_ClearTarget.Text = "Clear";
+            this.Button_ClearTarget.UseVisualStyleBackColor = true;
+            this.Button_ClearTarget.Click += new System.EventHandler(this.Button_ClearTarget_Click);
             // 
             // Label_DecMinuteColon
             // 
@@ -909,15 +909,15 @@
             this.Label_DecMinuteColon.TabIndex = 38;
             this.Label_DecMinuteColon.Text = ":";
             // 
-            // Button_GraphEphemeride
+            // Button_GraphTarget
             // 
-            this.Button_GraphEphemeride.Location = new System.Drawing.Point(170, 107);
-            this.Button_GraphEphemeride.Name = "Button_GraphEphemeride";
-            this.Button_GraphEphemeride.Size = new System.Drawing.Size(66, 23);
-            this.Button_GraphEphemeride.TabIndex = 34;
-            this.Button_GraphEphemeride.Text = "Graph";
-            this.Button_GraphEphemeride.UseVisualStyleBackColor = true;
-            this.Button_GraphEphemeride.Click += new System.EventHandler(this.Button_GraphEphemeride_Click);
+            this.Button_GraphTarget.Location = new System.Drawing.Point(170, 107);
+            this.Button_GraphTarget.Name = "Button_GraphTarget";
+            this.Button_GraphTarget.Size = new System.Drawing.Size(66, 23);
+            this.Button_GraphTarget.TabIndex = 34;
+            this.Button_GraphTarget.Text = "Graph";
+            this.Button_GraphTarget.UseVisualStyleBackColor = true;
+            this.Button_GraphTarget.Click += new System.EventHandler(this.Button_GraphTarget_Click);
             // 
             // NumericUpDown_RaHours
             // 
@@ -1141,6 +1141,13 @@
             this.Button_ClearAllTargets.UseVisualStyleBackColor = true;
             this.Button_ClearAllTargets.Click += new System.EventHandler(this.Button_ClearAllTargets_Click);
             // 
+            // ProgressBar_ProcessObject
+            // 
+            this.ProgressBar_ProcessObject.Location = new System.Drawing.Point(19, 49);
+            this.ProgressBar_ProcessObject.Name = "ProgressBar_ProcessObject";
+            this.ProgressBar_ProcessObject.Size = new System.Drawing.Size(433, 18);
+            this.ProgressBar_ProcessObject.TabIndex = 7;
+            // 
             // CheckedListBox_SelectedTargets
             // 
             this.CheckedListBox_SelectedTargets.FormattingEnabled = true;
@@ -1239,13 +1246,6 @@
             this.ProgressBar_MultiTargetProcessing.Size = new System.Drawing.Size(948, 17);
             this.ProgressBar_MultiTargetProcessing.TabIndex = 40;
             // 
-            // ProgressBar_ProcessObject
-            // 
-            this.ProgressBar_ProcessObject.Location = new System.Drawing.Point(19, 49);
-            this.ProgressBar_ProcessObject.Name = "ProgressBar_ProcessObject";
-            this.ProgressBar_ProcessObject.Size = new System.Drawing.Size(433, 18);
-            this.ProgressBar_ProcessObject.TabIndex = 7;
-            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -1332,7 +1332,7 @@
         private System.Windows.Forms.NumericUpDown NumericUpDown_DecDegrees;
         private System.Windows.Forms.NumericUpDown NumericUpDown_DecMinutes;
         private System.Windows.Forms.NumericUpDown NumericUpDown_RaMinutes;
-        private System.Windows.Forms.Button Button_GraphEphemeride;
+        private System.Windows.Forms.Button Button_GraphTarget;
         private System.Windows.Forms.Label Label_AstronomicalDawnValue;
         private System.Windows.Forms.Label Label_AstronomicalDawn;
         private System.Windows.Forms.Label Label_AstronomicalDuskValue;
@@ -1365,7 +1365,7 @@
         private System.Windows.Forms.Button Button_GraphTargetList;
         private System.Windows.Forms.CheckedListBox CheckedListBox_SelectedTargets;
         private System.Windows.Forms.Label Label_SelectedTargetNumber;
-        private System.Windows.Forms.Button Button_ClearEphemeride;
+        private System.Windows.Forms.Button Button_ClearTarget;
         private System.Windows.Forms.Label Label_MinDuration;
         private System.Windows.Forms.Label Label_Degrees;
         private System.Windows.Forms.Label Label_Hours;
