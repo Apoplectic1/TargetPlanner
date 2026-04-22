@@ -548,7 +548,7 @@ namespace TargetPlanner
                 CheckedListBox_SelectedTargets.Items.Add(t.Name, true);
             }
 
-            Label_SelectedTargetNumber.Text = CheckedListBox_SelectedTargets.Items.Count.ToString();
+            Label_SelectedTargetNumber.Text = CheckedListBox_SelectedTargets.CheckedItems.Count.ToString();
 
             if (mTargetList.Count == 0) return;
 
@@ -666,7 +666,7 @@ namespace TargetPlanner
                 CheckedListBox_SelectedTargets.SetItemCheckState(i, CheckState.Unchecked);
 
 
-            Label_SelectedTargetNumber.Text = CheckedListBox_SelectedTargets.Items.Count.ToString();
+            Label_SelectedTargetNumber.Text = CheckedListBox_SelectedTargets.CheckedItems.Count.ToString();
         }
 
         private void Button_SelectAllTargets_Click(object sender, EventArgs e)
@@ -675,8 +675,17 @@ namespace TargetPlanner
             for (int i = 0; i < CheckedListBox_SelectedTargets.Items.Count; i++)
                 CheckedListBox_SelectedTargets.SetItemCheckState(i, CheckState.Checked);
 
-            Label_SelectedTargetNumber.Text = CheckedListBox_SelectedTargets.Items.Count.ToString();
+            Label_SelectedTargetNumber.Text = CheckedListBox_SelectedTargets.CheckedItems.Count.ToString();
 
+        }
+
+        // ItemCheck fires BEFORE CheckedItems reflects the new state, so read the count
+        // post-transition via BeginInvoke -- the message-loop delivery guarantees the
+        // collection has caught up by the time the lambda runs.
+        private void CheckedListBox_SelectedTargets_ItemCheck(object sender, ItemCheckEventArgs e)
+        {
+            BeginInvoke((Action)(() =>
+                Label_SelectedTargetNumber.Text = CheckedListBox_SelectedTargets.CheckedItems.Count.ToString()));
         }
     }
 }

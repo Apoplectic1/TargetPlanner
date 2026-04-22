@@ -1131,6 +1131,7 @@
             this.CheckedListBox_SelectedTargets.Sorted = true;
             this.CheckedListBox_SelectedTargets.TabIndex = 4;
             this.CheckedListBox_SelectedTargets.ThreeDCheckBoxes = true;
+            this.CheckedListBox_SelectedTargets.ItemCheck += new System.Windows.Forms.ItemCheckEventHandler(this.CheckedListBox_SelectedTargets_ItemCheck);
             this.CheckedListBox_SelectedTargets.MouseMove += new System.Windows.Forms.MouseEventHandler(this.ShowCheckBoxObjectToolTip);
             // 
             // Label_Targets
