@@ -210,7 +210,14 @@ namespace TargetPlanner.Charts
 
             double meridianAlt = TargetGeometry.MeridianAltitude(latSigned, decSigned);
 
-            DateTime startDay = DateTime.Now.AddDays(-DateTime.Now.Day);
+            // Seed the 365-day scan from the observer's picked moment, not real-world "now".
+            // Location is the immutable snapshot captured at AltitudeSeries construction, so
+            // each Graph click produces a fresh instance keyed to the DatePicker's value at
+            // that moment. Previously this read DateTime.Now unconditionally, so picking a
+            // future / past date updated the Year / Optimal title but the data stayed
+            // anchored to the current real-world month.
+            DateTime seed     = Location.DateTime;
+            DateTime startDay = seed.AddDays(-seed.Day);
             DateTime endDay   = startDay.AddYears(1);
             int      totalDays = (int)endDay.Subtract(startDay).TotalDays;
 
