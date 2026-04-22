@@ -4,7 +4,9 @@
       "Read(//e/Projects/VisualStudio/Astronomy/**)",
       "Read(//e/Projects/VisualStudio/General/**)",
       "Bash(\"/c/Program Files/Microsoft Visual Studio/18/Enterprise/MSBuild/Current/Bin/MSBuild.exe\" \"TargetPlanner.sln\" -t:Build -p:Configuration=Debug -nologo -verbosity:minimal)",
-      "PowerShell(Move-Item *)"
+      "PowerShell(Move-Item *)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Enterprise\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" \"E:\\\\Projects\\\\VisualStudio\\\\Astronomy\\\\TargetPlanner\\\\TargetPlanner.sln\" -restore -p:Configuration=Debug -verbosity:minimal -nologo 2>&1 | Select-Object -Last 50)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Enterprise\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" \"E:\\\\Projects\\\\VisualStudio\\\\Astronomy\\\\TargetPlanner\\\\TargetPlanner.sln\" -restore -p:Configuration=Debug -verbosity:minimal -nologo 2>&1 | Select-Object -Last 60)"
     ]
   }
 }
