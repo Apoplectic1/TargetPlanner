@@ -215,6 +215,17 @@ namespace TargetPlanner.Charts
                 {
                     if (series.Name.Contains(chartAreaName))
                     {
+                        // Target-independent series (currently "Moon-Day" -- BuildMoonSeries
+                        // uses that literal name for every target) get built once per
+                        // target's TargetSeriesList. Adding the 2nd+ copy to mChart.Series
+                        // throws on duplicate name. The curves would be identical anyway
+                        // (moon altitude depends on location, not on the target), so keep
+                        // the first instance and disable the rest.
+                        if (mChart.Series.IndexOf(series.Name) >= 0)
+                        {
+                            series.Enabled = false;
+                            continue;
+                        }
                         // Bind the Series to its ChartArea by name. Previously mChart.ChartAreas
                         // held only the active area at a time, so a Series with no explicit
                         // binding defaulted to that single area and always rendered correctly.
