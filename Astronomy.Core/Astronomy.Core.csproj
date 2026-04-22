@@ -7,10 +7,6 @@
     <LangVersion>7.3</LangVersion>
     <Deterministic>true</Deterministic>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <!-- Suppress "missing XML comment" warnings until every public member is documented. New
-         /// docs land in focused Wave 3 commits; removing the suppression flushes remaining
-         gaps to the top of the build output once coverage is complete. -->
-    <NoWarn>$(NoWarn);CS1591</NoWarn>
     <ProjectGuid>{B7F2A9D4-3C18-4E5F-9A2B-6D8F1C3E7A52}</ProjectGuid>
   </PropertyGroup>
 

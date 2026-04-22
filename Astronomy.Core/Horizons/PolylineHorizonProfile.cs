@@ -2,21 +2,34 @@ using System;
 
 namespace Astronomy.Core.Horizons
 {
-    // Horizon altitude interpolated linearly between (azimuth, altitude) sample points.
-    // Samples are sorted by azimuth on construction and wrapped cyclically at 360 degrees, so
-    // AltitudeAt behaves correctly for any real azimuth input.
-    //
-    // Pairs well with NINA's CustomHorizon polyline and with manually-entered obstruction
-    // sketches that aren't dense enough to warrant a full 360-sample table.
+    /// <summary>
+    /// Horizon altitude interpolated linearly between <c>(azimuth, altitude)</c> sample
+    /// points. Samples are sorted by azimuth on construction and wrapped cyclically at 360
+    /// degrees, so <see cref="AltitudeAt"/> behaves correctly for any real azimuth input.
+    /// </summary>
+    /// <remarks>
+    /// Pairs well with NINA's CustomHorizon polyline and with manually-entered obstruction
+    /// sketches that aren't dense enough to warrant a full 360-sample table (see
+    /// <see cref="ObstructionTableHorizonProfile"/> for that case).
+    /// </remarks>
     public sealed class PolylineHorizonProfile : IHorizonProfile
     {
         private readonly double[] mAzimuths;     // sorted ascending, all in [0, 360)
         private readonly double[] mAltitudes;    // parallel to mAzimuths
         private readonly double   mMinAltitude;
 
-        // Takes two parallel arrays. Azimuths are normalized into [0, 360) and the combined
-        // list is sorted by azimuth; duplicates are tolerated and the last one wins. Must
-        // contain at least one sample.
+        /// <summary>
+        /// Builds a profile from two parallel arrays. Azimuths are normalized into
+        /// <c>[0, 360)</c> and the combined list is sorted by azimuth; duplicates are
+        /// tolerated and the last one wins.
+        /// </summary>
+        /// <exception cref="ArgumentNullException">
+        /// <paramref name="azimuthsDeg"/> or <paramref name="altitudesDeg"/> is
+        /// <see langword="null"/>.
+        /// </exception>
+        /// <exception cref="ArgumentException">
+        /// The arrays differ in length or are empty.
+        /// </exception>
         public PolylineHorizonProfile(double[] azimuthsDeg, double[] altitudesDeg)
         {
             if (azimuthsDeg == null) throw new ArgumentNullException(nameof(azimuthsDeg));
@@ -47,6 +60,7 @@ namespace Astronomy.Core.Horizons
             mMinAltitude = minAlt;
         }
 
+        /// <inheritdoc />
         public double AltitudeAt(double azimuthDeg)
         {
             double az = Wrap360(azimuthDeg);
@@ -88,6 +102,7 @@ namespace Astronomy.Core.Horizons
             return mAltitudes[aIdx] + t * (mAltitudes[bIdx] - mAltitudes[aIdx]);
         }
 
+        /// <inheritdoc />
         public double MinAltitude => mMinAltitude;
 
         private static double Wrap360(double deg)

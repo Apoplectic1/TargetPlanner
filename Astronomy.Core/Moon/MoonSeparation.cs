@@ -7,16 +7,30 @@ using Astronomy.Core.Targets;
 
 namespace Astronomy.Core.Moon
 {
+    /// <summary>
+    /// Topocentric target-moon angular separation and moon-clear window helpers. Drives
+    /// narrowband / broadband scheduling decisions that care about moon contamination.
+    /// </summary>
     public static class MoonSeparation
     {
         private static readonly EagerLoad mEagerLoad = EagerLoad.Create(EagerLoadType.Celestial);
 
-        // Topocentric angular separation (degrees) between the target and the Moon at the given
-        // UTC instant, as seen from the observer location. This is the number that actually
-        // governs moon-contamination in an image -- geocentric separation is only a proxy.
-        //
-        // Composes Core's target Alt/Az with CoordinateSharp's moon Alt/Az via the spherical
-        // law of cosines. Result is always in [0, 180].
+        /// <summary>
+        /// Topocentric angular separation (degrees) between the target and the Moon at the
+        /// given UTC instant, as seen from the observer location.
+        /// </summary>
+        /// <remarks>
+        /// This is the number that actually governs moon-contamination in an image --
+        /// geocentric separation is only a proxy. Composes Core's target Alt/Az with
+        /// CoordinateSharp's moon Alt/Az via the spherical law of cosines. Result is always
+        /// in <c>[0, 180]</c>.
+        /// </remarks>
+        /// <param name="target">Target RA/Dec. Non-null.</param>
+        /// <param name="location">Observer position. Non-null.</param>
+        /// <param name="utc">Instant to evaluate at. Must be UTC.</param>
+        /// <exception cref="ArgumentNullException">
+        /// <paramref name="target"/> or <paramref name="location"/> is <see langword="null"/>.
+        /// </exception>
         public static double DegreesAt(Target target, Location location, DateTime utc)
         {
             if (target == null) throw new ArgumentNullException(nameof(target));
@@ -50,11 +64,26 @@ namespace Astronomy.Core.Moon
             return Math.Acos(cosSep) * 180.0 / Math.PI;
         }
 
-        // Contiguous UTC intervals during the night when the target-moon separation is at or
-        // above minSepDeg. Samples at 10-minute granularity then linearly interpolates threshold
-        // crossings between adjacent samples for a ~1-minute-accurate boundary. Returns an empty
-        // list if the moon is below the threshold for the entire night (or the night itself is
-        // empty / polar).
+        /// <summary>
+        /// Contiguous UTC intervals during the night when the target-moon separation is at
+        /// or above <paramref name="minSepDeg"/>.
+        /// </summary>
+        /// <remarks>
+        /// Samples at 10-minute granularity then linearly interpolates threshold crossings
+        /// between adjacent samples for a ~1-minute-accurate boundary.
+        /// </remarks>
+        /// <param name="target">Target RA/Dec. Non-null.</param>
+        /// <param name="location">Observer position. Non-null.</param>
+        /// <param name="night">Night-window bounds (Kind=Utc).</param>
+        /// <param name="minSepDeg">Separation threshold in degrees (e.g. 60 for broadband, 30 for narrowband).</param>
+        /// <returns>
+        /// Empty list if the moon is below the threshold for the entire night, the night is
+        /// invalid (polar day / polar night), or the target is never clear of the moon.
+        /// Otherwise one or more contiguous <c>(Start, End)</c> UTC intervals.
+        /// </returns>
+        /// <exception cref="ArgumentNullException">
+        /// <paramref name="target"/> or <paramref name="location"/> is <see langword="null"/>.
+        /// </exception>
         public static IReadOnlyList<(DateTime Start, DateTime End)> IntervalsAboveDeg(
             Target target, Location location, NightWindow night, double minSepDeg)
         {

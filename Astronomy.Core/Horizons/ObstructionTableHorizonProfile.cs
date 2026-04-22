@@ -3,18 +3,33 @@ using System.Collections.Generic;
 
 namespace Astronomy.Core.Horizons
 {
-    // Obstruction table: dense set of (azimuth, altitude) readings that describe the user's
-    // local horizon as a full 360-degree sweep. Stepped interpretation -- each sample is the
-    // horizon altitude over the azimuth sector up to the next sample's azimuth, with wrap at
-    // 360. Use PolylineHorizonProfile when linear interpolation between samples is more
-    // appropriate (e.g. smooth ridgelines); this one is better for discrete obstructions
-    // like trees and buildings whose edges are sharp.
+    /// <summary>
+    /// Obstruction table: dense set of <c>(azimuth, altitude)</c> readings that describe
+    /// the user's local horizon as a full 360-degree sweep. Stepped interpretation -- each
+    /// sample is the horizon altitude over the azimuth sector up to the next sample's
+    /// azimuth, with wrap at 360.
+    /// </summary>
+    /// <remarks>
+    /// Use <see cref="PolylineHorizonProfile"/> when linear interpolation between samples is
+    /// more appropriate (e.g. smooth ridgelines); this one is better for discrete
+    /// obstructions like trees and buildings whose edges are sharp.
+    /// </remarks>
     public sealed class ObstructionTableHorizonProfile : IHorizonProfile
     {
         private readonly double[] mAzimuths;
         private readonly double[] mAltitudes;
         private readonly double   mMinAltitude;
 
+        /// <summary>
+        /// Builds a profile from a list of <c>(azimuth, altitude)</c> samples. Azimuths are
+        /// normalized into <c>[0, 360)</c> and sorted on construction.
+        /// </summary>
+        /// <exception cref="ArgumentNullException">
+        /// <paramref name="samples"/> is <see langword="null"/>.
+        /// </exception>
+        /// <exception cref="ArgumentException">
+        /// <paramref name="samples"/> is empty.
+        /// </exception>
         public ObstructionTableHorizonProfile(IReadOnlyList<(double AzimuthDeg, double AltitudeDeg)> samples)
         {
             if (samples == null) throw new ArgumentNullException(nameof(samples));
@@ -45,6 +60,7 @@ namespace Astronomy.Core.Horizons
             mMinAltitude = minAlt;
         }
 
+        /// <inheritdoc />
         public double AltitudeAt(double azimuthDeg)
         {
             double a = Wrap360(azimuthDeg);
@@ -62,6 +78,7 @@ namespace Astronomy.Core.Horizons
             return mAltitudes[idx];
         }
 
+        /// <inheritdoc />
         public double MinAltitude => mMinAltitude;
 
         private static double Wrap360(double deg)
