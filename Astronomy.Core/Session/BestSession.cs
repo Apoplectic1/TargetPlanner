@@ -6,21 +6,44 @@ using Astronomy.Core.Targets;
 
 namespace Astronomy.Core.Session
 {
+    /// <summary>
+    /// Finds the single D-hour session that maximizes an integrated-quality objective across
+    /// the night's visibility windows.
+    /// </summary>
     public static class BestSession
     {
-        // Find the single D-hour session that maximizes the integrated-quality objective,
-        // scanning across all visibility windows within the night. Returns null if no window
-        // can accommodate even minDuration.
-        //
-        // Placement heuristic per window: if the transit occurs inside the window, prefer a
-        // transit-centered session; otherwise push the session against the wall of the window
-        // closer to transit. Session length is the lesser of maxDuration and the window length.
-        // Quality is computed via IntegratedQuality.OverSession using the caller-supplied
-        // altitudeQuality function.
-        //
-        // Currently uses the scalar-horizon VisibilityWindows fast-path; will pick up the
-        // azimuth-aware horizon-profile refinement automatically once VisibilityWindows gains
-        // it (see the comment on VisibilityWindows.For for the pending refinement).
+        /// <summary>
+        /// Returns the best D-hour session inside the night, or <see langword="null"/> if no
+        /// visibility window can accommodate even <paramref name="minDuration"/>.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Placement heuristic per window: if the transit occurs inside the window, prefer a
+        /// transit-centered session; otherwise push the session against the wall of the
+        /// window closer to transit. Session length is the lesser of
+        /// <paramref name="maxDuration"/> and the window length. Quality is computed via
+        /// <see cref="IntegratedQuality.OverSession"/> using the caller-supplied
+        /// <paramref name="altitudeQuality"/> function.
+        /// </para>
+        /// <para>
+        /// Currently uses the scalar-horizon <see cref="VisibilityWindows.For"/> fast-path;
+        /// will pick up the azimuth-aware horizon-profile refinement automatically once
+        /// <see cref="VisibilityWindows"/> gains it.
+        /// </para>
+        /// </remarks>
+        /// <returns>
+        /// A <c>(Start, End, Quality)</c> tuple (times are <see cref="DateTimeKind.Utc"/>)
+        /// or <see langword="null"/> if no window fits.
+        /// </returns>
+        /// <exception cref="ArgumentNullException">
+        /// Any of <paramref name="target"/>, <paramref name="location"/>,
+        /// <paramref name="horizon"/>, or <paramref name="altitudeQuality"/> is
+        /// <see langword="null"/>.
+        /// </exception>
+        /// <exception cref="ArgumentException">
+        /// <paramref name="minDuration"/> is non-positive, or
+        /// <paramref name="minDuration"/> &gt; <paramref name="maxDuration"/>.
+        /// </exception>
         public static (DateTime Start, DateTime End, double Quality)? For(
             Target target, Location location, NightWindow night, IHorizonProfile horizon,
             TimeSpan minDuration, TimeSpan maxDuration,

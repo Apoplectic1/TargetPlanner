@@ -5,31 +5,49 @@ using Astronomy.Core.Targets;
 
 namespace Astronomy.Core.Session
 {
-    // Distinguishes the three outcomes of a rise/set lookup. Previously the API returned
-    // (null, null) for both Circumpolar and NeverRises and the consumer had to probe the
-    // current altitude to disambiguate. RiseSetState lets a scheduler branch on the shape
-    // directly without an extra AltAz call.
+    /// <summary>
+    /// Distinguishes the three outcomes of a rise/set lookup. Previously the API returned
+    /// <c>(null, null)</c> for both <see cref="Circumpolar"/> and <see cref="NeverRises"/>
+    /// and the consumer had to probe the current altitude to disambiguate. This enum lets a
+    /// scheduler branch on the shape directly without an extra <c>AltAz</c> call.
+    /// </summary>
     public enum RiseSetState
     {
-        Found,        // Rise and / or Set are populated with valid DateTimes.
-        Circumpolar,  // Target is always above the horizon at this location.
-        NeverRises    // Target never reaches the horizon at this location.
+        /// <summary>Rise and / or Set are populated with valid UTC DateTimes.</summary>
+        Found,
+        /// <summary>Target is always above the horizon at this location. Rise and Set are both <see langword="null"/>.</summary>
+        Circumpolar,
+        /// <summary>Target never reaches the horizon at this location. Rise and Set are both <see langword="null"/>.</summary>
+        NeverRises
     }
 
+    /// <summary>
+    /// Next UTC rise / set of a stellar target. Scalar-horizon overload is analytic; the
+    /// <see cref="IHorizonProfile"/> overload uses the scalar fast-path as a seed and
+    /// refines against the profile via bisection.
+    /// </summary>
     public static class RiseSet
     {
         private const double SiderealHoursPerSolarDay = 24.06570982441908;
         private const double SiderealDayInSolarHours  = 24.0 * 24.0 / SiderealHoursPerSolarDay;
 
-        // Next UTC rise and set of target at or after searchFromUtc, using a scalar horizon.
-        // Analytic: derives both times from the next transit plus/minus the hour angle at which
-        // the target is at horizonDeg.
-        //
-        // State == Circumpolar: target never sets below horizonDeg from this location; Rise
-        //   and Set are both null.
-        // State == NeverRises: target never reaches horizonDeg from this location; Rise and
-        //   Set are both null.
-        // State == Found: Rise and Set are non-null.
+        /// <summary>
+        /// Next UTC rise and set of <paramref name="target"/> at or after
+        /// <paramref name="searchFromUtc"/> against a scalar horizon
+        /// <paramref name="horizonDeg"/>.
+        /// </summary>
+        /// <remarks>
+        /// Analytic: derives both times from the next transit plus/minus the hour angle at
+        /// which the target is at <paramref name="horizonDeg"/>.
+        /// </remarks>
+        /// <returns>
+        /// A tuple whose <c>State</c> is <see cref="RiseSetState.Found"/> (Rise and Set are
+        /// non-null UTC DateTimes), <see cref="RiseSetState.Circumpolar"/> (both null), or
+        /// <see cref="RiseSetState.NeverRises"/> (both null).
+        /// </returns>
+        /// <exception cref="ArgumentNullException">
+        /// <paramref name="target"/> or <paramref name="location"/> is <see langword="null"/>.
+        /// </exception>
         public static (RiseSetState State, DateTime? Rise, DateTime? Set) NextAtOrAfter(
             Target target, Location location, DateTime searchFromUtc, double horizonDeg)
         {
@@ -59,11 +77,21 @@ namespace Astronomy.Core.Session
             return (RiseSetState.Found, nextRise, candidateSet);
         }
 
-        // Same as above but against a horizon profile. The scalar fast-path seeds a Newton/
-        // bisection refinement, sampling the profile at the target's current azimuth each
-        // iteration. For profiles that are close to flat the result converges in 2-3 iterations
-        // and matches the scalar case exactly; for heavily non-monotonic profiles (ridges /
-        // buildings) bisection is the safer choice than Newton so we use that here.
+        /// <summary>
+        /// Same as the scalar-horizon overload but against an
+        /// <see cref="IHorizonProfile"/>. The scalar fast-path (<see cref="IHorizonProfile.MinAltitude"/>)
+        /// seeds a bisection refinement, sampling the profile at the target's current
+        /// azimuth each iteration.
+        /// </summary>
+        /// <remarks>
+        /// For profiles that are close to flat the result converges in 2-3 iterations and
+        /// matches the scalar case exactly; for heavily non-monotonic profiles (ridges /
+        /// buildings) bisection is the safer choice than Newton, so we use that here.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException">
+        /// Any of <paramref name="target"/>, <paramref name="location"/>, or
+        /// <paramref name="horizon"/> is <see langword="null"/>.
+        /// </exception>
         public static (RiseSetState State, DateTime? Rise, DateTime? Set) NextAtOrAfter(
             Target target, Location location, DateTime searchFromUtc, IHorizonProfile horizon)
         {

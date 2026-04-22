@@ -5,14 +5,35 @@ using Astronomy.Core.Time;
 
 namespace Astronomy.Core.Session
 {
+    /// <summary>
+    /// Computes the next upper transit (local meridian crossing, HA = 0) of a stellar
+    /// target.
+    /// </summary>
     public static class TransitTime
     {
         private const double SiderealHoursPerSolarDay = 24.06570982441908;
 
-        // Returns the first UTC instant at or after searchFromUtc when the target transits
-        // (crosses the local meridian, HA = 0) as seen from the given location. Assumes stellar
-        // fixed RA/Dec. Inverts LST(t) = RA analytically in one step -- no numerical root
-        // finding, constant cost.
+        /// <summary>
+        /// Returns the first UTC instant at or after <paramref name="searchFromUtc"/> when
+        /// the target transits (crosses the local meridian, HA = 0) as seen from the given
+        /// location.
+        /// </summary>
+        /// <remarks>
+        /// Assumes stellar fixed RA/Dec. Inverts <c>LST(t) = RA</c> analytically in one step
+        /// -- no numerical root finding, constant cost.
+        /// </remarks>
+        /// <param name="target">Target RA/Dec. Non-null.</param>
+        /// <param name="location">Observer position. Non-null.</param>
+        /// <param name="searchFromUtc">
+        /// The lower bound for the search. Must be UTC (<see cref="DateTimeKind.Utc"/>).
+        /// </param>
+        /// <returns>
+        /// The next UTC instant at or after <paramref name="searchFromUtc"/> when the target
+        /// transits. <see cref="DateTime.Kind"/> is <see cref="DateTimeKind.Utc"/>.
+        /// </returns>
+        /// <exception cref="ArgumentNullException">
+        /// <paramref name="target"/> or <paramref name="location"/> is <see langword="null"/>.
+        /// </exception>
         public static DateTime UtcAtOrAfter(Target target, Location location, DateTime searchFromUtc)
         {
             if (target == null) throw new ArgumentNullException(nameof(target));

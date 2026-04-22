@@ -8,20 +8,39 @@ using Astronomy.Core.Time;
 
 namespace Astronomy.Core.Session
 {
+    /// <summary>
+    /// Intersects a stellar target's above-horizon arcs with the night window, returning the
+    /// contiguous UTC intervals where the target is both above the horizon profile and
+    /// between astronomical dusk and dawn.
+    /// </summary>
     public static class VisibilityWindows
     {
         private const double SiderealHoursPerSolarDay = 24.06570982441908;
 
-        // Intersects the target's above-horizon arcs with the night window and returns the 0-2
-        // contiguous UTC intervals where the target is both above the horizon profile and
-        // between astronomical dusk and dawn.
-        //
-        // Currently uses horizon.MinAltitude as a scalar fast-path -- treating the profile as
-        // flat at its minimum. An azimuth-aware refinement is pending. For targets whose
-        // visibility is determined by ridges, trees, or buildings with sharp azimuth features,
-        // the current result is a conservative lower bound on visible time (the target is at
-        // least above MinAltitude during the reported windows; it may clear the full profile
-        // for longer or shorter, depending on azimuth variation).
+        /// <summary>
+        /// Returns 0-2 contiguous UTC intervals where the target is visible during the given
+        /// night. Zero windows means never above horizon during the night; one is the usual
+        /// case; two arises when the target rises, sets, and rises again before dawn (shifted
+        /// transits <c>k = -1</c> and <c>k = +1</c>).
+        /// </summary>
+        /// <remarks>
+        /// Currently uses <see cref="IHorizonProfile.MinAltitude"/> as a scalar fast-path --
+        /// treating the profile as flat at its minimum. An azimuth-aware refinement is
+        /// pending. For targets whose visibility is determined by ridges, trees, or
+        /// buildings with sharp azimuth features, the current result is a conservative lower
+        /// bound on visible time (the target is at least above <c>MinAltitude</c> during the
+        /// reported windows; it may clear the full profile for longer or shorter, depending
+        /// on azimuth variation).
+        /// </remarks>
+        /// <returns>
+        /// Intervals as <c>(Start, End)</c> tuples, both <see cref="DateTimeKind.Utc"/>.
+        /// Empty list if the target never clears the horizon, never rises, or if the night
+        /// window is invalid (polar day / polar night).
+        /// </returns>
+        /// <exception cref="ArgumentNullException">
+        /// Any of <paramref name="target"/>, <paramref name="location"/>, or
+        /// <paramref name="horizon"/> is <see langword="null"/>.
+        /// </exception>
         public static IReadOnlyList<(DateTime Start, DateTime End)> For(
             Target target, Location location, NightWindow night, IHorizonProfile horizon)
         {

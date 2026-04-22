@@ -6,16 +6,39 @@ using Astronomy.Core.Targets;
 
 namespace Astronomy.Core.Session
 {
+    /// <summary>
+    /// Builds a slot-by-slot quality grid across the night, feeding a scheduler's interval
+    /// solver.
+    /// </summary>
     public static class QualitySamples
     {
-        // Splits the night into contiguous slots of approximately slotSize (the last slot is
-        // truncated if it would extend past dawn) and returns the average quality per solar
-        // hour for each. The scheduler's interval solver consumes this grid to build its
-        // assignment.
-        //
-        // QualityPerHour = integrated-quality-over-slot / slot-duration-in-solar-hours. So a
-        // slot with quality=1 means the target spent that hour at a weighted altitude whose
-        // altitudeQuality evaluated to 1 (e.g. zenith under q=sin(alt)).
+        /// <summary>
+        /// Splits the night into contiguous slots of approximately <paramref name="slotSize"/>
+        /// (the last slot is truncated if it would extend past dawn) and returns the average
+        /// quality per solar hour for each slot.
+        /// </summary>
+        /// <remarks>
+        /// <c>QualityPerHour = integrated-quality-over-slot / slot-duration-in-solar-hours</c>.
+        /// A slot with quality=1 means the target spent that hour at a weighted altitude
+        /// whose <paramref name="altitudeQuality"/> evaluated to 1 (e.g. zenith under
+        /// <c>q = sin(alt)</c>).
+        /// </remarks>
+        /// <param name="target">Target RA/Dec. Non-null.</param>
+        /// <param name="location">Observer position. Non-null.</param>
+        /// <param name="night">Night-window bounds (Kind=Utc). Must be <see cref="NightWindow.IsValid"/>; an invalid window returns an empty list.</param>
+        /// <param name="slotSize">Slot width. Must be positive.</param>
+        /// <param name="altitudeQuality">See <see cref="IntegratedQuality.OverSession"/>.</param>
+        /// <returns>
+        /// One tuple per slot. <c>Start</c> / <c>End</c> are <see cref="DateTimeKind.Utc"/>.
+        /// Empty list if the night window is invalid (polar day / polar night).
+        /// </returns>
+        /// <exception cref="ArgumentNullException">
+        /// Any of <paramref name="target"/>, <paramref name="location"/>, or
+        /// <paramref name="altitudeQuality"/> is <see langword="null"/>.
+        /// </exception>
+        /// <exception cref="ArgumentException">
+        /// <paramref name="slotSize"/> is not positive.
+        /// </exception>
         public static IReadOnlyList<(DateTime Start, DateTime End, double QualityPerHour)> OverNight(
             Target target, Location location, NightWindow night,
             TimeSpan slotSize, Func<double, double> altitudeQuality)

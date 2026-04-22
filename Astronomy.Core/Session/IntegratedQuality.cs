@@ -5,15 +5,38 @@ using Astronomy.Core.Time;
 
 namespace Astronomy.Core.Session
 {
+    /// <summary>
+    /// Integrates a caller-supplied altitude-quality function over a session window. Used by
+    /// schedulers that want to rank candidate sessions by "total quality accumulated" rather
+    /// than by a single instantaneous altitude.
+    /// </summary>
     public static class IntegratedQuality
     {
         private const double SiderealHoursPerSolarDay = 24.06570982441908;
 
-        // Integrates altitudeQuality(alt(t)) over [startUtc, startUtc + duration] using
-        // composite Simpson's rule. Returns a dimensionless quantity in units of
-        // (solar hours) * (quality output) -- i.e. "total quality" accumulated over the
-        // session. Simpson over 20 segments is accurate to ~1e-6 for smooth altitude
-        // curves; completes in microseconds per call.
+        /// <summary>
+        /// Integrates <paramref name="altitudeQuality"/><c>(alt(t))</c> over
+        /// <c>[startUtc, startUtc + duration]</c> using composite Simpson's rule.
+        /// </summary>
+        /// <remarks>
+        /// Returns a dimensionless quantity in units of <c>(solar hours) * (quality output)</c>
+        /// -- i.e. "total quality" accumulated over the session. Simpson over 20 segments is
+        /// accurate to ~1e-6 for smooth altitude curves; completes in microseconds per call.
+        /// </remarks>
+        /// <param name="target">Target RA/Dec. Non-null.</param>
+        /// <param name="location">Observer position. Non-null.</param>
+        /// <param name="startUtc">Session start, UTC.</param>
+        /// <param name="duration">Session length. Non-positive durations return 0.</param>
+        /// <param name="altitudeQuality">
+        /// Maps altitude (degrees) to a dimensionless "quality" score. Caller-owned semantics
+        /// -- e.g. <c>alt =&gt; Math.Sin(alt * Math.PI / 180)</c> for airmass-weighted quality.
+        /// Must be finite for altitudes in [-90, 90]; NaN / infinite values corrupt the
+        /// integral silently.
+        /// </param>
+        /// <exception cref="ArgumentNullException">
+        /// Any of <paramref name="target"/>, <paramref name="location"/>, or
+        /// <paramref name="altitudeQuality"/> is <see langword="null"/>.
+        /// </exception>
         public static double OverSession(
             Target target, Location location,
             DateTime startUtc, TimeSpan duration,
@@ -48,12 +71,18 @@ namespace Astronomy.Core.Session
             return sum * dt / 3.0;
         }
 
-        // Closed-form evaluation for the common quality function q(alt) = sin(alt). Exact, not
-        // numerical. Using the integral:
-        //   integral sin(alt(HA)) dHA = sin(phi)*sin(delta)*(HA2 - HA1)
-        //                             + cos(phi)*cos(delta) * (12/pi) *
-        //                               ( sin(HA2*pi/12) - sin(HA1*pi/12) )
-        // with HA in sidereal hours, then converts to solar-hour-denominated result.
+        /// <summary>
+        /// Closed-form evaluation of <see cref="OverSession"/> for the common quality
+        /// function <c>q(alt) = sin(alt)</c>. Exact (not numerical).
+        /// </summary>
+        /// <remarks>
+        /// Uses the analytic integral
+        /// <c>integral sin(alt(HA)) dHA = sin(phi)*sin(delta)*(HA2 - HA1) + cos(phi)*cos(delta)*(12/pi)*(sin(HA2*pi/12) - sin(HA1*pi/12))</c>,
+        /// with <c>HA</c> in sidereal hours, then converts to solar-hour-denominated result.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException">
+        /// <paramref name="target"/> or <paramref name="location"/> is <see langword="null"/>.
+        /// </exception>
         public static double SinAltitudeOverSession(
             Target target, Location location,
             DateTime startUtc, TimeSpan duration)
