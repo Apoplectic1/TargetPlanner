@@ -8,18 +8,18 @@ Windows Forms desktop tool for astrophotography planning. Given a target (RA/Dec
 
 ## Build / run
 
-- Solution `TargetPlanner.sln` contains **two projects**:
-  - `TargetPlanner/TargetPlanner.csproj` — WinExe, `TargetFrameworkVersion = v4.8.1`, legacy-style (packages.config), entry point `TargetPlanner.Program.Main`. Configurations: `Debug|AnyCPU`, `Release|AnyCPU`, `Debug|x64`, `Release|x64`.
-  - `Astronomy.Core/Astronomy.Core.csproj` — SDK-style class library, `TargetFramework = netstandard2.0`, PackageReference. Produces `Astronomy.Core.dll` which the WinExe project references via `ProjectReference`.
-- F5 in Visual Studio to run; otherwise `msbuild "TargetPlanner.sln" -restore /p:Configuration=Debug`. The `-restore` flag is required because the Core project's NuGet dependency (CoordinateSharp) is declared as a PackageReference — a plain `nuget restore` only covers the WinExe project's packages.config. `dotnet restore` / `dotnet build` still won't work because the WinExe side is legacy-style.
+- Solution `TargetPlanner.sln` contains **two projects**, both SDK-style:
+  - `TargetPlanner/TargetPlanner.csproj` — WinExe, `TargetFramework = net481` (UseWindowsForms=true), entry point `TargetPlanner.Program.Main`. Configurations: `Debug|AnyCPU`, `Release|AnyCPU`, `Debug|x64`, `Release|x64`. Outputs land in `bin\Debug\net481\`, `bin\x64\Release\net481\`, etc. (the `net481` suffix is the SDK convention).
+  - `Astronomy.Core/Astronomy.Core.csproj` — class library, `TargetFramework = netstandard2.0`. Produces `Astronomy.Core.dll` which the WinExe project references via `ProjectReference`.
+- Both use `<PackageReference>` for NuGet. F5 in Visual Studio, `msbuild "TargetPlanner.sln" -restore -p:Configuration=Debug`, and `dotnet build "TargetPlanner.sln" -c Debug` all work. Prefer `dotnet build` in scripts (auto-restores, no `-restore` flag needed); `msbuild` is the fallback for anything the `dotnet` CLI doesn't cover (e.g. VS-specific build targets).
 - No test project exists — there is no unit test framework wired up. Do not invent build/test commands.
 
 ## External dependencies that are easy to miss
 
-- **LocalLib** is a private sibling assembly, not a NuGet package. The WinExe csproj hint path is `..\..\..\General\LocalLib\LocalLib\bin\Release\LocalLib.dll` (i.e. `E:\Projects\VisualStudio\General\LocalLib\...`). It supplies `OpenFolderDialog` used by `MainForm.Button_BrowseTargetList_Click`. If the reference is missing, the build fails; don't try to "fix" it by deleting the reference. Referenced only by TargetPlanner, not by Core.
-- **NuGet packages**:
-  - WinExe project (`packages.config`): `CoordinateSharp 3.4.1.1`, `Newtonsoft.Json 13.0.4`. Newtonsoft is used only by `AltitudeSeries.Clone<T>`; CoordinateSharp is pulled in transitively via the Core project reference but the `packages.config` entry remains for the WinExe's own consumption paths (MoonAltitude in `BuildMoonSeries`).
-  - Core project (PackageReference): `CoordinateSharp 3.4.1.1`. Single dependency. Core is deliberately not coupled to Newtonsoft, WinForms, or System.Drawing.
+- **LocalLib** is a private sibling assembly, not a NuGet package. The WinExe csproj hint path is `..\..\..\Libraries\LocalLib\LocalLib\bin\Release\LocalLib.dll` (i.e. `E:\Projects\VisualStudio\Libraries\LocalLib\...`). It supplies `OpenFolderDialog` used by `MainForm.Button_BrowseTargetList_Click`. If the reference is missing, the build fails; don't try to "fix" it by deleting the reference. Referenced only by TargetPlanner, not by Core.
+- **NuGet packages** (both projects on `<PackageReference>`):
+  - WinExe project: `CoordinateSharp 3.4.1.1`, `Newtonsoft.Json 13.0.4`. Newtonsoft is used only by `AltitudeSeries.Clone<T>`; CoordinateSharp is pulled in transitively via the Core project reference but the WinExe's own PackageReference remains for paths like `BuildMoonSeries` that consume `MoonAltitude` directly.
+  - Core project: `CoordinateSharp 3.4.1.1`. Single dependency. Core is deliberately not coupled to Newtonsoft, WinForms, or System.Drawing.
 
 ## Architecture
 
