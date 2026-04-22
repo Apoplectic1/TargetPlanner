@@ -291,8 +291,10 @@ namespace TargetPlanner
                 }
             }
 
-            mLocation = mLocation.With(dateTime: DateTime.Now);
-
+            // mLocation.DateTime is already kept in sync with the pickers via
+            // UpdateLocalDateTimeEvents (called from DatePicker/TimePicker ValueChanged and
+            // Button_Now_Click). Don't overwrite it with DateTime.Now here -- that was the
+            // pre-refactor assumption when the app was always "live now" by default.
             IProgress<string> phaseProgress = BeginChartBuildProgress(targetCount: 1);
 
             // Reload-in-place: keep the Chart control, its ChartAreas, its Legend, and any
