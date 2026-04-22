@@ -215,6 +215,15 @@ namespace TargetPlanner.Charts
                 {
                     if (series.Name.Contains(chartAreaName))
                     {
+                        // Bind the Series to its ChartArea by name. Previously mChart.ChartAreas
+                        // held only the active area at a time, so a Series with no explicit
+                        // binding defaulted to that single area and always rendered correctly.
+                        // Post-W2-11 all three areas live in mChart.ChartAreas simultaneously
+                        // (flipped via Visible); a Series without an explicit ChartArea falls
+                        // back to the first one in the collection (Day), so Year / Optimal
+                        // series would render into the hidden Day area and the active area
+                        // would appear empty.
+                        series.ChartArea = chartAreaName;
                         series.Enabled = true;
                         series.LegendText = series.Name.Remove(series.Name.IndexOf("-"));
                         AddSeries(series);
