@@ -175,7 +175,7 @@ namespace TargetPlanner
             mAltitudeChart.ShowChartAreaSeries("Day");
 
 
-            mAltitudeChart.ChartTitle = "Altitude at " + mLocation.Name + " for evening beginning " + mLocation.DateTime.Date.ToShortDateString();
+            mAltitudeChart.ChartTitle = FormatChartTitle("Day");
             mAltitudeChart.UIState(mUIState);
             mAltitudeChart.AddLegend();
             mAltitudeChart.UpdateNowLine(DateTime.Now);
@@ -312,8 +312,14 @@ namespace TargetPlanner
             // in InitializeDynamicControls. Reload resets only the transient state (series,
             // strip lines, per-target AltitudeSeries cache, target list, Location snapshot).
             mAltitudeChart.ReloadWithTargets(mLocation, new[] { mTarget });
-            mAltitudeChart.ChartTitle = "Altitude at " + mLocation.Name + " for evening beginning " + mLocation.DateTime.Date.ToShortDateString();
+
+            // Snap the radio button state to Day so the UI and the active chart area agree.
+            // Setting Checked=true only fires CheckedChanged if the value actually changes,
+            // so we unconditionally run ShowChartAreaSeries + ChartTitle after to cover the
+            // "radio already on Day" path.
+            RadioButton_Day.Checked = true;
             mAltitudeChart.ShowChartAreaSeries("Day");
+            mAltitudeChart.ChartTitle = FormatChartTitle("Day");
             mAltitudeChart.UpdateNowLine(DateTime.Now);
         }
 
@@ -567,6 +573,12 @@ namespace TargetPlanner
             mAltitudeChartForm = new Charts.AltitudeChartForm();
 
             mAltitudeChartForm.ChartTitle = "Altitude at " + mLocation.Name + " for evening beginning " + mLocation.DateTime.Date.ToShortDateString();
+
+            // Keep the embedded chart's radio state and view in sync: pressing either Graph
+            // button selects the Day view on the embedded chart, matching Button_GraphEphemeride.
+            RadioButton_Day.Checked = true;
+            mAltitudeChart.ShowChartAreaSeries("Day");
+            mAltitudeChart.ChartTitle = FormatChartTitle("Day");
             mAltitudeChartForm.AstronomicalDawn = Astrometry.AstronomicalDawn;
             mAltitudeChartForm.AstronomicalDusk = Astrometry.AstronomicalDusk;
             mAltitudeChartForm.AddDawnDuskGradient();
@@ -601,6 +613,7 @@ namespace TargetPlanner
             {
                 Astrometry.Location(mLocation);
                 mAltitudeChart.ShowChartAreaSeries("Day");
+                mAltitudeChart.ChartTitle = FormatChartTitle("Day");
             }
         }
 
@@ -610,6 +623,7 @@ namespace TargetPlanner
             if (RadioButton_Year.Checked == true)
             {
                 mAltitudeChart.ShowChartAreaSeries("Year");
+                mAltitudeChart.ChartTitle = FormatChartTitle("Year");
             }
         }
 
@@ -619,7 +633,23 @@ namespace TargetPlanner
             if (RadioButton_Optimal.Checked == true)
             {
                 mAltitudeChart.ShowChartAreaSeries("Optimal");
+                mAltitudeChart.ChartTitle = FormatChartTitle("Optimal");
             }
+        }
+
+        // The Day chart renders one night's altitude curve, so its title includes the
+        // calendar date of the evening. Year and Optimal both render a 365-day sweep starting
+        // from the current month; their title uses the month name instead of a specific day
+        // so the axis label and the title agree.
+        private string FormatChartTitle(string areaName)
+        {
+            if (areaName == "Day")
+            {
+                return "Altitude at " + mLocation.Name
+                     + " for evening beginning " + mLocation.DateTime.Date.ToShortDateString();
+            }
+            return "Altitude at " + mLocation.Name
+                 + " for Year beginning " + mLocation.DateTime.ToString("MMMM yyyy");
         }
 
         private void ComboBox_SelectTarget_SelectedIndexChanged(object sender, EventArgs e)
