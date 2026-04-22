@@ -110,7 +110,6 @@
             this.ProgressBar_ProcessObject = new System.Windows.Forms.ProgressBar();
             this.CheckedListBox_SelectedTargets = new System.Windows.Forms.CheckedListBox();
             this.Label_Targets = new System.Windows.Forms.Label();
-            this.Button_GraphTargetList = new System.Windows.Forms.Button();
             this.Button_BrowseTargetList = new System.Windows.Forms.Button();
             this.Label_SelectedTargetNumber = new System.Windows.Forms.Label();
             this.GroupBox_TargetSelection = new System.Windows.Forms.GroupBox();
@@ -1109,7 +1108,6 @@
             this.GroupBox_Sequence.Controls.Add(this.ProgressBar_ProcessObject);
             this.GroupBox_Sequence.Controls.Add(this.CheckedListBox_SelectedTargets);
             this.GroupBox_Sequence.Controls.Add(this.Label_Targets);
-            this.GroupBox_Sequence.Controls.Add(this.Button_GraphTargetList);
             this.GroupBox_Sequence.Controls.Add(this.Button_BrowseTargetList);
             this.GroupBox_Sequence.Controls.Add(this.Label_SelectedTargetNumber);
             this.GroupBox_Sequence.Location = new System.Drawing.Point(33, 170);
@@ -1169,17 +1167,7 @@
             this.Label_Targets.Size = new System.Drawing.Size(91, 13);
             this.Label_Targets.TabIndex = 3;
             this.Label_Targets.Text = "Selected Targets:";
-            // 
-            // Button_GraphTargetList
-            // 
-            this.Button_GraphTargetList.Location = new System.Drawing.Point(95, 20);
-            this.Button_GraphTargetList.Name = "Button_GraphTargetList";
-            this.Button_GraphTargetList.Size = new System.Drawing.Size(66, 23);
-            this.Button_GraphTargetList.TabIndex = 1;
-            this.Button_GraphTargetList.Text = "Grpah";
-            this.Button_GraphTargetList.UseVisualStyleBackColor = true;
-            this.Button_GraphTargetList.Click += new System.EventHandler(this.Button_GraphTargetList_Click);
-            // 
+            //
             // Button_BrowseTargetList
             // 
             this.Button_BrowseTargetList.Location = new System.Drawing.Point(18, 20);
@@ -1362,7 +1350,6 @@
         private System.Windows.Forms.GroupBox GroupBox_Sequence;
         private System.Windows.Forms.Button Button_BrowseTargetList;
         private System.Windows.Forms.Label Label_Targets;
-        private System.Windows.Forms.Button Button_GraphTargetList;
         private System.Windows.Forms.CheckedListBox CheckedListBox_SelectedTargets;
         private System.Windows.Forms.Label Label_SelectedTargetNumber;
         private System.Windows.Forms.Button Button_ClearTarget;

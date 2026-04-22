@@ -236,7 +236,7 @@ Several: `// ****** Right Ascention ******` (`MainForm.cs:315`, should be Ascens
 `TargetPlanner/Forms/MainForm.cs:31-32, 76-79`. Same shape.
 
 ### P2-8.4 `AltitudeChartForm` instances accumulate
-`TargetPlanner/Forms/MainForm.cs:938` — every `Button_GraphTargetList_Click` creates a new popup and leaks the old one. Either single-instance (cache and `Show()`/`BringToFront()`) or wire up a close handler that disposes.
+~~`TargetPlanner/Forms/MainForm.cs:938` — every `Button_GraphTargetList_Click` creates a new popup and leaks the old one.~~ Resolved by deletion: `AltitudeChartForm` (and the `Button_GraphTargetList` that invoked it) were removed entirely. The multi-target view, if it returns, should feed the embedded `AltitudeChart` via `ReloadWithTargets(location, allTargets)` rather than spawning a separate form.
 
 ### P2-8.5 `AltitudeChart` doesn't implement `IDisposable`
 `TargetPlanner/Charts/AltitudeChart.cs:14`. Blocks clean handling of the above.

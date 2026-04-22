@@ -62,7 +62,6 @@ Shared library targeting `netstandard2.0`. Consumed today by TargetPlanner; desi
   - `BuildMoonSeries` — filled area series using CoordinateSharp's `MoonAltitude`; alpha scaled by `LunarIlluminationFraction`.
 - `RebuildOptimalSeries` is the entry point for Horizon/Duration spinner changes — cheap because it walks the cache.
 - `AltitudeSeries.Clone<T>` round-trips an object through `JsonConvert` to deep-copy `Location` before mutating `DateTime` in the inner loops. This matters: the series builders run on background tasks and must not scribble on the shared `Location` the UI is bound to.
-- `Forms/AltitudeChartForm` is a separate popup form used only by `Button_GraphTargetList_Click`, showing the entire ingested target list at once. It is distinct from the embedded `AltitudeChart` inside `MainForm`.
 
 **UI flow (`Forms/MainForm.cs`):**
 - `InitializeDynamicControls` constructs the embedded chart, registers the three chart areas, seeds the target list from `NinaTargetsRootPath`, and sets the combo box to `M31`.

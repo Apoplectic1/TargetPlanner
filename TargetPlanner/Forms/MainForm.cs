@@ -25,7 +25,6 @@ namespace TargetPlanner
 
         private const string NinaTargetsRootPath = @"E:\Photography\Astro Photography\Captures\Nina\Targets";
 
-        private Charts.AltitudeChartForm mAltitudeChartForm;
         private Charts.AltitudeChart mAltitudeChart;
 
         private ToolTip mToolTip;
@@ -111,7 +110,6 @@ namespace TargetPlanner
             mTimer?.Dispose();
             mToolTip?.Dispose();
             mAltitudeChart?.Dispose();
-            mAltitudeChartForm?.Dispose();
             mLatitudeInput?.Dispose();
             mLongitudeInput?.Dispose();
             mRaInput?.Dispose();
@@ -564,45 +562,6 @@ namespace TargetPlanner
             {
                 ComboBox_SelectTarget.Items.Add(t.Name);
             }
-        }
-
-        private void Button_GraphTargetList_Click(object sender, EventArgs e)
-        {
-
-            if (mTargetList == null || mTargetList.Count == 0)
-            {
-                return;
-            }
-
-            // Reset the multi-target progress bar on either Graph button click (matches
-            // Button_GraphTarget). The popup is currently visual-only (AltitudeChartForm.
-            // AddSeries is a stub), so there's nothing to tick here -- we just make sure a
-            // leftover "100%" from a prior Button_GraphTarget click isn't misleading.
-            mChartBuildGeneration++;
-            ProgressBar_MultiTargetProcessing.Value = 0;
-
-            Label_SelectedTargetNumber.Text = mTargetList.Count.ToString();
-            // Repeat clicks used to accumulate floating popup forms. Close + dispose the
-            // prior instance before spawning a new one.
-            mAltitudeChartForm?.Close();
-            mAltitudeChartForm?.Dispose();
-            mAltitudeChartForm = new Charts.AltitudeChartForm();
-
-            mAltitudeChartForm.ChartTitle = "Altitude at " + mLocation.Name + " for evening beginning " + mLocation.DateTime.Date.ToShortDateString();
-
-            // Keep the embedded chart's radio state and view in sync: pressing either Graph
-            // button selects the Day view on the embedded chart, matching Button_GraphTarget.
-            RadioButton_Day.Checked = true;
-            mAltitudeChart.ShowChartAreaSeries("Day");
-            mAltitudeChart.ChartTitle = FormatChartTitle("Day");
-            mAltitudeChartForm.AstronomicalDawn = Astrometry.AstronomicalDawn;
-            mAltitudeChartForm.AstronomicalDusk = Astrometry.AstronomicalDusk;
-            mAltitudeChartForm.AddDawnDuskGradient();
-            mAltitudeChartForm.AddHorizonLine(mLocation.Horizon);
-
-            mAltitudeChartForm.AddToTargetList(mTargetList);
-            mAltitudeChartForm.Show();
-
         }
 
         private void ShowCheckBoxObjectToolTip(object sender, MouseEventArgs e)
