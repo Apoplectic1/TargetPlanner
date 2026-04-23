@@ -52,6 +52,29 @@ namespace TargetPlanner.Charts
             TargetSeriesList = new List<Series>();
         }
 
+        // Day-chart X bounds. Single source of truth for BuildDaySeries / BuildMoonSeries
+        // (this class) and AltitudeChart.AddDawnDuskGradient. Both surfaces must agree --
+        // the gradient strip positions are computed in minutes off the same `start` the
+        // data series uses for index 0.
+        //
+        // Start = the integer hour mark strictly before duskLocal.
+        // Stop  = the integer hour mark strictly past dawnLocal.
+        // If dusk/dawn lands exactly on an hour the bound steps one full hour outward so
+        // dusk and dawn never coincide with an edge label.
+        public static DateTime DayChartStart(DateTime duskLocal)
+        {
+            DateTime start = duskLocal.Date.AddHours(duskLocal.Hour);
+            if (start >= duskLocal) start = start.AddHours(-1);
+            return start;
+        }
+
+        public static DateTime DayChartStop(DateTime dawnLocal)
+        {
+            DateTime stop = dawnLocal.Date.AddHours(dawnLocal.Hour);
+            if (stop <= dawnLocal) stop = stop.AddHours(1);
+            return stop;
+        }
+
         public void ClearTargetList()
         {
             TargetSeriesList.Clear();
@@ -172,23 +195,23 @@ namespace TargetPlanner.Charts
 
             Series daySeries = MakeSeries(Target.Name, "Day", new Color());
 
-            double duskOffset = (duskLocal.Minute > 30.0) ? 0.0 : -1.0;
-            DateTime start = duskLocal.AddHours(duskOffset).Date.AddHours(duskLocal.AddHours(duskOffset).Hour);
-
-            double dawnOffset = (dawnLocal.Minute > 30.0) ? 2.0 : 1.0;
-            DateTime stop = dawnLocal.AddHours(dawnOffset).Date.AddHours(dawnLocal.AddHours(dawnOffset).Hour);
-
+            DateTime start = DayChartStart(duskLocal);
+            DateTime stop  = DayChartStop(dawnLocal);
             TimeSpan delta = stop.Subtract(start);
 
-            int minutes = 0;
-            while (minutes < Convert.ToInt32(Math.Round(delta.TotalMinutes, 0)))
+            // Inclusive endpoint: emit the point AT minute = delta.TotalMinutes too, so the
+            // X axis ranges over [0, delta] indices. The chart's IsXValueIndexed=true mode
+            // anchors tick labels to data points by index; without the inclusive endpoint
+            // the rightmost hourly tick (e.g. "5:00 AM") has no data point and its label
+            // doesn't render.
+            int totalMinutes = Convert.ToInt32(Math.Round(delta.TotalMinutes, 0));
+            for (int minutes = 0; minutes <= totalMinutes; minutes++)
             {
                 DateTime point = start.AddMinutes(minutes);
                 // Location is immutable; ask AltAzCalculator to evaluate at `point` via a
                 // With-variant instead of mutating a clone in place.
                 AltAz targetPosition = AltAzCalculator.Of(Target, Location.With(dateTime: point));
                 daySeries.Points.AddXY(point, targetPosition.Altitude);
-                minutes++;
             }
 
             TargetSeriesList.Add(daySeries);
@@ -482,11 +505,8 @@ namespace TargetPlanner.Charts
             DateTime duskLocal = night.AstronomicalDusk.ToLocalTime();
             DateTime dawnLocal = night.AstronomicalDawn.ToLocalTime();
 
-            double duskOffset = (duskLocal.Minute > 30.0) ? 0.0 : -1.0;
-            DateTime start = duskLocal.AddHours(duskOffset).Date.AddHours(duskLocal.AddHours(duskOffset).Hour);
-
-            double dawnOffset = (dawnLocal.Minute > 30.0) ? 2.0 : 1.0;
-            DateTime stop = dawnLocal.AddHours(dawnOffset).Date.AddHours(dawnLocal.AddHours(dawnOffset).Hour);
+            DateTime start = DayChartStart(duskLocal);
+            DateTime stop  = DayChartStop(dawnLocal);
 
             Series moonSeries = MakeSeries("Moon", "Day",
                 Color.FromArgb((int)(night.LunarIlluminationFraction * 250.0), 209, 209, 209));
@@ -495,15 +515,16 @@ namespace TargetPlanner.Charts
 
             TimeSpan delta = stop.Subtract(start);
 
-            int minutes = 0;
-            while (minutes < Convert.ToInt32(Math.Round(delta.TotalMinutes, 0)))
+            // Inclusive endpoint -- match BuildDaySeries so the Day chart's index range covers
+            // the rightmost hour tick. Without this the moon series is one index shorter than
+            // the target series and the rightmost hourly label has no anchor.
+            int totalMinutes = Convert.ToInt32(Math.Round(delta.TotalMinutes, 0));
+            for (int minutes = 0; minutes <= totalMinutes; minutes++)
             {
                 DateTime point = start.AddMinutes(minutes);
                 CoordinateSharp.Celestial cCelestial = CoordinateSharpGate.Calculate(
                     Location.Latitude, longitudeSign * Location.Longitude, point, utcOffset.Hours);
                 moonSeries.Points.AddXY(point, cCelestial.MoonAltitude);
-
-                minutes++;
             }
 
             TargetSeriesList.Add(moonSeries);

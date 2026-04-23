@@ -40,6 +40,7 @@ namespace TargetPlanner.Charts
         private Dictionary<Target, AltitudeSeries> mSeriesByTarget;
 
         private Dictionary<string, StripLine> mNowLines;
+        private Dictionary<string, StripLine> mHorizonLines;
 
         public AltitudeChart(Location location)
         {
@@ -53,6 +54,7 @@ namespace TargetPlanner.Charts
             mUIState = new Support.UIState();
             mSeriesByTarget = new Dictionary<Target, AltitudeSeries>();
             mNowLines = new Dictionary<string, StripLine>();
+            mHorizonLines = new Dictionary<string, StripLine>();
 
             mChart.MouseClick += new MouseEventHandler(this.Chart_MouseClick);
         }
@@ -204,7 +206,7 @@ namespace TargetPlanner.Charts
 
             AddChartAreaToChart(chartAreaName);
 
-            AddHorizonLine(chartAreaName);
+            SetHorizonLine(chartAreaName, Location.Horizon);
 
             ClearSeries();
 
@@ -236,7 +238,11 @@ namespace TargetPlanner.Charts
                         // would appear empty.
                         series.ChartArea = chartAreaName;
                         series.Enabled = true;
-                        series.LegendText = series.Name.Remove(series.Name.IndexOf("-"));
+                        // Strip the trailing "-{ChartAreaName}" suffix only -- LastIndexOf,
+                        // not IndexOf, because target names like "M27 - Dumbbell" contain
+                        // their own dashes and IndexOf("-") would chop the legend at the
+                        // first one ("M27 " instead of "M27 - Dumbbell").
+                        series.LegendText = series.Name.Remove(series.Name.LastIndexOf("-"));
                         AddSeries(series);
                     }
                     else
@@ -290,6 +296,7 @@ namespace TargetPlanner.Charts
                 area.AxisY.StripLines.Clear();  // horizon line
             }
             mNowLines.Clear();
+            mHorizonLines.Clear();
             mSeriesByTarget.Clear();
             mTargetList.Clear();
 
@@ -320,28 +327,35 @@ namespace TargetPlanner.Charts
             mChart.Invalidate();
         }
 
-        // Move the green horizon strip line to the given horizon altitude on every chart
-        // area. Clears any prior horizon line (identified by its green color) before adding
-        // a fresh one so repeated calls don't accumulate strip lines. Horizon is passed in
-        // rather than read from the snapshot so spinner-scrub updates the line live.
+        // Place or reposition the green horizon strip line on the given chart area. Tracks
+        // one StripLine per area in mHorizonLines so repeated calls reposition the same
+        // instance instead of adding new ones. Replaces a prior color-equality scheme that
+        // failed to detect stale lines (Color.Green round-trips through ARGB inside
+        // StripLine.BackColor, breaking the `sl.BackColor == Color.Green` filter and
+        // causing one line to accumulate per spinner change).
+        private void SetHorizonLine(string chartAreaName, double horizon)
+        {
+            StripLine line;
+            if (!mHorizonLines.TryGetValue(chartAreaName, out line))
+            {
+                line = new StripLine
+                {
+                    Interval = 0,
+                    StripWidth = 2,
+                    BackColor = Color.Green,
+                };
+                mHorizonLines[chartAreaName] = line;
+                mChart.ChartAreas[chartAreaName].AxisY.StripLines.Add(line);
+            }
+            line.IntervalOffset = horizon - 1;
+        }
+
+        // Reposition the green horizon strip line on every registered chart area. Horizon is
+        // passed in rather than read from the snapshot so spinner-scrub updates the line live.
         public void UpdateHorizonLines(double horizon)
         {
             foreach (ChartArea area in mChartAreaList)
-            {
-                List<StripLine> stale = new List<StripLine>();
-                foreach (StripLine sl in area.AxisY.StripLines)
-                {
-                    if (sl.BackColor == Color.Green) stale.Add(sl);
-                }
-                foreach (StripLine sl in stale) area.AxisY.StripLines.Remove(sl);
-
-                StripLine replacement = new StripLine();
-                replacement.Interval = 0;
-                replacement.IntervalOffset = horizon - 1;
-                replacement.StripWidth = 2;
-                replacement.BackColor = Color.Green;
-                area.AxisY.StripLines.Add(replacement);
-            }
+                SetHorizonLine(area.Name, horizon);
             mChart.Invalidate();
         }
 
@@ -415,7 +429,7 @@ namespace TargetPlanner.Charts
 
                     mChart.ChartAreas[chartAreaName].AxisY.Interval = 10;
                     mChart.ChartAreas[chartAreaName].AxisY.Maximum = 90.0;
-                    mChart.ChartAreas[chartAreaName].AxisY.Minimum = 10.0;
+                    mChart.ChartAreas[chartAreaName].AxisY.Minimum = 0.0;
                     mChart.ChartAreas[chartAreaName].AxisY.Title = "Altitude";
 
                     AddDawnDuskGradient(chartAreaName);
@@ -449,6 +463,12 @@ namespace TargetPlanner.Charts
                     break;
             }
 
+            // The Chart's auto-fit logic on AxisX drops the last label when it decides the
+            // label text would clip against the chart-area edge. Force the end label visible
+            // and disable auto-fit so the rightmost hourly / monthly label always renders.
+            mChart.ChartAreas[chartAreaName].AxisX.IsLabelAutoFit = false;
+            mChart.ChartAreas[chartAreaName].AxisX.LabelStyle.IsEndLabelVisible = true;
+
             foreach (Series series in mChart.Series)
             {
                 if (series.Name.Contains(chartAreaName))
@@ -464,25 +484,8 @@ namespace TargetPlanner.Charts
             mChart.Invalidate();
         }
 
-        public void AddHorizonLine(string chartAreaName)
-        {
-            StripLine stripline = new StripLine();
-            stripline.Interval = 0;
-            stripline.IntervalOffset = Location.Horizon - 1;
-            stripline.StripWidth = 2;
-            stripline.BackColor = Color.Green;
-            mChart.ChartAreas[chartAreaName].AxisY.StripLines.Add(stripline);
-        }
-
         public void AddDawnDuskGradient(string chartAreaName)
         {
-            double duskOffset;
-            double dawnOffset;
-            TimeSpan delta;
-            StripLine stripLine;
-            DateTime start;
-            DateTime stop;
-
             NightWindow night = NightCalculator.ComputeNight(Location);
             // NightWindow fields are UTC as of the Core DST fix; convert to local here because
             // the X axis is plotted in wall-clock time and the stripline positions are computed
@@ -490,50 +493,35 @@ namespace TargetPlanner.Charts
             DateTime duskLocal = night.AstronomicalDusk.ToLocalTime();
             DateTime dawnLocal = night.AstronomicalDawn.ToLocalTime();
 
-            stripLine = new StripLine();
+            // Anchor stripe positions to the same Day-chart bounds the data series uses so the
+            // gradients align with the X axis. Index 0 = chartStart; everything else is in
+            // wall-clock minutes off chartStart.
+            DateTime chartStart = AltitudeSeries.DayChartStart(duskLocal);
+            DateTime chartStop  = AltitudeSeries.DayChartStop(dawnLocal);
 
-            duskOffset = (duskLocal.Minute > 30.0) ? 0.0 : -1.0;
-            start = duskLocal.AddHours(duskOffset).Date.AddHours(duskLocal.AddHours(duskOffset).Hour);
-            stop = duskLocal;
+            // Dusk gradient: chartStart -> dusk (yellow into gray).
+            StripLine duskStripe = new StripLine();
+            duskStripe.BackColor             = Color.FromArgb(145, 255, 238, 88);
+            duskStripe.BackSecondaryColor    = Color.FromArgb(255,  90,  90, 90);
+            duskStripe.BackGradientStyle     = GradientStyle.LeftRight;
+            duskStripe.IntervalOffsetType    = DateTimeIntervalType.Minutes;
+            duskStripe.Interval              = 0;
+            duskStripe.IntervalType          = DateTimeIntervalType.Minutes;
+            duskStripe.IntervalOffset        = 0;
+            duskStripe.StripWidth            = duskLocal.Subtract(chartStart).TotalMinutes;
+            mChart.ChartAreas[chartAreaName].AxisX.StripLines.Add(duskStripe);
 
-            delta = stop.Subtract(start);
-
-            stripLine.BackColor = Color.FromArgb(125, 80, 230, 210);
-            stripLine.BackColor = Color.FromArgb(145, 255, 238, 88);
-            stripLine.BackSecondaryColor = Color.FromArgb(255, 90, 90, 90);
-            stripLine.BackGradientStyle = GradientStyle.LeftRight;
-            stripLine.IntervalOffset = start.Minute;
-            stripLine.IntervalOffsetType = DateTimeIntervalType.Minutes;
-            stripLine.Interval = 0;
-            stripLine.IntervalType = DateTimeIntervalType.Minutes;
-
-            stripLine.StripWidth = delta.TotalMinutes;
-
-            mChart.ChartAreas[chartAreaName].AxisX.StripLines.Add(stripLine);
-
-
-
-            stripLine = new StripLine();
-
-            dawnOffset = (dawnLocal.Minute > 30.0) ? 2.0 : 1.0;
-            start = dawnLocal;
-            stop = dawnLocal.AddHours(dawnOffset).Date.AddHours(dawnLocal.AddHours(dawnOffset).Hour);
-            delta = stop.Subtract(start);
-
-            stripLine.BackSecondaryColor = Color.FromArgb(145, 255, 238, 88);
-            stripLine.BackColor = Color.FromArgb(255, 90, 90, 90);
-            stripLine.BackGradientStyle = GradientStyle.LeftRight;
-            stripLine.IntervalOffsetType = DateTimeIntervalType.Minutes;
-            stripLine.Interval = 0;
-            stripLine.IntervalType = DateTimeIntervalType.Minutes;
-            stripLine.StripWidth = delta.TotalMinutes;
-
-            start = duskLocal.AddHours(duskOffset).Date.AddHours(duskLocal.AddHours(duskOffset).Hour);
-            delta = dawnLocal.Subtract(start);
-
-            stripLine.IntervalOffset = delta.TotalMinutes + 2;
-
-            mChart.ChartAreas[chartAreaName].AxisX.StripLines.Add(stripLine);
+            // Dawn gradient: dawn -> chartStop (gray into yellow).
+            StripLine dawnStripe = new StripLine();
+            dawnStripe.BackColor             = Color.FromArgb(255,  90,  90, 90);
+            dawnStripe.BackSecondaryColor    = Color.FromArgb(145, 255, 238, 88);
+            dawnStripe.BackGradientStyle     = GradientStyle.LeftRight;
+            dawnStripe.IntervalOffsetType    = DateTimeIntervalType.Minutes;
+            dawnStripe.Interval              = 0;
+            dawnStripe.IntervalType          = DateTimeIntervalType.Minutes;
+            dawnStripe.IntervalOffset        = dawnLocal.Subtract(chartStart).TotalMinutes;
+            dawnStripe.StripWidth            = chartStop.Subtract(dawnLocal).TotalMinutes;
+            mChart.ChartAreas[chartAreaName].AxisX.StripLines.Add(dawnStripe);
         }
 
         public void AddLegend()

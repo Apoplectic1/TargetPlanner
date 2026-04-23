@@ -28,27 +28,8 @@
         /// </summary>
         private void InitializeComponent()
         {
-            this.GroupBox_LocalConditions = new System.Windows.Forms.GroupBox();
-            this.GroupBox_SunMoon = new System.Windows.Forms.GroupBox();
-            this.Label_Phase = new System.Windows.Forms.Label();
-            this.Label_Percent = new System.Windows.Forms.Label();
-            this.Label_LunarPhaseValue = new System.Windows.Forms.Label();
-            this.Label_SunAltitudeValue = new System.Windows.Forms.Label();
-            this.Label_SunAltitude = new System.Windows.Forms.Label();
-            this.Label_MoonSetValue = new System.Windows.Forms.Label();
-            this.Label_MoonSetTimeText = new System.Windows.Forms.Label();
-            this.Label_MoonRiseValue = new System.Windows.Forms.Label();
-            this.Label_MoonRise = new System.Windows.Forms.Label();
-            this.Label_LunarIlluminationFractionValue = new System.Windows.Forms.Label();
-            this.Label_LunarIlluminationFraction = new System.Windows.Forms.Label();
-            this.Label_LunarAltitudeValue = new System.Windows.Forms.Label();
-            this.Label_MoonAltitude = new System.Windows.Forms.Label();
-            this.Label_AstronomicalDawn = new System.Windows.Forms.Label();
-            this.Label_AstronomicalDusk = new System.Windows.Forms.Label();
-            this.Label_AstronomicalDuskValue = new System.Windows.Forms.Label();
-            this.Label_MoonPhaseName = new System.Windows.Forms.Label();
-            this.Label_AstronomicalDawnValue = new System.Windows.Forms.Label();
-            this.GroupBox_LocalLocation = new System.Windows.Forms.GroupBox();
+            this.GroupBox_Local = new System.Windows.Forms.GroupBox();
+            this.GroupBox_Location = new System.Windows.Forms.GroupBox();
             this.CheckBox_LocalNorth = new System.Windows.Forms.CheckBox();
             this.Label_Hours = new System.Windows.Forms.Label();
             this.Label_MinDuration = new System.Windows.Forms.Label();
@@ -74,11 +55,25 @@
             this.NumericUpDown_LongitudeSeconds = new System.Windows.Forms.NumericUpDown();
             this.NumericUpDown_LatitudeSeconds = new System.Windows.Forms.NumericUpDown();
             this.GroupBox_LocalDateTime = new System.Windows.Forms.GroupBox();
-            this.GroupBox_LocalDateTimeControls = new System.Windows.Forms.GroupBox();
-            this.DatePicker = new System.Windows.Forms.DateTimePicker();
+            this.Label_Phase = new System.Windows.Forms.Label();
             this.TimePicker = new System.Windows.Forms.DateTimePicker();
-            this.GroupBox_TimeModeControls = new System.Windows.Forms.GroupBox();
+            this.DatePicker = new System.Windows.Forms.DateTimePicker();
+            this.Label_LunarPhaseValue = new System.Windows.Forms.Label();
             this.Button_Now = new System.Windows.Forms.Button();
+            this.Label_SunAltitudeValue = new System.Windows.Forms.Label();
+            this.Label_AstronomicalDusk = new System.Windows.Forms.Label();
+            this.Label_SunAltitude = new System.Windows.Forms.Label();
+            this.Label_AstronomicalDawnValue = new System.Windows.Forms.Label();
+            this.Label_MoonSetValue = new System.Windows.Forms.Label();
+            this.Label_AstronomicalDuskValue = new System.Windows.Forms.Label();
+            this.Label_MoonSetTimeText = new System.Windows.Forms.Label();
+            this.Label_AstronomicalDawn = new System.Windows.Forms.Label();
+            this.Label_MoonRiseValue = new System.Windows.Forms.Label();
+            this.Label_MoonAltitude = new System.Windows.Forms.Label();
+            this.Label_MoonRise = new System.Windows.Forms.Label();
+            this.Label_LunarAltitudeValue = new System.Windows.Forms.Label();
+            this.Label_LunarIlluminationFractionValue = new System.Windows.Forms.Label();
+            this.Label_LunarIlluminationFraction = new System.Windows.Forms.Label();
             this.GroupBox_CoordinateSelection = new System.Windows.Forms.GroupBox();
             this.ComboBox_SelectTarget = new System.Windows.Forms.ComboBox();
             this.Label_TargetName = new System.Windows.Forms.Label();
@@ -108,17 +103,15 @@
             this.Button_ClearAllTargets = new System.Windows.Forms.Button();
             this.ProgressBar_ProcessObject = new System.Windows.Forms.ProgressBar();
             this.CheckedListBox_SelectedTargets = new System.Windows.Forms.CheckedListBox();
-            this.Label_Targets = new System.Windows.Forms.Label();
             this.Button_BrowseTargetList = new System.Windows.Forms.Button();
-            this.Label_SelectedTargetNumber = new System.Windows.Forms.Label();
-            this.GroupBox_TargetSelection = new System.Windows.Forms.GroupBox();
+            this.GroupBox_Target = new System.Windows.Forms.GroupBox();
             this.MenuStrip_MainForm = new System.Windows.Forms.MenuStrip();
             this.FileToolStripMenuItem_MainForm = new System.Windows.Forms.ToolStripMenuItem();
             this.GroupBox_AltitudeChart = new System.Windows.Forms.GroupBox();
             this.ProgressBar_MultiTargetProcessing = new System.Windows.Forms.ProgressBar();
-            this.GroupBox_LocalConditions.SuspendLayout();
-            this.GroupBox_SunMoon.SuspendLayout();
-            this.GroupBox_LocalLocation.SuspendLayout();
+            this.Button_VisibleTonight = new System.Windows.Forms.Button();
+            this.GroupBox_Local.SuspendLayout();
+            this.GroupBox_Location.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Horizon)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Duration)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeMinutes)).BeginInit();
@@ -128,8 +121,6 @@
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LongitudeSeconds)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeSeconds)).BeginInit();
             this.GroupBox_LocalDateTime.SuspendLayout();
-            this.GroupBox_LocalDateTimeControls.SuspendLayout();
-            this.GroupBox_TimeModeControls.SuspendLayout();
             this.GroupBox_CoordinateSelection.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_RaMinutes)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_RaHours)).BeginInit();
@@ -138,248 +129,54 @@
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_DecSeconds)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_DecDegrees)).BeginInit();
             this.GroupBox_Sequence.SuspendLayout();
-            this.GroupBox_TargetSelection.SuspendLayout();
+            this.GroupBox_Target.SuspendLayout();
             this.MenuStrip_MainForm.SuspendLayout();
             this.GroupBox_AltitudeChart.SuspendLayout();
             this.SuspendLayout();
             // 
-            // GroupBox_LocalConditions
+            // GroupBox_Local
             // 
-            this.GroupBox_LocalConditions.Controls.Add(this.GroupBox_SunMoon);
-            this.GroupBox_LocalConditions.Controls.Add(this.GroupBox_LocalLocation);
-            this.GroupBox_LocalConditions.Controls.Add(this.GroupBox_LocalDateTime);
-            this.GroupBox_LocalConditions.Location = new System.Drawing.Point(42, 30);
-            this.GroupBox_LocalConditions.Name = "GroupBox_LocalConditions";
-            this.GroupBox_LocalConditions.Size = new System.Drawing.Size(529, 430);
-            this.GroupBox_LocalConditions.TabIndex = 0;
-            this.GroupBox_LocalConditions.TabStop = false;
-            this.GroupBox_LocalConditions.Text = "Local Conditions";
+            this.GroupBox_Local.Controls.Add(this.GroupBox_Location);
+            this.GroupBox_Local.Controls.Add(this.GroupBox_LocalDateTime);
+            this.GroupBox_Local.Location = new System.Drawing.Point(42, 30);
+            this.GroupBox_Local.Name = "GroupBox_Local";
+            this.GroupBox_Local.Size = new System.Drawing.Size(529, 345);
+            this.GroupBox_Local.TabIndex = 0;
+            this.GroupBox_Local.TabStop = false;
+            this.GroupBox_Local.Text = "Local";
             // 
-            // GroupBox_SunMoon
+            // GroupBox_Location
             // 
-            this.GroupBox_SunMoon.Controls.Add(this.Label_Phase);
-            this.GroupBox_SunMoon.Controls.Add(this.Label_Percent);
-            this.GroupBox_SunMoon.Controls.Add(this.Label_LunarPhaseValue);
-            this.GroupBox_SunMoon.Controls.Add(this.Label_SunAltitudeValue);
-            this.GroupBox_SunMoon.Controls.Add(this.Label_SunAltitude);
-            this.GroupBox_SunMoon.Controls.Add(this.Label_MoonSetValue);
-            this.GroupBox_SunMoon.Controls.Add(this.Label_MoonSetTimeText);
-            this.GroupBox_SunMoon.Controls.Add(this.Label_MoonRiseValue);
-            this.GroupBox_SunMoon.Controls.Add(this.Label_MoonRise);
-            this.GroupBox_SunMoon.Controls.Add(this.Label_LunarIlluminationFractionValue);
-            this.GroupBox_SunMoon.Controls.Add(this.Label_LunarIlluminationFraction);
-            this.GroupBox_SunMoon.Controls.Add(this.Label_LunarAltitudeValue);
-            this.GroupBox_SunMoon.Controls.Add(this.Label_MoonAltitude);
-            this.GroupBox_SunMoon.Controls.Add(this.Label_AstronomicalDawn);
-            this.GroupBox_SunMoon.Controls.Add(this.Label_AstronomicalDusk);
-            this.GroupBox_SunMoon.Controls.Add(this.Label_AstronomicalDuskValue);
-            this.GroupBox_SunMoon.Controls.Add(this.Label_MoonPhaseName);
-            this.GroupBox_SunMoon.Controls.Add(this.Label_AstronomicalDawnValue);
-            this.GroupBox_SunMoon.Location = new System.Drawing.Point(28, 315);
-            this.GroupBox_SunMoon.Name = "GroupBox_SunMoon";
-            this.GroupBox_SunMoon.Size = new System.Drawing.Size(470, 100);
-            this.GroupBox_SunMoon.TabIndex = 31;
-            this.GroupBox_SunMoon.TabStop = false;
-            this.GroupBox_SunMoon.Text = "Sun and Moon";
-            // 
-            // Label_Phase
-            // 
-            this.Label_Phase.AutoSize = true;
-            this.Label_Phase.Location = new System.Drawing.Point(244, 69);
-            this.Label_Phase.Name = "Label_Phase";
-            this.Label_Phase.Size = new System.Drawing.Size(70, 13);
-            this.Label_Phase.TabIndex = 41;
-            this.Label_Phase.Text = "Lunar Phase:";
-            // 
-            // Label_Percent
-            // 
-            this.Label_Percent.AutoSize = true;
-            this.Label_Percent.Location = new System.Drawing.Point(175, 69);
-            this.Label_Percent.Name = "Label_Percent";
-            this.Label_Percent.Size = new System.Drawing.Size(15, 13);
-            this.Label_Percent.TabIndex = 40;
-            this.Label_Percent.Text = "%";
-            // 
-            // Label_LunarPhaseValue
-            // 
-            this.Label_LunarPhaseValue.AutoSize = true;
-            this.Label_LunarPhaseValue.Location = new System.Drawing.Point(311, 69);
-            this.Label_LunarPhaseValue.Name = "Label_LunarPhaseValue";
-            this.Label_LunarPhaseValue.Size = new System.Drawing.Size(14, 13);
-            this.Label_LunarPhaseValue.TabIndex = 39;
-            this.Label_LunarPhaseValue.Text = "V";
-            // 
-            // Label_SunAltitudeValue
-            // 
-            this.Label_SunAltitudeValue.AutoSize = true;
-            this.Label_SunAltitudeValue.Location = new System.Drawing.Point(424, 26);
-            this.Label_SunAltitudeValue.Name = "Label_SunAltitudeValue";
-            this.Label_SunAltitudeValue.Size = new System.Drawing.Size(14, 13);
-            this.Label_SunAltitudeValue.TabIndex = 38;
-            this.Label_SunAltitudeValue.Text = "V";
-            this.Label_SunAltitudeValue.TextAlign = System.Drawing.ContentAlignment.TopRight;
-            // 
-            // Label_SunAltitude
-            // 
-            this.Label_SunAltitude.AutoSize = true;
-            this.Label_SunAltitude.Location = new System.Drawing.Point(348, 26);
-            this.Label_SunAltitude.Name = "Label_SunAltitude";
-            this.Label_SunAltitude.Size = new System.Drawing.Size(67, 13);
-            this.Label_SunAltitude.TabIndex = 37;
-            this.Label_SunAltitude.Text = "Sun Altitude:";
-            // 
-            // Label_MoonSetValue
-            // 
-            this.Label_MoonSetValue.AutoSize = true;
-            this.Label_MoonSetValue.Location = new System.Drawing.Point(288, 46);
-            this.Label_MoonSetValue.Name = "Label_MoonSetValue";
-            this.Label_MoonSetValue.Size = new System.Drawing.Size(14, 13);
-            this.Label_MoonSetValue.TabIndex = 36;
-            this.Label_MoonSetValue.Text = "V";
-            // 
-            // Label_MoonSetTimeText
-            // 
-            this.Label_MoonSetTimeText.AutoSize = true;
-            this.Label_MoonSetTimeText.Location = new System.Drawing.Point(188, 46);
-            this.Label_MoonSetTimeText.Name = "Label_MoonSetTimeText";
-            this.Label_MoonSetTimeText.Size = new System.Drawing.Size(56, 13);
-            this.Label_MoonSetTimeText.TabIndex = 35;
-            this.Label_MoonSetTimeText.Text = "Moon Set:";
-            // 
-            // Label_MoonRiseValue
-            // 
-            this.Label_MoonRiseValue.AutoSize = true;
-            this.Label_MoonRiseValue.Location = new System.Drawing.Point(120, 46);
-            this.Label_MoonRiseValue.Name = "Label_MoonRiseValue";
-            this.Label_MoonRiseValue.Size = new System.Drawing.Size(14, 13);
-            this.Label_MoonRiseValue.TabIndex = 34;
-            this.Label_MoonRiseValue.Text = "V";
-            this.Label_MoonRiseValue.TextAlign = System.Drawing.ContentAlignment.TopRight;
-            // 
-            // Label_MoonRise
-            // 
-            this.Label_MoonRise.AutoSize = true;
-            this.Label_MoonRise.Location = new System.Drawing.Point(12, 46);
-            this.Label_MoonRise.Name = "Label_MoonRise";
-            this.Label_MoonRise.Size = new System.Drawing.Size(61, 13);
-            this.Label_MoonRise.TabIndex = 33;
-            this.Label_MoonRise.Text = "Moon Rise:";
-            // 
-            // Label_LunarIlluminationFractionValue
-            // 
-            this.Label_LunarIlluminationFractionValue.AutoSize = true;
-            this.Label_LunarIlluminationFractionValue.Location = new System.Drawing.Point(160, 69);
-            this.Label_LunarIlluminationFractionValue.Name = "Label_LunarIlluminationFractionValue";
-            this.Label_LunarIlluminationFractionValue.Size = new System.Drawing.Size(14, 13);
-            this.Label_LunarIlluminationFractionValue.TabIndex = 32;
-            this.Label_LunarIlluminationFractionValue.Text = "V";
-            this.Label_LunarIlluminationFractionValue.TextAlign = System.Drawing.ContentAlignment.TopRight;
-            // 
-            // Label_LunarIlluminationFraction
-            // 
-            this.Label_LunarIlluminationFraction.AutoSize = true;
-            this.Label_LunarIlluminationFraction.Location = new System.Drawing.Point(68, 69);
-            this.Label_LunarIlluminationFraction.Name = "Label_LunarIlluminationFraction";
-            this.Label_LunarIlluminationFraction.Size = new System.Drawing.Size(92, 13);
-            this.Label_LunarIlluminationFraction.TabIndex = 31;
-            this.Label_LunarIlluminationFraction.Text = "Lunar Illumination:";
-            // 
-            // Label_LunarAltitudeValue
-            // 
-            this.Label_LunarAltitudeValue.AutoSize = true;
-            this.Label_LunarAltitudeValue.Location = new System.Drawing.Point(427, 46);
-            this.Label_LunarAltitudeValue.Name = "Label_LunarAltitudeValue";
-            this.Label_LunarAltitudeValue.Size = new System.Drawing.Size(14, 13);
-            this.Label_LunarAltitudeValue.TabIndex = 30;
-            this.Label_LunarAltitudeValue.Text = "V";
-            this.Label_LunarAltitudeValue.TextAlign = System.Drawing.ContentAlignment.TopRight;
-            // 
-            // Label_MoonAltitude
-            // 
-            this.Label_MoonAltitude.AutoSize = true;
-            this.Label_MoonAltitude.Location = new System.Drawing.Point(348, 46);
-            this.Label_MoonAltitude.Name = "Label_MoonAltitude";
-            this.Label_MoonAltitude.Size = new System.Drawing.Size(75, 13);
-            this.Label_MoonAltitude.TabIndex = 29;
-            this.Label_MoonAltitude.Text = "Moon Altitude:";
-            // 
-            // Label_AstronomicalDawn
-            // 
-            this.Label_AstronomicalDawn.AutoSize = true;
-            this.Label_AstronomicalDawn.Location = new System.Drawing.Point(188, 26);
-            this.Label_AstronomicalDawn.Name = "Label_AstronomicalDawn";
-            this.Label_AstronomicalDawn.Size = new System.Drawing.Size(101, 13);
-            this.Label_AstronomicalDawn.TabIndex = 26;
-            this.Label_AstronomicalDawn.Text = "Astronomical Dawn:";
-            // 
-            // Label_AstronomicalDusk
-            // 
-            this.Label_AstronomicalDusk.AutoSize = true;
-            this.Label_AstronomicalDusk.Location = new System.Drawing.Point(12, 26);
-            this.Label_AstronomicalDusk.Name = "Label_AstronomicalDusk";
-            this.Label_AstronomicalDusk.Size = new System.Drawing.Size(98, 13);
-            this.Label_AstronomicalDusk.TabIndex = 24;
-            this.Label_AstronomicalDusk.Text = "Astronomical Dusk:";
-            // 
-            // Label_AstronomicalDuskValue
-            // 
-            this.Label_AstronomicalDuskValue.AutoSize = true;
-            this.Label_AstronomicalDuskValue.Location = new System.Drawing.Point(120, 26);
-            this.Label_AstronomicalDuskValue.Name = "Label_AstronomicalDuskValue";
-            this.Label_AstronomicalDuskValue.Size = new System.Drawing.Size(14, 13);
-            this.Label_AstronomicalDuskValue.TabIndex = 25;
-            this.Label_AstronomicalDuskValue.Text = "V";
-            this.Label_AstronomicalDuskValue.TextAlign = System.Drawing.ContentAlignment.TopRight;
-            // 
-            // Label_MoonPhaseName
-            // 
-            this.Label_MoonPhaseName.AutoSize = true;
-            this.Label_MoonPhaseName.Location = new System.Drawing.Point(330, 26);
-            this.Label_MoonPhaseName.Name = "Label_MoonPhaseName";
-            this.Label_MoonPhaseName.Size = new System.Drawing.Size(0, 13);
-            this.Label_MoonPhaseName.TabIndex = 28;
-            // 
-            // Label_AstronomicalDawnValue
-            // 
-            this.Label_AstronomicalDawnValue.AutoSize = true;
-            this.Label_AstronomicalDawnValue.Location = new System.Drawing.Point(288, 26);
-            this.Label_AstronomicalDawnValue.Name = "Label_AstronomicalDawnValue";
-            this.Label_AstronomicalDawnValue.Size = new System.Drawing.Size(14, 13);
-            this.Label_AstronomicalDawnValue.TabIndex = 27;
-            this.Label_AstronomicalDawnValue.Text = "V";
-            // 
-            // GroupBox_LocalLocation
-            // 
-            this.GroupBox_LocalLocation.Controls.Add(this.CheckBox_LocalNorth);
-            this.GroupBox_LocalLocation.Controls.Add(this.Label_Hours);
-            this.GroupBox_LocalLocation.Controls.Add(this.Label_MinDuration);
-            this.GroupBox_LocalLocation.Controls.Add(this.Label_Degrees);
-            this.GroupBox_LocalLocation.Controls.Add(this.NumericUpDown_Horizon);
-            this.GroupBox_LocalLocation.Controls.Add(this.Label_Location);
-            this.GroupBox_LocalLocation.Controls.Add(this.NumericUpDown_Duration);
-            this.GroupBox_LocalLocation.Controls.Add(this.ComboBox_Location);
-            this.GroupBox_LocalLocation.Controls.Add(this.NumericUpDown_LatitudeMinutes);
-            this.GroupBox_LocalLocation.Controls.Add(this.Label_LocalHorizon);
-            this.GroupBox_LocalLocation.Controls.Add(this.NumericUpDown_LatitudeDegrees);
-            this.GroupBox_LocalLocation.Controls.Add(this.Label_LocalLatitudeText);
-            this.GroupBox_LocalLocation.Controls.Add(this.Label_LocalLongitudeText);
-            this.GroupBox_LocalLocation.Controls.Add(this.NumericUpDown_LongitudeDegrees);
-            this.GroupBox_LocalLocation.Controls.Add(this.NumericUpDown_LongitudeMinutes);
-            this.GroupBox_LocalLocation.Controls.Add(this.Label_LocalLatDegreeColon);
-            this.GroupBox_LocalLocation.Controls.Add(this.CheckBox_LocalWest);
-            this.GroupBox_LocalLocation.Controls.Add(this.Label_LocalLonDegreeColon);
-            this.GroupBox_LocalLocation.Controls.Add(this.TextBox_Longitude);
-            this.GroupBox_LocalLocation.Controls.Add(this.Label_LocalLatMinuteColon);
-            this.GroupBox_LocalLocation.Controls.Add(this.TextBox_Latitude);
-            this.GroupBox_LocalLocation.Controls.Add(this.Label_LocalLonMinuteColon);
-            this.GroupBox_LocalLocation.Controls.Add(this.NumericUpDown_LongitudeSeconds);
-            this.GroupBox_LocalLocation.Controls.Add(this.NumericUpDown_LatitudeSeconds);
-            this.GroupBox_LocalLocation.Location = new System.Drawing.Point(28, 19);
-            this.GroupBox_LocalLocation.Name = "GroupBox_LocalLocation";
-            this.GroupBox_LocalLocation.Size = new System.Drawing.Size(470, 145);
-            this.GroupBox_LocalLocation.TabIndex = 30;
-            this.GroupBox_LocalLocation.TabStop = false;
-            this.GroupBox_LocalLocation.Text = "Local Location";
+            this.GroupBox_Location.Controls.Add(this.CheckBox_LocalNorth);
+            this.GroupBox_Location.Controls.Add(this.Label_Hours);
+            this.GroupBox_Location.Controls.Add(this.Label_MinDuration);
+            this.GroupBox_Location.Controls.Add(this.Label_Degrees);
+            this.GroupBox_Location.Controls.Add(this.NumericUpDown_Horizon);
+            this.GroupBox_Location.Controls.Add(this.Label_Location);
+            this.GroupBox_Location.Controls.Add(this.NumericUpDown_Duration);
+            this.GroupBox_Location.Controls.Add(this.ComboBox_Location);
+            this.GroupBox_Location.Controls.Add(this.NumericUpDown_LatitudeMinutes);
+            this.GroupBox_Location.Controls.Add(this.Label_LocalHorizon);
+            this.GroupBox_Location.Controls.Add(this.NumericUpDown_LatitudeDegrees);
+            this.GroupBox_Location.Controls.Add(this.Label_LocalLatitudeText);
+            this.GroupBox_Location.Controls.Add(this.Label_LocalLongitudeText);
+            this.GroupBox_Location.Controls.Add(this.NumericUpDown_LongitudeDegrees);
+            this.GroupBox_Location.Controls.Add(this.NumericUpDown_LongitudeMinutes);
+            this.GroupBox_Location.Controls.Add(this.Label_LocalLatDegreeColon);
+            this.GroupBox_Location.Controls.Add(this.CheckBox_LocalWest);
+            this.GroupBox_Location.Controls.Add(this.Label_LocalLonDegreeColon);
+            this.GroupBox_Location.Controls.Add(this.TextBox_Longitude);
+            this.GroupBox_Location.Controls.Add(this.Label_LocalLatMinuteColon);
+            this.GroupBox_Location.Controls.Add(this.TextBox_Latitude);
+            this.GroupBox_Location.Controls.Add(this.Label_LocalLonMinuteColon);
+            this.GroupBox_Location.Controls.Add(this.NumericUpDown_LongitudeSeconds);
+            this.GroupBox_Location.Controls.Add(this.NumericUpDown_LatitudeSeconds);
+            this.GroupBox_Location.Location = new System.Drawing.Point(28, 19);
+            this.GroupBox_Location.Name = "GroupBox_Location";
+            this.GroupBox_Location.Size = new System.Drawing.Size(470, 145);
+            this.GroupBox_Location.TabIndex = 30;
+            this.GroupBox_Location.TabStop = false;
+            this.GroupBox_Location.Text = "Location";
             // 
             // CheckBox_LocalNorth
             // 
@@ -705,62 +502,209 @@
             // 
             // GroupBox_LocalDateTime
             // 
-            this.GroupBox_LocalDateTime.Controls.Add(this.GroupBox_LocalDateTimeControls);
-            this.GroupBox_LocalDateTime.Controls.Add(this.GroupBox_TimeModeControls);
-            this.GroupBox_LocalDateTime.Location = new System.Drawing.Point(28, 170);
+            this.GroupBox_LocalDateTime.Controls.Add(this.Label_Phase);
+            this.GroupBox_LocalDateTime.Controls.Add(this.TimePicker);
+            this.GroupBox_LocalDateTime.Controls.Add(this.DatePicker);
+            this.GroupBox_LocalDateTime.Controls.Add(this.Label_LunarPhaseValue);
+            this.GroupBox_LocalDateTime.Controls.Add(this.Button_Now);
+            this.GroupBox_LocalDateTime.Controls.Add(this.Label_SunAltitudeValue);
+            this.GroupBox_LocalDateTime.Controls.Add(this.Label_AstronomicalDusk);
+            this.GroupBox_LocalDateTime.Controls.Add(this.Label_SunAltitude);
+            this.GroupBox_LocalDateTime.Controls.Add(this.Label_AstronomicalDawnValue);
+            this.GroupBox_LocalDateTime.Controls.Add(this.Label_MoonSetValue);
+            this.GroupBox_LocalDateTime.Controls.Add(this.Label_AstronomicalDuskValue);
+            this.GroupBox_LocalDateTime.Controls.Add(this.Label_MoonSetTimeText);
+            this.GroupBox_LocalDateTime.Controls.Add(this.Label_AstronomicalDawn);
+            this.GroupBox_LocalDateTime.Controls.Add(this.Label_MoonRiseValue);
+            this.GroupBox_LocalDateTime.Controls.Add(this.Label_MoonAltitude);
+            this.GroupBox_LocalDateTime.Controls.Add(this.Label_MoonRise);
+            this.GroupBox_LocalDateTime.Controls.Add(this.Label_LunarAltitudeValue);
+            this.GroupBox_LocalDateTime.Controls.Add(this.Label_LunarIlluminationFractionValue);
+            this.GroupBox_LocalDateTime.Controls.Add(this.Label_LunarIlluminationFraction);
+            this.GroupBox_LocalDateTime.Location = new System.Drawing.Point(28, 174);
             this.GroupBox_LocalDateTime.Name = "GroupBox_LocalDateTime";
-            this.GroupBox_LocalDateTime.Size = new System.Drawing.Size(469, 129);
+            this.GroupBox_LocalDateTime.Size = new System.Drawing.Size(469, 151);
             this.GroupBox_LocalDateTime.TabIndex = 29;
             this.GroupBox_LocalDateTime.TabStop = false;
-            this.GroupBox_LocalDateTime.Text = "Local Date and Time";
+            this.GroupBox_LocalDateTime.Text = "Date and Time";
             // 
-            // GroupBox_LocalDateTimeControls
+            // Label_Phase
             // 
-            this.GroupBox_LocalDateTimeControls.Controls.Add(this.DatePicker);
-            this.GroupBox_LocalDateTimeControls.Controls.Add(this.TimePicker);
-            this.GroupBox_LocalDateTimeControls.Location = new System.Drawing.Point(58, 66);
-            this.GroupBox_LocalDateTimeControls.Name = "GroupBox_LocalDateTimeControls";
-            this.GroupBox_LocalDateTimeControls.Size = new System.Drawing.Size(347, 51);
-            this.GroupBox_LocalDateTimeControls.TabIndex = 18;
-            this.GroupBox_LocalDateTimeControls.TabStop = false;
-            this.GroupBox_LocalDateTimeControls.Text = "Date and Time";
-            // 
-            // DatePicker
-            // 
-            this.DatePicker.Location = new System.Drawing.Point(20, 21);
-            this.DatePicker.Name = "DatePicker";
-            this.DatePicker.Size = new System.Drawing.Size(209, 20);
-            this.DatePicker.TabIndex = 0;
-            this.DatePicker.ValueChanged += new System.EventHandler(this.DatePicker_ValueChanged);
+            this.Label_Phase.AutoSize = true;
+            this.Label_Phase.Location = new System.Drawing.Point(252, 112);
+            this.Label_Phase.Name = "Label_Phase";
+            this.Label_Phase.Size = new System.Drawing.Size(70, 13);
+            this.Label_Phase.TabIndex = 41;
+            this.Label_Phase.Text = "Lunar Phase:";
             // 
             // TimePicker
             // 
             this.TimePicker.CustomFormat = "";
-            this.TimePicker.Location = new System.Drawing.Point(245, 21);
+            this.TimePicker.Location = new System.Drawing.Point(346, 27);
             this.TimePicker.Name = "TimePicker";
             this.TimePicker.Size = new System.Drawing.Size(83, 20);
             this.TimePicker.TabIndex = 1;
             this.TimePicker.ValueChanged += new System.EventHandler(this.TimePicker_ValueChanged);
             // 
-            // GroupBox_TimeModeControls
+            // DatePicker
             // 
-            this.GroupBox_TimeModeControls.Controls.Add(this.Button_Now);
-            this.GroupBox_TimeModeControls.Location = new System.Drawing.Point(105, 19);
-            this.GroupBox_TimeModeControls.Name = "GroupBox_TimeModeControls";
-            this.GroupBox_TimeModeControls.Size = new System.Drawing.Size(253, 41);
-            this.GroupBox_TimeModeControls.TabIndex = 17;
-            this.GroupBox_TimeModeControls.TabStop = false;
-            this.GroupBox_TimeModeControls.Text = "Time Mode";
+            this.DatePicker.Location = new System.Drawing.Point(131, 27);
+            this.DatePicker.Name = "DatePicker";
+            this.DatePicker.Size = new System.Drawing.Size(209, 20);
+            this.DatePicker.TabIndex = 0;
+            this.DatePicker.ValueChanged += new System.EventHandler(this.DatePicker_ValueChanged);
+            // 
+            // Label_LunarPhaseValue
+            // 
+            this.Label_LunarPhaseValue.AutoSize = true;
+            this.Label_LunarPhaseValue.Location = new System.Drawing.Point(319, 112);
+            this.Label_LunarPhaseValue.Name = "Label_LunarPhaseValue";
+            this.Label_LunarPhaseValue.Size = new System.Drawing.Size(14, 13);
+            this.Label_LunarPhaseValue.TabIndex = 39;
+            this.Label_LunarPhaseValue.Text = "V";
             // 
             // Button_Now
-            //
-            this.Button_Now.Location = new System.Drawing.Point(18, 16);
+            // 
+            this.Button_Now.Location = new System.Drawing.Point(43, 26);
             this.Button_Now.Name = "Button_Now";
             this.Button_Now.Size = new System.Drawing.Size(66, 23);
             this.Button_Now.TabIndex = 0;
             this.Button_Now.Text = "Now";
             this.Button_Now.UseVisualStyleBackColor = true;
             this.Button_Now.Click += new System.EventHandler(this.Button_Now_Click);
+            // 
+            // Label_SunAltitudeValue
+            // 
+            this.Label_SunAltitudeValue.AutoSize = true;
+            this.Label_SunAltitudeValue.Location = new System.Drawing.Point(427, 69);
+            this.Label_SunAltitudeValue.Name = "Label_SunAltitudeValue";
+            this.Label_SunAltitudeValue.Size = new System.Drawing.Size(14, 13);
+            this.Label_SunAltitudeValue.TabIndex = 38;
+            this.Label_SunAltitudeValue.Text = "V";
+            this.Label_SunAltitudeValue.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            // 
+            // Label_AstronomicalDusk
+            // 
+            this.Label_AstronomicalDusk.AutoSize = true;
+            this.Label_AstronomicalDusk.Location = new System.Drawing.Point(23, 69);
+            this.Label_AstronomicalDusk.Name = "Label_AstronomicalDusk";
+            this.Label_AstronomicalDusk.Size = new System.Drawing.Size(98, 13);
+            this.Label_AstronomicalDusk.TabIndex = 24;
+            this.Label_AstronomicalDusk.Text = "Astronomical Dusk:";
+            // 
+            // Label_SunAltitude
+            // 
+            this.Label_SunAltitude.AutoSize = true;
+            this.Label_SunAltitude.Location = new System.Drawing.Point(350, 69);
+            this.Label_SunAltitude.Name = "Label_SunAltitude";
+            this.Label_SunAltitude.Size = new System.Drawing.Size(67, 13);
+            this.Label_SunAltitude.TabIndex = 37;
+            this.Label_SunAltitude.Text = "Sun Altitude:";
+            // 
+            // Label_AstronomicalDawnValue
+            // 
+            this.Label_AstronomicalDawnValue.AutoSize = true;
+            this.Label_AstronomicalDawnValue.Location = new System.Drawing.Point(293, 69);
+            this.Label_AstronomicalDawnValue.Name = "Label_AstronomicalDawnValue";
+            this.Label_AstronomicalDawnValue.Size = new System.Drawing.Size(14, 13);
+            this.Label_AstronomicalDawnValue.TabIndex = 27;
+            this.Label_AstronomicalDawnValue.Text = "V";
+            this.Label_AstronomicalDawnValue.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            // 
+            // Label_MoonSetValue
+            // 
+            this.Label_MoonSetValue.AutoSize = true;
+            this.Label_MoonSetValue.Location = new System.Drawing.Point(293, 89);
+            this.Label_MoonSetValue.Name = "Label_MoonSetValue";
+            this.Label_MoonSetValue.Size = new System.Drawing.Size(14, 13);
+            this.Label_MoonSetValue.TabIndex = 36;
+            this.Label_MoonSetValue.Text = "V";
+            this.Label_MoonSetValue.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            // 
+            // Label_AstronomicalDuskValue
+            // 
+            this.Label_AstronomicalDuskValue.AutoSize = true;
+            this.Label_AstronomicalDuskValue.Location = new System.Drawing.Point(124, 69);
+            this.Label_AstronomicalDuskValue.Name = "Label_AstronomicalDuskValue";
+            this.Label_AstronomicalDuskValue.Size = new System.Drawing.Size(14, 13);
+            this.Label_AstronomicalDuskValue.TabIndex = 25;
+            this.Label_AstronomicalDuskValue.Text = "V";
+            this.Label_AstronomicalDuskValue.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            // 
+            // Label_MoonSetTimeText
+            // 
+            this.Label_MoonSetTimeText.AutoSize = true;
+            this.Label_MoonSetTimeText.Location = new System.Drawing.Point(188, 89);
+            this.Label_MoonSetTimeText.Name = "Label_MoonSetTimeText";
+            this.Label_MoonSetTimeText.Size = new System.Drawing.Size(56, 13);
+            this.Label_MoonSetTimeText.TabIndex = 35;
+            this.Label_MoonSetTimeText.Text = "Moon Set:";
+            // 
+            // Label_AstronomicalDawn
+            // 
+            this.Label_AstronomicalDawn.AutoSize = true;
+            this.Label_AstronomicalDawn.Location = new System.Drawing.Point(188, 69);
+            this.Label_AstronomicalDawn.Name = "Label_AstronomicalDawn";
+            this.Label_AstronomicalDawn.Size = new System.Drawing.Size(101, 13);
+            this.Label_AstronomicalDawn.TabIndex = 26;
+            this.Label_AstronomicalDawn.Text = "Astronomical Dawn:";
+            // 
+            // Label_MoonRiseValue
+            // 
+            this.Label_MoonRiseValue.AutoSize = true;
+            this.Label_MoonRiseValue.Location = new System.Drawing.Point(124, 89);
+            this.Label_MoonRiseValue.Name = "Label_MoonRiseValue";
+            this.Label_MoonRiseValue.Size = new System.Drawing.Size(14, 13);
+            this.Label_MoonRiseValue.TabIndex = 34;
+            this.Label_MoonRiseValue.Text = "V";
+            this.Label_MoonRiseValue.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            // 
+            // Label_MoonAltitude
+            // 
+            this.Label_MoonAltitude.AutoSize = true;
+            this.Label_MoonAltitude.Location = new System.Drawing.Point(350, 89);
+            this.Label_MoonAltitude.Name = "Label_MoonAltitude";
+            this.Label_MoonAltitude.Size = new System.Drawing.Size(75, 13);
+            this.Label_MoonAltitude.TabIndex = 29;
+            this.Label_MoonAltitude.Text = "Moon Altitude:";
+            // 
+            // Label_MoonRise
+            // 
+            this.Label_MoonRise.AutoSize = true;
+            this.Label_MoonRise.Location = new System.Drawing.Point(23, 89);
+            this.Label_MoonRise.Name = "Label_MoonRise";
+            this.Label_MoonRise.Size = new System.Drawing.Size(61, 13);
+            this.Label_MoonRise.TabIndex = 33;
+            this.Label_MoonRise.Text = "Moon Rise:";
+            // 
+            // Label_LunarAltitudeValue
+            // 
+            this.Label_LunarAltitudeValue.AutoSize = true;
+            this.Label_LunarAltitudeValue.Location = new System.Drawing.Point(427, 89);
+            this.Label_LunarAltitudeValue.Name = "Label_LunarAltitudeValue";
+            this.Label_LunarAltitudeValue.Size = new System.Drawing.Size(14, 13);
+            this.Label_LunarAltitudeValue.TabIndex = 30;
+            this.Label_LunarAltitudeValue.Text = "V";
+            this.Label_LunarAltitudeValue.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            // 
+            // Label_LunarIlluminationFractionValue
+            // 
+            this.Label_LunarIlluminationFractionValue.AutoSize = true;
+            this.Label_LunarIlluminationFractionValue.Location = new System.Drawing.Point(168, 112);
+            this.Label_LunarIlluminationFractionValue.Name = "Label_LunarIlluminationFractionValue";
+            this.Label_LunarIlluminationFractionValue.Size = new System.Drawing.Size(14, 13);
+            this.Label_LunarIlluminationFractionValue.TabIndex = 32;
+            this.Label_LunarIlluminationFractionValue.Text = "V";
+            this.Label_LunarIlluminationFractionValue.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // Label_LunarIlluminationFraction
+            // 
+            this.Label_LunarIlluminationFraction.AutoSize = true;
+            this.Label_LunarIlluminationFraction.Location = new System.Drawing.Point(76, 112);
+            this.Label_LunarIlluminationFraction.Name = "Label_LunarIlluminationFraction";
+            this.Label_LunarIlluminationFraction.Size = new System.Drawing.Size(92, 13);
+            this.Label_LunarIlluminationFraction.TabIndex = 31;
+            this.Label_LunarIlluminationFraction.Text = "Lunar Illumination:";
             // 
             // GroupBox_CoordinateSelection
             // 
@@ -1076,14 +1020,13 @@
             // 
             // GroupBox_Sequence
             // 
+            this.GroupBox_Sequence.Controls.Add(this.Button_VisibleTonight);
             this.GroupBox_Sequence.Controls.Add(this.Button_GraphAllTargets);
             this.GroupBox_Sequence.Controls.Add(this.Button_SelectAllTargets);
             this.GroupBox_Sequence.Controls.Add(this.Button_ClearAllTargets);
             this.GroupBox_Sequence.Controls.Add(this.ProgressBar_ProcessObject);
             this.GroupBox_Sequence.Controls.Add(this.CheckedListBox_SelectedTargets);
-            this.GroupBox_Sequence.Controls.Add(this.Label_Targets);
             this.GroupBox_Sequence.Controls.Add(this.Button_BrowseTargetList);
-            this.GroupBox_Sequence.Controls.Add(this.Label_SelectedTargetNumber);
             this.GroupBox_Sequence.Location = new System.Drawing.Point(33, 170);
             this.GroupBox_Sequence.Name = "GroupBox_Sequence";
             this.GroupBox_Sequence.Size = new System.Drawing.Size(472, 241);
@@ -1091,12 +1034,22 @@
             this.GroupBox_Sequence.TabStop = false;
             this.GroupBox_Sequence.Text = "Target Selection";
             // 
+            // Button_GraphAllTargets
+            // 
+            this.Button_GraphAllTargets.Location = new System.Drawing.Point(90, 20);
+            this.Button_GraphAllTargets.Name = "Button_GraphAllTargets";
+            this.Button_GraphAllTargets.Size = new System.Drawing.Size(66, 23);
+            this.Button_GraphAllTargets.TabIndex = 1;
+            this.Button_GraphAllTargets.Text = "Graph";
+            this.Button_GraphAllTargets.UseVisualStyleBackColor = true;
+            this.Button_GraphAllTargets.Click += new System.EventHandler(this.Button_GraphAllTargets_Click);
+            // 
             // Button_SelectAllTargets
             // 
-            this.Button_SelectAllTargets.Font = new System.Drawing.Font("Microsoft Sans Serif", 6F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.Button_SelectAllTargets.Location = new System.Drawing.Point(388, 22);
+            this.Button_SelectAllTargets.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
+            this.Button_SelectAllTargets.Location = new System.Drawing.Point(318, 20);
             this.Button_SelectAllTargets.Name = "Button_SelectAllTargets";
-            this.Button_SelectAllTargets.Size = new System.Drawing.Size(64, 18);
+            this.Button_SelectAllTargets.Size = new System.Drawing.Size(64, 23);
             this.Button_SelectAllTargets.TabIndex = 9;
             this.Button_SelectAllTargets.Text = "Select All";
             this.Button_SelectAllTargets.UseVisualStyleBackColor = true;
@@ -1104,10 +1057,10 @@
             // 
             // Button_ClearAllTargets
             // 
-            this.Button_ClearAllTargets.Font = new System.Drawing.Font("Microsoft Sans Serif", 6F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.Button_ClearAllTargets.Location = new System.Drawing.Point(318, 22);
+            this.Button_ClearAllTargets.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
+            this.Button_ClearAllTargets.Location = new System.Drawing.Point(388, 20);
             this.Button_ClearAllTargets.Name = "Button_ClearAllTargets";
-            this.Button_ClearAllTargets.Size = new System.Drawing.Size(64, 18);
+            this.Button_ClearAllTargets.Size = new System.Drawing.Size(64, 23);
             this.Button_ClearAllTargets.TabIndex = 8;
             this.Button_ClearAllTargets.Text = "Clear All";
             this.Button_ClearAllTargets.UseVisualStyleBackColor = true;
@@ -1128,21 +1081,11 @@
             this.CheckedListBox_SelectedTargets.Name = "CheckedListBox_SelectedTargets";
             this.CheckedListBox_SelectedTargets.ScrollAlwaysVisible = true;
             this.CheckedListBox_SelectedTargets.Size = new System.Drawing.Size(434, 154);
-            this.CheckedListBox_SelectedTargets.Sorted = true;
             this.CheckedListBox_SelectedTargets.TabIndex = 4;
             this.CheckedListBox_SelectedTargets.ThreeDCheckBoxes = true;
-            this.CheckedListBox_SelectedTargets.ItemCheck += new System.Windows.Forms.ItemCheckEventHandler(this.CheckedListBox_SelectedTargets_ItemCheck);
+            this.CheckedListBox_SelectedTargets.MouseDoubleClick += new System.Windows.Forms.MouseEventHandler(this.CheckedListBox_SelectedTargets_MouseDoubleClick);
             this.CheckedListBox_SelectedTargets.MouseMove += new System.Windows.Forms.MouseEventHandler(this.ShowCheckBoxObjectToolTip);
             // 
-            // Label_Targets
-            // 
-            this.Label_Targets.AutoSize = true;
-            this.Label_Targets.Location = new System.Drawing.Point(170, 25);
-            this.Label_Targets.Name = "Label_Targets";
-            this.Label_Targets.Size = new System.Drawing.Size(91, 13);
-            this.Label_Targets.TabIndex = 3;
-            this.Label_Targets.Text = "Selected Targets:";
-            //
             // Button_BrowseTargetList
             // 
             this.Button_BrowseTargetList.Location = new System.Drawing.Point(18, 20);
@@ -1152,36 +1095,17 @@
             this.Button_BrowseTargetList.Text = "Browse";
             this.Button_BrowseTargetList.UseVisualStyleBackColor = true;
             this.Button_BrowseTargetList.Click += new System.EventHandler(this.Button_BrowseTargetList_Click);
-            //
-            // Button_GraphAllTargets
-            //
-            this.Button_GraphAllTargets.Location = new System.Drawing.Point(95, 20);
-            this.Button_GraphAllTargets.Name = "Button_GraphAllTargets";
-            this.Button_GraphAllTargets.Size = new System.Drawing.Size(66, 23);
-            this.Button_GraphAllTargets.TabIndex = 1;
-            this.Button_GraphAllTargets.Text = "Graph";
-            this.Button_GraphAllTargets.UseVisualStyleBackColor = true;
-            this.Button_GraphAllTargets.Click += new System.EventHandler(this.Button_GraphAllTargets_Click);
             // 
-            // Label_SelectedTargetNumber
+            // GroupBox_Target
             // 
-            this.Label_SelectedTargetNumber.AutoSize = true;
-            this.Label_SelectedTargetNumber.Location = new System.Drawing.Point(259, 26);
-            this.Label_SelectedTargetNumber.Name = "Label_SelectedTargetNumber";
-            this.Label_SelectedTargetNumber.Size = new System.Drawing.Size(35, 13);
-            this.Label_SelectedTargetNumber.TabIndex = 6;
-            this.Label_SelectedTargetNumber.Text = "LSTN";
-            // 
-            // GroupBox_TargetSelection
-            // 
-            this.GroupBox_TargetSelection.Controls.Add(this.GroupBox_CoordinateSelection);
-            this.GroupBox_TargetSelection.Controls.Add(this.GroupBox_Sequence);
-            this.GroupBox_TargetSelection.Location = new System.Drawing.Point(614, 30);
-            this.GroupBox_TargetSelection.Name = "GroupBox_TargetSelection";
-            this.GroupBox_TargetSelection.Size = new System.Drawing.Size(529, 430);
-            this.GroupBox_TargetSelection.TabIndex = 3;
-            this.GroupBox_TargetSelection.TabStop = false;
-            this.GroupBox_TargetSelection.Text = "Target Selection";
+            this.GroupBox_Target.Controls.Add(this.GroupBox_CoordinateSelection);
+            this.GroupBox_Target.Controls.Add(this.GroupBox_Sequence);
+            this.GroupBox_Target.Location = new System.Drawing.Point(614, 30);
+            this.GroupBox_Target.Name = "GroupBox_Target";
+            this.GroupBox_Target.Size = new System.Drawing.Size(529, 430);
+            this.GroupBox_Target.TabIndex = 3;
+            this.GroupBox_Target.TabStop = false;
+            this.GroupBox_Target.Text = "Target";
             // 
             // MenuStrip_MainForm
             // 
@@ -1219,14 +1143,24 @@
             this.ProgressBar_MultiTargetProcessing.Size = new System.Drawing.Size(948, 17);
             this.ProgressBar_MultiTargetProcessing.TabIndex = 40;
             // 
+            // Button_VisibleTonight
+            // 
+            this.Button_VisibleTonight.Location = new System.Drawing.Point(212, 20);
+            this.Button_VisibleTonight.Name = "Button_VisibleTonight";
+            this.Button_VisibleTonight.Size = new System.Drawing.Size(100, 23);
+            this.Button_VisibleTonight.TabIndex = 7;
+            this.Button_VisibleTonight.Text = "Visible Tonight";
+            this.Button_VisibleTonight.UseVisualStyleBackColor = true;
+            this.Button_VisibleTonight.Click += new System.EventHandler(this.Button_VisibleTonight_Click);
+            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(1182, 878);
             this.Controls.Add(this.GroupBox_AltitudeChart);
-            this.Controls.Add(this.GroupBox_TargetSelection);
-            this.Controls.Add(this.GroupBox_LocalConditions);
+            this.Controls.Add(this.GroupBox_Target);
+            this.Controls.Add(this.GroupBox_Local);
             this.Controls.Add(this.MenuStrip_MainForm);
             this.MainMenuStrip = this.MenuStrip_MainForm;
             this.MaximizeBox = false;
@@ -1234,11 +1168,9 @@
             this.Text = "TargetPlanner";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.MainForm_FormClosing);
             this.Load += new System.EventHandler(this.MainForm_Load);
-            this.GroupBox_LocalConditions.ResumeLayout(false);
-            this.GroupBox_SunMoon.ResumeLayout(false);
-            this.GroupBox_SunMoon.PerformLayout();
-            this.GroupBox_LocalLocation.ResumeLayout(false);
-            this.GroupBox_LocalLocation.PerformLayout();
+            this.GroupBox_Local.ResumeLayout(false);
+            this.GroupBox_Location.ResumeLayout(false);
+            this.GroupBox_Location.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Horizon)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Duration)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeMinutes)).EndInit();
@@ -1248,9 +1180,7 @@
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LongitudeSeconds)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeSeconds)).EndInit();
             this.GroupBox_LocalDateTime.ResumeLayout(false);
-            this.GroupBox_LocalDateTimeControls.ResumeLayout(false);
-            this.GroupBox_TimeModeControls.ResumeLayout(false);
-            this.GroupBox_TimeModeControls.PerformLayout();
+            this.GroupBox_LocalDateTime.PerformLayout();
             this.GroupBox_CoordinateSelection.ResumeLayout(false);
             this.GroupBox_CoordinateSelection.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_RaMinutes)).EndInit();
@@ -1260,8 +1190,7 @@
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_DecSeconds)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_DecDegrees)).EndInit();
             this.GroupBox_Sequence.ResumeLayout(false);
-            this.GroupBox_Sequence.PerformLayout();
-            this.GroupBox_TargetSelection.ResumeLayout(false);
+            this.GroupBox_Target.ResumeLayout(false);
             this.MenuStrip_MainForm.ResumeLayout(false);
             this.MenuStrip_MainForm.PerformLayout();
             this.GroupBox_AltitudeChart.ResumeLayout(false);
@@ -1273,7 +1202,7 @@
 
         #endregion
 
-        private System.Windows.Forms.GroupBox GroupBox_LocalConditions;
+        private System.Windows.Forms.GroupBox GroupBox_Local;
         private System.Windows.Forms.DateTimePicker TimePicker;
         private System.Windows.Forms.DateTimePicker DatePicker;
         private System.Windows.Forms.GroupBox GroupBox_CoordinateSelection;
@@ -1310,9 +1239,7 @@
         private System.Windows.Forms.Label Label_AstronomicalDawn;
         private System.Windows.Forms.Label Label_AstronomicalDuskValue;
         private System.Windows.Forms.Label Label_AstronomicalDusk;
-        private System.Windows.Forms.Label Label_MoonPhaseName;
-        private System.Windows.Forms.GroupBox GroupBox_SunMoon;
-        private System.Windows.Forms.GroupBox GroupBox_LocalLocation;
+        private System.Windows.Forms.GroupBox GroupBox_Location;
         private System.Windows.Forms.GroupBox GroupBox_LocalDateTime;
         private System.Windows.Forms.Label Label_LunarAltitudeValue;
         private System.Windows.Forms.Label Label_MoonAltitude;
@@ -1322,8 +1249,6 @@
         private System.Windows.Forms.Label Label_MoonSetTimeText;
         private System.Windows.Forms.Label Label_MoonRiseValue;
         private System.Windows.Forms.Label Label_MoonRise;
-        private System.Windows.Forms.GroupBox GroupBox_TimeModeControls;
-        private System.Windows.Forms.GroupBox GroupBox_LocalDateTimeControls;
         private System.Windows.Forms.Button Button_Now;
         private System.Windows.Forms.Label Label_SunAltitudeValue;
         private System.Windows.Forms.Label Label_SunAltitude;
@@ -1332,9 +1257,7 @@
         private System.Windows.Forms.ComboBox ComboBox_Location;
         private System.Windows.Forms.GroupBox GroupBox_Sequence;
         private System.Windows.Forms.Button Button_BrowseTargetList;
-        private System.Windows.Forms.Label Label_Targets;
         private System.Windows.Forms.CheckedListBox CheckedListBox_SelectedTargets;
-        private System.Windows.Forms.Label Label_SelectedTargetNumber;
         private System.Windows.Forms.Button Button_ClearTarget;
         private System.Windows.Forms.Label Label_MinDuration;
         private System.Windows.Forms.Label Label_Degrees;
@@ -1348,12 +1271,11 @@
         private System.Windows.Forms.RadioButton RadioButton_Optimal;
         private System.Windows.Forms.RadioButton RadioButton_Year;
         private System.Windows.Forms.RadioButton RadioButton_Day;
-        private System.Windows.Forms.GroupBox GroupBox_TargetSelection;
+        private System.Windows.Forms.GroupBox GroupBox_Target;
         private System.Windows.Forms.MenuStrip MenuStrip_MainForm;
         private System.Windows.Forms.ToolStripMenuItem FileToolStripMenuItem_MainForm;
         private System.Windows.Forms.GroupBox GroupBox_AltitudeChart;
         private System.Windows.Forms.Label Label_TargetName;
-        private System.Windows.Forms.Label Label_Percent;
         private System.Windows.Forms.Label Label_Phase;
         private System.Windows.Forms.ComboBox ComboBox_SelectTarget;
         private System.Windows.Forms.Button Button_SelectAllTargets;
@@ -1361,6 +1283,7 @@
         private System.Windows.Forms.Button Button_ClearAllTargets;
         private System.Windows.Forms.ProgressBar ProgressBar_MultiTargetProcessing;
         private System.Windows.Forms.ProgressBar ProgressBar_ProcessObject;
+        private System.Windows.Forms.Button Button_VisibleTonight;
     }
 }
 

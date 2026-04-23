@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 using TargetPlanner.Settings;
 using TargetPlanner.Support;
@@ -71,8 +72,6 @@ namespace TargetPlanner
             mTargetList = new List<Target>();
 
             mUIState = new UIState();
-
-            Label_SelectedTargetNumber.Text = "None";
 
             UpdateUI();
             UpdateLocalDateTimeEvents();
@@ -168,7 +167,7 @@ namespace TargetPlanner
             mAltitudeChart.ChartTitle = FormatChartTitle("Day");
             mAltitudeChart.UIState(mUIState);
             mAltitudeChart.AddLegend();
-            mAltitudeChart.UpdateNowLine(DateTime.Now);
+            mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
 
 
             mAltitudeChart.Legend = true;
@@ -201,9 +200,9 @@ namespace TargetPlanner
 
             Label_AstronomicalDuskValue.Text = Astrometry.AstronomicalDusk.ToShortTimeString();
             Label_AstronomicalDawnValue.Text = Astrometry.AstronomicalDawn.ToShortTimeString();
-            Label_SunAltitudeValue.Text = Astrometry.SunAltitude.ToString("F1");
-            Label_LunarAltitudeValue.Text = Astrometry.LunarAltitude.ToString("F1");
-            Label_LunarIlluminationFractionValue.Text = (Astrometry.LunarIlluminationFraction * 100).ToString("F0");
+            Label_SunAltitudeValue.Text = Astrometry.SunAltitude.ToString("F0") + "\u00B0";
+            Label_LunarAltitudeValue.Text = Astrometry.LunarAltitude.ToString("F0") + "\u00B0";
+            Label_LunarIlluminationFractionValue.Text = (Astrometry.LunarIlluminationFraction * 100).ToString("F0") + "%";
             Label_LunarPhaseValue.Text = Astrometry.LunarPhase;
             Label_MoonRiseValue.Text = Astrometry.LunarRise.ToShortTimeString();
             Label_MoonSetValue.Text = Astrometry.LunarSet.ToShortTimeString();
@@ -272,12 +271,14 @@ namespace TargetPlanner
         {
             mLocalDateTime = (DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZoneInfo.Local);
             UpdateLocalDateTimeEvents();
+            if (mAltitudeChart != null) mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
         }
 
         private void TimePicker_ValueChanged(object sender, EventArgs e)
         {
             mLocalDateTime = (DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZoneInfo.Local);
             UpdateLocalDateTimeEvents();
+            if (mAltitudeChart != null) mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
         }
 
         private void Button_GraphTarget_Click(object sender, EventArgs e)
@@ -310,7 +311,7 @@ namespace TargetPlanner
             RadioButton_Day.Checked = true;
             mAltitudeChart.ShowChartAreaSeries("Day");
             mAltitudeChart.ChartTitle = FormatChartTitle("Day");
-            mAltitudeChart.UpdateNowLine(DateTime.Now);
+            mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
         }
 
         // Graph every checked target from CheckedListBox_SelectedTargets on the embedded
@@ -343,7 +344,7 @@ namespace TargetPlanner
             RadioButton_Day.Checked = true;
             mAltitudeChart.ShowChartAreaSeries("Day");
             mAltitudeChart.ChartTitle = FormatChartTitle("Day");
-            mAltitudeChart.UpdateNowLine(DateTime.Now);
+            mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
         }
 
         // Snap the observation moment back to the current wall-clock time. Replaces the
@@ -543,18 +544,52 @@ namespace TargetPlanner
                 ProgressBar_ProcessObject.Value = 0;
             }
 
-            foreach (Target t in mTargetList)
+            // Designer property Sorted=false; we feed pre-sorted names so catalogue numbers
+            // (M2 vs M10) order numerically instead of lexically.
+            foreach (Target t in mTargetList.OrderBy(x => x.Name, NaturalStringComparer.OrdinalIgnoreCase))
             {
                 CheckedListBox_SelectedTargets.Items.Add(t.Name, true);
             }
-
-            Label_SelectedTargetNumber.Text = CheckedListBox_SelectedTargets.CheckedItems.Count.ToString();
 
             if (mTargetList.Count == 0) return;
 
             foreach (Target t in mTargetList)
             {
                 ComboBox_SelectTarget.Items.Add(t.Name);
+            }
+        }
+
+        // Double-click a target row to open its source NINA .json (Target.Directory is the
+        // full file path, populated by TargetLoader). Uses ShellExecute via Process.Start so
+        // whatever the user has registered for .json (Notepad, VS Code, etc.) handles it.
+        private void CheckedListBox_SelectedTargets_MouseDoubleClick(object sender, MouseEventArgs e)
+        {
+            int index = CheckedListBox_SelectedTargets.IndexFromPoint(e.Location);
+            if (index < 0) return;
+
+            string name = CheckedListBox_SelectedTargets.Items[index].ToString();
+            Target found = mTargetList.Find(x => x.Name == name);
+            if (found == null) return;
+
+            string path = found.Directory;
+            if (string.IsNullOrWhiteSpace(path)) return;
+
+            if (!System.IO.File.Exists(path))
+            {
+                MessageBox.Show("File no longer exists:\n" + path, "Open target file",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                System.Diagnostics.Process.Start(path);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to open target file '{path}': {ex}");
+                MessageBox.Show("Could not open file:\n" + path + "\n\n" + ex.Message,
+                    "Open target file", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -664,9 +699,6 @@ namespace TargetPlanner
         {
             for (int i = 0; i < CheckedListBox_SelectedTargets.Items.Count; i++)
                 CheckedListBox_SelectedTargets.SetItemCheckState(i, CheckState.Unchecked);
-
-
-            Label_SelectedTargetNumber.Text = CheckedListBox_SelectedTargets.CheckedItems.Count.ToString();
         }
 
         private void Button_SelectAllTargets_Click(object sender, EventArgs e)
@@ -674,18 +706,58 @@ namespace TargetPlanner
 
             for (int i = 0; i < CheckedListBox_SelectedTargets.Items.Count; i++)
                 CheckedListBox_SelectedTargets.SetItemCheckState(i, CheckState.Checked);
-
-            Label_SelectedTargetNumber.Text = CheckedListBox_SelectedTargets.CheckedItems.Count.ToString();
-
         }
 
-        // ItemCheck fires BEFORE CheckedItems reflects the new state, so read the count
-        // post-transition via BeginInvoke -- the message-loop delivery guarantees the
-        // collection has caught up by the time the lambda runs.
-        private void CheckedListBox_SelectedTargets_ItemCheck(object sender, ItemCheckEventArgs e)
+        // Check exactly the targets whose altitude exceeds the local horizon at any point
+        // during the night bracketing the moment picked in DatePicker + TimePicker.
+        // NightCalculator's bracket logic walks forward to tomorrow's dawn or back to
+        // yesterday's dusk depending on whether the moment is past today's dawn -- so a
+        // 2 AM TimePicker value yields the night that's currently in progress, while a
+        // 10 PM value yields the night just starting. Matches the rest of the form's
+        // "DatePicker.Value.Date + TimePicker.Value.TimeOfDay" pattern.
+        private void Button_VisibleTonight_Click(object sender, EventArgs e)
         {
-            BeginInvoke((Action)(() =>
-                Label_SelectedTargetNumber.Text = CheckedListBox_SelectedTargets.CheckedItems.Count.ToString()));
+            if (mTargetList == null || mTargetList.Count == 0) return;
+            if (mLocation == null) return;
+
+            DateTime tonightAnchor = DatePicker.Value.Date + TimePicker.Value.TimeOfDay;
+            Location pickedNightLocation = mLocation.With(dateTime: tonightAnchor);
+
+            Astronomy.Core.Night.NightWindow night =
+                Astronomy.Core.Night.NightCalculator.ComputeNight(pickedNightLocation);
+
+            // Clip the night window to "picker-time forward". A target that was above the
+            // horizon early in the night but is already (and remains) below it by the picker
+            // time should not count as visible from this point on. If the picker is past dawn
+            // there's no remaining night -- invalidate so IsEverAboveHorizon returns false
+            // for every target.
+            if (night.IsValid)
+            {
+                DateTime anchorUtc = DateTime.SpecifyKind(tonightAnchor, DateTimeKind.Local).ToUniversalTime();
+                if (anchorUtc >= night.AstronomicalDawn)
+                {
+                    night.AstronomicalDusk = DateTime.MinValue;
+                    night.AstronomicalDawn = DateTime.MinValue;
+                }
+                else if (anchorUtc > night.AstronomicalDusk)
+                {
+                    night.AstronomicalDusk = anchorUtc;
+                }
+            }
+
+            Astronomy.Core.Horizons.IHorizonProfile horizon =
+                new Astronomy.Core.Horizons.ScalarHorizonProfile(pickedNightLocation.Horizon);
+
+            for (int i = 0; i < CheckedListBox_SelectedTargets.Items.Count; i++)
+            {
+                string name = CheckedListBox_SelectedTargets.Items[i].ToString();
+                Target target = mTargetList.Find(t => t.Name == name);
+                bool visible = target != null
+                    && Astronomy.Core.Session.CoarseVisibility.IsEverAboveHorizon(
+                        target, pickedNightLocation, night, horizon);
+                CheckedListBox_SelectedTargets.SetItemCheckState(
+                    i, visible ? CheckState.Checked : CheckState.Unchecked);
+            }
         }
     }
 }
