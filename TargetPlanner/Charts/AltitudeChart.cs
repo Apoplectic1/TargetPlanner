@@ -28,6 +28,11 @@ namespace TargetPlanner.Charts
         public Location Location { get; private set; }
         public bool Legend { set { mLegend.Enabled = value; } }
 
+        // Read-only view of the currently-graphed targets in legend order. Callers that want
+        // to reorder the legend should walk Targets, compute the new sequence, and call
+        // ReorderTargets(newSequence) -- do not mutate this list directly.
+        public IReadOnlyList<Target> Targets { get { return mTargetList; } }
+
         private ChartArea mChartArea;
         private List<Target> mTargetList;
         private Legend mLegend;
@@ -379,8 +384,66 @@ namespace TargetPlanner.Charts
             foreach (Target target in mTargetList.ToList())
             {
                 if (target == null) continue;
-                SeriesFor(target).RebuildOptimalSeries(horizon, duration);
+                AltitudeSeries series = SeriesFor(target);
+                series.RebuildOptimalSeries(horizon, duration);
+                // Day-series hover tooltip summarises the best D-hour window; Horizon /
+                // Duration spinner scrubs feed through the same path so the tooltip stays
+                // in sync with what the Optimal curves display.
+                series.RebuildDayTooltip(horizon, duration);
             }
+            mChart.Invalidate();
+        }
+
+        // Re-order mTargetList and mChart.Series to match newOrder without recomputing any
+        // per-target altitude points. The Series objects themselves stay -- their Points,
+        // Color (explicit from TargetColorPalette), Tag (legend toggle stash), and ToolTip
+        // are preserved; only their position in mChart.Series changes, which drives the
+        // legend row order.
+        //
+        // Target-independent series like Moon-Day stay in place: the reorder only touches
+        // series whose name starts with "{TargetName}-", so a Series named "Moon-Day" is
+        // left wherever ShowChartAreaSeries put it.
+        //
+        // Set-equality is required (same Target instances, same count). A mismatch is a
+        // caller bug; the method bails out silently rather than partially rewriting state.
+        public void ReorderTargets(IEnumerable<Target> newOrder)
+        {
+            if (newOrder == null) throw new ArgumentNullException(nameof(newOrder));
+
+            List<Target> newList = new List<Target>();
+            foreach (Target t in newOrder)
+            {
+                if (t != null) newList.Add(t);
+            }
+
+            HashSet<Target> existing = new HashSet<Target>(mTargetList);
+            if (newList.Count != existing.Count) return;
+            foreach (Target t in newList)
+            {
+                if (!existing.Contains(t)) return;
+            }
+
+            mTargetList.Clear();
+            mTargetList.AddRange(newList);
+
+            // Push each target's per-target series to the end of mChart.Series in the new
+            // order. After the loop, target-keyed series sit at the tail in newList order;
+            // anything else (Moon-Day, future target-independent series) retains its prior
+            // relative position in the head.
+            foreach (Target t in newList)
+            {
+                string prefix = t.Name + "-";
+                AltitudeSeries altSeries = SeriesFor(t);
+                foreach (Series s in altSeries.TargetSeriesList.ToList())
+                {
+                    if (!s.Name.StartsWith(prefix)) continue;
+                    int idx = mChart.Series.IndexOf(s);
+                    if (idx < 0) continue;
+                    mChart.Series.RemoveAt(idx);
+                    mChart.Series.Add(s);
+                }
+            }
+
             mChart.Invalidate();
         }
 

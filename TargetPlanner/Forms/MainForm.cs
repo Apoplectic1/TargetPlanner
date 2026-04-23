@@ -272,6 +272,10 @@ namespace TargetPlanner
             mLocalDateTime = (DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZoneInfo.Local);
             UpdateLocalDateTimeEvents();
             if (mAltitudeChart != null) mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
+            // Transit / Rise sort keys are time-dependent; Name is not. Skip the re-sort on
+            // Name to avoid a pointless Items.Clear+re-add round-trip on every scrub tick.
+            if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
+                ResortSelectedTargets();
         }
 
         private void TimePicker_ValueChanged(object sender, EventArgs e)
@@ -279,6 +283,8 @@ namespace TargetPlanner
             mLocalDateTime = (DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZoneInfo.Local);
             UpdateLocalDateTimeEvents();
             if (mAltitudeChart != null) mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
+            if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
+                ResortSelectedTargets();
         }
 
         private void Button_GraphTarget_Click(object sender, EventArgs e)
@@ -542,12 +548,9 @@ namespace TargetPlanner
                 ProgressBar_ProcessObject.Value = 0;
             }
 
-            // Designer property Sorted=false; we feed pre-sorted names so catalogue numbers
-            // (M2 vs M10) order numerically instead of lexically.
-            foreach (Target t in mTargetList.OrderBy(x => x.Name, NaturalStringComparer.OrdinalIgnoreCase))
-            {
-                CheckedListBox_SelectedTargets.Items.Add(t.Name, true);
-            }
+            // Designer property Sorted=false; we feed the list in whatever ordering
+            // ComboBox_SortTargets currently selects (defaults to Name / NaturalStringComparer).
+            PopulateCheckedListBoxFromTargets(defaultChecked: true);
 
             if (mTargetList.Count == 0) return;
 
@@ -555,6 +558,112 @@ namespace TargetPlanner
             {
                 ComboBox_SelectTarget.Items.Add(t.Name);
             }
+        }
+
+        // Clears CheckedListBox_SelectedTargets and re-adds every target from mTargetList in
+        // the currently-selected sort order, with each row set to defaultChecked. Used on a
+        // fresh target-list load where there's no prior check state to preserve; the
+        // ResortSelectedTargets path handles re-ordering with state preservation.
+        private void PopulateCheckedListBoxFromTargets(bool defaultChecked)
+        {
+            CheckedListBox_SelectedTargets.BeginUpdate();
+            try
+            {
+                CheckedListBox_SelectedTargets.Items.Clear();
+                foreach (Target t in SortedTargets(mTargetList))
+                {
+                    CheckedListBox_SelectedTargets.Items.Add(t.Name, defaultChecked);
+                }
+            }
+            finally
+            {
+                CheckedListBox_SelectedTargets.EndUpdate();
+            }
+        }
+
+        // Re-order CheckedListBox_SelectedTargets in place using the current ComboBox_SortTargets
+        // mode, preserving each row's check state across the rebuild. Called from the sort-mode
+        // ComboBox, from the picker ValueChanged handlers when the active mode is time-dependent,
+        // and internally after anything that changes the list's membership. No-ops when the list
+        // is empty or mTargetList isn't populated yet (defensive for form-init event ordering).
+        private void ResortSelectedTargets()
+        {
+            if (CheckedListBox_SelectedTargets.Items.Count == 0) return;
+            if (mTargetList == null || mTargetList.Count == 0) return;
+
+            // Snapshot check state keyed by name so reordering preserves each row.
+            var checkStates = new Dictionary<string, CheckState>(StringComparer.Ordinal);
+            for (int i = 0; i < CheckedListBox_SelectedTargets.Items.Count; i++)
+            {
+                string n = CheckedListBox_SelectedTargets.Items[i].ToString();
+                checkStates[n] = CheckedListBox_SelectedTargets.GetItemCheckState(i);
+            }
+
+            // Resolve the currently-displayed item names back to Target instances. Unchecked
+            // entries stay in the list -- this is reordering, not filtering.
+            var displayed = new List<Target>();
+            foreach (object item in CheckedListBox_SelectedTargets.Items)
+            {
+                string n = item.ToString();
+                Target t = mTargetList.Find(x => x.Name == n);
+                if (t != null) displayed.Add(t);
+            }
+
+            CheckedListBox_SelectedTargets.BeginUpdate();
+            try
+            {
+                CheckedListBox_SelectedTargets.Items.Clear();
+                foreach (Target t in SortedTargets(displayed))
+                {
+                    CheckState cs = checkStates.TryGetValue(t.Name, out var state)
+                        ? state : CheckState.Unchecked;
+                    CheckedListBox_SelectedTargets.Items.Add(t.Name, cs);
+                }
+            }
+            finally
+            {
+                CheckedListBox_SelectedTargets.EndUpdate();
+            }
+
+            // Reorder the chart legend to match, in place -- no replot, no recompute. Series
+            // objects (Points, Color, Tag, ToolTip) are preserved; only their index in
+            // mChart.Series changes, which drives the legend row order.
+            if (mAltitudeChart != null && mAltitudeChart.Targets.Count > 0)
+            {
+                mAltitudeChart.ReorderTargets(SortedTargets(mAltitudeChart.Targets));
+            }
+        }
+
+        // Dispatch on ComboBox_SortTargets.SelectedIndex. Transit and Rise modes fall back to
+        // Name sort when mLocation isn't ready yet (form is mid-init), so callers don't need
+        // to guard. The picker anchor converts to UTC via SpecifyKind(..., Local).ToUniversalTime()
+        // to match Button_VisibleTonight_Click's idiom.
+        private IEnumerable<Target> SortedTargets(IEnumerable<Target> targets)
+        {
+            int mode = ComboBox_SortTargets != null ? ComboBox_SortTargets.SelectedIndex : 0;
+
+            if ((mode == 1 || mode == 2) && mLocation != null)
+            {
+                DateTime anchorUtc = DateTime.SpecifyKind(
+                    DatePicker.Value.Date + TimePicker.Value.TimeOfDay,
+                    DateTimeKind.Local).ToUniversalTime();
+
+                if (mode == 1)
+                {
+                    return Astronomy.Core.Session.TargetOrdering.ByTransit(
+                        targets, mLocation, anchorUtc);
+                }
+                return Astronomy.Core.Session.TargetOrdering.ByRise(
+                    targets, mLocation, anchorUtc, mLocation.Horizon);
+            }
+
+            return targets.Where(t => t != null)
+                .OrderBy(t => t.Name, NaturalStringComparer.OrdinalIgnoreCase);
+        }
+
+        private void ComboBox_SortTargets_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            ResortSelectedTargets();
         }
 
         // Double-click a target row to open its source NINA .json (Target.Directory is the

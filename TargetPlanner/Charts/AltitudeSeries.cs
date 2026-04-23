@@ -1,9 +1,12 @@
 ﻿using Astronomy.Core;
+using Astronomy.Core.Horizons;
 using Astronomy.Core.Night;
+using Astronomy.Core.Session;
 using Astronomy.Core.Time;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Globalization;
 using System.Threading.Tasks;
 using System.Windows.Forms.DataVisualization.Charting;
 
@@ -226,7 +229,76 @@ namespace TargetPlanner.Charts
                 daySeries.Points.AddXY(point, targetPosition.Altitude);
             }
 
+            // Per-series hover tooltip summarizing the best D-hour imaging session tonight.
+            // Rebuilt on Horizon / Duration spinner scrubs via RebuildDayTooltip(...). The
+            // Chart renders Series.ToolTip natively; no mouse handler needed.
+            daySeries.ToolTip = ComposeDayTooltip(Location.Horizon, Location.Duration);
+
             TargetSeriesList.Add(daySeries);
+        }
+
+        // Refresh the Day series' hover tooltip to reflect current Horizon / Duration values.
+        // Called from AltitudeChart.RebuildOptimalData alongside RebuildOptimalSeries so the
+        // tooltip stays in sync with the Optimal-chart curves on spinner scrubs. Silently
+        // no-ops if the Day series hasn't been built yet (initial async build hasn't finished
+        // and the user is already scrubbing).
+        public void RebuildDayTooltip(double horizon, TimeSpan duration)
+        {
+            string dayName = Target.Name + "-Day";
+            foreach (Series s in TargetSeriesList)
+            {
+                if (s.Name == dayName)
+                {
+                    s.ToolTip = ComposeDayTooltip(horizon, duration);
+                    return;
+                }
+            }
+        }
+
+        // Build the tooltip string shown on hover over the Day-chart line. Falls back to
+        // just the target name if Duration is non-positive (BestSession.For requires positive
+        // minDuration) or if no D-hour window fits tonight (includes the polar-night case,
+        // where VisibilityWindows.For -> BestSession.For returns null).
+        //
+        // Floor altitude is the minimum of the session's start and end altitudes. alt(HA) is
+        // monotone away from transit, so:
+        //   - transit-centered session: both endpoints are below peak; min(start, end) is the
+        //     lower of the two, i.e. the session floor.
+        //   - wall-pushed session (transit outside window): alt is monotone across the
+        //     session; one endpoint is the high end, the other the low -- min is the wall.
+        // Simpler and equivalent to the transit-distance argument, without needing a separate
+        // TransitTime lookup.
+        private string ComposeDayTooltip(double horizon, TimeSpan duration)
+        {
+            if (duration <= TimeSpan.Zero) return Target.Name;
+
+            NightWindow night = NightCalculator.ComputeNight(Location);
+            IHorizonProfile horizonProfile = new ScalarHorizonProfile(horizon);
+
+            var best = BestSession.For(
+                Target, Location, night, horizonProfile,
+                duration, duration,
+                alt => Math.Sin(alt * Math.PI / 180.0));
+
+            string durLabel = duration.TotalHours.ToString("0.##", CultureInfo.InvariantCulture);
+
+            if (best == null)
+            {
+                return string.Format(CultureInfo.InvariantCulture,
+                    "{0}\nNo {1}h window above {2:0}° tonight",
+                    Target.Name, durLabel, horizon);
+            }
+
+            double altStart = AltAzCalculator.At(Target, Location, best.Value.Start).Altitude;
+            double altEnd   = AltAzCalculator.At(Target, Location, best.Value.End).Altitude;
+            double floor    = Math.Min(altStart, altEnd);
+
+            DateTime startLocal = best.Value.Start.ToLocalTime();
+            DateTime endLocal   = best.Value.End.ToLocalTime();
+
+            return string.Format(CultureInfo.InvariantCulture,
+                "{0}\nBest {1}h window: {2:HH:mm} → {3:HH:mm}\nFloor: {4:0}°",
+                Target.Name, durLabel, startLocal, endLocal, floor);
         }
 
         // Walk 365 days, call ComputeNight and two AltAz.Of calls per day, return the

@@ -103,6 +103,8 @@
             this.Button_ClearAllTargets = new System.Windows.Forms.Button();
             this.ProgressBar_ProcessObject = new System.Windows.Forms.ProgressBar();
             this.CheckedListBox_SelectedTargets = new System.Windows.Forms.CheckedListBox();
+            this.ComboBox_SortTargets = new System.Windows.Forms.ComboBox();
+            this.Label_SortBy = new System.Windows.Forms.Label();
             this.Button_BrowseTargetList = new System.Windows.Forms.Button();
             this.GroupBox_Target = new System.Windows.Forms.GroupBox();
             this.MenuStrip_MainForm = new System.Windows.Forms.MenuStrip();
@@ -1025,6 +1027,8 @@
             this.GroupBox_Sequence.Controls.Add(this.Button_SelectAllTargets);
             this.GroupBox_Sequence.Controls.Add(this.Button_ClearAllTargets);
             this.GroupBox_Sequence.Controls.Add(this.ProgressBar_ProcessObject);
+            this.GroupBox_Sequence.Controls.Add(this.Label_SortBy);
+            this.GroupBox_Sequence.Controls.Add(this.ComboBox_SortTargets);
             this.GroupBox_Sequence.Controls.Add(this.CheckedListBox_SelectedTargets);
             this.GroupBox_Sequence.Controls.Add(this.Button_BrowseTargetList);
             this.GroupBox_Sequence.Location = new System.Drawing.Point(33, 170);
@@ -1072,15 +1076,39 @@
             this.ProgressBar_ProcessObject.Name = "ProgressBar_ProcessObject";
             this.ProgressBar_ProcessObject.Size = new System.Drawing.Size(433, 18);
             this.ProgressBar_ProcessObject.TabIndex = 7;
-            // 
+            //
+            // Label_SortBy
+            //
+            this.Label_SortBy.AutoSize = true;
+            this.Label_SortBy.Location = new System.Drawing.Point(18, 79);
+            this.Label_SortBy.Name = "Label_SortBy";
+            this.Label_SortBy.Size = new System.Drawing.Size(46, 13);
+            this.Label_SortBy.TabIndex = 10;
+            this.Label_SortBy.Text = "Sort by:";
+            //
+            // ComboBox_SortTargets
+            //
+            this.ComboBox_SortTargets.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.ComboBox_SortTargets.FormattingEnabled = true;
+            this.ComboBox_SortTargets.Items.AddRange(new object[] {
+            "Name",
+            "Transit",
+            "Rise"});
+            this.ComboBox_SortTargets.Location = new System.Drawing.Point(72, 75);
+            this.ComboBox_SortTargets.Name = "ComboBox_SortTargets";
+            this.ComboBox_SortTargets.Size = new System.Drawing.Size(120, 21);
+            this.ComboBox_SortTargets.TabIndex = 11;
+            this.ComboBox_SortTargets.SelectedIndex = 0;
+            this.ComboBox_SortTargets.SelectedIndexChanged += new System.EventHandler(this.ComboBox_SortTargets_SelectedIndexChanged);
+            //
             // CheckedListBox_SelectedTargets
-            // 
+            //
             this.CheckedListBox_SelectedTargets.FormattingEnabled = true;
-            this.CheckedListBox_SelectedTargets.Location = new System.Drawing.Point(18, 73);
+            this.CheckedListBox_SelectedTargets.Location = new System.Drawing.Point(18, 102);
             this.CheckedListBox_SelectedTargets.MultiColumn = true;
             this.CheckedListBox_SelectedTargets.Name = "CheckedListBox_SelectedTargets";
             this.CheckedListBox_SelectedTargets.ScrollAlwaysVisible = true;
-            this.CheckedListBox_SelectedTargets.Size = new System.Drawing.Size(434, 154);
+            this.CheckedListBox_SelectedTargets.Size = new System.Drawing.Size(434, 125);
             this.CheckedListBox_SelectedTargets.TabIndex = 4;
             this.CheckedListBox_SelectedTargets.ThreeDCheckBoxes = true;
             this.CheckedListBox_SelectedTargets.MouseDoubleClick += new System.Windows.Forms.MouseEventHandler(this.CheckedListBox_SelectedTargets_MouseDoubleClick);
@@ -1258,6 +1286,8 @@
         private System.Windows.Forms.GroupBox GroupBox_Sequence;
         private System.Windows.Forms.Button Button_BrowseTargetList;
         private System.Windows.Forms.CheckedListBox CheckedListBox_SelectedTargets;
+        private System.Windows.Forms.ComboBox ComboBox_SortTargets;
+        private System.Windows.Forms.Label Label_SortBy;
         private System.Windows.Forms.Button Button_ClearTarget;
         private System.Windows.Forms.Label Label_MinDuration;
         private System.Windows.Forms.Label Label_Degrees;
