@@ -708,12 +708,13 @@ namespace TargetPlanner
                 CheckedListBox_SelectedTargets.SetItemCheckState(i, CheckState.Checked);
         }
 
-        // Check exactly the targets whose altitude exceeds the local horizon at any point
-        // during the night bracketing the moment picked in DatePicker + TimePicker.
-        // NightCalculator's bracket logic walks forward to tomorrow's dawn or back to
-        // yesterday's dusk depending on whether the moment is past today's dawn -- so a
-        // 2 AM TimePicker value yields the night that's currently in progress, while a
-        // 10 PM value yields the night just starting. Matches the rest of the form's
+        // Check exactly the targets that have a contiguous window of at least
+        // NumericUpDown_Duration above NumericUpDown_Horizon during the night bracketing
+        // the moment picked in DatePicker + TimePicker. NightCalculator's bracket logic
+        // walks forward to tomorrow's dawn or back to yesterday's dusk depending on
+        // whether the moment is past today's dawn -- so a 2 AM TimePicker value yields
+        // the night that's currently in progress, while a 10 PM value yields the night
+        // just starting. Matches the rest of the form's
         // "DatePicker.Value.Date + TimePicker.Value.TimeOfDay" pattern.
         private void Button_VisibleTonight_Click(object sender, EventArgs e)
         {
@@ -729,7 +730,7 @@ namespace TargetPlanner
             // Clip the night window to "picker-time forward". A target that was above the
             // horizon early in the night but is already (and remains) below it by the picker
             // time should not count as visible from this point on. If the picker is past dawn
-            // there's no remaining night -- invalidate so IsEverAboveHorizon returns false
+            // there's no remaining night -- invalidate so the visibility check returns false
             // for every target.
             if (night.IsValid)
             {
@@ -753,8 +754,9 @@ namespace TargetPlanner
                 string name = CheckedListBox_SelectedTargets.Items[i].ToString();
                 Target target = mTargetList.Find(t => t.Name == name);
                 bool visible = target != null
-                    && Astronomy.Core.Session.CoarseVisibility.IsEverAboveHorizon(
-                        target, pickedNightLocation, night, horizon);
+                    && Astronomy.Core.Session.CoarseVisibility.IsAboveHorizonForAtLeast(
+                        target, pickedNightLocation, night, horizon,
+                        pickedNightLocation.Duration);
                 CheckedListBox_SelectedTargets.SetItemCheckState(
                     i, visible ? CheckState.Checked : CheckState.Unchecked);
             }
