@@ -220,13 +220,22 @@ namespace TargetPlanner.Charts
             // the rightmost hourly tick (e.g. "5:00 AM") has no data point and its label
             // doesn't render.
             int totalMinutes = Convert.ToInt32(Math.Round(delta.TotalMinutes, 0));
-            for (int minutes = 0; minutes <= totalMinutes; minutes++)
+            int count = totalMinutes + 1;
+
+            // Batch-evaluate the altitude grid via a single Core call: computes LST once at
+            // the grid start, advances linearly per sample, and calls AltitudeAtHourAngle in
+            // place of per-minute AltAzCalculator.Of + Location.With allocation. Measured
+            // ~2.6x faster and ~11x less allocation than the per-minute form (see
+            // Astronomy.Core.Tests/Benchmarks/AltitudeCurveBenchmark, 2026-04-23). Kind=Local
+            // -> UTC conversion happens at the call site so the Core helper gets its
+            // contracted Kind=Utc start.
+            DateTime startUtc = DateTime.SpecifyKind(start, DateTimeKind.Local).ToUniversalTime();
+            IReadOnlyList<double> altitudes = AltitudeCurve.Sample(
+                Target, Location, startUtc, TimeSpan.FromMinutes(1), count);
+
+            for (int i = 0; i < count; i++)
             {
-                DateTime point = start.AddMinutes(minutes);
-                // Location is immutable; ask AltAzCalculator to evaluate at `point` via a
-                // With-variant instead of mutating a clone in place.
-                AltAz targetPosition = AltAzCalculator.Of(Target, Location.With(dateTime: point));
-                daySeries.Points.AddXY(point, targetPosition.Altitude);
+                daySeries.Points.AddXY(start.AddMinutes(i), altitudes[i]);
             }
 
             // Per-series hover tooltip summarizing the best D-hour imaging session tonight.
