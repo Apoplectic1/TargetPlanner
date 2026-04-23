@@ -321,19 +321,17 @@ namespace TargetPlanner
         {
             if (mTargetList == null || mTargetList.Count == 0) return;
 
-            // Gather Target objects for checked names. CheckedItems holds the display strings
-            // (Target.Name was the thing added in GetNinaTargets); resolve back to Target
-            // instances from mTargetList.
-            var checkedNames = new HashSet<string>();
-            foreach (object item in CheckedListBox_SelectedTargets.CheckedItems)
-                checkedNames.Add(item.ToString());
-
-            if (checkedNames.Count == 0) return;
-
+            // Walk CheckedItems in display order so mAltitudeChart's target list -- and
+            // therefore the chart legend -- inherits the CheckedListBox's NaturalStringComparer
+            // sort (see GetNinaTargets). Iterating mTargetList here instead would have used
+            // folder-load order, which is effectively arbitrary. CheckedItems is filtered to
+            // the checked subset but preserves the full list's ordering.
             var checkedTargets = new List<Target>();
-            foreach (Target t in mTargetList)
+            foreach (object item in CheckedListBox_SelectedTargets.CheckedItems)
             {
-                if (t != null && checkedNames.Contains(t.Name)) checkedTargets.Add(t);
+                string name = item.ToString();
+                Target t = mTargetList.Find(x => x.Name == name);
+                if (t != null) checkedTargets.Add(t);
             }
             if (checkedTargets.Count == 0) return;
 

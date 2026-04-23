@@ -43,12 +43,24 @@ namespace TargetPlanner.Charts
         public List<Series> TargetSeriesList { get; private set; }
         private List<NightCacheEntry> mYearCache;
 
-        public AltitudeSeries(Location location, Target target)
+        // Explicit per-target color, assigned once by AltitudeChart at reload from a stable
+        // palette. Every Series this instance creates (Day / Year / Optimal / OptimalFloor /
+        // OptimalFloorCentered) uses this color. Moon is target-independent and keeps its
+        // alpha-scaled-gray color set directly in BuildMoonSeries.
+        //
+        // Why explicit: with Color.Empty the DataVisualization Chart auto-assigns palette
+        // colors by Series index at render time. Toggling one series to Color.Transparent
+        // shifts the remaining Empty series' palette slots, which visibly reshuffles colors
+        // on a legend click. Setting a concrete Color here opts out of the auto-palette.
+        private readonly Color mSeriesColor;
+
+        public AltitudeSeries(Location location, Target target, Color seriesColor)
         {
             if (location == null) throw new ArgumentNullException(nameof(location));
             if (target == null)   throw new ArgumentNullException(nameof(target));
             Location = location;
             Target = target;
+            mSeriesColor = seriesColor;
             TargetSeriesList = new List<Series>();
         }
 
@@ -131,10 +143,10 @@ namespace TargetPlanner.Charts
             // Pre-allocate every Series up front on the UI thread so the background compute
             // phase never touches TargetSeriesList (which AltitudeChart.ShowChartAreaSeries /
             // UpdateNowLine iterate concurrently on the UI thread).
-            FindOrCreateSeries(Target.Name, "Year",                 new Color());
-            FindOrCreateSeries(Target.Name, "Optimal",              new Color());
-            FindOrCreateSeries(Target.Name, "OptimalFloor",         new Color());
-            FindOrCreateSeries(Target.Name, "OptimalFloorCentered", new Color());
+            FindOrCreateSeries(Target.Name, "Year",                 mSeriesColor);
+            FindOrCreateSeries(Target.Name, "Optimal",              mSeriesColor);
+            FindOrCreateSeries(Target.Name, "OptimalFloor",         mSeriesColor);
+            FindOrCreateSeries(Target.Name, "OptimalFloorCentered", mSeriesColor);
 
             // Compute the 365-day cache on a background thread (the CoordinateSharp-heavy
             // part). The continuation resumes on the UI thread via the captured
@@ -193,7 +205,7 @@ namespace TargetPlanner.Charts
             DateTime duskLocal = night.AstronomicalDusk.ToLocalTime();
             DateTime dawnLocal = night.AstronomicalDawn.ToLocalTime();
 
-            Series daySeries = MakeSeries(Target.Name, "Day", new Color());
+            Series daySeries = MakeSeries(Target.Name, "Day", mSeriesColor);
 
             DateTime start = DayChartStart(duskLocal);
             DateTime stop  = DayChartStop(dawnLocal);
@@ -317,7 +329,7 @@ namespace TargetPlanner.Charts
         {
             if (mYearCache == null) return;
 
-            Series yearSeries = FindOrCreateSeries(Target.Name, "Year", new Color());
+            Series yearSeries = FindOrCreateSeries(Target.Name, "Year", mSeriesColor);
             yearSeries.Points.Clear();
             foreach (NightCacheEntry entry in mYearCache)
             {
@@ -364,9 +376,9 @@ namespace TargetPlanner.Charts
         {
             if (mYearCache == null) return;
 
-            Series optimalSeries         = FindOrCreateSeries(Target.Name, "Optimal",              new Color());
-            Series optimalFloorSeries    = FindOrCreateSeries(Target.Name, "OptimalFloor",         new Color());
-            Series optimalCenteredSeries = FindOrCreateSeries(Target.Name, "OptimalFloorCentered", new Color());
+            Series optimalSeries         = FindOrCreateSeries(Target.Name, "Optimal",              mSeriesColor);
+            Series optimalFloorSeries    = FindOrCreateSeries(Target.Name, "OptimalFloor",         mSeriesColor);
+            Series optimalCenteredSeries = FindOrCreateSeries(Target.Name, "OptimalFloorCentered", mSeriesColor);
             optimalSeries.Points.Clear();
             optimalFloorSeries.Points.Clear();
             optimalCenteredSeries.Points.Clear();

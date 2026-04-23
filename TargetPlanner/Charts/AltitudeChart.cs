@@ -39,6 +39,40 @@ namespace TargetPlanner.Charts
         // on Graph-Target click starts empty, same as the old Target.mAltitudeSeries pattern.
         private Dictionary<Target, AltitudeSeries> mSeriesByTarget;
 
+        // Explicit per-target color, assigned once by ReloadWithTargets from TargetColorPalette
+        // by the target's index in mTargetList. Every Series the target produces (Day / Year /
+        // Optimal / OptimalFloor / OptimalFloorCentered) picks up this color at construction.
+        // See TargetColorPalette for the rationale on explicit vs auto-palette.
+        private Dictionary<Target, Color> mTargetColors;
+
+        // Stable color palette for target series. Picked for readability against the dark gray
+        // chart background (70,70,70) and distinctness from the red now-line, green horizon
+        // line, and yellow dusk/dawn gradient. Assignment is by target index in mTargetList
+        // (so positions 0..N-1 map to palette[i % N]); with 12 entries, wrap-around only hits
+        // on very large target sets.
+        //
+        // Explicit colors here replace the framework's implicit auto-palette, which assigns a
+        // color to every Color.Empty series in the order they appear in mChart.Series and
+        // skips series with explicit colors. That meant toggling one series to Transparent
+        // (the hide-via-legend-click behavior) shifted every remaining Empty series one slot
+        // down the palette, visibly reshuffling colors on the chart. Concrete per-target
+        // colors opt out of that auto-assignment entirely.
+        private static readonly Color[] TargetColorPalette = new[]
+        {
+            Color.FromArgb( 65, 140, 240),  // blue
+            Color.FromArgb(252, 180,  65),  // gold
+            Color.FromArgb(220, 100, 220),  // magenta
+            Color.FromArgb(100, 220, 180),  // teal
+            Color.FromArgb(255, 138, 128),  // salmon
+            Color.FromArgb(180, 220, 100),  // lime
+            Color.FromArgb(180, 150, 255),  // lavender
+            Color.FromArgb(100, 200, 255),  // sky blue
+            Color.FromArgb(255, 200, 100),  // peach
+            Color.FromArgb(220, 220, 120),  // pale yellow-green
+            Color.FromArgb(255, 150, 200),  // pink
+            Color.FromArgb(150, 220, 150),  // sage
+        };
+
         private Dictionary<string, StripLine> mNowLines;
         private Dictionary<string, StripLine> mHorizonLines;
 
@@ -53,6 +87,7 @@ namespace TargetPlanner.Charts
             mLegend = new Legend();
             mUIState = new Support.UIState();
             mSeriesByTarget = new Dictionary<Target, AltitudeSeries>();
+            mTargetColors = new Dictionary<Target, Color>();
             mNowLines = new Dictionary<string, StripLine>();
             mHorizonLines = new Dictionary<string, StripLine>();
 
@@ -69,9 +104,18 @@ namespace TargetPlanner.Charts
 
             if (!mSeriesByTarget.TryGetValue(target, out AltitudeSeries series))
             {
-                // AltitudeSeries is an immutable snapshot: Location and Target are captured
-                // here and cannot be reassigned later.
-                series = new AltitudeSeries(Location, target);
+                // AltitudeSeries is an immutable snapshot: Location, Target, and the series
+                // color are captured here and cannot be reassigned later. Colors are normally
+                // pre-populated in mTargetColors by ReloadWithTargets; if a caller ever adds
+                // a target through another path the lookup lazy-fills a palette slot here so
+                // no series ever ends up with Color.Empty (which would re-enable the auto-
+                // palette reshuffle we're explicitly avoiding).
+                if (!mTargetColors.TryGetValue(target, out Color color))
+                {
+                    color = TargetColorPalette[mTargetColors.Count % TargetColorPalette.Length];
+                    mTargetColors[target] = color;
+                }
+                series = new AltitudeSeries(Location, target, color);
                 mSeriesByTarget[target] = series;
             }
             return series;
@@ -141,13 +185,21 @@ namespace TargetPlanner.Charts
                 if (idx < 0) return;
                 Series series = mChart.Series[idx];
 
-                if (series.Color == Color.Empty)
+                // Toggle hide / show by swapping Series.Color with Color.Transparent while
+                // preserving the assigned color in Series.Tag. Prior behavior toggled between
+                // Color.Empty (show, palette auto-assigns) and Color.Transparent (hide), which
+                // caused the remaining visible series to re-index through the palette and
+                // visibly shift colors on every click. Stashing the assigned color in Tag
+                // means each series restores exactly the color it was built with, and
+                // toggling one never perturbs another.
+                if (series.Color == Color.Transparent)
                 {
-                    series.Color = Color.Transparent;
+                    if (series.Tag is Color stashed) series.Color = stashed;
                 }
                 else
                 {
-                    series.Color = Color.Empty;
+                    series.Tag = series.Color;
+                    series.Color = Color.Transparent;
                 }
             }
         }
@@ -298,13 +350,18 @@ namespace TargetPlanner.Charts
             mNowLines.Clear();
             mHorizonLines.Clear();
             mSeriesByTarget.Clear();
+            mTargetColors.Clear();
             mTargetList.Clear();
 
             Location = newLocation;
 
+            // mTargetList order == legend order (ShowChartAreaSeries adds to mChart.Series in
+            // this order, and the Chart legend mirrors mChart.Series). Color assignment uses
+            // this same index so the color a target gets is the color its legend row displays.
             foreach (Target t in targets)
             {
                 if (t == null) continue;
+                mTargetColors[t] = TargetColorPalette[mTargetList.Count % TargetColorPalette.Length];
                 mTargetList.Add(t);
             }
 
