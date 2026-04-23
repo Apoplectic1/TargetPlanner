@@ -8,26 +8,25 @@ Windows Forms desktop tool for astrophotography planning. Given a target (RA/Dec
 
 ## Build / run
 
-- Solution `TargetPlanner.sln` contains **two projects**, both SDK-style:
+- Solution `TargetPlanner.sln` contains **one project** authored here plus a `ProjectReference` to a sibling library:
   - `TargetPlanner/TargetPlanner.csproj` — WinExe, `TargetFramework = net481` (UseWindowsForms=true), entry point `TargetPlanner.Program.Main`. Configurations: `Debug|AnyCPU`, `Release|AnyCPU`, `Debug|x64`, `Release|x64`. Outputs land in `bin\Debug\net481\`, `bin\x64\Release\net481\`, etc. (the `net481` suffix is the SDK convention).
-  - `Astronomy.Core/Astronomy.Core.csproj` — class library, `TargetFramework = netstandard2.0`. Produces `Astronomy.Core.dll` which the WinExe project references via `ProjectReference`.
-- Both use `<PackageReference>` for NuGet. F5 in Visual Studio, `msbuild "TargetPlanner.sln" -restore -p:Configuration=Debug`, and `dotnet build "TargetPlanner.sln" -c Debug` all work. Prefer `dotnet build` in scripts (auto-restores, no `-restore` flag needed); `msbuild` is the fallback for anything the `dotnet` CLI doesn't cover (e.g. VS-specific build targets).
-- No test project exists — there is no unit test framework wired up. Do not invent build/test commands.
+  - `..\Library\Astronomy.Core\Astronomy.Core.csproj` — external sibling (see "External dependencies" below). Listed in `TargetPlanner.sln` as a project entry via its relative path so VS Solution Explorer shows it alongside TargetPlanner; the actual source tree lives in a separate git repo.
+- F5 in Visual Studio, `msbuild "TargetPlanner.sln" -restore -p:Configuration=Debug`, and `dotnet build "TargetPlanner.sln" -c Debug` all work. Prefer `dotnet build` in scripts (auto-restores, no `-restore` flag needed); `msbuild` is the fallback for anything the `dotnet` CLI doesn't cover (e.g. VS-specific build targets).
+- **Tests live in the Library repo, not here.** `Astronomy.Core.Tests` (xUnit + BenchmarkDotNet) is part of `..\Library\Astronomy.sln` and runs via `dotnet test ..\Library\Astronomy.sln` or `dotnet run -c Release --project ..\Library\Astronomy.Core.Tests -- --filter "*"` for the benchmark. Do not add a test project under this repo.
 
 ## External dependencies that are easy to miss
 
+- **Astronomy library** is an external sibling at `E:\Projects\VisualStudio\Astronomy\Library\` (its own git repo). The WinExe csproj `ProjectReference` path is `..\..\Library\Astronomy.Core\Astronomy.Core.csproj`. Keep the Library repo cloned next to this one -- a missing sibling breaks the build. Extracted from this repo in commit `b28ef9e` (2026-04-23); history for the extracted files is still accessible via `git log -- Astronomy.Core/` here.
 - **LocalLib** is a private sibling assembly, not a NuGet package. The WinExe csproj hint path is `..\..\..\Libraries\LocalLib\LocalLib\bin\Release\LocalLib.dll` (i.e. `E:\Projects\VisualStudio\Libraries\LocalLib\...`). It supplies `OpenFolderDialog` used by `MainForm.Button_BrowseTargetList_Click`. If the reference is missing, the build fails; don't try to "fix" it by deleting the reference. Referenced only by TargetPlanner, not by Core.
-- **NuGet packages** (both projects on `<PackageReference>`):
-  - WinExe project: `CoordinateSharp 3.4.1.1`, `Newtonsoft.Json 13.0.4`. Newtonsoft is consumed by `Nina/TargetLoader.cs` (parses NINA `.json` sequence files) and `Settings/*` (app-settings serialization). CoordinateSharp is pulled in transitively via the Core project reference but the WinExe's own PackageReference remains for paths like `BuildMoonSeries` that consume `MoonAltitude` directly.
-  - Core project: `CoordinateSharp 3.4.1.1`. Single dependency. Core is deliberately not coupled to Newtonsoft, WinForms, or System.Drawing.
+- **NuGet packages** on the WinExe project: `CoordinateSharp 3.4.1.1`, `Newtonsoft.Json 13.0.4`. Newtonsoft is consumed by `Nina/TargetLoader.cs` (parses NINA `.json` sequence files) and `Settings/*` (app-settings serialization). CoordinateSharp is pulled in transitively via the `Astronomy.Core` ProjectReference but the WinExe's own PackageReference remains for paths like `BuildMoonSeries` that consume `MoonAltitude` directly.
 
 ## Architecture
 
-The codebase is split at the assembly boundary: **`Astronomy.Core`** is pure, UI-free astronomical math plus POCOs; **`TargetPlanner`** is the WinForms chart/host/UI on top. Everything runs on the UI thread except target-list parsing and year-series construction, which are offloaded with `Task.Run`.
+The codebase is split at the repo boundary: **`Astronomy.Core`** lives in the sibling `Library\` repo and provides pure, UI-free astronomical math plus POCOs; **`TargetPlanner`** (this repo) is the WinForms chart/host/UI on top, consuming Core via `ProjectReference`. Everything runs on the UI thread except target-list parsing and year-series construction, which are offloaded with `Task.Run`.
 
-### `Astronomy.Core` — pure math, no UI
+### `Astronomy.Core` — pure math, no UI (source in `..\Library\Astronomy.Core\`)
 
-Shared library targeting `netstandard2.0`. Consumed today by TargetPlanner; designed to be consumed by XisfManager and a future NINA plugin without re-porting. See `SCHEDULER_DESIGN.md` for the full design rationale. Surface by subfolder:
+Shared library targeting `netstandard2.0`, authored in the sibling `Library\` repo at `E:\Projects\VisualStudio\Astronomy\Library\Astronomy.Core\`. Consumed today by TargetPlanner via `ProjectReference`; designed to be consumed by XisfManager / IS / ISP / ISS without re-porting. See `SCHEDULER_DESIGN.md` (still in this repo) for the full design rationale. The surface summary below is a convenience for readers working on TargetPlanner chart code -- the Library repo is the source of truth for API specifics. Surface by subfolder:
 
 - **`Targets/Target.cs`** — **immutable** POCO. Every property is read-only; mutations produce a new instance via `With(...)`. `RightAscension` is **decimal hours** `[0, 24)`; `RaHours` / `RaMinutes` / `RaSeconds` are get-only DMS-component accessors computed on read (not a duplicate store). `Declination` is stored as a non-negative magnitude; the constructor normalizes a negative value by flipping `North` and storing `abs(value)`. `Target.Default` returns M31 defaults. Does **not** carry any chart / WinForms state.
 - **`Locations/Location.cs`** — **immutable** POCO. `With(...)` returns a new instance. Latitude / longitude stored as non-negative magnitudes with direction in `North` / `West` flags; a negative magnitude passed to the ctor flips the corresponding flag. D/M/S accessors (`LatDegrees` etc.) are computed on read. Also carries `Horizon` (degrees), `Duration` (minimum time required above horizon for "Optimal" chart), `DateTime`, `TimeZoneInfo`. `Location.Default` returns Penns Park defaults.
