@@ -24,6 +24,9 @@ packages/
 TestResults/
 [Cc]overage*/
 
+# BenchmarkDotNet per-run output (logs, reports, artifacts)
+BenchmarkDotNet.Artifacts/
+
 # OS noise
 Thumbs.db
 ehthumbs.db

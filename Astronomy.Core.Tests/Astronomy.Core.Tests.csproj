@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Microsoft.NET.Test.Sdk auto-generates a Program.cs with its own Main when
+         OutputType=Exe. We need our own Main to host BenchmarkSwitcher, so suppress
+         the generated one. xUnit test discovery still works through dotnet test. -->
+    <GenerateProgramFile>false</GenerateProgramFile>
+    <!-- Suppress BenchmarkDotNet's insistence that optimizations be on even under
+         `dotnet test` / Debug. xUnit runs fine in Debug; benchmarks must be invoked
+         via `dotnet run -c Release` to produce meaningful numbers, and the runtime
+         check there is enough. -->
+    <NoWarn>$(NoWarn);BDN0001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.14.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Astronomy.Core\Astronomy.Core.csproj" />
+  </ItemGroup>
+
+</Project>
