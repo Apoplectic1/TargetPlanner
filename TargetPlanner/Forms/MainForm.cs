@@ -135,6 +135,13 @@ symmetry at the cost of a lower minimum altitude.";
         // the in-flight build before a new one can start.
         private bool mGraphBuildInProgress;
 
+        // Latch used by the CheckedListBox graph-mode wiring. ItemCheck sets it true;
+        // the subsequent SelectedIndexChanged consumes + clears it to decide "Multi (a
+        // checkbox just toggled) vs. Single (pure highlight change)". MouseUp / KeyUp
+        // also clear it to cover the case where ItemCheck fired but SelectedIndexChanged
+        // did not (e.g. toggling the checkbox of an already-selected row).
+        private bool mCheckedListBoxJustToggled;
+
         public MainForm()
         {
             InitializeComponent();
@@ -952,7 +959,12 @@ symmetry at the cost of a lower minimum altitude.";
             WireMultiMode(Button_ClearAllTargets);
             WireMultiMode(Button_VisibleTonight);
             WireMultiMode(ComboBox_SortTargets);
-            WireMultiMode(CheckedListBox_SelectedTargets);
+
+            // CheckedListBox is special: a checkbox toggle (ItemCheck) flips to Multi, but
+            // a pure highlight change (SelectedIndexChanged without a preceding ItemCheck)
+            // flips to Single AND syncs ComboBox_SelectTarget + RA/Dec to the highlighted
+            // row. See WireCheckedListBoxGraphMode below.
+            WireCheckedListBoxGraphMode(CheckedListBox_SelectedTargets);
         }
 
         private void WireSingleMode(ComboBox c)        => c.SelectedIndexChanged += (s, e) => MarkSingleMode();
@@ -961,14 +973,67 @@ symmetry at the cost of a lower minimum altitude.";
         private void WireMultiMode(Button b)           => b.Click                += (s, e) => MarkMultiMode();
         private void WireMultiMode(ComboBox c)         => c.SelectedIndexChanged += (s, e) => MarkMultiMode();
 
-        // CheckedListBox: both ItemCheck (checkbox toggle) AND Click (plain row click, or
-        // empty-space click) flip to Multi. A plain row-click without a check toggle still
-        // signals "I'm working with the target list", so Button_Graph should honor the
-        // current CheckedItems instead of falling through to the RA/Dec single target.
-        private void WireMultiMode(CheckedListBox c)
+        // CheckedListBox interactions split into two paths:
+        //   - ItemCheck  -> user toggled a checkbox. Flip to Multi so Button_Graph builds
+        //                   the CheckedItems set.
+        //   - SelectedIndexChanged (without an ItemCheck in the same click) -> pure
+        //                   highlight change. Flip to Single, mirror the highlighted
+        //                   target into ComboBox_SelectTarget (which re-pushes mTarget +
+        //                   RA/Dec via ComboBox_SelectTarget_SelectedIndexChanged).
+        // The toggle latch disambiguates "click toggled a checkbox AND moved the highlight"
+        // (both events fire -- user intent is Multi) from "click moved the highlight only"
+        // (only SelectedIndexChanged -- user intent is Single). The combo / RA/Dec sync
+        // runs in BOTH cases so the target inspector always reflects the row the user is
+        // interacting with.
+        private void WireCheckedListBoxGraphMode(CheckedListBox c)
         {
-            c.ItemCheck += (s, e) => MarkMultiMode();
-            c.Click     += (s, e) => MarkMultiMode();
+            c.ItemCheck += (s, e) =>
+            {
+                if (mSuppressGraphModeEvents) return;
+                mCheckedListBoxJustToggled = true;
+                MarkMultiMode();
+            };
+
+            c.SelectedIndexChanged += (s, e) =>
+            {
+                if (mSuppressGraphModeEvents) return;
+
+                // Consume the latch: it's valid for exactly one SelectedIndexChanged.
+                bool wasJustToggled = mCheckedListBoxJustToggled;
+                mCheckedListBoxJustToggled = false;
+
+                SyncTargetComboFromCheckedListBoxHighlight();
+
+                if (!wasJustToggled) MarkSingleMode();
+            };
+
+            // ItemCheck can fire without a matching SelectedIndexChanged (toggling the
+            // checkbox on the already-selected row -- index doesn't change). MouseUp /
+            // KeyUp clear the latch in that case so it doesn't leak into the next click.
+            c.MouseUp += (s, e) => mCheckedListBoxJustToggled = false;
+            c.KeyUp   += (s, e) => mCheckedListBoxJustToggled = false;
+        }
+
+        // Push the highlighted CheckedListBox row's name into ComboBox_SelectTarget.Text.
+        // That fires the combo's SelectedIndexChanged which (a) resolves mTarget via the
+        // existing ComboBox_SelectTarget_SelectedIndexChanged handler and (b) refreshes
+        // RA/Dec via SyncTargetUIFromModel. mSuppressGraphModeEvents keeps the combo's
+        // WireSingleMode subscription from flipping our graph-mode state as a side effect
+        // (the graph-mode decision is already owned by the caller that invoked us).
+        private void SyncTargetComboFromCheckedListBoxHighlight()
+        {
+            if (CheckedListBox_SelectedTargets.SelectedItem == null) return;
+            string name = CheckedListBox_SelectedTargets.SelectedItem.ToString();
+
+            mSuppressGraphModeEvents = true;
+            try
+            {
+                ComboBox_SelectTarget.Text = name;
+            }
+            finally
+            {
+                mSuppressGraphModeEvents = false;
+            }
         }
 
         private void MarkSingleMode()
