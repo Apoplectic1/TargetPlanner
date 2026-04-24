@@ -320,17 +320,17 @@ namespace TargetPlanner.Charts
             mChart.ChartAreas[chartAreaName].Visible = true;
         }
 
-        // Synchronous per-target build on the already-committed state. Used at startup
-        // where InitializeDynamicControls expects the Day series to be populated in
-        // TargetSeriesList by the time it calls ShowChartAreaSeries on the next line.
-        // User-initiated graph clicks go through ReloadWithTargets instead, which stages
-        // the whole build off to the side on a Task.Run thread and swaps atomically after
-        // WhenAll completes.
+        // Fire-and-forget per-target build on the already-committed state. Used at startup
+        // where there's no prior chart to preserve; the Moon / Day / FindOrCreateSeries
+        // phase of BuildSeriesList runs synchronously on the caller's thread before its
+        // first await, so TargetSeriesList is populated with the Day Series by the time
+        // InitializeDynamicControls' following ShowChartAreaSeries("Day") line runs. The
+        // Year + Optimal phases continue in the background and populate the same
+        // AltitudeSeries; the chart picks them up when the user switches to those radios.
         //
-        // Runs on the caller's thread (UI, at startup). For a single seed target (M31 by
-        // default) the freeze is short and bounded; the form is still in its constructor
-        // when this fires, so the window simply appears a beat later fully rendered rather
-        // than appearing blank and populating afterwards.
+        // User-initiated graph clicks go through ReloadWithTargets instead, which stages
+        // the whole build off to the side (new AltitudeSeries instances in a local dict),
+        // waits for all targets to finish via Task.WhenAll, and swaps atomically.
         //
         // phaseProgress (if non-null) fires "Day" / "Year" / "Optimal" once per target.
         public void BuildTargetSeriesList(IProgress<string> phaseProgress = null,
@@ -339,16 +339,22 @@ namespace TargetPlanner.Charts
             foreach (Target target in mTargetList.ToList())
             {
                 if (target == null) continue;
-                try
-                {
-                    SeriesFor(target).BuildSeriesListBlocking(phaseProgress, ct);
-                }
-                catch (OperationCanceledException) { /* expected -- caller cancelled */ }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine(
-                        $"AltitudeSeries.BuildSeriesListBlocking (startup path) failed: {ex}");
-                }
+                // BuildSeriesList no longer swallows exceptions, so a bare `_ = .BuildSeries-
+                // List(...)` would lose OperationCanceledException / compute failures to
+                // TaskScheduler.UnobservedTaskException. Wrap to at least get a debug log.
+                _ = BuildSeriesListWithLogging(SeriesFor(target), phaseProgress, ct);
+            }
+        }
+
+        private static async Task BuildSeriesListWithLogging(
+            AltitudeSeries series, IProgress<string> phaseProgress, CancellationToken ct)
+        {
+            try { await series.BuildSeriesList(phaseProgress, ct); }
+            catch (OperationCanceledException) { /* expected -- caller cancelled */ }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"AltitudeSeries.BuildSeriesList (startup path) failed: {ex}");
             }
         }
 
@@ -460,7 +466,20 @@ namespace TargetPlanner.Charts
                     }
                 }
 
-                var wrappedTasks = newTargetList.Select(WrapBuild).ToList();
+                // Kick off each per-target WrapBuild in sequence. Each call runs its
+                // BuildSeriesList sync preamble on the UI thread until that BuildSeriesList
+                // hits its await Task.Run(ComputeYearCache) and yields -- then we Task.Yield
+                // here so the UI message pump can process queued input (notably Cancel
+                // button clicks) before the next target's preamble locks the UI thread
+                // again. Without this, N-target preambles stack back-to-back and the Cancel
+                // button's MouseDown highlight is delayed by the full cumulative preamble
+                // duration, which reads as "Cancel doesn't respond" for the first click.
+                var wrappedTasks = new List<Task<BuildOutcome>>(newTargetList.Count);
+                foreach (Target t in newTargetList)
+                {
+                    wrappedTasks.Add(WrapBuild(t));
+                    await Task.Yield();
+                }
                 await Task.WhenAll(wrappedTasks);
 
                 // Outer Cancel (not dialog-cancel) fired during the build -> leave prior

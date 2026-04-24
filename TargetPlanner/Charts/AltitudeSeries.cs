@@ -123,48 +123,36 @@ namespace TargetPlanner.Charts
         }
 
         // phaseProgress (if non-null) is reported exactly three times per successful build:
-        //   "Day"     -- after BuildMoonSeries + BuildDaySeries populate the minute-loop data.
-        //   "Year"    -- after ComputeYearCache populates mYearCache and RenderYearSeries lands.
+        //   "Day"     -- after the synchronous minute-loop Day and Moon series are populated.
+        //   "Year"    -- after the Task.Run background compute + UI-thread RenderYearSeries.
         //   "Optimal" -- after RenderOptimalSeries lands the three Optimal-area curves.
         // Progress<T> marshals each Report to the subscriber's creation context (UI thread),
         // so the subscribing ProgressBar Value setter runs on the UI thread regardless of
         // where the report originated. On exception, a phase may not tick -- subscribers that
         // track a tick count should not rely on exact counts to infer success.
         //
-        // Two entry points share BuildSeriesListBody:
+        // Threading model:
+        //   - Caller's thread (UI, typically): TargetSeriesList.Clear, BuildMoonSeries,
+        //     BuildDaySeries, FindOrCreateSeries x4. Sync preamble -- bounded (~O(points)
+        //     across a single night), and runs before the first await yields.
+        //   - Threadpool (via Task.Run): ComputeYearCache's 365-day CoordinateSharp loop.
+        //     This is the expensive phase; multiple targets run their Year computes in
+        //     parallel across threadpool threads when ReloadWithTargets kicks them off.
+        //   - Caller's thread again (continuation post-await): RenderYearSeries +
+        //     RenderOptimalSeries. Reads mYearCache and populates Series.Points.
         //
-        //   BuildSeriesList          -> async, wraps the whole body in Task.Run. Used by
-        //                               user-driven multi-target builds (AltitudeChart.Reload-
-        //                               WithTargets) so the UI thread stays responsive to
-        //                               Cancel clicks even while N targets are compiling their
-        //                               Moon / Day series in parallel.
-        //   BuildSeriesListBlocking  -> synchronous on the caller's thread. Used at startup
-        //                               (AltitudeChart.BuildTargetSeriesList) where the caller
-        //                               immediately calls ShowChartAreaSeries and needs Day /
-        //                               Moon / Year / Optimal already populated in
-        //                               TargetSeriesList when it runs.
+        // Keeping Moon/Day/Year-render on the caller's thread preserves the pre-refactor
+        // parallel-compute-with-serialized-render pattern that benchmarks well even on
+        // multi-target builds -- CoordinateSharp doesn't scale linearly beyond a handful of
+        // parallel callers, so the serialization-on-render isn't a bottleneck and avoids
+        // thread-affinity concerns the DataVisualization Series objects can exhibit.
         //
-        // Cross-thread Series.Points mutation is safe in both paths because
-        // AltitudeChart.ReloadWithTargets stages every Series in TargetSeriesList (not
-        // mChart.Series) until the atomic swap AFTER WhenAll completes -- so no Series
-        // attached to mChart ever has its Points mutated off the UI thread.
-        //
-        // Exceptions (including OperationCanceledException from ComputeYearCache's ct-checks)
-        // propagate out so ReloadWithTargets' Task.WhenAll / the startup try-catch can
-        // observe failure / cancellation and skip / defer their follow-up work.
-        public Task BuildSeriesList(IProgress<string> phaseProgress = null,
-                                    CancellationToken ct = default)
-        {
-            return Task.Run(() => BuildSeriesListBody(phaseProgress, ct), ct);
-        }
-
-        public void BuildSeriesListBlocking(IProgress<string> phaseProgress = null,
-                                            CancellationToken ct = default)
-        {
-            BuildSeriesListBody(phaseProgress, ct);
-        }
-
-        private void BuildSeriesListBody(IProgress<string> phaseProgress, CancellationToken ct)
+        // Exceptions (including OperationCanceledException from ComputeYearCache's
+        // ThrowIfCancellationRequested) propagate to the caller so ReloadWithTargets'
+        // Task.WhenAll can observe failure / cancellation and skip / defer the atomic swap.
+        // Fire-and-forget callers (startup) wrap with their own try/catch.
+        public async Task BuildSeriesList(IProgress<string> phaseProgress = null,
+                                          CancellationToken ct = default)
         {
             // Each Target owns its AltitudeSeries, so a second build on the same Target
             // must start from a clean TargetSeriesList -- otherwise BuildMoonSeries /
@@ -177,14 +165,15 @@ namespace TargetPlanner.Charts
             BuildDaySeries();
             phaseProgress?.Report("Day");
 
-            // Pre-allocate the Year + Optimal Series up front; RenderYearSeries and
-            // RenderOptimalSeries expect FindOrCreateSeries to have already added them.
+            // Pre-allocate the Year + Optimal Series up front so the background compute
+            // phase never touches TargetSeriesList concurrently with ShowChartAreaSeries /
+            // UpdateNowLine (both iterate TargetSeriesList on the UI thread).
             FindOrCreateSeries(Target.Name, "Year",                 mSeriesColor);
             FindOrCreateSeries(Target.Name, "Optimal",              mSeriesColor);
             FindOrCreateSeries(Target.Name, "OptimalFloor",         mSeriesColor);
             FindOrCreateSeries(Target.Name, "OptimalFloorCentered", mSeriesColor);
 
-            mYearCache = ComputeYearCache(ct);
+            mYearCache = await Task.Run(() => ComputeYearCache(ct), ct);
 
             RenderYearSeries();
             phaseProgress?.Report("Year");
