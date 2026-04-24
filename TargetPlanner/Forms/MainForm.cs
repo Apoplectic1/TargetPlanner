@@ -124,11 +124,16 @@ symmetry at the cost of a lower minimum altitude.";
         private GraphMode mGraphMode = GraphMode.Single;
         private bool mSuppressGraphModeEvents;
 
-        // Cancellation handle for the current chart build. Each Button_Graph_Click cancels
-        // the prior CTS (so a rapid re-click unwinds the previous build) and creates a new
-        // one. Button_GraphCancel_Click signals it; the token is observed inside
-        // AltitudeSeries.ComputeYearCache's 365-day loop. Disposed in MainForm_FormClosing.
+        // Cancellation handle for the current chart build. Button_Graph_Click creates a new
+        // CTS per build; Button_GraphCancel_Click signals it; the token is observed inside
+        // AltitudeSeries.ComputeYearCache's 365-day loop and AltitudeChart.ReloadWithTargets'
+        // Task.WhenAll. Disposed in MainForm_FormClosing.
         private CancellationTokenSource mGraphCts;
+
+        // Ignore-second-click guard for Button_Graph_Click. A Graph click while a prior
+        // build is still awaiting its Task.WhenAll just returns -- the user has to Cancel
+        // the in-flight build before a new one can start.
+        private bool mGraphBuildInProgress;
 
         public MainForm()
         {
@@ -386,17 +391,21 @@ symmetry at the cost of a lower minimum altitude.";
         // is active but nothing is checked (e.g. user just clicked Clear All), fall back
         // to mTarget so the button always produces a chart.
         //
+        // Async: ReloadWithTargets stages every target's Day / Moon / Year / Optimal build
+        // off to the side and only swaps into mChart.Series after all of them finish. That
+        // means (a) the prior chart stays fully stable during the compute and (b) Cancel
+        // leaves the prior chart untouched instead of half-updating.
+        //
         // mLocation.DateTime is already kept in sync with the pickers via
         // UpdateLocalDateTimeEvents (called from DatePicker/TimePicker ValueChanged and
         // Button_Now_Click). Don't overwrite it with DateTime.Now here -- that was the
         // pre-refactor assumption when the app was always "live now" by default.
-        //
-        // Reload-in-place: keep the Chart control, its ChartAreas, its Legend, and any
-        // user zoom / legend-color-toggle state alive. The chart was constructed once
-        // in InitializeDynamicControls. Reload resets only the transient state (series,
-        // strip lines, per-target AltitudeSeries cache, target list, Location snapshot).
-        private void Button_Graph_Click(object sender, EventArgs e)
+        private async void Button_Graph_Click(object sender, EventArgs e)
         {
+            // Ignore second click while a build is in flight. User must Cancel the running
+            // build before starting a new one.
+            if (mGraphBuildInProgress) return;
+
             var targets = new List<Target>();
 
             if (mGraphMode == GraphMode.Multi)
@@ -438,13 +447,26 @@ symmetry at the cost of a lower minimum altitude.";
 
             IProgress<string> phaseProgress = BeginChartBuildProgress(targetCount: targets.Count);
 
-            // Cancel any prior in-flight build (fast re-click) and start a new CTS tied
-            // to this click. The old CTS is abandoned to GC -- its finalizer handles Dispose.
-            // Button_GraphCancel_Click is the other signal path; both land at the same token.
             mGraphCts?.Cancel();
             mGraphCts = new CancellationTokenSource();
 
-            mAltitudeChart.ReloadWithTargets(mLocation, targets, phaseProgress, mGraphCts.Token);
+            bool swapped;
+            mGraphBuildInProgress = true;
+            try
+            {
+                swapped = await mAltitudeChart.ReloadWithTargets(
+                    mLocation, targets, phaseProgress, mGraphCts.Token);
+            }
+            finally
+            {
+                mGraphBuildInProgress = false;
+            }
+
+            // No swap happened (outer Cancel, or every target failed / was cancelled). Leave
+            // every visible piece of the chart exactly as it was; the prior data is still
+            // live in mChart.Series / mTargetList / etc. The progress bar was already reset
+            // by Button_GraphCancel_Click on the cancel path.
+            if (!swapped) return;
 
             // Snap the radio button state to Day so the UI and the active chart area agree.
             // Setting Checked=true only fires CheckedChanged if the value actually changes,

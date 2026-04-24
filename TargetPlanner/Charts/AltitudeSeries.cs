@@ -160,34 +160,20 @@ namespace TargetPlanner.Charts
             // Chart.Invalidate() cross-thread, which Windows Forms either throws on or silently
             // corrupts into misplaced data points -- the source of the "spikes" on the chart.
             //
-            // Returning Task (not void) lets exceptions propagate to callers that await. Most
-            // current call sites are fire-and-forget (discard the Task), so the try/catch here
-            // ensures a failed compute at least lands in the debugger output instead of
-            // vanishing to SynchronizationContext.
-            try
-            {
-                List<NightCacheEntry> cache = await Task.Run(() => ComputeYearCache(ct), ct);
+            // Exceptions (including OperationCanceledException) propagate to the caller so
+            // AltitudeChart.ReloadWithTargets' Task.WhenAll can observe failure / cancellation
+            // and skip / defer the atomic swap. Fire-and-forget callers (startup) are expected
+            // to wrap with their own try/catch if they care about logging.
+            List<NightCacheEntry> cache = await Task.Run(() => ComputeYearCache(ct), ct);
 
-                mYearCache = cache;
-                RenderYearSeries();
-                phaseProgress?.Report("Year");
-                // Initial render uses the snapshot's Horizon and Duration; Horizon / Duration
-                // spinner scrubs later call RebuildOptimalSeries(horizon, duration) with fresh
-                // values without touching the snapshot.
-                RenderOptimalSeries(Location.Horizon, Location.Duration);
-                phaseProgress?.Report("Optimal");
-            }
-            catch (OperationCanceledException)
-            {
-                // User clicked Cancel -- unwind quietly. Day/Moon are already in TargetSeriesList
-                // from the sync phase above; Year/Optimal never render. No phase reports past
-                // whatever fired before the cancellation point.
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine(
-                    $"AltitudeSeries.BuildSeriesList failed for target '{Target?.Name}': {ex}");
-            }
+            mYearCache = cache;
+            RenderYearSeries();
+            phaseProgress?.Report("Year");
+            // Initial render uses the snapshot's Horizon and Duration; Horizon / Duration
+            // spinner scrubs later call RebuildOptimalSeries(horizon, duration) with fresh
+            // values without touching the snapshot.
+            RenderOptimalSeries(Location.Horizon, Location.Duration);
+            phaseProgress?.Report("Optimal");
         }
 
         // Rebuild only the Optimal series on Horizon or Duration change. Day, Moon, and Year

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
 using TargetPlanner.Support;
@@ -319,74 +320,190 @@ namespace TargetPlanner.Charts
             mChart.ChartAreas[chartAreaName].Visible = true;
         }
 
-        // phaseProgress (if non-null) is propagated through to AltitudeSeries.BuildSeriesList;
-        // it fires "Day" / "Year" / "Optimal" once per target. Subscribers that want a per-tick
-        // count should multiply by mTargetList.Count to know the Maximum.
+        // Fire-and-forget per-target build on the already-committed state. Used at startup
+        // where there's no prior chart to preserve, so progressive Day-sync-then-Year-async
+        // rendering is acceptable. User-initiated graph clicks go through ReloadWithTargets
+        // instead, which stages the whole build off to the side and swaps atomically.
         //
-        // ct cancels the Year+Optimal Task.Run compute per target; Day / Moon (sync, pre-await)
-        // have already been built by the time this method returns for each target.
+        // phaseProgress (if non-null) fires "Day" / "Year" / "Optimal" once per target.
         public void BuildTargetSeriesList(IProgress<string> phaseProgress = null,
                                           CancellationToken ct = default)
         {
             foreach (Target target in mTargetList.ToList())
             {
                 if (target == null) continue;
-                // SeriesFor(target) captures Location and target into the new AltitudeSeries
-                // on first access; no per-call property assignment needed.
-                // Fire-and-forget: BuildSeriesList owns its own try/catch for diagnostics.
-                // The discard suppresses CS4014 and documents the intent explicitly.
-                _ = SeriesFor(target).BuildSeriesList(phaseProgress, ct);
+                // Fire-and-forget via local async wrapper: BuildSeriesList no longer swallows
+                // exceptions, so a bare `_ = SeriesFor(target).BuildSeriesList(...)` would
+                // lose OperationCanceledException / compute failures to TaskScheduler.
+                // UnobservedTaskException. Wrap to at least get a debug log.
+                _ = BuildSeriesListWithLogging(SeriesFor(target), phaseProgress, ct);
             }
         }
 
-        // Reset all transient state on this chart for a fresh Graph-click cycle, swap in a new
-        // Location / target list, and kick off BuildTargetSeriesList. Keeps the Chart control,
-        // its ChartArea instances, its Legend, and any user zoom / legend-color-toggle state
-        // alive across reloads -- only series, strip lines, per-target AltitudeSeries cache,
-        // target list, and the Location snapshot actually change.
+        private static async Task BuildSeriesListWithLogging(
+            AltitudeSeries series, IProgress<string> phaseProgress, CancellationToken ct)
+        {
+            try { await series.BuildSeriesList(phaseProgress, ct); }
+            catch (OperationCanceledException) { /* expected -- caller cancelled */ }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"AltitudeSeries.BuildSeriesList (startup path) failed: {ex}");
+            }
+        }
+
+        private enum BuildResult { Success, Cancelled, Failed }
+        private readonly struct BuildOutcome
+        {
+            public readonly Target Target;
+            public readonly BuildResult Result;
+            public readonly Exception Error;
+            public BuildOutcome(Target t, BuildResult r, Exception e)
+            { Target = t; Result = r; Error = e; }
+        }
+
+        // Staged, atomic reload. Builds a fresh set of AltitudeSeries off to the side while
+        // the prior chart remains visible and interactive. Only after all target builds
+        // finish (success, error, or cancellation) does the swap land -- mChart.Series
+        // gets cleared, strip lines are reseeded, the committed dictionaries are replaced.
         //
-        // Safe even if a prior cycle's Task.Run continuations are still in flight: those still
-        // reference their own frozen Location via the old AltitudeSeries instances captured
-        // before mSeriesByTarget.Clear(). They write to their own TargetSeriesList's Series
-        // objects, which are no longer in mChart.Series -- so the writes land on disconnected
-        // data and do not cross-contaminate the new cycle.
-        public void ReloadWithTargets(Location newLocation, IEnumerable<Target> targets,
-                                      IProgress<string> phaseProgress = null,
-                                      CancellationToken ct = default)
+        // Returns true if the swap happened (chart now shows new data, possibly partial),
+        // false if nothing committed (prior chart still live). Callers use the return
+        // value to decide whether to run the "update display" follow-up (radio button,
+        // ShowChartAreaSeries, ChartTitle, UpdateNowLine) or skip it to leave the chart
+        // exactly as it was.
+        //
+        // Cancellation / error semantics:
+        //   - Outer ct (e.g. MainForm's mGraphCts) fires -> tasks observe cancellation,
+        //     no swap, returns false.
+        //   - Per-target exception -> modal dialog offers "Cancel remaining & show what
+        //     succeeded" (partial swap, returns true) vs. "Continue (suppress further
+        //     dialogs)" (build remaining targets, silently skip failed ones in the swap).
+        //   - If every target failed or was cancelled, returns false (prior chart stays).
+        public async Task<bool> ReloadWithTargets(Location newLocation, IEnumerable<Target> targets,
+                                                  IProgress<string> phaseProgress = null,
+                                                  CancellationToken ct = default)
         {
             if (newLocation == null) throw new ArgumentNullException(nameof(newLocation));
             if (targets == null)     throw new ArgumentNullException(nameof(targets));
 
-            mChart.Series.Clear();
-            foreach (ChartArea area in mChartAreaList)
-            {
-                area.AxisX.StripLines.Clear();  // dawn/dusk gradient + now line
-                area.AxisY.StripLines.Clear();  // horizon line
-            }
-            mNowLines.Clear();
-            mHorizonLines.Clear();
-            mSeriesByTarget.Clear();
-            mTargetColors.Clear();
-            mTargetList.Clear();
+            // Stage new state -- no visible UI mutation below until the swap at the end.
+            var newTargetList = new List<Target>();
+            var newSeriesByTarget = new Dictionary<Target, AltitudeSeries>();
+            var newTargetColors = new Dictionary<Target, Color>();
 
-            Location = newLocation;
-
-            // Seed the horizon strip line on every chart area up front so all three areas
-            // start with a line at the current Horizon. From here on, spinner scrubs go
-            // through UpdateHorizonLines and radio-button switches leave the lines alone.
-            UpdateHorizonLines(newLocation.Horizon);
-
-            // mTargetList order == legend order (ShowChartAreaSeries adds to mChart.Series in
-            // this order, and the Chart legend mirrors mChart.Series). Color assignment uses
-            // this same index so the color a target gets is the color its legend row displays.
             foreach (Target t in targets)
             {
                 if (t == null) continue;
-                mTargetColors[t] = TargetColorPalette[mTargetList.Count % TargetColorPalette.Length];
-                mTargetList.Add(t);
+                Color color = TargetColorPalette[newTargetList.Count % TargetColorPalette.Length];
+                newTargetColors[t] = color;
+                newTargetList.Add(t);
+                newSeriesByTarget[t] = new AltitudeSeries(newLocation, t, color);
             }
 
-            BuildTargetSeriesList(phaseProgress, ct);
+            if (newTargetList.Count == 0) return false;
+
+            // Linked CTS distinguishes "outer Cancel" (propagated from ct -- e.g. the
+            // MainForm Cancel button) vs. "error-dialog Cancel" (we Cancel linkedCts
+            // locally and set dialogCancelled so the post-await branch knows to do the
+            // partial swap instead of returning).
+            using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct))
+            {
+                bool dialogCancelled = false;
+                bool suppressDialogs = false;
+
+                async Task<BuildOutcome> WrapBuild(Target target)
+                {
+                    try
+                    {
+                        await newSeriesByTarget[target].BuildSeriesList(phaseProgress, linkedCts.Token);
+                        return new BuildOutcome(target, BuildResult.Success, null);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return new BuildOutcome(target, BuildResult.Cancelled, null);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine(
+                            $"AltitudeSeries.BuildSeriesList failed for target '{target?.Name}': {ex}");
+
+                        if (!suppressDialogs && !dialogCancelled)
+                        {
+                            // Preemptive set: WinForms MessageBox pumps messages while open,
+                            // so a parallel target's catch running on the UI thread could
+                            // re-enter here and stack a second dialog. Marking suppressDialogs
+                            // true up front makes the reentrant check short-circuit. The user
+                            // only chooses between "keep building (quietly)" and "stop now",
+                            // so preempting doesn't lose anything.
+                            suppressDialogs = true;
+
+                            DialogResult dr = MessageBox.Show(
+                                $"Could not build chart data for target '{target?.Name}':" +
+                                Environment.NewLine + Environment.NewLine +
+                                ex.Message + Environment.NewLine + Environment.NewLine +
+                                "OK: keep building remaining targets (further failures will be " +
+                                "suppressed and skipped silently)." + Environment.NewLine +
+                                "Cancel: stop now and display only targets that have finished " +
+                                "successfully.",
+                                "Target build failed",
+                                MessageBoxButtons.OKCancel,
+                                MessageBoxIcon.Warning);
+
+                            if (dr == DialogResult.Cancel)
+                            {
+                                dialogCancelled = true;
+                                linkedCts.Cancel();
+                            }
+                        }
+                        return new BuildOutcome(target, BuildResult.Failed, ex);
+                    }
+                }
+
+                var wrappedTasks = newTargetList.Select(WrapBuild).ToList();
+                await Task.WhenAll(wrappedTasks);
+
+                // Outer Cancel (not dialog-cancel) fired during the build -> leave prior
+                // chart exactly as it was. Partial success from a dialog-cancel continues
+                // to the swap below.
+                if (ct.IsCancellationRequested && !dialogCancelled) return false;
+
+                // Commit successful targets only. If nothing succeeded, keep the prior chart.
+                var commitTargets = new List<Target>();
+                foreach (Task<BuildOutcome> t in wrappedTasks)
+                {
+                    if (t.Result.Result == BuildResult.Success) commitTargets.Add(t.Result.Target);
+                }
+                if (commitTargets.Count == 0) return false;
+
+                // Atomic swap -- synchronous on UI thread, no yield points.
+                mChart.Series.Clear();
+                foreach (ChartArea area in mChartAreaList)
+                {
+                    area.AxisX.StripLines.Clear();
+                    area.AxisY.StripLines.Clear();
+                }
+                mNowLines.Clear();
+                mHorizonLines.Clear();
+
+                Location = newLocation;
+
+                // Preserve the identity of mTargetList / mSeriesByTarget / mTargetColors
+                // (Targets property returns a view of mTargetList; callers may hold its
+                // reference). Clear+Add instead of reassigning the fields.
+                mTargetList.Clear();
+                mSeriesByTarget.Clear();
+                mTargetColors.Clear();
+                foreach (Target t in commitTargets)
+                {
+                    mTargetList.Add(t);
+                    mSeriesByTarget[t] = newSeriesByTarget[t];
+                    mTargetColors[t] = newTargetColors[t];
+                }
+
+                UpdateHorizonLines(newLocation.Horizon);
+            }
+            return true;
         }
 
         // Regenerate only the Optimal series in place for every target in the target list.
