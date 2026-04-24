@@ -358,171 +358,68 @@ namespace TargetPlanner.Charts
             }
         }
 
-        private enum BuildResult { Success, Cancelled, Failed }
-        private readonly struct BuildOutcome
-        {
-            public readonly Target Target;
-            public readonly BuildResult Result;
-            public readonly Exception Error;
-            public BuildOutcome(Target t, BuildResult r, Exception e)
-            { Target = t; Result = r; Error = e; }
-        }
-
-        // Staged, atomic reload. Builds a fresh set of AltitudeSeries off to the side while
-        // the prior chart remains visible and interactive. Only after all target builds
-        // finish (success, error, or cancellation) does the swap land -- mChart.Series
-        // gets cleared, strip lines are reseeded, the committed dictionaries are replaced.
+        // Reset all transient state on this chart for a fresh Graph-click cycle, swap in a
+        // new Location / target list, and kick off BuildTargetSeriesList. Keeps the Chart
+        // control, its ChartArea instances, its Legend, and any user zoom / legend-color-
+        // toggle state alive across reloads -- only series, strip lines, per-target
+        // AltitudeSeries cache, target list, and the Location snapshot actually change.
         //
-        // Returns true if the swap happened (chart now shows new data, possibly partial),
-        // false if nothing committed (prior chart still live). Callers use the return
-        // value to decide whether to run the "update display" follow-up (radio button,
-        // ShowChartAreaSeries, ChartTitle, UpdateNowLine) or skip it to leave the chart
-        // exactly as it was.
+        // Per-target BuildSeriesList runs its sync preamble (TargetSeriesList.Clear +
+        // BuildMoonSeries + BuildDaySeries + FindOrCreate x4) on the caller's thread right
+        // here, before its await Task.Run(ComputeYearCache) yields. So by the time this
+        // method returns, every target's Day and Moon Series are populated in its
+        // AltitudeSeries.TargetSeriesList; the caller's subsequent ShowChartAreaSeries
+        // ("Day") finds them and the Day chart paints immediately. Year and Optimal
+        // continue in the background (Task.Run + UI-thread continuation); the chart picks
+        // them up when the user switches radios or as the continuations land.
         //
-        // Cancellation / error semantics:
-        //   - Outer ct (e.g. MainForm's mGraphCts) fires -> tasks observe cancellation,
-        //     no swap, returns false.
-        //   - Per-target exception -> modal dialog offers "Cancel remaining & show what
-        //     succeeded" (partial swap, returns true) vs. "Continue (suppress further
-        //     dialogs)" (build remaining targets, silently skip failed ones in the swap).
-        //   - If every target failed or was cancelled, returns false (prior chart stays).
-        public async Task<bool> ReloadWithTargets(Location newLocation, IEnumerable<Target> targets,
-                                                  IProgress<string> phaseProgress = null,
-                                                  CancellationToken ct = default)
+        // Returns Task.WhenAll of the per-target builds so the caller can await the
+        // "all phases complete" signal -- used to re-enable Button_Graph after the full
+        // build cycle.
+        public Task ReloadWithTargets(Location newLocation, IEnumerable<Target> targets,
+                                      IProgress<string> phaseProgress = null,
+                                      CancellationToken ct = default)
         {
             if (newLocation == null) throw new ArgumentNullException(nameof(newLocation));
             if (targets == null)     throw new ArgumentNullException(nameof(targets));
 
-            // Stage new state -- no visible UI mutation below until the swap at the end.
-            var newTargetList = new List<Target>();
-            var newSeriesByTarget = new Dictionary<Target, AltitudeSeries>();
-            var newTargetColors = new Dictionary<Target, Color>();
+            mChart.Series.Clear();
+            foreach (ChartArea area in mChartAreaList)
+            {
+                area.AxisX.StripLines.Clear();
+                area.AxisY.StripLines.Clear();
+            }
+            mNowLines.Clear();
+            mHorizonLines.Clear();
+            mSeriesByTarget.Clear();
+            mTargetColors.Clear();
+            mTargetList.Clear();
 
+            Location = newLocation;
+
+            UpdateHorizonLines(newLocation.Horizon);
+
+            // mTargetList order == legend order. Color assignment uses this same index so
+            // the color a target gets is the color its legend row displays.
             foreach (Target t in targets)
             {
                 if (t == null) continue;
-                Color color = TargetColorPalette[newTargetList.Count % TargetColorPalette.Length];
-                newTargetColors[t] = color;
-                newTargetList.Add(t);
-                newSeriesByTarget[t] = new AltitudeSeries(newLocation, t, color);
+                mTargetColors[t] = TargetColorPalette[mTargetList.Count % TargetColorPalette.Length];
+                mTargetList.Add(t);
             }
 
-            if (newTargetList.Count == 0) return false;
-
-            // Linked CTS distinguishes "outer Cancel" (propagated from ct -- e.g. the
-            // MainForm Cancel button) vs. "error-dialog Cancel" (we Cancel linkedCts
-            // locally and set dialogCancelled so the post-await branch knows to do the
-            // partial swap instead of returning).
-            using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct))
+            // Kick off per-target BuildSeriesList. Each call runs its Moon / Day sync
+            // preamble on THIS thread before its await Task.Run yields; by the time the
+            // foreach finishes, TargetSeriesList is populated for every target's Day
+            // phase. Year and Optimal phases run in background Task.Runs and render on
+            // their continuations.
+            var tasks = new List<Task>(mTargetList.Count);
+            foreach (Target target in mTargetList)
             {
-                bool dialogCancelled = false;
-                bool suppressDialogs = false;
-
-                async Task<BuildOutcome> WrapBuild(Target target)
-                {
-                    try
-                    {
-                        await newSeriesByTarget[target].BuildSeriesList(phaseProgress, linkedCts.Token);
-                        return new BuildOutcome(target, BuildResult.Success, null);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        return new BuildOutcome(target, BuildResult.Cancelled, null);
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine(
-                            $"AltitudeSeries.BuildSeriesList failed for target '{target?.Name}': {ex}");
-
-                        if (!suppressDialogs && !dialogCancelled)
-                        {
-                            // Preemptive set: WinForms MessageBox pumps messages while open,
-                            // so a parallel target's catch running on the UI thread could
-                            // re-enter here and stack a second dialog. Marking suppressDialogs
-                            // true up front makes the reentrant check short-circuit. The user
-                            // only chooses between "keep building (quietly)" and "stop now",
-                            // so preempting doesn't lose anything.
-                            suppressDialogs = true;
-
-                            DialogResult dr = MessageBox.Show(
-                                $"Could not build chart data for target '{target?.Name}':" +
-                                Environment.NewLine + Environment.NewLine +
-                                ex.Message + Environment.NewLine + Environment.NewLine +
-                                "OK: keep building remaining targets (further failures will be " +
-                                "suppressed and skipped silently)." + Environment.NewLine +
-                                "Cancel: stop now and display only targets that have finished " +
-                                "successfully.",
-                                "Target build failed",
-                                MessageBoxButtons.OKCancel,
-                                MessageBoxIcon.Warning);
-
-                            if (dr == DialogResult.Cancel)
-                            {
-                                dialogCancelled = true;
-                                linkedCts.Cancel();
-                            }
-                        }
-                        return new BuildOutcome(target, BuildResult.Failed, ex);
-                    }
-                }
-
-                // Kick off each per-target WrapBuild in sequence. Each call runs its
-                // BuildSeriesList sync preamble on the UI thread until that BuildSeriesList
-                // hits its await Task.Run(ComputeYearCache) and yields -- then we Task.Yield
-                // here so the UI message pump can process queued input (notably Cancel
-                // button clicks) before the next target's preamble locks the UI thread
-                // again. Without this, N-target preambles stack back-to-back and the Cancel
-                // button's MouseDown highlight is delayed by the full cumulative preamble
-                // duration, which reads as "Cancel doesn't respond" for the first click.
-                var wrappedTasks = new List<Task<BuildOutcome>>(newTargetList.Count);
-                foreach (Target t in newTargetList)
-                {
-                    wrappedTasks.Add(WrapBuild(t));
-                    await Task.Yield();
-                }
-                await Task.WhenAll(wrappedTasks);
-
-                // Outer Cancel (not dialog-cancel) fired during the build -> leave prior
-                // chart exactly as it was. Partial success from a dialog-cancel continues
-                // to the swap below.
-                if (ct.IsCancellationRequested && !dialogCancelled) return false;
-
-                // Commit successful targets only. If nothing succeeded, keep the prior chart.
-                var commitTargets = new List<Target>();
-                foreach (Task<BuildOutcome> t in wrappedTasks)
-                {
-                    if (t.Result.Result == BuildResult.Success) commitTargets.Add(t.Result.Target);
-                }
-                if (commitTargets.Count == 0) return false;
-
-                // Atomic swap -- synchronous on UI thread, no yield points.
-                mChart.Series.Clear();
-                foreach (ChartArea area in mChartAreaList)
-                {
-                    area.AxisX.StripLines.Clear();
-                    area.AxisY.StripLines.Clear();
-                }
-                mNowLines.Clear();
-                mHorizonLines.Clear();
-
-                Location = newLocation;
-
-                // Preserve the identity of mTargetList / mSeriesByTarget / mTargetColors
-                // (Targets property returns a view of mTargetList; callers may hold its
-                // reference). Clear+Add instead of reassigning the fields.
-                mTargetList.Clear();
-                mSeriesByTarget.Clear();
-                mTargetColors.Clear();
-                foreach (Target t in commitTargets)
-                {
-                    mTargetList.Add(t);
-                    mSeriesByTarget[t] = newSeriesByTarget[t];
-                    mTargetColors[t] = newTargetColors[t];
-                }
-
-                UpdateHorizonLines(newLocation.Horizon);
+                if (target == null) continue;
+                tasks.Add(BuildSeriesListWithLogging(SeriesFor(target), phaseProgress, ct));
             }
-            return true;
+            return Task.WhenAll(tasks);
         }
 
         // Regenerate only the Optimal series in place for every target in the target list.

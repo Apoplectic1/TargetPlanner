@@ -464,25 +464,43 @@ symmetry at the cost of a lower minimum altitude.";
             mGraphCts?.Cancel();
             mGraphCts = new CancellationTokenSource();
 
-            // Disable Button_Graph for the duration of the build so the user can't stack
-            // clicks. Button_GraphCancel stays enabled so a cancel can still be requested;
-            // it disables itself when clicked and re-enables alongside Button_Graph in the
-            // finally block below.
+            // Disable Button_Graph for the duration of the full build so the user can't
+            // stack clicks. Button_GraphCancel stays enabled so a cancel can still be
+            // requested; it disables itself when clicked and re-enables alongside
+            // Button_Graph in the finally block below.
             //
-            // Park focus on the form before the disable. Otherwise Win32 auto-advances focus
-            // from the just-disabled Button_Graph to the next TabStop (ComboBox_SelectTarget),
-            // whose focus-gain auto-selects its text; the combo's SelectedIndexChanged
-            // handler then re-resolves mTarget and the fallback branch at the top of the
-            // NEXT Button_Graph click finds CheckedItems empty (because mGraphMode flipped
-            // to Single via WireSingleMode's combo subscription) and graphs a single target.
+            // Park focus on the form before the disable. Otherwise Win32 auto-advances
+            // focus from the just-disabled Button_Graph to the next TabStop
+            // (ComboBox_SelectTarget), whose focus-gain auto-selects its text and
+            // cascades mode-flip side effects into the combo's SelectedIndexChanged path.
             ActiveControl = null;
             Button_Graph.Enabled = false;
-            bool swapped;
             mGraphBuildInProgress = true;
+
             try
             {
-                swapped = await mAltitudeChart.ReloadWithTargets(
+                // ReloadWithTargets runs every target's sync preamble (Moon + Day +
+                // FindOrCreate) on this thread before it returns, so TargetSeriesList is
+                // populated with each target's Day Series by the time we get back. The
+                // returned Task.WhenAll completes once every target's Year + Optimal
+                // background compute finishes.
+                Task allBuildsTask = mAltitudeChart.ReloadWithTargets(
                     mLocation, targets, phaseProgress, mGraphCts.Token);
+
+                // Snap the radio to Day and paint the Day chart immediately -- no waiting
+                // for Year / Optimal. Setting Checked=true only fires CheckedChanged if
+                // the value actually changes, so we unconditionally run ShowChartAreaSeries
+                // + ChartTitle after to cover the "radio already on Day" path.
+                RadioButton_Day.Checked = true;
+                mAltitudeChart.ShowChartAreaSeries("Day");
+                mAltitudeChart.ChartTitle = FormatChartTitle("Day");
+                mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
+
+                // Wait for Year + Optimal to finish before re-enabling Graph. If Cancel
+                // fires mid-compute, the Task.Runs abort and allBuildsTask completes
+                // (BuildSeriesListWithLogging swallows OperationCanceledException); the
+                // chart keeps whatever Day / Year / Optimal points rendered so far.
+                await allBuildsTask;
             }
             finally
             {
@@ -490,21 +508,6 @@ symmetry at the cost of a lower minimum altitude.";
                 Button_Graph.Enabled = true;
                 Button_GraphCancel.Enabled = true;
             }
-
-            // No swap happened (outer Cancel, or every target failed / was cancelled). Leave
-            // every visible piece of the chart exactly as it was; the prior data is still
-            // live in mChart.Series / mTargetList / etc. The progress bar was already reset
-            // by Button_GraphCancel_Click on the cancel path.
-            if (!swapped) return;
-
-            // Snap the radio button state to Day so the UI and the active chart area agree.
-            // Setting Checked=true only fires CheckedChanged if the value actually changes,
-            // so we unconditionally run ShowChartAreaSeries + ChartTitle after to cover the
-            // "radio already on Day" path.
-            RadioButton_Day.Checked = true;
-            mAltitudeChart.ShowChartAreaSeries("Day");
-            mAltitudeChart.ChartTitle = FormatChartTitle("Day");
-            mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
         }
 
         // Snap the observation moment back to the current wall-clock time. Replaces the
@@ -1064,6 +1067,18 @@ symmetry at the cost of a lower minimum altitude.";
             c.SelectedIndexChanged += (s, e) =>
             {
                 if (mSuppressGraphModeEvents) return;
+
+                // De-selection (no row highlighted after the change) -- e.g. the user
+                // clicked empty space and WinForms de-highlighted the previously-selected
+                // row. Treat that as "no meaningful selection change" and fall through to
+                // the Click handler's no-change-flips-to-Multi rule. Consume the toggle
+                // latch so it doesn't leak, but skip setting the handler-fired flag so
+                // Click can still fire MarkMultiMode.
+                if (c.SelectedItem == null)
+                {
+                    mCheckedListBoxJustToggled = false;
+                    return;
+                }
 
                 mCheckedListBoxClickFiredHandler = true;
 
