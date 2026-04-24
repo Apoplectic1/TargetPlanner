@@ -107,7 +107,7 @@
             this.Button_GraphCancel = new System.Windows.Forms.Button();
             this.MenuStrip_MainForm = new System.Windows.Forms.MenuStrip();
             this.FileToolStripMenuItem_MainForm = new System.Windows.Forms.ToolStripMenuItem();
-            this.GroupBox_AltitudeChart = new System.Windows.Forms.GroupBox();
+            this.GroupBox_Altitude = new System.Windows.Forms.GroupBox();
             this.ProgressBar_MultiTargetProcessing = new System.Windows.Forms.ProgressBar();
             this.GroupBox_Local.SuspendLayout();
             this.GroupBox_Location.SuspendLayout();
@@ -128,7 +128,7 @@
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_DecDegrees)).BeginInit();
             this.GroupBox_Target.SuspendLayout();
             this.MenuStrip_MainForm.SuspendLayout();
-            this.GroupBox_AltitudeChart.SuspendLayout();
+            this.GroupBox_Altitude.SuspendLayout();
             this.SuspendLayout();
             // 
             // GroupBox_Local
@@ -1032,7 +1032,6 @@
             this.ComboBox_SortTargets.Name = "ComboBox_SortTargets";
             this.ComboBox_SortTargets.Size = new System.Drawing.Size(120, 21);
             this.ComboBox_SortTargets.TabIndex = 11;
-            this.ComboBox_SortTargets.SelectedIndex = 0;
             this.ComboBox_SortTargets.SelectedIndexChanged += new System.EventHandler(this.ComboBox_SortTargets_SelectedIndexChanged);
             // 
             // CheckedListBox_SelectedTargets
@@ -1126,18 +1125,18 @@
             this.FileToolStripMenuItem_MainForm.Size = new System.Drawing.Size(37, 20);
             this.FileToolStripMenuItem_MainForm.Text = "File";
             // 
-            // GroupBox_AltitudeChart
+            // GroupBox_Altitude
             // 
-            this.GroupBox_AltitudeChart.Controls.Add(this.ProgressBar_MultiTargetProcessing);
-            this.GroupBox_AltitudeChart.Controls.Add(this.RadioButton_Year);
-            this.GroupBox_AltitudeChart.Controls.Add(this.RadioButton_Optimal);
-            this.GroupBox_AltitudeChart.Controls.Add(this.RadioButton_Day);
-            this.GroupBox_AltitudeChart.Location = new System.Drawing.Point(-7, 373);
-            this.GroupBox_AltitudeChart.Name = "GroupBox_AltitudeChart";
-            this.GroupBox_AltitudeChart.Size = new System.Drawing.Size(1614, 555);
-            this.GroupBox_AltitudeChart.TabIndex = 6;
-            this.GroupBox_AltitudeChart.TabStop = false;
-            this.GroupBox_AltitudeChart.Text = "Target Altitude";
+            this.GroupBox_Altitude.Controls.Add(this.ProgressBar_MultiTargetProcessing);
+            this.GroupBox_Altitude.Controls.Add(this.RadioButton_Year);
+            this.GroupBox_Altitude.Controls.Add(this.RadioButton_Optimal);
+            this.GroupBox_Altitude.Controls.Add(this.RadioButton_Day);
+            this.GroupBox_Altitude.Location = new System.Drawing.Point(13, 373);
+            this.GroupBox_Altitude.Name = "GroupBox_Altitude";
+            this.GroupBox_Altitude.Size = new System.Drawing.Size(1594, 555);
+            this.GroupBox_Altitude.TabIndex = 6;
+            this.GroupBox_Altitude.TabStop = false;
+            this.GroupBox_Altitude.Text = "Altitude";
             // 
             // ProgressBar_MultiTargetProcessing
             // 
@@ -1151,7 +1150,7 @@
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(1628, 951);
-            this.Controls.Add(this.GroupBox_AltitudeChart);
+            this.Controls.Add(this.GroupBox_Altitude);
             this.Controls.Add(this.GroupBox_Target);
             this.Controls.Add(this.GroupBox_Local);
             this.Controls.Add(this.MenuStrip_MainForm);
@@ -1184,8 +1183,8 @@
             this.GroupBox_Target.PerformLayout();
             this.MenuStrip_MainForm.ResumeLayout(false);
             this.MenuStrip_MainForm.PerformLayout();
-            this.GroupBox_AltitudeChart.ResumeLayout(false);
-            this.GroupBox_AltitudeChart.PerformLayout();
+            this.GroupBox_Altitude.ResumeLayout(false);
+            this.GroupBox_Altitude.PerformLayout();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -1264,7 +1263,7 @@
         private System.Windows.Forms.GroupBox GroupBox_Target;
         private System.Windows.Forms.MenuStrip MenuStrip_MainForm;
         private System.Windows.Forms.ToolStripMenuItem FileToolStripMenuItem_MainForm;
-        private System.Windows.Forms.GroupBox GroupBox_AltitudeChart;
+        private System.Windows.Forms.GroupBox GroupBox_Altitude;
         private System.Windows.Forms.Label Label_TargetName;
         private System.Windows.Forms.Label Label_Phase;
         private System.Windows.Forms.ComboBox ComboBox_SelectTarget;
