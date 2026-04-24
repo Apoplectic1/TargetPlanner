@@ -142,6 +142,13 @@ symmetry at the cost of a lower minimum altitude.";
         // did not (e.g. toggling the checkbox of an already-selected row).
         private bool mCheckedListBoxJustToggled;
 
+        // Per-mouse-click latch: MouseDown clears, ItemCheck / SelectedIndexChanged set,
+        // Click reads. If Click fires with the latch still false, no handler ran for this
+        // click -- i.e. the user clicked somewhere in the list but nothing changed
+        // (empty space below rows, or a row that's already highlighted and wasn't
+        // toggled). Per spec, that case flips to Multi.
+        private bool mCheckedListBoxClickFiredHandler;
+
         public MainForm()
         {
             InitializeComponent();
@@ -973,24 +980,34 @@ symmetry at the cost of a lower minimum altitude.";
         private void WireMultiMode(Button b)           => b.Click                += (s, e) => MarkMultiMode();
         private void WireMultiMode(ComboBox c)         => c.SelectedIndexChanged += (s, e) => MarkMultiMode();
 
-        // CheckedListBox interactions split into two paths:
-        //   - ItemCheck  -> user toggled a checkbox. Flip to Multi so Button_Graph builds
-        //                   the CheckedItems set.
-        //   - SelectedIndexChanged (without an ItemCheck in the same click) -> pure
-        //                   highlight change. Flip to Single, mirror the highlighted
-        //                   target into ComboBox_SelectTarget (which re-pushes mTarget +
-        //                   RA/Dec via ComboBox_SelectTarget_SelectedIndexChanged).
-        // The toggle latch disambiguates "click toggled a checkbox AND moved the highlight"
-        // (both events fire -- user intent is Multi) from "click moved the highlight only"
-        // (only SelectedIndexChanged -- user intent is Single). The combo / RA/Dec sync
-        // runs in BOTH cases so the target inspector always reflects the row the user is
-        // interacting with.
+        // CheckedListBox interactions split into three paths:
+        //   - ItemCheck                  -> user toggled a checkbox. Flip to Multi so
+        //                                   Button_Graph builds the CheckedItems set.
+        //   - SelectedIndexChanged       -> highlight changed. Flip to Single if no
+        //     (without a toggle)            ItemCheck in the same click (pure highlight);
+        //                                   leave Multi in place otherwise. Mirror the
+        //                                   highlighted row into ComboBox_SelectTarget in
+        //                                   either case so the target inspector tracks it.
+        //   - Click (no other handler)   -> neither a checkbox nor highlight changed
+        //                                   (empty-space click, or a click on an already-
+        //                                   highlighted row with no toggle). Per spec,
+        //                                   this plain "I'm using the list" click flips
+        //                                   to Multi.
+        //
+        // mCheckedListBoxJustToggled is a one-click latch consumed by SelectedIndexChanged
+        // to disambiguate toggle-plus-highlight from plain highlight.
+        // mCheckedListBoxClickFiredHandler is a separate one-click latch cleared on MouseDown
+        // and set whenever ItemCheck or SelectedIndexChanged ran for this click; the Click
+        // handler inspects it to detect "nothing changed".
         private void WireCheckedListBoxGraphMode(CheckedListBox c)
         {
+            c.MouseDown += (s, e) => mCheckedListBoxClickFiredHandler = false;
+
             c.ItemCheck += (s, e) =>
             {
                 if (mSuppressGraphModeEvents) return;
                 mCheckedListBoxJustToggled = true;
+                mCheckedListBoxClickFiredHandler = true;
                 MarkMultiMode();
             };
 
@@ -998,7 +1015,9 @@ symmetry at the cost of a lower minimum altitude.";
             {
                 if (mSuppressGraphModeEvents) return;
 
-                // Consume the latch: it's valid for exactly one SelectedIndexChanged.
+                mCheckedListBoxClickFiredHandler = true;
+
+                // Consume the toggle latch: it's valid for exactly one SelectedIndexChanged.
                 bool wasJustToggled = mCheckedListBoxJustToggled;
                 mCheckedListBoxJustToggled = false;
 
@@ -1007,9 +1026,16 @@ symmetry at the cost of a lower minimum altitude.";
                 if (!wasJustToggled) MarkSingleMode();
             };
 
+            c.Click += (s, e) =>
+            {
+                if (mSuppressGraphModeEvents) return;
+                if (!mCheckedListBoxClickFiredHandler) MarkMultiMode();
+            };
+
             // ItemCheck can fire without a matching SelectedIndexChanged (toggling the
             // checkbox on the already-selected row -- index doesn't change). MouseUp /
-            // KeyUp clear the latch in that case so it doesn't leak into the next click.
+            // KeyUp clear the toggle latch in that case so it doesn't leak into the next
+            // click.
             c.MouseUp += (s, e) => mCheckedListBoxJustToggled = false;
             c.KeyUp   += (s, e) => mCheckedListBoxJustToggled = false;
         }
@@ -1094,17 +1120,36 @@ symmetry at the cost of a lower minimum altitude.";
             SyncTargetUIFromModel();
         }
 
+        // SetItemCheckState fires ItemCheck per row; suppress graph-mode side effects so
+        // the programmatic batch doesn't set mCheckedListBoxJustToggled / flip mode. The
+        // button's own Click subscription (WireMultiMode(Button)) fires after this handler
+        // returns and reliably flips mode to Multi.
         private void Button_ClearAllTargets_Click(object sender, EventArgs e)
         {
-            for (int i = 0; i < CheckedListBox_SelectedTargets.Items.Count; i++)
-                CheckedListBox_SelectedTargets.SetItemCheckState(i, CheckState.Unchecked);
+            mSuppressGraphModeEvents = true;
+            try
+            {
+                for (int i = 0; i < CheckedListBox_SelectedTargets.Items.Count; i++)
+                    CheckedListBox_SelectedTargets.SetItemCheckState(i, CheckState.Unchecked);
+            }
+            finally
+            {
+                mSuppressGraphModeEvents = false;
+            }
         }
 
         private void Button_SelectAllTargets_Click(object sender, EventArgs e)
         {
-
-            for (int i = 0; i < CheckedListBox_SelectedTargets.Items.Count; i++)
-                CheckedListBox_SelectedTargets.SetItemCheckState(i, CheckState.Checked);
+            mSuppressGraphModeEvents = true;
+            try
+            {
+                for (int i = 0; i < CheckedListBox_SelectedTargets.Items.Count; i++)
+                    CheckedListBox_SelectedTargets.SetItemCheckState(i, CheckState.Checked);
+            }
+            finally
+            {
+                mSuppressGraphModeEvents = false;
+            }
         }
 
         // Check exactly the targets that have a contiguous window of at least
@@ -1148,16 +1193,26 @@ symmetry at the cost of a lower minimum altitude.";
             Astronomy.Core.Horizons.IHorizonProfile horizon =
                 new Astronomy.Core.Horizons.ScalarHorizonProfile(pickedNightLocation.Horizon);
 
-            for (int i = 0; i < CheckedListBox_SelectedTargets.Items.Count; i++)
+            // Suppress graph-mode side effects during the batch SetItemCheckState loop;
+            // WireMultiMode(Button_VisibleTonight) runs after us and reliably flips to Multi.
+            mSuppressGraphModeEvents = true;
+            try
             {
-                string name = CheckedListBox_SelectedTargets.Items[i].ToString();
-                Target target = mTargetList.Find(t => t.Name == name);
-                bool visible = target != null
-                    && Astronomy.Core.Session.CoarseVisibility.IsAboveHorizonForAtLeast(
-                        target, pickedNightLocation, night, horizon,
-                        pickedNightLocation.Duration);
-                CheckedListBox_SelectedTargets.SetItemCheckState(
-                    i, visible ? CheckState.Checked : CheckState.Unchecked);
+                for (int i = 0; i < CheckedListBox_SelectedTargets.Items.Count; i++)
+                {
+                    string name = CheckedListBox_SelectedTargets.Items[i].ToString();
+                    Target target = mTargetList.Find(t => t.Name == name);
+                    bool visible = target != null
+                        && Astronomy.Core.Session.CoarseVisibility.IsAboveHorizonForAtLeast(
+                            target, pickedNightLocation, night, horizon,
+                            pickedNightLocation.Duration);
+                    CheckedListBox_SelectedTargets.SetItemCheckState(
+                        i, visible ? CheckState.Checked : CheckState.Unchecked);
+                }
+            }
+            finally
+            {
+                mSuppressGraphModeEvents = false;
             }
         }
     }
