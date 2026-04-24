@@ -320,10 +320,17 @@ namespace TargetPlanner.Charts
             mChart.ChartAreas[chartAreaName].Visible = true;
         }
 
-        // Fire-and-forget per-target build on the already-committed state. Used at startup
-        // where there's no prior chart to preserve, so progressive Day-sync-then-Year-async
-        // rendering is acceptable. User-initiated graph clicks go through ReloadWithTargets
-        // instead, which stages the whole build off to the side and swaps atomically.
+        // Synchronous per-target build on the already-committed state. Used at startup
+        // where InitializeDynamicControls expects the Day series to be populated in
+        // TargetSeriesList by the time it calls ShowChartAreaSeries on the next line.
+        // User-initiated graph clicks go through ReloadWithTargets instead, which stages
+        // the whole build off to the side on a Task.Run thread and swaps atomically after
+        // WhenAll completes.
+        //
+        // Runs on the caller's thread (UI, at startup). For a single seed target (M31 by
+        // default) the freeze is short and bounded; the form is still in its constructor
+        // when this fires, so the window simply appears a beat later fully rendered rather
+        // than appearing blank and populating afterwards.
         //
         // phaseProgress (if non-null) fires "Day" / "Year" / "Optimal" once per target.
         public void BuildTargetSeriesList(IProgress<string> phaseProgress = null,
@@ -332,23 +339,16 @@ namespace TargetPlanner.Charts
             foreach (Target target in mTargetList.ToList())
             {
                 if (target == null) continue;
-                // Fire-and-forget via local async wrapper: BuildSeriesList no longer swallows
-                // exceptions, so a bare `_ = SeriesFor(target).BuildSeriesList(...)` would
-                // lose OperationCanceledException / compute failures to TaskScheduler.
-                // UnobservedTaskException. Wrap to at least get a debug log.
-                _ = BuildSeriesListWithLogging(SeriesFor(target), phaseProgress, ct);
-            }
-        }
-
-        private static async Task BuildSeriesListWithLogging(
-            AltitudeSeries series, IProgress<string> phaseProgress, CancellationToken ct)
-        {
-            try { await series.BuildSeriesList(phaseProgress, ct); }
-            catch (OperationCanceledException) { /* expected -- caller cancelled */ }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine(
-                    $"AltitudeSeries.BuildSeriesList (startup path) failed: {ex}");
+                try
+                {
+                    SeriesFor(target).BuildSeriesListBlocking(phaseProgress, ct);
+                }
+                catch (OperationCanceledException) { /* expected -- caller cancelled */ }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"AltitudeSeries.BuildSeriesListBlocking (startup path) failed: {ex}");
+                }
             }
         }
 

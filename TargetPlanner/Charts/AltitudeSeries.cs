@@ -131,54 +131,69 @@ namespace TargetPlanner.Charts
         // where the report originated. On exception, a phase may not tick -- subscribers that
         // track a tick count should not rely on exact counts to infer success.
         //
-        // The entire body runs on a Task.Run thread (threadpool) so the UI thread stays
-        // responsive during a multi-target build. Previously the Moon + Day minute-loops
-        // plus FindOrCreateSeries ran on the UI thread before the first await; with N
-        // targets kicking off sequentially from ReloadWithTargets, that added up to a visible
-        // freeze at the start of a multi-target graph and ate Cancel-button clicks. Cross-
-        // thread Series.Points mutation is safe here because AltitudeChart.ReloadWithTargets
-        // stages every Series in AltitudeSeries.TargetSeriesList (not mChart.Series) until
-        // the atomic swap AFTER WhenAll completes -- so no Series attached to mChart has its
-        // Points mutated off the UI thread.
+        // Two entry points share BuildSeriesListBody:
+        //
+        //   BuildSeriesList          -> async, wraps the whole body in Task.Run. Used by
+        //                               user-driven multi-target builds (AltitudeChart.Reload-
+        //                               WithTargets) so the UI thread stays responsive to
+        //                               Cancel clicks even while N targets are compiling their
+        //                               Moon / Day series in parallel.
+        //   BuildSeriesListBlocking  -> synchronous on the caller's thread. Used at startup
+        //                               (AltitudeChart.BuildTargetSeriesList) where the caller
+        //                               immediately calls ShowChartAreaSeries and needs Day /
+        //                               Moon / Year / Optimal already populated in
+        //                               TargetSeriesList when it runs.
+        //
+        // Cross-thread Series.Points mutation is safe in both paths because
+        // AltitudeChart.ReloadWithTargets stages every Series in TargetSeriesList (not
+        // mChart.Series) until the atomic swap AFTER WhenAll completes -- so no Series
+        // attached to mChart ever has its Points mutated off the UI thread.
         //
         // Exceptions (including OperationCanceledException from ComputeYearCache's ct-checks)
-        // propagate out of Task.Run -> the await -> BuildSeriesList's caller, so Reload-
-        // WithTargets' Task.WhenAll can observe failure / cancellation and skip / defer the
-        // atomic swap. Fire-and-forget callers (startup) wrap with their own try/catch.
+        // propagate out so ReloadWithTargets' Task.WhenAll / the startup try-catch can
+        // observe failure / cancellation and skip / defer their follow-up work.
         public Task BuildSeriesList(IProgress<string> phaseProgress = null,
                                     CancellationToken ct = default)
         {
-            return Task.Run(() =>
-            {
-                // Each Target owns its AltitudeSeries, so a second build on the same Target
-                // must start from a clean TargetSeriesList -- otherwise BuildMoonSeries /
-                // BuildDaySeries, which unconditionally create fresh Series, would leave
-                // duplicates next to the prior run. Year / Optimal are idempotent via
-                // FindOrCreateSeries, but clearing here keeps all four on the same lifecycle.
-                TargetSeriesList.Clear();
+            return Task.Run(() => BuildSeriesListBody(phaseProgress, ct), ct);
+        }
 
-                BuildMoonSeries();
-                BuildDaySeries();
-                phaseProgress?.Report("Day");
+        public void BuildSeriesListBlocking(IProgress<string> phaseProgress = null,
+                                            CancellationToken ct = default)
+        {
+            BuildSeriesListBody(phaseProgress, ct);
+        }
 
-                // Pre-allocate the Year + Optimal Series up front; RenderYearSeries and
-                // RenderOptimalSeries expect FindOrCreateSeries to have already added them.
-                FindOrCreateSeries(Target.Name, "Year",                 mSeriesColor);
-                FindOrCreateSeries(Target.Name, "Optimal",              mSeriesColor);
-                FindOrCreateSeries(Target.Name, "OptimalFloor",         mSeriesColor);
-                FindOrCreateSeries(Target.Name, "OptimalFloorCentered", mSeriesColor);
+        private void BuildSeriesListBody(IProgress<string> phaseProgress, CancellationToken ct)
+        {
+            // Each Target owns its AltitudeSeries, so a second build on the same Target
+            // must start from a clean TargetSeriesList -- otherwise BuildMoonSeries /
+            // BuildDaySeries, which unconditionally create fresh Series, would leave
+            // duplicates next to the prior run. Year / Optimal are idempotent via
+            // FindOrCreateSeries, but clearing here keeps all four on the same lifecycle.
+            TargetSeriesList.Clear();
 
-                mYearCache = ComputeYearCache(ct);
+            BuildMoonSeries();
+            BuildDaySeries();
+            phaseProgress?.Report("Day");
 
-                RenderYearSeries();
-                phaseProgress?.Report("Year");
+            // Pre-allocate the Year + Optimal Series up front; RenderYearSeries and
+            // RenderOptimalSeries expect FindOrCreateSeries to have already added them.
+            FindOrCreateSeries(Target.Name, "Year",                 mSeriesColor);
+            FindOrCreateSeries(Target.Name, "Optimal",              mSeriesColor);
+            FindOrCreateSeries(Target.Name, "OptimalFloor",         mSeriesColor);
+            FindOrCreateSeries(Target.Name, "OptimalFloorCentered", mSeriesColor);
 
-                // Initial render uses the snapshot's Horizon and Duration; spinner scrubs
-                // later call RebuildOptimalSeries(horizon, duration) with fresh values on
-                // the UI thread without touching the snapshot.
-                RenderOptimalSeries(Location.Horizon, Location.Duration);
-                phaseProgress?.Report("Optimal");
-            }, ct);
+            mYearCache = ComputeYearCache(ct);
+
+            RenderYearSeries();
+            phaseProgress?.Report("Year");
+
+            // Initial render uses the snapshot's Horizon and Duration; spinner scrubs
+            // later call RebuildOptimalSeries(horizon, duration) with fresh values on
+            // the UI thread without touching the snapshot.
+            RenderOptimalSeries(Location.Horizon, Location.Duration);
+            phaseProgress?.Report("Optimal");
         }
 
         // Rebuild only the Optimal series on Horizon or Duration change. Day, Moon, and Year
