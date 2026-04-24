@@ -30,6 +30,56 @@ namespace TargetPlanner
         private ToolTip mToolTip;
         private int mToolTipIndex;
 
+        // Dedicated ToolTip instance for the Optimal radio button. Kept separate from mToolTip
+        // because its AutoPopDelay must be much longer (the explanatory text runs several
+        // paragraphs) and mToolTip's ShowCheckBoxObjectToolTip handler resets AutoPopDelay to
+        // 5 seconds on every CheckedListBox hover -- globals wouldn't stick.
+        private ToolTip mOptimalRadioTooltip;
+
+        private const string OptimalRadioTooltipText =
+@"All three curves describe the best imaging session windows available
+on each night of the next year bounded by Local Horizon and Duration
+hours.  They answer three different planning questions:
+
+Ceiling Window — Answers: ""What is the highest altitude reached for
+Duration hours above the Local Horizon?"".
+
+This is the highest altitude reached inside any above-horizon window
+that's long enough to image for Duration hours. It's the target's
+ceiling for that night.
+
+
+Floor Window — Answers: ""What is the lowest altitude reached for
+Duration hours above the Local Horizon?"".
+
+This is the lowestest altitude reached inside any above-horizon window
+that's long enough to image for Duration hours. It's the target's
+floor for that night.
+
+This window is transit-centered when duration fits inside the
+above-horizon window. If not, the window is pushed against whichever
+wall is closest to the Meridian.
+
+
+Symmetric Floor Window — Answers: ""Can I image this target
+symetrically around the Meridian?"".
+
+When possible, this curve is present. When not possible (night too
+short, transit too close to dusk/dawn, etc.), the curve is removed.
+
+
+On an ideal night, all three curves bunch together near zenith; the
+Symetric matchies Floor because the best window IS the symetric one.
+
+On a marginal night, the Ceiling is still decent but Floor drops and
+Symetric disappears entirely.
+
+When Floor and Symetric coincide, transit falls comfortably inside the
+night and a centered Duration hour session fits. When they diverge,
+the best-placed session is asymmetric: Floor shows you the practical
+achievable floor and Symetric shows the floor you could have with
+symmetry at the cost of a lower minimum altitude.";
+
         private Panel Panel_AltitudeChart;
 
         private UIState mUIState;
@@ -84,6 +134,16 @@ namespace TargetPlanner
             mToolTip.AutoPopDelay = 5000;
             mToolTip.InitialDelay = 2000;
             mToolTip.ReshowDelay = 2000;
+
+            // Long-lived explanatory tooltip for the Optimal radio button. InitialDelay is
+            // 5 seconds so only a deliberate hover reveals it (casual mouse-overs don't
+            // trigger the paragraph-length popup); AutoPopDelay stays long so the full text
+            // is readable once it does appear.
+            mOptimalRadioTooltip = new ToolTip();
+            mOptimalRadioTooltip.AutoPopDelay = 60000;
+            mOptimalRadioTooltip.InitialDelay = 5000;
+            mOptimalRadioTooltip.ReshowDelay  = 500;
+            mOptimalRadioTooltip.SetToolTip(RadioButton_Optimal, OptimalRadioTooltipText);
         }
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
@@ -93,6 +153,7 @@ namespace TargetPlanner
             // Dispose long-lived resources the form owns. Without this, the ToolTip leaks
             // a native handle.
             mToolTip?.Dispose();
+            mOptimalRadioTooltip?.Dispose();
             mAltitudeChart?.Dispose();
             mLatitudeInput?.Dispose();
             mLongitudeInput?.Dispose();
