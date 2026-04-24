@@ -468,6 +468,14 @@ symmetry at the cost of a lower minimum altitude.";
             // clicks. Button_GraphCancel stays enabled so a cancel can still be requested;
             // it disables itself when clicked and re-enables alongside Button_Graph in the
             // finally block below.
+            //
+            // Park focus on the form before the disable. Otherwise Win32 auto-advances focus
+            // from the just-disabled Button_Graph to the next TabStop (ComboBox_SelectTarget),
+            // whose focus-gain auto-selects its text; the combo's SelectedIndexChanged
+            // handler then re-resolves mTarget and the fallback branch at the top of the
+            // NEXT Button_Graph click finds CheckedItems empty (because mGraphMode flipped
+            // to Single via WireSingleMode's combo subscription) and graphs a single target.
+            ActiveControl = null;
             Button_Graph.Enabled = false;
             bool swapped;
             mGraphBuildInProgress = true;
