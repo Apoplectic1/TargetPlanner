@@ -31,15 +31,9 @@
             this.GroupBox_Local = new System.Windows.Forms.GroupBox();
             this.GroupBox_Location = new System.Windows.Forms.GroupBox();
             this.CheckBox_LocalNorth = new System.Windows.Forms.CheckBox();
-            this.Label_TargetHours = new System.Windows.Forms.Label();
-            this.Label_TargetDuration = new System.Windows.Forms.Label();
-            this.Label_TargetFloor = new System.Windows.Forms.Label();
-            this.NumericUpDown_TargetFloor = new System.Windows.Forms.NumericUpDown();
             this.Label_Location = new System.Windows.Forms.Label();
-            this.NumericUpDown_TargetDuration = new System.Windows.Forms.NumericUpDown();
             this.ComboBox_Location = new System.Windows.Forms.ComboBox();
             this.NumericUpDown_LatitudeMinutes = new System.Windows.Forms.NumericUpDown();
-            this.Label_LocalHorizon = new System.Windows.Forms.Label();
             this.NumericUpDown_LatitudeDegrees = new System.Windows.Forms.NumericUpDown();
             this.Label_LocalLatitudeText = new System.Windows.Forms.Label();
             this.Label_LocalLongitudeText = new System.Windows.Forms.Label();
@@ -74,14 +68,18 @@
             this.Label_LunarAltitudeValue = new System.Windows.Forms.Label();
             this.Label_LunarIlluminationFractionValue = new System.Windows.Forms.Label();
             this.Label_LunarIlluminationFraction = new System.Windows.Forms.Label();
-            this.GroupBox_CoordinateSelection = new System.Windows.Forms.GroupBox();
+            this.Label_TargetHours = new System.Windows.Forms.Label();
+            this.Label_TargetDuration = new System.Windows.Forms.Label();
+            this.Label_TargetFloor = new System.Windows.Forms.Label();
+            this.NumericUpDown_TargetFloor = new System.Windows.Forms.NumericUpDown();
+            this.NumericUpDown_TargetDuration = new System.Windows.Forms.NumericUpDown();
+            this.Label_LocalHorizon = new System.Windows.Forms.Label();
             this.ComboBox_SelectTarget = new System.Windows.Forms.ComboBox();
             this.Label_TargetName = new System.Windows.Forms.Label();
             this.CheckBox_TargetNorth = new System.Windows.Forms.CheckBox();
             this.TextBox_RightAscension = new System.Windows.Forms.TextBox();
             this.NumericUpDown_RaMinutes = new System.Windows.Forms.NumericUpDown();
             this.TextBox_Declination = new System.Windows.Forms.TextBox();
-            this.Button_ClearTarget = new System.Windows.Forms.Button();
             this.Label_DecMinuteColon = new System.Windows.Forms.Label();
             this.Button_GraphTarget = new System.Windows.Forms.Button();
             this.NumericUpDown_RaHours = new System.Windows.Forms.NumericUpDown();
@@ -97,7 +95,6 @@
             this.RadioButton_Optimal = new System.Windows.Forms.RadioButton();
             this.RadioButton_Year = new System.Windows.Forms.RadioButton();
             this.RadioButton_Day = new System.Windows.Forms.RadioButton();
-            this.GroupBox_Sequence = new System.Windows.Forms.GroupBox();
             this.Button_VisibleTonight = new System.Windows.Forms.Button();
             this.Button_GraphAllTargets = new System.Windows.Forms.Button();
             this.Button_SelectAllTargets = new System.Windows.Forms.Button();
@@ -112,10 +109,9 @@
             this.FileToolStripMenuItem_MainForm = new System.Windows.Forms.ToolStripMenuItem();
             this.GroupBox_AltitudeChart = new System.Windows.Forms.GroupBox();
             this.ProgressBar_MultiTargetProcessing = new System.Windows.Forms.ProgressBar();
+            this.Button_GraphCancel = new System.Windows.Forms.Button();
             this.GroupBox_Local.SuspendLayout();
             this.GroupBox_Location.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_TargetFloor)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_TargetDuration)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeMinutes)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeDegrees)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LongitudeDegrees)).BeginInit();
@@ -123,14 +119,14 @@
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LongitudeSeconds)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeSeconds)).BeginInit();
             this.GroupBox_LocalDateTime.SuspendLayout();
-            this.GroupBox_CoordinateSelection.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_TargetFloor)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_TargetDuration)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_RaMinutes)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_RaHours)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_RaSeconds)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_DecMinutes)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_DecSeconds)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_DecDegrees)).BeginInit();
-            this.GroupBox_Sequence.SuspendLayout();
             this.GroupBox_Target.SuspendLayout();
             this.MenuStrip_MainForm.SuspendLayout();
             this.GroupBox_AltitudeChart.SuspendLayout();
@@ -142,7 +138,7 @@
             this.GroupBox_Local.Controls.Add(this.GroupBox_LocalDateTime);
             this.GroupBox_Local.Location = new System.Drawing.Point(13, 30);
             this.GroupBox_Local.Name = "GroupBox_Local";
-            this.GroupBox_Local.Size = new System.Drawing.Size(529, 322);
+            this.GroupBox_Local.Size = new System.Drawing.Size(504, 322);
             this.GroupBox_Local.TabIndex = 0;
             this.GroupBox_Local.TabStop = false;
             this.GroupBox_Local.Text = "Local";
@@ -167,7 +163,7 @@
             this.GroupBox_Location.Controls.Add(this.Label_LocalLonMinuteColon);
             this.GroupBox_Location.Controls.Add(this.NumericUpDown_LongitudeSeconds);
             this.GroupBox_Location.Controls.Add(this.NumericUpDown_LatitudeSeconds);
-            this.GroupBox_Location.Location = new System.Drawing.Point(28, 19);
+            this.GroupBox_Location.Location = new System.Drawing.Point(18, 19);
             this.GroupBox_Location.Name = "GroupBox_Location";
             this.GroupBox_Location.Size = new System.Drawing.Size(470, 110);
             this.GroupBox_Location.TabIndex = 30;
@@ -186,54 +182,6 @@
             this.CheckBox_LocalNorth.Text = "North";
             this.CheckBox_LocalNorth.UseVisualStyleBackColor = true;
             // 
-            // Label_TargetHours
-            // 
-            this.Label_TargetHours.AutoSize = true;
-            this.Label_TargetHours.Location = new System.Drawing.Point(961, 232);
-            this.Label_TargetHours.Name = "Label_TargetHours";
-            this.Label_TargetHours.Size = new System.Drawing.Size(35, 13);
-            this.Label_TargetHours.TabIndex = 24;
-            this.Label_TargetHours.Text = "Hours";
-            // 
-            // Label_TargetDuration
-            // 
-            this.Label_TargetDuration.AutoSize = true;
-            this.Label_TargetDuration.Location = new System.Drawing.Point(809, 232);
-            this.Label_TargetDuration.Name = "Label_TargetDuration";
-            this.Label_TargetDuration.Size = new System.Drawing.Size(84, 13);
-            this.Label_TargetDuration.TabIndex = 23;
-            this.Label_TargetDuration.Text = "Target Duration:";
-            this.Label_TargetDuration.UseWaitCursor = true;
-            // 
-            // Label_TargetFloor
-            // 
-            this.Label_TargetFloor.AutoSize = true;
-            this.Label_TargetFloor.Location = new System.Drawing.Point(742, 232);
-            this.Label_TargetFloor.Name = "Label_TargetFloor";
-            this.Label_TargetFloor.Size = new System.Drawing.Size(47, 13);
-            this.Label_TargetFloor.TabIndex = 22;
-            this.Label_TargetFloor.Text = "Degrees";
-            // 
-            // NumericUpDown_TargetFloor
-            // 
-            this.NumericUpDown_TargetFloor.AllowDrop = true;
-            this.NumericUpDown_TargetFloor.Location = new System.Drawing.Point(685, 228);
-            this.NumericUpDown_TargetFloor.Maximum = new decimal(new int[] {
-            89,
-            0,
-            0,
-            0});
-            this.NumericUpDown_TargetFloor.Name = "NumericUpDown_TargetFloor";
-            this.NumericUpDown_TargetFloor.Size = new System.Drawing.Size(55, 20);
-            this.NumericUpDown_TargetFloor.TabIndex = 11;
-            this.NumericUpDown_TargetFloor.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_TargetFloor.Value = new decimal(new int[] {
-            30,
-            0,
-            0,
-            0});
-            this.NumericUpDown_TargetFloor.ValueChanged += new System.EventHandler(this.NumericUpDown_TargetFloor_ValueChanged);
-            // 
             // Label_Location
             // 
             this.Label_Location.AutoSize = true;
@@ -242,32 +190,6 @@
             this.Label_Location.Size = new System.Drawing.Size(51, 13);
             this.Label_Location.TabIndex = 20;
             this.Label_Location.Text = "Location:";
-            // 
-            // NumericUpDown_TargetDuration
-            // 
-            this.NumericUpDown_TargetDuration.AllowDrop = true;
-            this.NumericUpDown_TargetDuration.DecimalPlaces = 2;
-            this.NumericUpDown_TargetDuration.Increment = new decimal(new int[] {
-            25,
-            0,
-            0,
-            131072});
-            this.NumericUpDown_TargetDuration.Location = new System.Drawing.Point(904, 228);
-            this.NumericUpDown_TargetDuration.Maximum = new decimal(new int[] {
-            24,
-            0,
-            0,
-            0});
-            this.NumericUpDown_TargetDuration.Name = "NumericUpDown_TargetDuration";
-            this.NumericUpDown_TargetDuration.Size = new System.Drawing.Size(55, 20);
-            this.NumericUpDown_TargetDuration.TabIndex = 12;
-            this.NumericUpDown_TargetDuration.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_TargetDuration.Value = new decimal(new int[] {
-            4,
-            0,
-            0,
-            0});
-            this.NumericUpDown_TargetDuration.ValueChanged += new System.EventHandler(this.NumericUpDown_TargetDuration_ValueChanged);
             // 
             // ComboBox_Location
             // 
@@ -298,15 +220,6 @@
             this.NumericUpDown_LatitudeMinutes.Size = new System.Drawing.Size(55, 20);
             this.NumericUpDown_LatitudeMinutes.TabIndex = 3;
             this.NumericUpDown_LatitudeMinutes.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            // 
-            // Label_LocalHorizon
-            // 
-            this.Label_LocalHorizon.AutoSize = true;
-            this.Label_LocalHorizon.Location = new System.Drawing.Point(607, 232);
-            this.Label_LocalHorizon.Name = "Label_LocalHorizon";
-            this.Label_LocalHorizon.Size = new System.Drawing.Size(67, 13);
-            this.Label_LocalHorizon.TabIndex = 21;
-            this.Label_LocalHorizon.Text = "Target Floor:";
             // 
             // NumericUpDown_LatitudeDegrees
             // 
@@ -518,7 +431,7 @@
             this.GroupBox_LocalDateTime.Controls.Add(this.Label_LunarAltitudeValue);
             this.GroupBox_LocalDateTime.Controls.Add(this.Label_LunarIlluminationFractionValue);
             this.GroupBox_LocalDateTime.Controls.Add(this.Label_LunarIlluminationFraction);
-            this.GroupBox_LocalDateTime.Location = new System.Drawing.Point(28, 150);
+            this.GroupBox_LocalDateTime.Location = new System.Drawing.Point(18, 150);
             this.GroupBox_LocalDateTime.Name = "GroupBox_LocalDateTime";
             this.GroupBox_LocalDateTime.Size = new System.Drawing.Size(469, 151);
             this.GroupBox_LocalDateTime.TabIndex = 29;
@@ -703,38 +616,93 @@
             this.Label_LunarIlluminationFraction.TabIndex = 31;
             this.Label_LunarIlluminationFraction.Text = "Lunar Illumination:";
             // 
-            // GroupBox_CoordinateSelection
+            // Label_TargetHours
             // 
-            this.GroupBox_CoordinateSelection.Controls.Add(this.ComboBox_SelectTarget);
-            this.GroupBox_CoordinateSelection.Controls.Add(this.Label_TargetName);
-            this.GroupBox_CoordinateSelection.Controls.Add(this.CheckBox_TargetNorth);
-            this.GroupBox_CoordinateSelection.Controls.Add(this.TextBox_RightAscension);
-            this.GroupBox_CoordinateSelection.Controls.Add(this.NumericUpDown_RaMinutes);
-            this.GroupBox_CoordinateSelection.Controls.Add(this.TextBox_Declination);
-            this.GroupBox_CoordinateSelection.Controls.Add(this.Button_ClearTarget);
-            this.GroupBox_CoordinateSelection.Controls.Add(this.Label_DecMinuteColon);
-            this.GroupBox_CoordinateSelection.Controls.Add(this.Button_GraphTarget);
-            this.GroupBox_CoordinateSelection.Controls.Add(this.NumericUpDown_RaHours);
-            this.GroupBox_CoordinateSelection.Controls.Add(this.NumericUpDown_RaSeconds);
-            this.GroupBox_CoordinateSelection.Controls.Add(this.NumericUpDown_DecMinutes);
-            this.GroupBox_CoordinateSelection.Controls.Add(this.Label_TargetDeclinationText);
-            this.GroupBox_CoordinateSelection.Controls.Add(this.Label_RaHourColon);
-            this.GroupBox_CoordinateSelection.Controls.Add(this.Label_RaMinuteColon);
-            this.GroupBox_CoordinateSelection.Controls.Add(this.Label_DecDegreeColon);
-            this.GroupBox_CoordinateSelection.Controls.Add(this.Label_TargetRightAscensionText);
-            this.GroupBox_CoordinateSelection.Controls.Add(this.NumericUpDown_DecSeconds);
-            this.GroupBox_CoordinateSelection.Controls.Add(this.NumericUpDown_DecDegrees);
-            this.GroupBox_CoordinateSelection.Location = new System.Drawing.Point(554, 50);
-            this.GroupBox_CoordinateSelection.Name = "GroupBox_CoordinateSelection";
-            this.GroupBox_CoordinateSelection.Size = new System.Drawing.Size(472, 145);
-            this.GroupBox_CoordinateSelection.TabIndex = 1;
-            this.GroupBox_CoordinateSelection.TabStop = false;
-            this.GroupBox_CoordinateSelection.Text = "Target Coordinates";
+            this.Label_TargetHours.AutoSize = true;
+            this.Label_TargetHours.Location = new System.Drawing.Point(429, 208);
+            this.Label_TargetHours.Name = "Label_TargetHours";
+            this.Label_TargetHours.Size = new System.Drawing.Size(35, 13);
+            this.Label_TargetHours.TabIndex = 24;
+            this.Label_TargetHours.Text = "Hours";
+            // 
+            // Label_TargetDuration
+            // 
+            this.Label_TargetDuration.AutoSize = true;
+            this.Label_TargetDuration.Location = new System.Drawing.Point(277, 208);
+            this.Label_TargetDuration.Name = "Label_TargetDuration";
+            this.Label_TargetDuration.Size = new System.Drawing.Size(84, 13);
+            this.Label_TargetDuration.TabIndex = 23;
+            this.Label_TargetDuration.Text = "Target Duration:";
+            this.Label_TargetDuration.UseWaitCursor = true;
+            // 
+            // Label_TargetFloor
+            // 
+            this.Label_TargetFloor.AutoSize = true;
+            this.Label_TargetFloor.Location = new System.Drawing.Point(210, 208);
+            this.Label_TargetFloor.Name = "Label_TargetFloor";
+            this.Label_TargetFloor.Size = new System.Drawing.Size(47, 13);
+            this.Label_TargetFloor.TabIndex = 22;
+            this.Label_TargetFloor.Text = "Degrees";
+            // 
+            // NumericUpDown_TargetFloor
+            // 
+            this.NumericUpDown_TargetFloor.AllowDrop = true;
+            this.NumericUpDown_TargetFloor.Location = new System.Drawing.Point(153, 204);
+            this.NumericUpDown_TargetFloor.Maximum = new decimal(new int[] {
+            89,
+            0,
+            0,
+            0});
+            this.NumericUpDown_TargetFloor.Name = "NumericUpDown_TargetFloor";
+            this.NumericUpDown_TargetFloor.Size = new System.Drawing.Size(55, 20);
+            this.NumericUpDown_TargetFloor.TabIndex = 11;
+            this.NumericUpDown_TargetFloor.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.NumericUpDown_TargetFloor.Value = new decimal(new int[] {
+            30,
+            0,
+            0,
+            0});
+            this.NumericUpDown_TargetFloor.ValueChanged += new System.EventHandler(this.NumericUpDown_TargetFloor_ValueChanged);
+            // 
+            // NumericUpDown_TargetDuration
+            // 
+            this.NumericUpDown_TargetDuration.AllowDrop = true;
+            this.NumericUpDown_TargetDuration.DecimalPlaces = 2;
+            this.NumericUpDown_TargetDuration.Increment = new decimal(new int[] {
+            25,
+            0,
+            0,
+            131072});
+            this.NumericUpDown_TargetDuration.Location = new System.Drawing.Point(372, 204);
+            this.NumericUpDown_TargetDuration.Maximum = new decimal(new int[] {
+            24,
+            0,
+            0,
+            0});
+            this.NumericUpDown_TargetDuration.Name = "NumericUpDown_TargetDuration";
+            this.NumericUpDown_TargetDuration.Size = new System.Drawing.Size(55, 20);
+            this.NumericUpDown_TargetDuration.TabIndex = 12;
+            this.NumericUpDown_TargetDuration.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.NumericUpDown_TargetDuration.Value = new decimal(new int[] {
+            4,
+            0,
+            0,
+            0});
+            this.NumericUpDown_TargetDuration.ValueChanged += new System.EventHandler(this.NumericUpDown_TargetDuration_ValueChanged);
+            // 
+            // Label_LocalHorizon
+            // 
+            this.Label_LocalHorizon.AutoSize = true;
+            this.Label_LocalHorizon.Location = new System.Drawing.Point(75, 208);
+            this.Label_LocalHorizon.Name = "Label_LocalHorizon";
+            this.Label_LocalHorizon.Size = new System.Drawing.Size(67, 13);
+            this.Label_LocalHorizon.TabIndex = 21;
+            this.Label_LocalHorizon.Text = "Target Floor:";
             // 
             // ComboBox_SelectTarget
             // 
             this.ComboBox_SelectTarget.FormattingEnabled = true;
-            this.ComboBox_SelectTarget.Location = new System.Drawing.Point(107, 16);
+            this.ComboBox_SelectTarget.Location = new System.Drawing.Point(149, 92);
             this.ComboBox_SelectTarget.Name = "ComboBox_SelectTarget";
             this.ComboBox_SelectTarget.Size = new System.Drawing.Size(274, 21);
             this.ComboBox_SelectTarget.Sorted = true;
@@ -745,7 +713,7 @@
             // Label_TargetName
             // 
             this.Label_TargetName.AutoSize = true;
-            this.Label_TargetName.Location = new System.Drawing.Point(29, 20);
+            this.Label_TargetName.Location = new System.Drawing.Point(71, 96);
             this.Label_TargetName.Name = "Label_TargetName";
             this.Label_TargetName.Size = new System.Drawing.Size(72, 13);
             this.Label_TargetName.TabIndex = 39;
@@ -756,7 +724,7 @@
             this.CheckBox_TargetNorth.AutoSize = true;
             this.CheckBox_TargetNorth.Checked = true;
             this.CheckBox_TargetNorth.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.CheckBox_TargetNorth.Location = new System.Drawing.Point(389, 71);
+            this.CheckBox_TargetNorth.Location = new System.Drawing.Point(431, 147);
             this.CheckBox_TargetNorth.Name = "CheckBox_TargetNorth";
             this.CheckBox_TargetNorth.Size = new System.Drawing.Size(52, 17);
             this.CheckBox_TargetNorth.TabIndex = 26;
@@ -766,7 +734,7 @@
             // TextBox_RightAscension
             // 
             this.TextBox_RightAscension.AllowDrop = true;
-            this.TextBox_RightAscension.Location = new System.Drawing.Point(307, 46);
+            this.TextBox_RightAscension.Location = new System.Drawing.Point(349, 122);
             this.TextBox_RightAscension.MaxLength = 20;
             this.TextBox_RightAscension.Name = "TextBox_RightAscension";
             this.TextBox_RightAscension.Size = new System.Drawing.Size(74, 20);
@@ -778,7 +746,7 @@
             // NumericUpDown_RaMinutes
             // 
             this.NumericUpDown_RaMinutes.AllowDrop = true;
-            this.NumericUpDown_RaMinutes.Location = new System.Drawing.Point(161, 46);
+            this.NumericUpDown_RaMinutes.Location = new System.Drawing.Point(203, 122);
             this.NumericUpDown_RaMinutes.Maximum = new decimal(new int[] {
             60,
             0,
@@ -796,27 +764,17 @@
             // 
             // TextBox_Declination
             // 
-            this.TextBox_Declination.Location = new System.Drawing.Point(307, 69);
+            this.TextBox_Declination.Location = new System.Drawing.Point(349, 145);
             this.TextBox_Declination.Name = "TextBox_Declination";
             this.TextBox_Declination.Size = new System.Drawing.Size(74, 20);
             this.TextBox_Declination.TabIndex = 20;
             this.TextBox_Declination.Text = " ";
             this.TextBox_Declination.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
-            // Button_ClearTarget
-            // 
-            this.Button_ClearTarget.Location = new System.Drawing.Point(245, 107);
-            this.Button_ClearTarget.Name = "Button_ClearTarget";
-            this.Button_ClearTarget.Size = new System.Drawing.Size(66, 23);
-            this.Button_ClearTarget.TabIndex = 35;
-            this.Button_ClearTarget.Text = "Clear";
-            this.Button_ClearTarget.UseVisualStyleBackColor = true;
-            this.Button_ClearTarget.Click += new System.EventHandler(this.Button_ClearTarget_Click);
-            // 
             // Label_DecMinuteColon
             // 
             this.Label_DecMinuteColon.AutoSize = true;
-            this.Label_DecMinuteColon.Location = new System.Drawing.Point(221, 73);
+            this.Label_DecMinuteColon.Location = new System.Drawing.Point(263, 149);
             this.Label_DecMinuteColon.Name = "Label_DecMinuteColon";
             this.Label_DecMinuteColon.Size = new System.Drawing.Size(10, 13);
             this.Label_DecMinuteColon.TabIndex = 38;
@@ -824,7 +782,7 @@
             // 
             // Button_GraphTarget
             // 
-            this.Button_GraphTarget.Location = new System.Drawing.Point(170, 107);
+            this.Button_GraphTarget.Location = new System.Drawing.Point(224, 257);
             this.Button_GraphTarget.Name = "Button_GraphTarget";
             this.Button_GraphTarget.Size = new System.Drawing.Size(66, 23);
             this.Button_GraphTarget.TabIndex = 34;
@@ -835,7 +793,7 @@
             // NumericUpDown_RaHours
             // 
             this.NumericUpDown_RaHours.AllowDrop = true;
-            this.NumericUpDown_RaHours.Location = new System.Drawing.Point(86, 46);
+            this.NumericUpDown_RaHours.Location = new System.Drawing.Point(128, 122);
             this.NumericUpDown_RaHours.Maximum = new decimal(new int[] {
             24,
             0,
@@ -855,7 +813,7 @@
             0,
             0,
             131072});
-            this.NumericUpDown_RaSeconds.Location = new System.Drawing.Point(236, 46);
+            this.NumericUpDown_RaSeconds.Location = new System.Drawing.Point(278, 122);
             this.NumericUpDown_RaSeconds.Maximum = new decimal(new int[] {
             60,
             0,
@@ -874,7 +832,7 @@
             // NumericUpDown_DecMinutes
             // 
             this.NumericUpDown_DecMinutes.AllowDrop = true;
-            this.NumericUpDown_DecMinutes.Location = new System.Drawing.Point(161, 69);
+            this.NumericUpDown_DecMinutes.Location = new System.Drawing.Point(203, 145);
             this.NumericUpDown_DecMinutes.Maximum = new decimal(new int[] {
             60,
             0,
@@ -893,7 +851,7 @@
             // Label_TargetDeclinationText
             // 
             this.Label_TargetDeclinationText.AutoSize = true;
-            this.Label_TargetDeclinationText.Location = new System.Drawing.Point(56, 73);
+            this.Label_TargetDeclinationText.Location = new System.Drawing.Point(98, 149);
             this.Label_TargetDeclinationText.Name = "Label_TargetDeclinationText";
             this.Label_TargetDeclinationText.Size = new System.Drawing.Size(29, 13);
             this.Label_TargetDeclinationText.TabIndex = 26;
@@ -902,7 +860,7 @@
             // Label_RaHourColon
             // 
             this.Label_RaHourColon.AutoSize = true;
-            this.Label_RaHourColon.Location = new System.Drawing.Point(146, 50);
+            this.Label_RaHourColon.Location = new System.Drawing.Point(188, 126);
             this.Label_RaHourColon.Name = "Label_RaHourColon";
             this.Label_RaHourColon.Size = new System.Drawing.Size(10, 13);
             this.Label_RaHourColon.TabIndex = 25;
@@ -911,7 +869,7 @@
             // Label_RaMinuteColon
             // 
             this.Label_RaMinuteColon.AutoSize = true;
-            this.Label_RaMinuteColon.Location = new System.Drawing.Point(221, 50);
+            this.Label_RaMinuteColon.Location = new System.Drawing.Point(263, 126);
             this.Label_RaMinuteColon.Name = "Label_RaMinuteColon";
             this.Label_RaMinuteColon.Size = new System.Drawing.Size(10, 13);
             this.Label_RaMinuteColon.TabIndex = 37;
@@ -920,7 +878,7 @@
             // Label_DecDegreeColon
             // 
             this.Label_DecDegreeColon.AutoSize = true;
-            this.Label_DecDegreeColon.Location = new System.Drawing.Point(146, 73);
+            this.Label_DecDegreeColon.Location = new System.Drawing.Point(188, 149);
             this.Label_DecDegreeColon.Name = "Label_DecDegreeColon";
             this.Label_DecDegreeColon.Size = new System.Drawing.Size(10, 13);
             this.Label_DecDegreeColon.TabIndex = 36;
@@ -929,7 +887,7 @@
             // Label_TargetRightAscensionText
             // 
             this.Label_TargetRightAscensionText.AutoSize = true;
-            this.Label_TargetRightAscensionText.Location = new System.Drawing.Point(63, 50);
+            this.Label_TargetRightAscensionText.Location = new System.Drawing.Point(105, 126);
             this.Label_TargetRightAscensionText.Name = "Label_TargetRightAscensionText";
             this.Label_TargetRightAscensionText.Size = new System.Drawing.Size(22, 13);
             this.Label_TargetRightAscensionText.TabIndex = 25;
@@ -944,7 +902,7 @@
             0,
             0,
             131072});
-            this.NumericUpDown_DecSeconds.Location = new System.Drawing.Point(236, 69);
+            this.NumericUpDown_DecSeconds.Location = new System.Drawing.Point(278, 145);
             this.NumericUpDown_DecSeconds.Maximum = new decimal(new int[] {
             60,
             0,
@@ -963,7 +921,7 @@
             // NumericUpDown_DecDegrees
             // 
             this.NumericUpDown_DecDegrees.AllowDrop = true;
-            this.NumericUpDown_DecDegrees.Location = new System.Drawing.Point(86, 69);
+            this.NumericUpDown_DecDegrees.Location = new System.Drawing.Point(128, 145);
             this.NumericUpDown_DecDegrees.Maximum = new decimal(new int[] {
             90,
             0,
@@ -1015,27 +973,9 @@
             this.RadioButton_Day.UseVisualStyleBackColor = true;
             this.RadioButton_Day.CheckedChanged += new System.EventHandler(this.RadioButton_Day_CheckedChanged);
             // 
-            // GroupBox_Sequence
-            // 
-            this.GroupBox_Sequence.Controls.Add(this.Button_VisibleTonight);
-            this.GroupBox_Sequence.Controls.Add(this.Button_GraphAllTargets);
-            this.GroupBox_Sequence.Controls.Add(this.Button_SelectAllTargets);
-            this.GroupBox_Sequence.Controls.Add(this.Button_ClearAllTargets);
-            this.GroupBox_Sequence.Controls.Add(this.ProgressBar_ProcessObject);
-            this.GroupBox_Sequence.Controls.Add(this.Label_SortBy);
-            this.GroupBox_Sequence.Controls.Add(this.ComboBox_SortTargets);
-            this.GroupBox_Sequence.Controls.Add(this.CheckedListBox_SelectedTargets);
-            this.GroupBox_Sequence.Controls.Add(this.Button_BrowseTargetList);
-            this.GroupBox_Sequence.Location = new System.Drawing.Point(30, 19);
-            this.GroupBox_Sequence.Name = "GroupBox_Sequence";
-            this.GroupBox_Sequence.Size = new System.Drawing.Size(507, 292);
-            this.GroupBox_Sequence.TabIndex = 2;
-            this.GroupBox_Sequence.TabStop = false;
-            this.GroupBox_Sequence.Text = "Target Selection";
-            // 
             // Button_VisibleTonight
             // 
-            this.Button_VisibleTonight.Location = new System.Drawing.Point(299, 20);
+            this.Button_VisibleTonight.Location = new System.Drawing.Point(952, 19);
             this.Button_VisibleTonight.Name = "Button_VisibleTonight";
             this.Button_VisibleTonight.Size = new System.Drawing.Size(100, 23);
             this.Button_VisibleTonight.TabIndex = 7;
@@ -1045,7 +985,7 @@
             // 
             // Button_GraphAllTargets
             // 
-            this.Button_GraphAllTargets.Location = new System.Drawing.Point(427, 19);
+            this.Button_GraphAllTargets.Location = new System.Drawing.Point(133, 257);
             this.Button_GraphAllTargets.Name = "Button_GraphAllTargets";
             this.Button_GraphAllTargets.Size = new System.Drawing.Size(66, 23);
             this.Button_GraphAllTargets.TabIndex = 1;
@@ -1056,7 +996,7 @@
             // Button_SelectAllTargets
             // 
             this.Button_SelectAllTargets.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
-            this.Button_SelectAllTargets.Location = new System.Drawing.Point(112, 20);
+            this.Button_SelectAllTargets.Location = new System.Drawing.Point(812, 19);
             this.Button_SelectAllTargets.Name = "Button_SelectAllTargets";
             this.Button_SelectAllTargets.Size = new System.Drawing.Size(64, 23);
             this.Button_SelectAllTargets.TabIndex = 9;
@@ -1067,7 +1007,7 @@
             // Button_ClearAllTargets
             // 
             this.Button_ClearAllTargets.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
-            this.Button_ClearAllTargets.Location = new System.Drawing.Point(206, 20);
+            this.Button_ClearAllTargets.Location = new System.Drawing.Point(882, 19);
             this.Button_ClearAllTargets.Name = "Button_ClearAllTargets";
             this.Button_ClearAllTargets.Size = new System.Drawing.Size(64, 23);
             this.Button_ClearAllTargets.TabIndex = 8;
@@ -1077,15 +1017,15 @@
             // 
             // ProgressBar_ProcessObject
             // 
-            this.ProgressBar_ProcessObject.Location = new System.Drawing.Point(19, 49);
+            this.ProgressBar_ProcessObject.Location = new System.Drawing.Point(112, 41);
             this.ProgressBar_ProcessObject.Name = "ProgressBar_ProcessObject";
-            this.ProgressBar_ProcessObject.Size = new System.Drawing.Size(474, 18);
+            this.ProgressBar_ProcessObject.Size = new System.Drawing.Size(407, 18);
             this.ProgressBar_ProcessObject.TabIndex = 7;
             // 
             // Label_SortBy
             // 
             this.Label_SortBy.AutoSize = true;
-            this.Label_SortBy.Location = new System.Drawing.Point(18, 79);
+            this.Label_SortBy.Location = new System.Drawing.Point(539, 24);
             this.Label_SortBy.Name = "Label_SortBy";
             this.Label_SortBy.Size = new System.Drawing.Size(43, 13);
             this.Label_SortBy.TabIndex = 10;
@@ -1099,21 +1039,20 @@
             "Name",
             "Transit",
             "Rise"});
-            this.ComboBox_SortTargets.Location = new System.Drawing.Point(72, 75);
+            this.ComboBox_SortTargets.Location = new System.Drawing.Point(587, 20);
             this.ComboBox_SortTargets.Name = "ComboBox_SortTargets";
             this.ComboBox_SortTargets.Size = new System.Drawing.Size(120, 21);
             this.ComboBox_SortTargets.TabIndex = 11;
-            this.ComboBox_SortTargets.SelectedIndex = 0;
             this.ComboBox_SortTargets.SelectedIndexChanged += new System.EventHandler(this.ComboBox_SortTargets_SelectedIndexChanged);
             // 
             // CheckedListBox_SelectedTargets
             // 
             this.CheckedListBox_SelectedTargets.FormattingEnabled = true;
-            this.CheckedListBox_SelectedTargets.Location = new System.Drawing.Point(18, 102);
+            this.CheckedListBox_SelectedTargets.Location = new System.Drawing.Point(539, 46);
             this.CheckedListBox_SelectedTargets.MultiColumn = true;
             this.CheckedListBox_SelectedTargets.Name = "CheckedListBox_SelectedTargets";
             this.CheckedListBox_SelectedTargets.ScrollAlwaysVisible = true;
-            this.CheckedListBox_SelectedTargets.Size = new System.Drawing.Size(475, 169);
+            this.CheckedListBox_SelectedTargets.Size = new System.Drawing.Size(513, 259);
             this.CheckedListBox_SelectedTargets.TabIndex = 4;
             this.CheckedListBox_SelectedTargets.ThreeDCheckBoxes = true;
             this.CheckedListBox_SelectedTargets.MouseDoubleClick += new System.Windows.Forms.MouseEventHandler(this.CheckedListBox_SelectedTargets_MouseDoubleClick);
@@ -1121,9 +1060,9 @@
             // 
             // Button_BrowseTargetList
             // 
-            this.Button_BrowseTargetList.Location = new System.Drawing.Point(18, 20);
+            this.Button_BrowseTargetList.Location = new System.Drawing.Point(22, 39);
             this.Button_BrowseTargetList.Name = "Button_BrowseTargetList";
-            this.Button_BrowseTargetList.Size = new System.Drawing.Size(66, 23);
+            this.Button_BrowseTargetList.Size = new System.Drawing.Size(84, 23);
             this.Button_BrowseTargetList.TabIndex = 0;
             this.Button_BrowseTargetList.Text = "Browse";
             this.Button_BrowseTargetList.UseVisualStyleBackColor = true;
@@ -1131,17 +1070,43 @@
             // 
             // GroupBox_Target
             // 
-            this.GroupBox_Target.Controls.Add(this.GroupBox_CoordinateSelection);
+            this.GroupBox_Target.Controls.Add(this.Button_GraphCancel);
+            this.GroupBox_Target.Controls.Add(this.Button_VisibleTonight);
             this.GroupBox_Target.Controls.Add(this.Label_TargetHours);
+            this.GroupBox_Target.Controls.Add(this.Label_RaMinuteColon);
+            this.GroupBox_Target.Controls.Add(this.Button_GraphTarget);
+            this.GroupBox_Target.Controls.Add(this.Label_DecDegreeColon);
+            this.GroupBox_Target.Controls.Add(this.ComboBox_SelectTarget);
+            this.GroupBox_Target.Controls.Add(this.Label_RaHourColon);
+            this.GroupBox_Target.Controls.Add(this.Label_TargetName);
+            this.GroupBox_Target.Controls.Add(this.Label_TargetRightAscensionText);
             this.GroupBox_Target.Controls.Add(this.Label_TargetDuration);
-            this.GroupBox_Target.Controls.Add(this.GroupBox_Sequence);
+            this.GroupBox_Target.Controls.Add(this.Label_TargetDeclinationText);
+            this.GroupBox_Target.Controls.Add(this.NumericUpDown_DecSeconds);
+            this.GroupBox_Target.Controls.Add(this.CheckBox_TargetNorth);
+            this.GroupBox_Target.Controls.Add(this.NumericUpDown_DecMinutes);
             this.GroupBox_Target.Controls.Add(this.Label_TargetFloor);
+            this.GroupBox_Target.Controls.Add(this.NumericUpDown_DecDegrees);
+            this.GroupBox_Target.Controls.Add(this.Button_GraphAllTargets);
+            this.GroupBox_Target.Controls.Add(this.NumericUpDown_RaSeconds);
+            this.GroupBox_Target.Controls.Add(this.TextBox_RightAscension);
+            this.GroupBox_Target.Controls.Add(this.Button_BrowseTargetList);
             this.GroupBox_Target.Controls.Add(this.Label_LocalHorizon);
+            this.GroupBox_Target.Controls.Add(this.NumericUpDown_RaHours);
+            this.GroupBox_Target.Controls.Add(this.Button_SelectAllTargets);
+            this.GroupBox_Target.Controls.Add(this.CheckedListBox_SelectedTargets);
             this.GroupBox_Target.Controls.Add(this.NumericUpDown_TargetFloor);
+            this.GroupBox_Target.Controls.Add(this.ComboBox_SortTargets);
+            this.GroupBox_Target.Controls.Add(this.NumericUpDown_RaMinutes);
+            this.GroupBox_Target.Controls.Add(this.Label_DecMinuteColon);
+            this.GroupBox_Target.Controls.Add(this.Button_ClearAllTargets);
+            this.GroupBox_Target.Controls.Add(this.Label_SortBy);
             this.GroupBox_Target.Controls.Add(this.NumericUpDown_TargetDuration);
-            this.GroupBox_Target.Location = new System.Drawing.Point(560, 30);
+            this.GroupBox_Target.Controls.Add(this.ProgressBar_ProcessObject);
+            this.GroupBox_Target.Controls.Add(this.TextBox_Declination);
+            this.GroupBox_Target.Location = new System.Drawing.Point(534, 30);
             this.GroupBox_Target.Name = "GroupBox_Target";
-            this.GroupBox_Target.Size = new System.Drawing.Size(1049, 322);
+            this.GroupBox_Target.Size = new System.Drawing.Size(1075, 322);
             this.GroupBox_Target.TabIndex = 3;
             this.GroupBox_Target.TabStop = false;
             this.GroupBox_Target.Text = "Target";
@@ -1168,9 +1133,9 @@
             this.GroupBox_AltitudeChart.Controls.Add(this.RadioButton_Year);
             this.GroupBox_AltitudeChart.Controls.Add(this.RadioButton_Optimal);
             this.GroupBox_AltitudeChart.Controls.Add(this.RadioButton_Day);
-            this.GroupBox_AltitudeChart.Location = new System.Drawing.Point(13, 373);
+            this.GroupBox_AltitudeChart.Location = new System.Drawing.Point(-7, 373);
             this.GroupBox_AltitudeChart.Name = "GroupBox_AltitudeChart";
-            this.GroupBox_AltitudeChart.Size = new System.Drawing.Size(1596, 555);
+            this.GroupBox_AltitudeChart.Size = new System.Drawing.Size(1614, 555);
             this.GroupBox_AltitudeChart.TabIndex = 6;
             this.GroupBox_AltitudeChart.TabStop = false;
             this.GroupBox_AltitudeChart.Text = "Target Altitude";
@@ -1181,6 +1146,15 @@
             this.ProgressBar_MultiTargetProcessing.Name = "ProgressBar_MultiTargetProcessing";
             this.ProgressBar_MultiTargetProcessing.Size = new System.Drawing.Size(1331, 18);
             this.ProgressBar_MultiTargetProcessing.TabIndex = 40;
+            // 
+            // Button_GraphCancel
+            // 
+            this.Button_GraphCancel.Location = new System.Drawing.Point(315, 257);
+            this.Button_GraphCancel.Name = "Button_GraphCancel";
+            this.Button_GraphCancel.Size = new System.Drawing.Size(75, 23);
+            this.Button_GraphCancel.TabIndex = 41;
+            this.Button_GraphCancel.Text = "Cancel";
+            this.Button_GraphCancel.UseVisualStyleBackColor = true;
             // 
             // MainForm
             // 
@@ -1200,8 +1174,6 @@
             this.GroupBox_Local.ResumeLayout(false);
             this.GroupBox_Location.ResumeLayout(false);
             this.GroupBox_Location.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_TargetFloor)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_TargetDuration)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeMinutes)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeDegrees)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LongitudeDegrees)).EndInit();
@@ -1210,16 +1182,14 @@
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeSeconds)).EndInit();
             this.GroupBox_LocalDateTime.ResumeLayout(false);
             this.GroupBox_LocalDateTime.PerformLayout();
-            this.GroupBox_CoordinateSelection.ResumeLayout(false);
-            this.GroupBox_CoordinateSelection.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_TargetFloor)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_TargetDuration)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_RaMinutes)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_RaHours)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_RaSeconds)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_DecMinutes)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_DecSeconds)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_DecDegrees)).EndInit();
-            this.GroupBox_Sequence.ResumeLayout(false);
-            this.GroupBox_Sequence.PerformLayout();
             this.GroupBox_Target.ResumeLayout(false);
             this.GroupBox_Target.PerformLayout();
             this.MenuStrip_MainForm.ResumeLayout(false);
@@ -1236,7 +1206,6 @@
         private System.Windows.Forms.GroupBox GroupBox_Local;
         private System.Windows.Forms.DateTimePicker TimePicker;
         private System.Windows.Forms.DateTimePicker DatePicker;
-        private System.Windows.Forms.GroupBox GroupBox_CoordinateSelection;
         private System.Windows.Forms.TextBox TextBox_Longitude;
         private System.Windows.Forms.TextBox TextBox_Latitude;
         private System.Windows.Forms.NumericUpDown NumericUpDown_LongitudeSeconds;
@@ -1286,12 +1255,10 @@
         private System.Windows.Forms.Label Label_LunarPhaseValue;
         private System.Windows.Forms.Label Label_Location;
         private System.Windows.Forms.ComboBox ComboBox_Location;
-        private System.Windows.Forms.GroupBox GroupBox_Sequence;
         private System.Windows.Forms.Button Button_BrowseTargetList;
         private System.Windows.Forms.CheckedListBox CheckedListBox_SelectedTargets;
         private System.Windows.Forms.ComboBox ComboBox_SortTargets;
         private System.Windows.Forms.Label Label_SortBy;
-        private System.Windows.Forms.Button Button_ClearTarget;
         private System.Windows.Forms.Label Label_TargetDuration;
         private System.Windows.Forms.Label Label_TargetFloor;
         private System.Windows.Forms.Label Label_TargetHours;
@@ -1317,6 +1284,7 @@
         private System.Windows.Forms.ProgressBar ProgressBar_MultiTargetProcessing;
         private System.Windows.Forms.ProgressBar ProgressBar_ProcessObject;
         private System.Windows.Forms.Button Button_VisibleTonight;
+        private System.Windows.Forms.Button Button_GraphCancel;
     }
 }
 
