@@ -68,6 +68,15 @@ namespace TargetPlanner.Charts
         // path via BuildTargetSeriesList); those fall back to the direct per-call path.
         private readonly NightCache mNightCache;
 
+        // Cached best D-hour session for the Day chart, in local time. Populated by
+        // BuildDaySeries and refreshed by RebuildDayTooltip (Horizon / Duration spinner
+        // scrubs). Consumed by AltitudeChart's Day-chart left-click handler to materialize
+        // the window as a three-sided rectangle on top of the curve. Null when no window
+        // fits tonight (duration is 0, polar-night, or the target never clears the horizon
+        // long enough).
+        private (DateTime Start, DateTime End, double Floor)? mBestDayWindow;
+        public  (DateTime Start, DateTime End, double Floor)? BestDayWindow => mBestDayWindow;
+
         public AltitudeSeries(Location location, Target target, Color seriesColor,
                               NightCache nightCache = null)
         {
@@ -266,7 +275,9 @@ namespace TargetPlanner.Charts
 
             // Per-series hover tooltip summarizing the best D-hour imaging session tonight.
             // Rebuilt on Horizon / Duration spinner scrubs via RebuildDayTooltip(...). The
-            // Chart renders Series.ToolTip natively; no mouse handler needed.
+            // Chart renders Series.ToolTip natively; no mouse handler needed. ComposeDayTooltip
+            // also writes mBestDayWindow as a side effect, so AltitudeChart's click handler
+            // can materialize the same window as a chart rectangle without recomputing.
             daySeries.ToolTip = ComposeDayTooltip(Location.Horizon, Location.Duration);
 
             TargetSeriesList.Add(daySeries);
@@ -290,10 +301,11 @@ namespace TargetPlanner.Charts
             }
         }
 
-        // Build the tooltip string shown on hover over the Day-chart line. Falls back to
-        // just the target name if Duration is non-positive (BestSession.For requires positive
-        // minDuration) or if no D-hour window fits tonight (includes the polar-night case,
-        // where VisibilityWindows.For -> BestSession.For returns null).
+        // Compute the best D-hour session for tonight and cache it in mBestDayWindow (in
+        // local time). Returns null when duration is non-positive or when no window fits
+        // (polar-night, target never clears the horizon long enough, etc.). Shared by
+        // ComposeDayTooltip (for the hover-text) and -- via BestDayWindow -- by the Day-chart
+        // left-click handler in AltitudeChart.
         //
         // Floor altitude is the minimum of the session's start and end altitudes. alt(HA) is
         // monotone away from transit, so:
@@ -303,11 +315,22 @@ namespace TargetPlanner.Charts
         //     session; one endpoint is the high end, the other the low -- min is the wall.
         // Simpler and equivalent to the transit-distance argument, without needing a separate
         // TransitTime lookup.
-        private string ComposeDayTooltip(double horizon, TimeSpan duration)
+        private (DateTime Start, DateTime End, double Floor)? ComputeBestDayWindow(
+            double horizon, TimeSpan duration)
         {
-            if (duration <= TimeSpan.Zero) return Target.Name;
+            if (duration <= TimeSpan.Zero)
+            {
+                mBestDayWindow = null;
+                return null;
+            }
 
-            NightWindow night = NightCalculator.ComputeNight(Location);
+            // Honor the shared NightCache when AltitudeChart provided one (Graph-click
+            // path). The prior inline tooltip code unconditionally called the gated
+            // ComputeNight, adding one CoordinateSharp serial-lock hit per target on the
+            // UI thread during BuildDaySeries; for 13+ target builds this was visible as
+            // a noticeable "build takes a while" stall. Cache-first keeps the per-target
+            // cost at pure math.
+            NightWindow night = mNightCache?.Starting ?? NightCalculator.ComputeNight(Location);
             IHorizonProfile horizonProfile = new ScalarHorizonProfile(horizon);
 
             var best = BestSession.For(
@@ -315,25 +338,51 @@ namespace TargetPlanner.Charts
                 duration, duration,
                 alt => Math.Sin(alt * Math.PI / 180.0));
 
-            string durLabel = duration.TotalHours.ToString("0.##", CultureInfo.InvariantCulture);
-
             if (best == null)
             {
-                return string.Format(CultureInfo.InvariantCulture,
-                    "{0}\nNo {1}h window above {2:0}° tonight",
-                    Target.Name, durLabel, horizon);
+                mBestDayWindow = null;
+                return null;
             }
 
             double altStart = AltAzCalculator.At(Target, Location, best.Value.Start).Altitude;
             double altEnd   = AltAzCalculator.At(Target, Location, best.Value.End).Altitude;
             double floor    = Math.Min(altStart, altEnd);
 
-            DateTime startLocal = best.Value.Start.ToLocalTime();
-            DateTime endLocal   = best.Value.End.ToLocalTime();
+            var triple = (
+                Start: best.Value.Start.ToLocalTime(),
+                End:   best.Value.End.ToLocalTime(),
+                Floor: floor);
+
+            mBestDayWindow = triple;
+            return triple;
+        }
+
+        // Build the tooltip string shown on hover over the Day-chart line. Falls back to
+        // just the target name if Duration is non-positive (BestSession.For requires positive
+        // minDuration) or if no D-hour window fits tonight (includes the polar-night case,
+        // where VisibilityWindows.For -> BestSession.For returns null).
+        private string ComposeDayTooltip(double horizon, TimeSpan duration)
+        {
+            string durLabel = duration.TotalHours.ToString("0.##", CultureInfo.InvariantCulture);
+
+            if (duration <= TimeSpan.Zero)
+            {
+                mBestDayWindow = null;
+                return Target.Name;
+            }
+
+            var window = ComputeBestDayWindow(horizon, duration);
+
+            if (window == null)
+            {
+                return string.Format(CultureInfo.InvariantCulture,
+                    "{0}\nNo {1}h window above {2:0}° tonight",
+                    Target.Name, durLabel, horizon);
+            }
 
             return string.Format(CultureInfo.InvariantCulture,
                 "{0}\nBest {1}h window: {2:HH:mm} → {3:HH:mm}\nFloor: {4:0}°",
-                Target.Name, durLabel, startLocal, endLocal, floor);
+                Target.Name, durLabel, window.Value.Start, window.Value.End, window.Value.Floor);
         }
 
         // Walk 365 days, call ComputeNight and two AltAz.Of calls per day, return the

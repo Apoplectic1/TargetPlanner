@@ -95,6 +95,19 @@ namespace TargetPlanner.Charts
         // so the per-target cost is bounded).
         private Series mSharedMoonSeries;
 
+        // Day-chart "best-window" click state. On left-click over a target's Day curve, the
+        // handler snapshots the series' current Y values into this dictionary and overwrites
+        // them with a step function (0 outside the window, floor altitude inside) tracing
+        // that target's best D-hour session. Right-click anywhere on the chart walks the
+        // dictionary and restores every series' original Y values. Reloaded on each Graph
+        // click (stale Series refs don't survive mChart.Series.Clear() in ReloadWithTargets).
+        //
+        // Stored as double[] (not DataPoint[]) because the chart uses IsXValueIndexed=true
+        // on the Day area -- all Day series must have the SAME point count on every paint
+        // (Moon-Day alignment invariant), so we can't swap in a sparse 4-point rectangle.
+        // Only Y values change; X values (the minute grid) are preserved.
+        private Dictionary<Series, double[]> mReplacedDayBackup;
+
         public AltitudeChart(Location location)
         {
             if (location == null) throw new ArgumentNullException(nameof(location));
@@ -109,6 +122,7 @@ namespace TargetPlanner.Charts
             mTargetColors = new Dictionary<Target, Color>();
             mNowLines = new Dictionary<string, StripLine>();
             mHorizonLines = new Dictionary<string, StripLine>();
+            mReplacedDayBackup = new Dictionary<Series, double[]>();
 
             mChart.MouseClick += new MouseEventHandler(this.Chart_MouseClick);
         }
@@ -191,9 +205,20 @@ namespace TargetPlanner.Charts
 
         private void Chart_MouseClick(object sender, MouseEventArgs e)
         {
-            HitTestResult result = mChart.HitTest(e.X, e.Y);
+            // Right-click anywhere on the chart restores every Day-curve that was replaced
+            // with a best-window rectangle. Doesn't require a specific HitTest -- the user's
+            // model is "I'm done with the overlay, take me back to the real curves", not
+            // "restore the one I clicked".
+            if (e.Button == MouseButtons.Right)
+            {
+                RestoreAllReplacedCurves();
+                return;
+            }
 
-            if (result != null && result.Object != null && result.Object is LegendItem && e.Button == MouseButtons.Left)
+            HitTestResult result = mChart.HitTest(e.X, e.Y);
+            if (result == null || result.Object == null) return;
+
+            if (result.Object is LegendItem && e.Button == MouseButtons.Left)
             {
                 LegendItem legendItem = (LegendItem)result.Object;
 
@@ -220,7 +245,133 @@ namespace TargetPlanner.Charts
                     series.Tag = series.Color;
                     series.Color = Color.Transparent;
                 }
+                return;
             }
+
+            // Left-click on a target's Day-chart curve toggles the best-window overlay:
+            // - Unreplaced curve -> overwrite with the best D-hour window step.
+            // - Already-replaced curve -> restore just this one target's original altitude
+            //   curve (right-click anywhere still clears every replacement in one shot).
+            // Gated on the Day chart area so Year / Optimal stay unaffected. The Moon-Day
+            // series is target-independent and skipped.
+            //
+            // Don't gate on `result.Object is DataPoint`: HitTest's DataPoint classification
+            // is stricter than the chart's tooltip proximity check, so clicking on a visibly-
+            // over-the-line pixel can report a non-DataPoint object even when Series is
+            // correctly set. `result.Series != null` with a "-Day" name suffix is the right
+            // signal.
+            if (e.Button == MouseButtons.Left
+                && result.ChartArea != null && result.ChartArea.Name == "Day"
+                && result.Series != null)
+            {
+                string seriesName = result.Series.Name ?? "";
+                if (seriesName == "Moon-Day") return;
+                if (!seriesName.EndsWith("-Day", StringComparison.Ordinal)) return;
+
+                ToggleDayCurveWindow(result.Series);
+            }
+        }
+
+        // Locate the AltitudeSeries whose TargetSeriesList owns the given chart Series. Used
+        // by the Day-click handler to read the cached best-window triple. Returns null if no
+        // match -- caller treats that as "skip".
+        private AltitudeSeries FindOwnerOfSeries(Series s)
+        {
+            foreach (AltitudeSeries owner in mSeriesByTarget.Values)
+            {
+                if (owner == null) continue;
+                foreach (Series candidate in owner.TargetSeriesList)
+                {
+                    if (ReferenceEquals(candidate, s)) return owner;
+                }
+            }
+            return null;
+        }
+
+        // Toggle the best-window overlay for a single Day-chart Series:
+        // - Not currently replaced -> overwrite Y values in place with a step function
+        //   (floor altitude inside the best D-hour window, 0 outside). Preserves point
+        //   count and X values so IsXValueIndexed alignment with Moon-Day (and sibling
+        //   target Day series) is maintained -- the chart throws on paint if Day series
+        //   go out of alignment. Visually: flat at y=0 before the window, a near-vertical
+        //   step up at window start (one-minute diagonal), flat at y=floor across the
+        //   window, near-vertical step down at window end, flat at y=0 after.
+        // - Currently replaced -> restore this one series' original Y values from the
+        //   backup dictionary. Right-click still restores everything in one shot; this
+        //   single-curve path is for per-target undo.
+        //
+        // Bails silently if the owning AltitudeSeries has no best-window for tonight.
+        private void ToggleDayCurveWindow(Series s)
+        {
+            if (mReplacedDayBackup.TryGetValue(s, out double[] savedBackup))
+            {
+                RestoreOneReplacedCurve(s, savedBackup);
+                mReplacedDayBackup.Remove(s);
+                mChart.Invalidate();
+                return;
+            }
+
+            AltitudeSeries owner = FindOwnerOfSeries(s);
+            if (owner == null) return;
+
+            var window = owner.BestDayWindow;
+            if (window == null) return;
+
+            int count = s.Points.Count;
+            if (count == 0) return;
+
+            // Snapshot Y values before overwrite. X values are grid-driven and immutable,
+            // so the Y array is a complete restore record.
+            double[] backup = new double[count];
+            for (int i = 0; i < count; i++)
+            {
+                backup[i] = s.Points[i].YValues[0];
+            }
+
+            double startOa = window.Value.Start.ToOADate();
+            double endOa   = window.Value.End.ToOADate();
+
+            for (int i = 0; i < count; i++)
+            {
+                double xOa = s.Points[i].XValue;
+                double y = (xOa >= startOa && xOa <= endOa) ? window.Value.Floor : 0.0;
+                s.Points[i].YValues[0] = y;
+            }
+
+            mReplacedDayBackup[s] = backup;
+
+            // Series.Points in-place YValues updates don't always auto-invalidate the
+            // chart; force a repaint so the rectangle appears without waiting for the
+            // next unrelated invalidation.
+            mChart.Invalidate();
+        }
+
+        // Write a previously-snapshotted Y-value array back onto the given Series in place.
+        // Shared by the single-curve toggle (left-click on a replaced curve) and the
+        // restore-all path (right-click). The Min() guard defends against a mid-flight
+        // rebuild that shortened the series between snapshot and restore.
+        private static void RestoreOneReplacedCurve(Series s, double[] backup)
+        {
+            int n = Math.Min(backup.Length, s.Points.Count);
+            for (int i = 0; i < n; i++)
+            {
+                s.Points[i].YValues[0] = backup[i];
+            }
+        }
+
+        // Restore every Series whose Y values were overwritten with a best-window step.
+        // Walks the dictionary so multi-target replacements all unwind at once. No-op when
+        // nothing was replaced.
+        private void RestoreAllReplacedCurves()
+        {
+            if (mReplacedDayBackup.Count == 0) return;
+
+            foreach (var kv in mReplacedDayBackup)
+            {
+                RestoreOneReplacedCurve(kv.Key, kv.Value);
+            }
+            mReplacedDayBackup.Clear();
+            mChart.Invalidate();
         }
 
         public void UIState(Support.UIState state)
@@ -467,6 +618,7 @@ namespace TargetPlanner.Charts
             mTargetColors.Clear();
             mTargetList.Clear();
             mSharedMoonSeries = null;
+            mReplacedDayBackup.Clear();
 
             Location = newLocation;
 
