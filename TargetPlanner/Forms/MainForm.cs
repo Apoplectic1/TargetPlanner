@@ -479,28 +479,22 @@ symmetry at the cost of a lower minimum altitude.";
 
             try
             {
-                // ReloadWithTargets runs every target's sync preamble (Moon + Day +
-                // FindOrCreate) on this thread before it returns, so TargetSeriesList is
-                // populated with each target's Day Series by the time we get back. The
-                // returned Task.WhenAll completes once every target's Year + Optimal
-                // background compute finishes.
-                Task allBuildsTask = mAltitudeChart.ReloadWithTargets(
+                // ReloadWithTargets now pre-computes a shared NightCache behind its first
+                // await; mSeriesByTarget isn't populated (and per-target sync preambles
+                // aren't run) until after that await returns. That means the "Day series
+                // in TargetSeriesList" precondition ShowChartAreaSeries relies on isn't
+                // met until the full build completes -- so we await first, THEN paint.
+                await mAltitudeChart.ReloadWithTargets(
                     mLocation, targets, phaseProgress, mGraphCts.Token);
 
-                // Snap the radio to Day and paint the Day chart immediately -- no waiting
-                // for Year / Optimal. Setting Checked=true only fires CheckedChanged if
-                // the value actually changes, so we unconditionally run ShowChartAreaSeries
-                // + ChartTitle after to cover the "radio already on Day" path.
+                // Snap the radio to Day and paint the finished chart. Setting Checked=true
+                // only fires CheckedChanged if the value actually changes, so we
+                // unconditionally run ShowChartAreaSeries + ChartTitle after to cover the
+                // "radio already on Day" path.
                 RadioButton_Day.Checked = true;
                 mAltitudeChart.ShowChartAreaSeries("Day");
                 mAltitudeChart.ChartTitle = FormatChartTitle("Day");
                 mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
-
-                // Wait for Year + Optimal to finish before re-enabling Graph. If Cancel
-                // fires mid-compute, the Task.Runs abort and allBuildsTask completes
-                // (BuildSeriesListWithLogging swallows OperationCanceledException); the
-                // chart keeps whatever Day / Year / Optimal points rendered so far.
-                await allBuildsTask;
             }
             finally
             {

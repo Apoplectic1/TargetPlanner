@@ -359,26 +359,28 @@ namespace TargetPlanner.Charts
         }
 
         // Reset all transient state on this chart for a fresh Graph-click cycle, swap in a
-        // new Location / target list, and kick off BuildTargetSeriesList. Keeps the Chart
-        // control, its ChartArea instances, its Legend, and any user zoom / legend-color-
-        // toggle state alive across reloads -- only series, strip lines, per-target
-        // AltitudeSeries cache, target list, and the Location snapshot actually change.
+        // new Location / target list, pre-compute the shared NightCache on a background
+        // thread, and kick off per-target BuildSeriesList. Keeps the Chart control, its
+        // ChartArea instances, its Legend, and any user zoom / legend-color-toggle state
+        // alive across reloads -- only series, strip lines, per-target AltitudeSeries cache,
+        // target list, and the Location snapshot actually change.
         //
-        // Per-target BuildSeriesList runs its sync preamble (TargetSeriesList.Clear +
-        // BuildMoonSeries + BuildDaySeries + FindOrCreate x4) on the caller's thread right
-        // here, before its await Task.Run(ComputeYearCache) yields. So by the time this
-        // method returns, every target's Day and Moon Series are populated in its
-        // AltitudeSeries.TargetSeriesList; the caller's subsequent ShowChartAreaSeries
-        // ("Day") finds them and the Day chart paints immediately. Year and Optimal
-        // continue in the background (Task.Run + UI-thread continuation); the chart picks
-        // them up when the user switches radios or as the continuations land.
+        // Shared NightCache: NightCalculator.ComputeNight depends only on lat/lon/date (not
+        // on the observed target), but multi-target builds prior to this refactor had each
+        // target's ComputeYearCache re-derive the same 365-day NightWindow set independently,
+        // each call serialised on CoordinateSharpGate's process-wide lock. For 44 targets
+        // that's ~32000 gated calls. Pre-computing one NightCache and handing it to every
+        // AltitudeSeries reduces the gated Year work to a single ~730-call pass on a
+        // threadpool thread; per-target Year work then becomes pure-math AltAz that
+        // parallelizes freely.
         //
         // Returns Task.WhenAll of the per-target builds so the caller can await the
-        // "all phases complete" signal -- used to re-enable Button_Graph after the full
-        // build cycle.
-        public Task ReloadWithTargets(Location newLocation, IEnumerable<Target> targets,
-                                      IProgress<string> phaseProgress = null,
-                                      CancellationToken ct = default)
+        // "all phases complete" signal. Because the cache build is behind the first await,
+        // the caller must also wait for this method before running ShowChartAreaSeries --
+        // mSeriesByTarget is not populated until after the cache is ready.
+        public async Task ReloadWithTargets(Location newLocation, IEnumerable<Target> targets,
+                                            IProgress<string> phaseProgress = null,
+                                            CancellationToken ct = default)
         {
             if (newLocation == null) throw new ArgumentNullException(nameof(newLocation));
             if (targets == null)     throw new ArgumentNullException(nameof(targets));
@@ -408,18 +410,51 @@ namespace TargetPlanner.Charts
                 mTargetList.Add(t);
             }
 
-            // Kick off per-target BuildSeriesList. Each call runs its Moon / Day sync
-            // preamble on THIS thread before its await Task.Run yields; by the time the
-            // foreach finishes, TargetSeriesList is populated for every target's Day
-            // phase. Year and Optimal phases run in background Task.Runs and render on
-            // their continuations.
+            // Pre-compute the shared NightCache on a background thread. The cache build
+            // itself is gated -- CoordinateSharpGate serialises every CalculateCelestialTimes
+            // call -- but by running it once up front we trade 44*730 gated per-target calls
+            // for 730 gated once, plus later per-target Year work becomes pure math.
+            DateTime seed = newLocation.DateTime;
+            DateTime yearStartDay = NightCache.ComputeYearStartDay(seed);
+            int yearDaysCount = NightCache.ComputeYearDaysCount(seed);
+
+            NightCache nightCache;
+            try
+            {
+                nightCache = await Task.Run(
+                    () => new NightCache(newLocation, yearStartDay, yearDaysCount, ct),
+                    ct);
+            }
+            catch (OperationCanceledException)
+            {
+                // User cancelled before the cache finished building; leave mSeriesByTarget
+                // empty. Button_Graph_Click's post-await ShowChartAreaSeries will find
+                // nothing to add, which is the right behavior for a mid-build cancel.
+                return;
+            }
+
+            // Eagerly construct AltitudeSeries instances with the shared cache, populating
+            // mSeriesByTarget up front. SeriesFor's lazy-init branch remains for non-reload
+            // callers (startup fire-and-forget path) but is bypassed here.
+            foreach (Target target in mTargetList)
+            {
+                if (target == null) continue;
+                mSeriesByTarget[target] = new AltitudeSeries(
+                    Location, target, mTargetColors[target], nightCache);
+            }
+
+            // Kick off per-target BuildSeriesList. Each runs its Moon / Day sync preamble
+            // on THIS (UI) thread before its first await; Day now reads from nightCache.
+            // Starting, Year reads from nightCache.YearDays[i]. Moon still calls the gate
+            // per minute (Commit 2 hoists BuildMoonSeries out to AltitudeChart to amortize
+            // that across targets too).
             var tasks = new List<Task>(mTargetList.Count);
             foreach (Target target in mTargetList)
             {
                 if (target == null) continue;
-                tasks.Add(BuildSeriesListWithLogging(SeriesFor(target), phaseProgress, ct));
+                tasks.Add(BuildSeriesListWithLogging(mSeriesByTarget[target], phaseProgress, ct));
             }
-            return Task.WhenAll(tasks);
+            await Task.WhenAll(tasks);
         }
 
         // Regenerate only the Optimal series in place for every target in the target list.
