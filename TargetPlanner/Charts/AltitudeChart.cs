@@ -83,6 +83,18 @@ namespace TargetPlanner.Charts
         private Dictionary<string, StripLine> mNowLines;
         private Dictionary<string, StripLine> mHorizonLines;
 
+        // Shared Moon-Day series, built once per Graph click (not once per target). Moon
+        // altitude depends only on Location and time, not on the observed target, so the
+        // per-target build path that used to produce N identical Moon-Day Series (one per
+        // AltitudeSeries, of which N-1 were silently dropped by ShowChartAreaSeries' dedup)
+        // is pure waste -- and worse, each one was 720 gated CoordinateSharp calls.
+        // ReloadWithTargets computes one moon curve on the same background task that builds
+        // the NightCache; ShowChartAreaSeries splices it into mChart.Series when the Day
+        // area is selected. Null on the startup fire-and-forget path (AltitudeSeries still
+        // builds its own inline when no NightCache is provided -- one target at startup,
+        // so the per-target cost is bounded).
+        private Series mSharedMoonSeries;
+
         public AltitudeChart(Location location)
         {
             if (location == null) throw new ArgumentNullException(nameof(location));
@@ -274,6 +286,19 @@ namespace TargetPlanner.Charts
 
             ClearSeries();
 
+            // Shared Moon-Day series (hoisted off the per-target build) goes in first so
+            // target Day lines render on top of the moon area fill. Null when Reload didn't
+            // produce one (polar day / cancelled mid-build); also null on the startup path
+            // where AltitudeSeries still builds its own per-target Moon-Day inline and the
+            // existing dedup loop below handles it.
+            if (chartAreaName == "Day" && mSharedMoonSeries != null
+                && mChart.Series.IndexOf(mSharedMoonSeries.Name) < 0)
+            {
+                mSharedMoonSeries.ChartArea = chartAreaName;
+                mSharedMoonSeries.Enabled = true;
+                AddSeries(mSharedMoonSeries);
+            }
+
             foreach (Target target in mTargetList.ToList())
             {
                 if (target == null) continue;
@@ -281,12 +306,11 @@ namespace TargetPlanner.Charts
                 {
                     if (series.Name.Contains(chartAreaName))
                     {
-                        // Target-independent series (currently "Moon-Day" -- BuildMoonSeries
-                        // uses that literal name for every target) get built once per
-                        // target's TargetSeriesList. Adding the 2nd+ copy to mChart.Series
-                        // throws on duplicate name. The curves would be identical anyway
-                        // (moon altitude depends on location, not on the target), so keep
-                        // the first instance and disable the rest.
+                        // Target-independent series (currently "Moon-Day" -- the startup
+                        // fallback path still builds per-target; Reload builds once into
+                        // mSharedMoonSeries) get built once per target's TargetSeriesList.
+                        // Adding the 2nd+ copy to mChart.Series throws on duplicate name, so
+                        // the first instance wins and the rest are disabled.
                         if (mChart.Series.IndexOf(series.Name) >= 0)
                         {
                             series.Enabled = false;
@@ -358,6 +382,52 @@ namespace TargetPlanner.Charts
             }
         }
 
+        // Builds the target-independent Moon-Day series once per Graph click. The minute-loop
+        // hits CoordinateSharpGate for every minute of the night window (~720 gated calls for
+        // a typical 12-hour night); running this once instead of per-target is the other half
+        // of the multi-target speedup. Invoked on the same background Task.Run that builds
+        // NightCache above -- both are CoordinateSharp-gated, no benefit to parallelizing them.
+        //
+        // Returns null on polar day / polar night (no valid dusk/dawn to bracket); ShowChart-
+        // AreaSeries tolerates a null mSharedMoonSeries and simply omits the moon curve.
+        private static Series BuildSharedMoonSeries(Location location, NightWindow night, CancellationToken ct)
+        {
+            if (!night.IsValid) return null;
+
+            TimeSpan utcOffset = TimeZoneInfo.Local.GetUtcOffset(location.DateTime);
+            double longitudeSign = location.West ? -1.0 : 1.0;
+
+            // Day-chart start/stop rounded to hour boundaries, same as BuildDaySeries /
+            // BuildMoonSeries use -- keeps the moon area perfectly aligned with target lines.
+            DateTime duskLocal = night.AstronomicalDusk.ToLocalTime();
+            DateTime dawnLocal = night.AstronomicalDawn.ToLocalTime();
+            DateTime start = AltitudeSeries.DayChartStart(duskLocal);
+            DateTime stop  = AltitudeSeries.DayChartStop(dawnLocal);
+
+            Series moon = new Series
+            {
+                Name = "Moon-Day",
+                Color = Color.FromArgb((int)(night.LunarIlluminationFraction * 250.0), 209, 209, 209),
+                IsXValueIndexed = true,
+                XValueType = ChartValueType.DateTime,
+                ChartType = SeriesChartType.Area,
+            };
+            moon.IsVisibleInLegend = false;
+
+            TimeSpan delta = stop.Subtract(start);
+            int totalMinutes = Convert.ToInt32(Math.Round(delta.TotalMinutes, 0));
+            for (int minutes = 0; minutes <= totalMinutes; minutes++)
+            {
+                ct.ThrowIfCancellationRequested();
+                DateTime point = start.AddMinutes(minutes);
+                CoordinateSharp.Celestial celestial = Astronomy.Core.CoordinateSharpGate.Calculate(
+                    location.Latitude, longitudeSign * location.Longitude, point, utcOffset.Hours);
+                moon.Points.AddXY(point, celestial.MoonAltitude);
+            }
+
+            return moon;
+        }
+
         // Reset all transient state on this chart for a fresh Graph-click cycle, swap in a
         // new Location / target list, pre-compute the shared NightCache on a background
         // thread, and kick off per-target BuildSeriesList. Keeps the Chart control, its
@@ -396,6 +466,7 @@ namespace TargetPlanner.Charts
             mSeriesByTarget.Clear();
             mTargetColors.Clear();
             mTargetList.Clear();
+            mSharedMoonSeries = null;
 
             Location = newLocation;
 
@@ -419,11 +490,21 @@ namespace TargetPlanner.Charts
             int yearDaysCount = NightCache.ComputeYearDaysCount(seed);
 
             NightCache nightCache;
+            Series moonSeries;
             try
             {
-                nightCache = await Task.Run(
-                    () => new NightCache(newLocation, yearStartDay, yearDaysCount, ct),
-                    ct);
+                // Build the NightCache and the shared Moon series on the SAME Task.Run. Both
+                // hit CoordinateSharpGate (serialized on sLock) so running them on separate
+                // tasks gains nothing -- the lock would just hand off between them. Doing
+                // them sequentially on one thread keeps the threadpool uncluttered.
+                var bg = await Task.Run(() =>
+                {
+                    NightCache c = new NightCache(newLocation, yearStartDay, yearDaysCount, ct);
+                    Series m = BuildSharedMoonSeries(newLocation, c.Starting, ct);
+                    return (Cache: c, Moon: m);
+                }, ct);
+                nightCache = bg.Cache;
+                moonSeries = bg.Moon;
             }
             catch (OperationCanceledException)
             {
@@ -432,6 +513,8 @@ namespace TargetPlanner.Charts
                 // nothing to add, which is the right behavior for a mid-build cancel.
                 return;
             }
+
+            mSharedMoonSeries = moonSeries;
 
             // Eagerly construct AltitudeSeries instances with the shared cache, populating
             // mSeriesByTarget up front. SeriesFor's lazy-init branch remains for non-reload

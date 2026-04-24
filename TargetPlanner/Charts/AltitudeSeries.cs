@@ -173,7 +173,15 @@ namespace TargetPlanner.Charts
             // FindOrCreateSeries, but clearing here keeps all four on the same lifecycle.
             TargetSeriesList.Clear();
 
-            BuildMoonSeries();
+            // When AltitudeChart hands us a shared NightCache, it also hoists the Moon-Day
+            // series into mSharedMoonSeries on the same background task -- running the
+            // minute-loop N times (once per target) would pay the CoordinateSharpGate cost
+            // N redundant times for an identical curve. Startup fire-and-forget (cache
+            // null) still builds it inline so the initial chart gets a moon fill.
+            if (mNightCache == null)
+            {
+                BuildMoonSeries();
+            }
             BuildDaySeries();
             phaseProgress?.Report("Day");
 
