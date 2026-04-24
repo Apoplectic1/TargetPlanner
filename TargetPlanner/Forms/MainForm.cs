@@ -1289,6 +1289,13 @@ symmetry at the cost of a lower minimum altitude.";
             Astronomy.Core.Horizons.IHorizonProfile horizon =
                 new Astronomy.Core.Horizons.ScalarHorizonProfile(pickedNightLocation.Horizon);
 
+            // Duration = 0 means "no minimum-contiguous-window requirement" -- fall through
+            // to the duration-independent IsEverAboveHorizon. (IsAboveHorizonForAtLeast
+            // with minDuration = TimeSpan.Zero happens to produce the same result because
+            // its per-window check is `>= TimeSpan.Zero`, but the dedicated method states
+            // the intent plainly: "above horizon at any point during the night".)
+            bool durationIndependent = pickedNightLocation.Duration <= TimeSpan.Zero;
+
             // Suppress graph-mode side effects during the batch SetItemCheckState loop;
             // WireMultiMode(Button_VisibleTonight) runs after us and reliably flips to Multi.
             mSuppressGraphModeEvents = true;
@@ -1299,9 +1306,12 @@ symmetry at the cost of a lower minimum altitude.";
                     string name = CheckedListBox_SelectedTargets.Items[i].ToString();
                     Target target = mTargetList.Find(t => t.Name == name);
                     bool visible = target != null
-                        && Astronomy.Core.Session.CoarseVisibility.IsAboveHorizonForAtLeast(
-                            target, pickedNightLocation, night, horizon,
-                            pickedNightLocation.Duration);
+                        && (durationIndependent
+                            ? Astronomy.Core.Session.CoarseVisibility.IsEverAboveHorizon(
+                                target, pickedNightLocation, night, horizon)
+                            : Astronomy.Core.Session.CoarseVisibility.IsAboveHorizonForAtLeast(
+                                target, pickedNightLocation, night, horizon,
+                                pickedNightLocation.Duration));
                     CheckedListBox_SelectedTargets.SetItemCheckState(
                         i, visible ? CheckState.Checked : CheckState.Unchecked);
                 }
