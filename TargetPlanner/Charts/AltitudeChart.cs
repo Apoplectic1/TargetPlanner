@@ -263,7 +263,12 @@ namespace TargetPlanner.Charts
 
             AddChartAreaToChart(chartAreaName);
 
-            SetHorizonLine(chartAreaName, Location.Horizon);
+            // Horizon strip line placement is NOT done here. ReloadWithTargets seeds the
+            // lines on every chart area at the snapshot Horizon; subsequent spinner scrubs
+            // drive UpdateHorizonLines which repositions all three in sync. Letting this
+            // method also call SetHorizonLine would revert the visible area's line to the
+            // stale snapshot Horizon on every radio-button switch, making it look like the
+            // spinner got disconnected after a single switch-away-and-back cycle.
 
             ClearSeries();
 
@@ -359,6 +364,11 @@ namespace TargetPlanner.Charts
             mTargetList.Clear();
 
             Location = newLocation;
+
+            // Seed the horizon strip line on every chart area up front so all three areas
+            // start with a line at the current Horizon. From here on, spinner scrubs go
+            // through UpdateHorizonLines and radio-button switches leave the lines alone.
+            UpdateHorizonLines(newLocation.Horizon);
 
             // mTargetList order == legend order (ShowChartAreaSeries adds to mChart.Series in
             // this order, and the Chart legend mirrors mChart.Series). Color assignment uses

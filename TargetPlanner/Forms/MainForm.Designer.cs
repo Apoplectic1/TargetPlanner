@@ -31,12 +31,12 @@
             this.GroupBox_Local = new System.Windows.Forms.GroupBox();
             this.GroupBox_Location = new System.Windows.Forms.GroupBox();
             this.CheckBox_LocalNorth = new System.Windows.Forms.CheckBox();
-            this.Label_Hours = new System.Windows.Forms.Label();
-            this.Label_MinDuration = new System.Windows.Forms.Label();
-            this.Label_Degrees = new System.Windows.Forms.Label();
-            this.NumericUpDown_Horizon = new System.Windows.Forms.NumericUpDown();
+            this.Label_TargetHours = new System.Windows.Forms.Label();
+            this.Label_TargetDuration = new System.Windows.Forms.Label();
+            this.Label_TargetFloor = new System.Windows.Forms.Label();
+            this.NumericUpDown_TargetFloor = new System.Windows.Forms.NumericUpDown();
             this.Label_Location = new System.Windows.Forms.Label();
-            this.NumericUpDown_Duration = new System.Windows.Forms.NumericUpDown();
+            this.NumericUpDown_TargetDuration = new System.Windows.Forms.NumericUpDown();
             this.ComboBox_Location = new System.Windows.Forms.ComboBox();
             this.NumericUpDown_LatitudeMinutes = new System.Windows.Forms.NumericUpDown();
             this.Label_LocalHorizon = new System.Windows.Forms.Label();
@@ -98,24 +98,24 @@
             this.RadioButton_Year = new System.Windows.Forms.RadioButton();
             this.RadioButton_Day = new System.Windows.Forms.RadioButton();
             this.GroupBox_Sequence = new System.Windows.Forms.GroupBox();
+            this.Button_VisibleTonight = new System.Windows.Forms.Button();
             this.Button_GraphAllTargets = new System.Windows.Forms.Button();
             this.Button_SelectAllTargets = new System.Windows.Forms.Button();
             this.Button_ClearAllTargets = new System.Windows.Forms.Button();
             this.ProgressBar_ProcessObject = new System.Windows.Forms.ProgressBar();
-            this.CheckedListBox_SelectedTargets = new System.Windows.Forms.CheckedListBox();
-            this.ComboBox_SortTargets = new System.Windows.Forms.ComboBox();
             this.Label_SortBy = new System.Windows.Forms.Label();
+            this.ComboBox_SortTargets = new System.Windows.Forms.ComboBox();
+            this.CheckedListBox_SelectedTargets = new System.Windows.Forms.CheckedListBox();
             this.Button_BrowseTargetList = new System.Windows.Forms.Button();
             this.GroupBox_Target = new System.Windows.Forms.GroupBox();
             this.MenuStrip_MainForm = new System.Windows.Forms.MenuStrip();
             this.FileToolStripMenuItem_MainForm = new System.Windows.Forms.ToolStripMenuItem();
             this.GroupBox_AltitudeChart = new System.Windows.Forms.GroupBox();
             this.ProgressBar_MultiTargetProcessing = new System.Windows.Forms.ProgressBar();
-            this.Button_VisibleTonight = new System.Windows.Forms.Button();
             this.GroupBox_Local.SuspendLayout();
             this.GroupBox_Location.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Horizon)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Duration)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_TargetFloor)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_TargetDuration)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeMinutes)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeDegrees)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LongitudeDegrees)).BeginInit();
@@ -140,9 +140,9 @@
             // 
             this.GroupBox_Local.Controls.Add(this.GroupBox_Location);
             this.GroupBox_Local.Controls.Add(this.GroupBox_LocalDateTime);
-            this.GroupBox_Local.Location = new System.Drawing.Point(42, 30);
+            this.GroupBox_Local.Location = new System.Drawing.Point(13, 30);
             this.GroupBox_Local.Name = "GroupBox_Local";
-            this.GroupBox_Local.Size = new System.Drawing.Size(529, 345);
+            this.GroupBox_Local.Size = new System.Drawing.Size(529, 322);
             this.GroupBox_Local.TabIndex = 0;
             this.GroupBox_Local.TabStop = false;
             this.GroupBox_Local.Text = "Local";
@@ -150,15 +150,9 @@
             // GroupBox_Location
             // 
             this.GroupBox_Location.Controls.Add(this.CheckBox_LocalNorth);
-            this.GroupBox_Location.Controls.Add(this.Label_Hours);
-            this.GroupBox_Location.Controls.Add(this.Label_MinDuration);
-            this.GroupBox_Location.Controls.Add(this.Label_Degrees);
-            this.GroupBox_Location.Controls.Add(this.NumericUpDown_Horizon);
             this.GroupBox_Location.Controls.Add(this.Label_Location);
-            this.GroupBox_Location.Controls.Add(this.NumericUpDown_Duration);
             this.GroupBox_Location.Controls.Add(this.ComboBox_Location);
             this.GroupBox_Location.Controls.Add(this.NumericUpDown_LatitudeMinutes);
-            this.GroupBox_Location.Controls.Add(this.Label_LocalHorizon);
             this.GroupBox_Location.Controls.Add(this.NumericUpDown_LatitudeDegrees);
             this.GroupBox_Location.Controls.Add(this.Label_LocalLatitudeText);
             this.GroupBox_Location.Controls.Add(this.Label_LocalLongitudeText);
@@ -175,7 +169,7 @@
             this.GroupBox_Location.Controls.Add(this.NumericUpDown_LatitudeSeconds);
             this.GroupBox_Location.Location = new System.Drawing.Point(28, 19);
             this.GroupBox_Location.Name = "GroupBox_Location";
-            this.GroupBox_Location.Size = new System.Drawing.Size(470, 145);
+            this.GroupBox_Location.Size = new System.Drawing.Size(470, 110);
             this.GroupBox_Location.TabIndex = 30;
             this.GroupBox_Location.TabStop = false;
             this.GroupBox_Location.Text = "Location";
@@ -192,52 +186,53 @@
             this.CheckBox_LocalNorth.Text = "North";
             this.CheckBox_LocalNorth.UseVisualStyleBackColor = true;
             // 
-            // Label_Hours
+            // Label_TargetHours
             // 
-            this.Label_Hours.AutoSize = true;
-            this.Label_Hours.Location = new System.Drawing.Point(394, 112);
-            this.Label_Hours.Name = "Label_Hours";
-            this.Label_Hours.Size = new System.Drawing.Size(35, 13);
-            this.Label_Hours.TabIndex = 24;
-            this.Label_Hours.Text = "Hours";
+            this.Label_TargetHours.AutoSize = true;
+            this.Label_TargetHours.Location = new System.Drawing.Point(961, 232);
+            this.Label_TargetHours.Name = "Label_TargetHours";
+            this.Label_TargetHours.Size = new System.Drawing.Size(35, 13);
+            this.Label_TargetHours.TabIndex = 24;
+            this.Label_TargetHours.Text = "Hours";
             // 
-            // Label_MinDuration
+            // Label_TargetDuration
             // 
-            this.Label_MinDuration.AutoSize = true;
-            this.Label_MinDuration.Location = new System.Drawing.Point(242, 112);
-            this.Label_MinDuration.Name = "Label_MinDuration";
-            this.Label_MinDuration.Size = new System.Drawing.Size(94, 13);
-            this.Label_MinDuration.TabIndex = 23;
-            this.Label_MinDuration.Text = "Minimum Duration:";
+            this.Label_TargetDuration.AutoSize = true;
+            this.Label_TargetDuration.Location = new System.Drawing.Point(809, 232);
+            this.Label_TargetDuration.Name = "Label_TargetDuration";
+            this.Label_TargetDuration.Size = new System.Drawing.Size(84, 13);
+            this.Label_TargetDuration.TabIndex = 23;
+            this.Label_TargetDuration.Text = "Target Duration:";
+            this.Label_TargetDuration.UseWaitCursor = true;
             // 
-            // Label_Degrees
+            // Label_TargetFloor
             // 
-            this.Label_Degrees.AutoSize = true;
-            this.Label_Degrees.Location = new System.Drawing.Point(175, 112);
-            this.Label_Degrees.Name = "Label_Degrees";
-            this.Label_Degrees.Size = new System.Drawing.Size(47, 13);
-            this.Label_Degrees.TabIndex = 22;
-            this.Label_Degrees.Text = "Degrees";
+            this.Label_TargetFloor.AutoSize = true;
+            this.Label_TargetFloor.Location = new System.Drawing.Point(742, 232);
+            this.Label_TargetFloor.Name = "Label_TargetFloor";
+            this.Label_TargetFloor.Size = new System.Drawing.Size(47, 13);
+            this.Label_TargetFloor.TabIndex = 22;
+            this.Label_TargetFloor.Text = "Degrees";
             // 
-            // NumericUpDown_Horizon
+            // NumericUpDown_TargetFloor
             // 
-            this.NumericUpDown_Horizon.AllowDrop = true;
-            this.NumericUpDown_Horizon.Location = new System.Drawing.Point(118, 108);
-            this.NumericUpDown_Horizon.Maximum = new decimal(new int[] {
+            this.NumericUpDown_TargetFloor.AllowDrop = true;
+            this.NumericUpDown_TargetFloor.Location = new System.Drawing.Point(685, 228);
+            this.NumericUpDown_TargetFloor.Maximum = new decimal(new int[] {
             89,
             0,
             0,
             0});
-            this.NumericUpDown_Horizon.Name = "NumericUpDown_Horizon";
-            this.NumericUpDown_Horizon.Size = new System.Drawing.Size(55, 20);
-            this.NumericUpDown_Horizon.TabIndex = 11;
-            this.NumericUpDown_Horizon.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_Horizon.Value = new decimal(new int[] {
+            this.NumericUpDown_TargetFloor.Name = "NumericUpDown_TargetFloor";
+            this.NumericUpDown_TargetFloor.Size = new System.Drawing.Size(55, 20);
+            this.NumericUpDown_TargetFloor.TabIndex = 11;
+            this.NumericUpDown_TargetFloor.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.NumericUpDown_TargetFloor.Value = new decimal(new int[] {
             30,
             0,
             0,
             0});
-            this.NumericUpDown_Horizon.ValueChanged += new System.EventHandler(this.NumericUpDown_Horizon_ValueChanged);
+            this.NumericUpDown_TargetFloor.ValueChanged += new System.EventHandler(this.NumericUpDown_TargetFloor_ValueChanged);
             // 
             // Label_Location
             // 
@@ -248,31 +243,31 @@
             this.Label_Location.TabIndex = 20;
             this.Label_Location.Text = "Location:";
             // 
-            // NumericUpDown_Duration
+            // NumericUpDown_TargetDuration
             // 
-            this.NumericUpDown_Duration.AllowDrop = true;
-            this.NumericUpDown_Duration.DecimalPlaces = 2;
-            this.NumericUpDown_Duration.Increment = new decimal(new int[] {
+            this.NumericUpDown_TargetDuration.AllowDrop = true;
+            this.NumericUpDown_TargetDuration.DecimalPlaces = 2;
+            this.NumericUpDown_TargetDuration.Increment = new decimal(new int[] {
             25,
             0,
             0,
             131072});
-            this.NumericUpDown_Duration.Location = new System.Drawing.Point(337, 108);
-            this.NumericUpDown_Duration.Maximum = new decimal(new int[] {
+            this.NumericUpDown_TargetDuration.Location = new System.Drawing.Point(904, 228);
+            this.NumericUpDown_TargetDuration.Maximum = new decimal(new int[] {
             24,
             0,
             0,
             0});
-            this.NumericUpDown_Duration.Name = "NumericUpDown_Duration";
-            this.NumericUpDown_Duration.Size = new System.Drawing.Size(55, 20);
-            this.NumericUpDown_Duration.TabIndex = 12;
-            this.NumericUpDown_Duration.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_Duration.Value = new decimal(new int[] {
+            this.NumericUpDown_TargetDuration.Name = "NumericUpDown_TargetDuration";
+            this.NumericUpDown_TargetDuration.Size = new System.Drawing.Size(55, 20);
+            this.NumericUpDown_TargetDuration.TabIndex = 12;
+            this.NumericUpDown_TargetDuration.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.NumericUpDown_TargetDuration.Value = new decimal(new int[] {
             4,
             0,
             0,
             0});
-            this.NumericUpDown_Duration.ValueChanged += new System.EventHandler(this.NumericUpDown_Duration_ValueChanged);
+            this.NumericUpDown_TargetDuration.ValueChanged += new System.EventHandler(this.NumericUpDown_TargetDuration_ValueChanged);
             // 
             // ComboBox_Location
             // 
@@ -307,11 +302,11 @@
             // Label_LocalHorizon
             // 
             this.Label_LocalHorizon.AutoSize = true;
-            this.Label_LocalHorizon.Location = new System.Drawing.Point(40, 112);
+            this.Label_LocalHorizon.Location = new System.Drawing.Point(607, 232);
             this.Label_LocalHorizon.Name = "Label_LocalHorizon";
-            this.Label_LocalHorizon.Size = new System.Drawing.Size(75, 13);
+            this.Label_LocalHorizon.Size = new System.Drawing.Size(67, 13);
             this.Label_LocalHorizon.TabIndex = 21;
-            this.Label_LocalHorizon.Text = "Local Horizon:";
+            this.Label_LocalHorizon.Text = "Target Floor:";
             // 
             // NumericUpDown_LatitudeDegrees
             // 
@@ -523,7 +518,7 @@
             this.GroupBox_LocalDateTime.Controls.Add(this.Label_LunarAltitudeValue);
             this.GroupBox_LocalDateTime.Controls.Add(this.Label_LunarIlluminationFractionValue);
             this.GroupBox_LocalDateTime.Controls.Add(this.Label_LunarIlluminationFraction);
-            this.GroupBox_LocalDateTime.Location = new System.Drawing.Point(28, 174);
+            this.GroupBox_LocalDateTime.Location = new System.Drawing.Point(28, 150);
             this.GroupBox_LocalDateTime.Name = "GroupBox_LocalDateTime";
             this.GroupBox_LocalDateTime.Size = new System.Drawing.Size(469, 151);
             this.GroupBox_LocalDateTime.TabIndex = 29;
@@ -729,9 +724,9 @@
             this.GroupBox_CoordinateSelection.Controls.Add(this.Label_TargetRightAscensionText);
             this.GroupBox_CoordinateSelection.Controls.Add(this.NumericUpDown_DecSeconds);
             this.GroupBox_CoordinateSelection.Controls.Add(this.NumericUpDown_DecDegrees);
-            this.GroupBox_CoordinateSelection.Location = new System.Drawing.Point(33, 19);
+            this.GroupBox_CoordinateSelection.Location = new System.Drawing.Point(554, 50);
             this.GroupBox_CoordinateSelection.Name = "GroupBox_CoordinateSelection";
-            this.GroupBox_CoordinateSelection.Size = new System.Drawing.Size(469, 145);
+            this.GroupBox_CoordinateSelection.Size = new System.Drawing.Size(472, 145);
             this.GroupBox_CoordinateSelection.TabIndex = 1;
             this.GroupBox_CoordinateSelection.TabStop = false;
             this.GroupBox_CoordinateSelection.Text = "Target Coordinates";
@@ -1031,16 +1026,26 @@
             this.GroupBox_Sequence.Controls.Add(this.ComboBox_SortTargets);
             this.GroupBox_Sequence.Controls.Add(this.CheckedListBox_SelectedTargets);
             this.GroupBox_Sequence.Controls.Add(this.Button_BrowseTargetList);
-            this.GroupBox_Sequence.Location = new System.Drawing.Point(33, 170);
+            this.GroupBox_Sequence.Location = new System.Drawing.Point(30, 19);
             this.GroupBox_Sequence.Name = "GroupBox_Sequence";
-            this.GroupBox_Sequence.Size = new System.Drawing.Size(472, 241);
+            this.GroupBox_Sequence.Size = new System.Drawing.Size(507, 292);
             this.GroupBox_Sequence.TabIndex = 2;
             this.GroupBox_Sequence.TabStop = false;
             this.GroupBox_Sequence.Text = "Target Selection";
             // 
+            // Button_VisibleTonight
+            // 
+            this.Button_VisibleTonight.Location = new System.Drawing.Point(299, 20);
+            this.Button_VisibleTonight.Name = "Button_VisibleTonight";
+            this.Button_VisibleTonight.Size = new System.Drawing.Size(100, 23);
+            this.Button_VisibleTonight.TabIndex = 7;
+            this.Button_VisibleTonight.Text = "Visible Tonight";
+            this.Button_VisibleTonight.UseVisualStyleBackColor = true;
+            this.Button_VisibleTonight.Click += new System.EventHandler(this.Button_VisibleTonight_Click);
+            // 
             // Button_GraphAllTargets
             // 
-            this.Button_GraphAllTargets.Location = new System.Drawing.Point(90, 20);
+            this.Button_GraphAllTargets.Location = new System.Drawing.Point(427, 19);
             this.Button_GraphAllTargets.Name = "Button_GraphAllTargets";
             this.Button_GraphAllTargets.Size = new System.Drawing.Size(66, 23);
             this.Button_GraphAllTargets.TabIndex = 1;
@@ -1051,7 +1056,7 @@
             // Button_SelectAllTargets
             // 
             this.Button_SelectAllTargets.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
-            this.Button_SelectAllTargets.Location = new System.Drawing.Point(318, 20);
+            this.Button_SelectAllTargets.Location = new System.Drawing.Point(112, 20);
             this.Button_SelectAllTargets.Name = "Button_SelectAllTargets";
             this.Button_SelectAllTargets.Size = new System.Drawing.Size(64, 23);
             this.Button_SelectAllTargets.TabIndex = 9;
@@ -1062,7 +1067,7 @@
             // Button_ClearAllTargets
             // 
             this.Button_ClearAllTargets.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
-            this.Button_ClearAllTargets.Location = new System.Drawing.Point(388, 20);
+            this.Button_ClearAllTargets.Location = new System.Drawing.Point(206, 20);
             this.Button_ClearAllTargets.Name = "Button_ClearAllTargets";
             this.Button_ClearAllTargets.Size = new System.Drawing.Size(64, 23);
             this.Button_ClearAllTargets.TabIndex = 8;
@@ -1074,20 +1079,20 @@
             // 
             this.ProgressBar_ProcessObject.Location = new System.Drawing.Point(19, 49);
             this.ProgressBar_ProcessObject.Name = "ProgressBar_ProcessObject";
-            this.ProgressBar_ProcessObject.Size = new System.Drawing.Size(433, 18);
+            this.ProgressBar_ProcessObject.Size = new System.Drawing.Size(474, 18);
             this.ProgressBar_ProcessObject.TabIndex = 7;
-            //
+            // 
             // Label_SortBy
-            //
+            // 
             this.Label_SortBy.AutoSize = true;
             this.Label_SortBy.Location = new System.Drawing.Point(18, 79);
             this.Label_SortBy.Name = "Label_SortBy";
-            this.Label_SortBy.Size = new System.Drawing.Size(46, 13);
+            this.Label_SortBy.Size = new System.Drawing.Size(43, 13);
             this.Label_SortBy.TabIndex = 10;
             this.Label_SortBy.Text = "Sort by:";
-            //
+            // 
             // ComboBox_SortTargets
-            //
+            // 
             this.ComboBox_SortTargets.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.ComboBox_SortTargets.FormattingEnabled = true;
             this.ComboBox_SortTargets.Items.AddRange(new object[] {
@@ -1100,15 +1105,15 @@
             this.ComboBox_SortTargets.TabIndex = 11;
             this.ComboBox_SortTargets.SelectedIndex = 0;
             this.ComboBox_SortTargets.SelectedIndexChanged += new System.EventHandler(this.ComboBox_SortTargets_SelectedIndexChanged);
-            //
+            // 
             // CheckedListBox_SelectedTargets
-            //
+            // 
             this.CheckedListBox_SelectedTargets.FormattingEnabled = true;
             this.CheckedListBox_SelectedTargets.Location = new System.Drawing.Point(18, 102);
             this.CheckedListBox_SelectedTargets.MultiColumn = true;
             this.CheckedListBox_SelectedTargets.Name = "CheckedListBox_SelectedTargets";
             this.CheckedListBox_SelectedTargets.ScrollAlwaysVisible = true;
-            this.CheckedListBox_SelectedTargets.Size = new System.Drawing.Size(434, 125);
+            this.CheckedListBox_SelectedTargets.Size = new System.Drawing.Size(475, 169);
             this.CheckedListBox_SelectedTargets.TabIndex = 4;
             this.CheckedListBox_SelectedTargets.ThreeDCheckBoxes = true;
             this.CheckedListBox_SelectedTargets.MouseDoubleClick += new System.Windows.Forms.MouseEventHandler(this.CheckedListBox_SelectedTargets_MouseDoubleClick);
@@ -1127,10 +1132,16 @@
             // GroupBox_Target
             // 
             this.GroupBox_Target.Controls.Add(this.GroupBox_CoordinateSelection);
+            this.GroupBox_Target.Controls.Add(this.Label_TargetHours);
+            this.GroupBox_Target.Controls.Add(this.Label_TargetDuration);
             this.GroupBox_Target.Controls.Add(this.GroupBox_Sequence);
-            this.GroupBox_Target.Location = new System.Drawing.Point(614, 30);
+            this.GroupBox_Target.Controls.Add(this.Label_TargetFloor);
+            this.GroupBox_Target.Controls.Add(this.Label_LocalHorizon);
+            this.GroupBox_Target.Controls.Add(this.NumericUpDown_TargetFloor);
+            this.GroupBox_Target.Controls.Add(this.NumericUpDown_TargetDuration);
+            this.GroupBox_Target.Location = new System.Drawing.Point(560, 30);
             this.GroupBox_Target.Name = "GroupBox_Target";
-            this.GroupBox_Target.Size = new System.Drawing.Size(529, 430);
+            this.GroupBox_Target.Size = new System.Drawing.Size(1049, 322);
             this.GroupBox_Target.TabIndex = 3;
             this.GroupBox_Target.TabStop = false;
             this.GroupBox_Target.Text = "Target";
@@ -1141,7 +1152,7 @@
             this.FileToolStripMenuItem_MainForm});
             this.MenuStrip_MainForm.Location = new System.Drawing.Point(0, 0);
             this.MenuStrip_MainForm.Name = "MenuStrip_MainForm";
-            this.MenuStrip_MainForm.Size = new System.Drawing.Size(1182, 24);
+            this.MenuStrip_MainForm.Size = new System.Drawing.Size(1628, 24);
             this.MenuStrip_MainForm.TabIndex = 5;
             this.MenuStrip_MainForm.Text = "menuStrip1";
             // 
@@ -1157,35 +1168,25 @@
             this.GroupBox_AltitudeChart.Controls.Add(this.RadioButton_Year);
             this.GroupBox_AltitudeChart.Controls.Add(this.RadioButton_Optimal);
             this.GroupBox_AltitudeChart.Controls.Add(this.RadioButton_Day);
-            this.GroupBox_AltitudeChart.Location = new System.Drawing.Point(13, 476);
+            this.GroupBox_AltitudeChart.Location = new System.Drawing.Point(13, 373);
             this.GroupBox_AltitudeChart.Name = "GroupBox_AltitudeChart";
-            this.GroupBox_AltitudeChart.Size = new System.Drawing.Size(1157, 379);
+            this.GroupBox_AltitudeChart.Size = new System.Drawing.Size(1596, 555);
             this.GroupBox_AltitudeChart.TabIndex = 6;
             this.GroupBox_AltitudeChart.TabStop = false;
             this.GroupBox_AltitudeChart.Text = "Target Altitude";
             // 
             // ProgressBar_MultiTargetProcessing
             // 
-            this.ProgressBar_MultiTargetProcessing.Location = new System.Drawing.Point(191, 18);
+            this.ProgressBar_MultiTargetProcessing.Location = new System.Drawing.Point(242, 18);
             this.ProgressBar_MultiTargetProcessing.Name = "ProgressBar_MultiTargetProcessing";
-            this.ProgressBar_MultiTargetProcessing.Size = new System.Drawing.Size(948, 17);
+            this.ProgressBar_MultiTargetProcessing.Size = new System.Drawing.Size(1331, 18);
             this.ProgressBar_MultiTargetProcessing.TabIndex = 40;
-            // 
-            // Button_VisibleTonight
-            // 
-            this.Button_VisibleTonight.Location = new System.Drawing.Point(212, 20);
-            this.Button_VisibleTonight.Name = "Button_VisibleTonight";
-            this.Button_VisibleTonight.Size = new System.Drawing.Size(100, 23);
-            this.Button_VisibleTonight.TabIndex = 7;
-            this.Button_VisibleTonight.Text = "Visible Tonight";
-            this.Button_VisibleTonight.UseVisualStyleBackColor = true;
-            this.Button_VisibleTonight.Click += new System.EventHandler(this.Button_VisibleTonight_Click);
             // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1182, 878);
+            this.ClientSize = new System.Drawing.Size(1628, 951);
             this.Controls.Add(this.GroupBox_AltitudeChart);
             this.Controls.Add(this.GroupBox_Target);
             this.Controls.Add(this.GroupBox_Local);
@@ -1199,8 +1200,8 @@
             this.GroupBox_Local.ResumeLayout(false);
             this.GroupBox_Location.ResumeLayout(false);
             this.GroupBox_Location.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Horizon)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Duration)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_TargetFloor)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_TargetDuration)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeMinutes)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeDegrees)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LongitudeDegrees)).EndInit();
@@ -1218,7 +1219,9 @@
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_DecSeconds)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_DecDegrees)).EndInit();
             this.GroupBox_Sequence.ResumeLayout(false);
+            this.GroupBox_Sequence.PerformLayout();
             this.GroupBox_Target.ResumeLayout(false);
+            this.GroupBox_Target.PerformLayout();
             this.MenuStrip_MainForm.ResumeLayout(false);
             this.MenuStrip_MainForm.PerformLayout();
             this.GroupBox_AltitudeChart.ResumeLayout(false);
@@ -1250,8 +1253,8 @@
         private System.Windows.Forms.NumericUpDown NumericUpDown_LatitudeDegrees;
         private System.Windows.Forms.CheckBox CheckBox_LocalWest;
         private System.Windows.Forms.Label Label_LocalHorizon;
-        private System.Windows.Forms.NumericUpDown NumericUpDown_Duration;
-        private System.Windows.Forms.NumericUpDown NumericUpDown_Horizon;
+        private System.Windows.Forms.NumericUpDown NumericUpDown_TargetDuration;
+        private System.Windows.Forms.NumericUpDown NumericUpDown_TargetFloor;
         private System.Windows.Forms.NumericUpDown NumericUpDown_RaSeconds;
         private System.Windows.Forms.TextBox TextBox_Declination;
         private System.Windows.Forms.NumericUpDown NumericUpDown_RaHours;
@@ -1289,9 +1292,9 @@
         private System.Windows.Forms.ComboBox ComboBox_SortTargets;
         private System.Windows.Forms.Label Label_SortBy;
         private System.Windows.Forms.Button Button_ClearTarget;
-        private System.Windows.Forms.Label Label_MinDuration;
-        private System.Windows.Forms.Label Label_Degrees;
-        private System.Windows.Forms.Label Label_Hours;
+        private System.Windows.Forms.Label Label_TargetDuration;
+        private System.Windows.Forms.Label Label_TargetFloor;
+        private System.Windows.Forms.Label Label_TargetHours;
         private System.Windows.Forms.Label Label_DecMinuteColon;
         private System.Windows.Forms.Label Label_RaMinuteColon;
         private System.Windows.Forms.Label Label_DecDegreeColon;

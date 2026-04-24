@@ -106,6 +106,12 @@ symmetry at the cost of a lower minimum altitude.";
         // identified as stale later.
         private int mChartBuildGeneration;
 
+        // Parallel generation counter for GetNinaTargets. Incremented on each target-list load
+        // so that a stale "reset-to-zero" continuation from a prior (still-holding-at-100%)
+        // run doesn't wipe the new run's partial bar when Browse is triggered again during
+        // the 1-second hold.
+        private int mProcessObjectGeneration;
+
         public MainForm()
         {
             InitializeComponent();
@@ -309,9 +315,9 @@ symmetry at the cost of a lower minimum altitude.";
                 north:       mDecInput.Positive);
         }
 
-        private void NumericUpDown_Duration_ValueChanged(object sender, EventArgs e)
+        private void NumericUpDown_TargetDuration_ValueChanged(object sender, EventArgs e)
         {
-            TimeSpan newDuration = TimeSpan.FromMinutes((double)NumericUpDown_Duration.Value * 60.0);
+            TimeSpan newDuration = TimeSpan.FromMinutes((double)NumericUpDown_TargetDuration.Value * 60.0);
             mLocation = mLocation.With(duration: newDuration);
             if (mAltitudeChart == null) return;
             // Pass the scrubbed value explicitly; the chart's snapshot keeps its Graph-click
@@ -319,9 +325,9 @@ symmetry at the cost of a lower minimum altitude.";
             mAltitudeChart.RebuildOptimalData(mLocation.Horizon, newDuration);
         }
 
-        private void NumericUpDown_Horizon_ValueChanged(object sender, EventArgs e)
+        private void NumericUpDown_TargetFloor_ValueChanged(object sender, EventArgs e)
         {
-            double newHorizon = (double)NumericUpDown_Horizon.Value;
+            double newHorizon = (double)NumericUpDown_TargetFloor.Value;
             mLocation = mLocation.With(horizon: newHorizon);
             if (mAltitudeChart == null) return;
             mAltitudeChart.UpdateHorizonLines(newHorizon);
@@ -523,12 +529,12 @@ symmetry at the cost of a lower minimum altitude.";
                 mLatitudeInput.SetProgrammatic(mLocation.Latitude,  positive: mLocation.North);
                 mLongitudeInput.SetProgrammatic(mLocation.Longitude, positive: mLocation.West);
 
-                NumericUpDown_Horizon.ValueChanged  -= NumericUpDown_Horizon_ValueChanged;
-                NumericUpDown_Duration.ValueChanged -= NumericUpDown_Duration_ValueChanged;
-                NumericUpDown_Horizon.Value  = ClampToRange(NumericUpDown_Horizon,  (decimal)mLocation.Horizon);
-                NumericUpDown_Duration.Value = ClampToRange(NumericUpDown_Duration, (decimal)mLocation.Duration.TotalHours);
-                NumericUpDown_Horizon.ValueChanged  += NumericUpDown_Horizon_ValueChanged;
-                NumericUpDown_Duration.ValueChanged += NumericUpDown_Duration_ValueChanged;
+                NumericUpDown_TargetFloor.ValueChanged  -= NumericUpDown_TargetFloor_ValueChanged;
+                NumericUpDown_TargetDuration.ValueChanged -= NumericUpDown_TargetDuration_ValueChanged;
+                NumericUpDown_TargetFloor.Value  = ClampToRange(NumericUpDown_TargetFloor,  (decimal)mLocation.Horizon);
+                NumericUpDown_TargetDuration.Value = ClampToRange(NumericUpDown_TargetDuration, (decimal)mLocation.Duration.TotalHours);
+                NumericUpDown_TargetFloor.ValueChanged  += NumericUpDown_TargetFloor_ValueChanged;
+                NumericUpDown_TargetDuration.ValueChanged += NumericUpDown_TargetDuration_ValueChanged;
             }
             finally { mSyncingLocationUI = false; }
         }
@@ -576,6 +582,8 @@ symmetry at the cost of a lower minimum altitude.";
             CheckedListBox_SelectedTargets.Items.Clear();
             ComboBox_SelectTarget.Items.Clear();
 
+            int thisGeneration = ++mProcessObjectGeneration;
+
             var progressHandler = new Progress<(int Current, int Total)>(value =>
             {
                 ProgressBar_ProcessObject.Maximum = value.Total;
@@ -599,6 +607,19 @@ symmetry at the cost of a lower minimum altitude.";
                     if (loaded != null) mTargetList.AddRange(loaded);
                     ProgressBar_ProcessObject.Value = ProgressBar_ProcessObject.Maximum;
                 }
+
+                // Success path: hold the filled bar for 1 s, then clear to zero. Instant clear
+                // on error stays (see catch below) so failure feels snappy rather than animated.
+                // Generation-guarded so a re-browse during the hold doesn't wipe the new run.
+                // Discard suppresses CS4014 -- the continuation is intentionally fire-and-forget
+                // (marshaled to the UI thread via FromCurrentSynchronizationContext).
+                _ = Task.Delay(1000).ContinueWith(
+                    _2 =>
+                    {
+                        if (thisGeneration != mProcessObjectGeneration) return;
+                        ProgressBar_ProcessObject.Value = 0;
+                    },
+                    TaskScheduler.FromCurrentSynchronizationContext());
             }
             catch (Exception ex)
             {
@@ -845,7 +866,23 @@ symmetry at the cost of a lower minimum altitude.";
             {
                 if (thisGeneration != mChartBuildGeneration) return;  // stale -- a newer click superseded us
                 if (ProgressBar_MultiTargetProcessing.Value < ProgressBar_MultiTargetProcessing.Maximum)
+                {
                     ProgressBar_MultiTargetProcessing.Value += 1;
+                    // Final tick completes the chart build. Hold the filled bar for 1 s so
+                    // the "done" state is visible, then clear to zero. Generation-guarded so
+                    // if the user clicks Graph again during the hold, the stale reset no-ops
+                    // and the new build's bar isn't clobbered.
+                    if (ProgressBar_MultiTargetProcessing.Value >= ProgressBar_MultiTargetProcessing.Maximum)
+                    {
+                        Task.Delay(1000).ContinueWith(
+                            _2 =>
+                            {
+                                if (thisGeneration != mChartBuildGeneration) return;
+                                ProgressBar_MultiTargetProcessing.Value = 0;
+                            },
+                            TaskScheduler.FromCurrentSynchronizationContext());
+                    }
+                }
             });
         }
 
@@ -877,7 +914,7 @@ symmetry at the cost of a lower minimum altitude.";
         }
 
         // Check exactly the targets that have a contiguous window of at least
-        // NumericUpDown_Duration above NumericUpDown_Horizon during the night bracketing
+        // NumericUpDown_TargetDuration above NumericUpDown_TargetFloor during the night bracketing
         // the moment picked in DatePicker + TimePicker. NightCalculator's bracket logic
         // walks forward to tomorrow's dawn or back to yesterday's dusk depending on
         // whether the moment is past today's dawn -- so a 2 AM TimePicker value yields
