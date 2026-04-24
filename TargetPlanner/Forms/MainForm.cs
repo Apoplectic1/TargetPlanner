@@ -112,6 +112,17 @@ symmetry at the cost of a lower minimum altitude.";
         // the 1-second hold.
         private int mProcessObjectGeneration;
 
+        // Tracks which "last-touched" selection drives Button_Graph_Click:
+        //   Single -> mTarget (RA/Dec inputs + ComboBox_SelectTarget).
+        //   Multi  -> CheckedListBox_SelectedTargets.CheckedItems.
+        // Flipped by the per-control subscriptions set up in WireGraphModeEvents.
+        // Programmatic bulk updates (e.g. PopulateCheckedListBoxFromTargets,
+        // ResortSelectedTargets) fire the same events, so those callers raise
+        // mSuppressGraphModeEvents around their mutations to prevent a spurious flip.
+        private enum GraphMode { Single, Multi }
+        private GraphMode mGraphMode = GraphMode.Single;
+        private bool mSuppressGraphModeEvents;
+
         public MainForm()
         {
             InitializeComponent();
@@ -244,6 +255,12 @@ symmetry at the cost of a lower minimum altitude.";
             // Fire-and-forget; GetNinaTargets owns its own try/catch for diagnostics.
             _ = GetNinaTargets(folderSelectedPaths);
 
+            // Wire graph-mode tracking after the CoordinateInput helpers and mAltitudeChart
+            // exist but before the M31 seed below, so that the combo-text assignment fires
+            // SelectedIndexChanged through MarkSingleMode (a no-op since the default is
+            // already Single).
+            WireGraphModeEvents();
+
             ComboBox_SelectTarget.Text = "M31";
         }
 
@@ -354,64 +371,69 @@ symmetry at the cost of a lower minimum altitude.";
                 ResortSelectedTargets();
         }
 
-        private void Button_GraphTarget_Click(object sender, EventArgs e)
+        // Graph the targets indicated by mGraphMode (last-touched). Multi walks the
+        // CheckedListBox; Single falls back to mTarget (RA/Dec inputs + combo). If Multi
+        // is active but nothing is checked (e.g. user just clicked Clear All), fall back
+        // to mTarget so the button always produces a chart.
+        //
+        // mLocation.DateTime is already kept in sync with the pickers via
+        // UpdateLocalDateTimeEvents (called from DatePicker/TimePicker ValueChanged and
+        // Button_Now_Click). Don't overwrite it with DateTime.Now here -- that was the
+        // pre-refactor assumption when the app was always "live now" by default.
+        //
+        // Reload-in-place: keep the Chart control, its ChartAreas, its Legend, and any
+        // user zoom / legend-color-toggle state alive. The chart was constructed once
+        // in InitializeDynamicControls. Reload resets only the transient state (series,
+        // strip lines, per-target AltitudeSeries cache, target list, Location snapshot).
+        private void Button_Graph_Click(object sender, EventArgs e)
         {
-            foreach (Target target in mTargetList)
+            var targets = new List<Target>();
+
+            if (mGraphMode == GraphMode.Multi)
             {
-                if (target.Name == ComboBox_SelectTarget.Text)
+                // Walk CheckedItems in display order so mAltitudeChart's target list -- and
+                // therefore the chart legend -- inherits the CheckedListBox's NaturalStringComparer
+                // sort (see GetNinaTargets). Iterating mTargetList here instead would have used
+                // folder-load order, which is effectively arbitrary.
+                foreach (object item in CheckedListBox_SelectedTargets.CheckedItems)
                 {
-                    mTarget = target;
-                    break;
+                    string name = item.ToString();
+                    Target t = mTargetList?.Find(x => x.Name == name);
+                    if (t != null) targets.Add(t);
                 }
             }
 
-            // mLocation.DateTime is already kept in sync with the pickers via
-            // UpdateLocalDateTimeEvents (called from DatePicker/TimePicker ValueChanged and
-            // Button_Now_Click). Don't overwrite it with DateTime.Now here -- that was the
-            // pre-refactor assumption when the app was always "live now" by default.
-            IProgress<string> phaseProgress = BeginChartBuildProgress(targetCount: 1);
+            // Fall back to Single when Multi yields nothing (or when mGraphMode is Single).
+            if (targets.Count == 0)
+            {
+                // Resolve combo text to a Target. Covers the edge case where the user typed
+                // into ComboBox_SelectTarget without triggering SelectedIndexChanged /
+                // MouseLeave; without this, mTarget would lag the combo by one edit. If the
+                // text doesn't match a loaded target, Find returns null and mTarget keeps
+                // its existing value.
+                if (mTargetList != null)
+                {
+                    foreach (Target t in mTargetList)
+                    {
+                        if (t.Name == ComboBox_SelectTarget.Text)
+                        {
+                            mTarget = t;
+                            break;
+                        }
+                    }
+                }
+                if (mTarget == null) return;
+                targets.Add(mTarget);
+            }
 
-            // Reload-in-place: keep the Chart control, its ChartAreas, its Legend, and any
-            // user zoom / legend-color-toggle state alive. The chart was constructed once
-            // in InitializeDynamicControls. Reload resets only the transient state (series,
-            // strip lines, per-target AltitudeSeries cache, target list, Location snapshot).
-            mAltitudeChart.ReloadWithTargets(mLocation, new[] { mTarget }, phaseProgress);
+            IProgress<string> phaseProgress = BeginChartBuildProgress(targetCount: targets.Count);
+
+            mAltitudeChart.ReloadWithTargets(mLocation, targets, phaseProgress);
 
             // Snap the radio button state to Day so the UI and the active chart area agree.
             // Setting Checked=true only fires CheckedChanged if the value actually changes,
             // so we unconditionally run ShowChartAreaSeries + ChartTitle after to cover the
             // "radio already on Day" path.
-            RadioButton_Day.Checked = true;
-            mAltitudeChart.ShowChartAreaSeries("Day");
-            mAltitudeChart.ChartTitle = FormatChartTitle("Day");
-            mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
-        }
-
-        // Graph every checked target from CheckedListBox_SelectedTargets on the embedded
-        // chart. Mirrors Button_GraphTarget but with N targets instead of one -- progress-bar
-        // Maximum scales with the count, and ReloadWithTargets renders them all at once.
-        private void Button_GraphAllTargets_Click(object sender, EventArgs e)
-        {
-            if (mTargetList == null || mTargetList.Count == 0) return;
-
-            // Walk CheckedItems in display order so mAltitudeChart's target list -- and
-            // therefore the chart legend -- inherits the CheckedListBox's NaturalStringComparer
-            // sort (see GetNinaTargets). Iterating mTargetList here instead would have used
-            // folder-load order, which is effectively arbitrary. CheckedItems is filtered to
-            // the checked subset but preserves the full list's ordering.
-            var checkedTargets = new List<Target>();
-            foreach (object item in CheckedListBox_SelectedTargets.CheckedItems)
-            {
-                string name = item.ToString();
-                Target t = mTargetList.Find(x => x.Name == name);
-                if (t != null) checkedTargets.Add(t);
-            }
-            if (checkedTargets.Count == 0) return;
-
-            IProgress<string> phaseProgress = BeginChartBuildProgress(targetCount: checkedTargets.Count);
-
-            mAltitudeChart.ReloadWithTargets(mLocation, checkedTargets, phaseProgress);
-
             RadioButton_Day.Checked = true;
             mAltitudeChart.ShowChartAreaSeries("Day");
             mAltitudeChart.ChartTitle = FormatChartTitle("Day");
@@ -442,11 +464,6 @@ symmetry at the cost of a lower minimum altitude.";
             }
         }
 
-        private void Button_ClearTarget_Click(object sender, EventArgs e)
-        {
-            ComboBox_SelectTarget.Text = "M31";
-            CheckBox_TargetNorth.Checked = true;
-        }
         // ---------- ComboBox_Location ----------
         private void ComboBox_Location_SelectionIndexChanged(object sender, EventArgs e)
         {
@@ -648,7 +665,11 @@ symmetry at the cost of a lower minimum altitude.";
         // ResortSelectedTargets path handles re-ordering with state preservation.
         private void PopulateCheckedListBoxFromTargets(bool defaultChecked)
         {
+            // Programmatic bulk populate: Items.Add(name, true) fires ItemCheck for every
+            // row. Suppress graph-mode flips so a startup/browse target load doesn't
+            // spuriously put mGraphMode into Multi.
             CheckedListBox_SelectedTargets.BeginUpdate();
+            mSuppressGraphModeEvents = true;
             try
             {
                 CheckedListBox_SelectedTargets.Items.Clear();
@@ -659,6 +680,7 @@ symmetry at the cost of a lower minimum altitude.";
             }
             finally
             {
+                mSuppressGraphModeEvents = false;
                 CheckedListBox_SelectedTargets.EndUpdate();
             }
         }
@@ -691,7 +713,11 @@ symmetry at the cost of a lower minimum altitude.";
                 if (t != null) displayed.Add(t);
             }
 
+            // Programmatic re-populate; suppress graph-mode flips during the Items churn
+            // (each Items.Add fires ItemCheck). The outer caller -- e.g. the Sort combo's
+            // SelectedIndexChanged -- has its own WireMultiMode hook if mode should flip.
             CheckedListBox_SelectedTargets.BeginUpdate();
+            mSuppressGraphModeEvents = true;
             try
             {
                 CheckedListBox_SelectedTargets.Items.Clear();
@@ -704,6 +730,7 @@ symmetry at the cost of a lower minimum altitude.";
             }
             finally
             {
+                mSuppressGraphModeEvents = false;
                 CheckedListBox_SelectedTargets.EndUpdate();
             }
 
@@ -854,6 +881,46 @@ symmetry at the cost of a lower minimum altitude.";
         // Generation guarding: each call bumps mChartBuildGeneration and captures its value.
         // If the user clicks Graph again before the prior build's Task.Run completes, the
         // stale callbacks compare-mismatch and no-op -- the new click's bar stays truthful.
+        // Subscribe each control below to its natural "changed" event so a user touch flips
+        // mGraphMode. To wire a new control, append one line to the appropriate list below;
+        // overload resolution picks the right event (Click / SelectedIndexChanged /
+        // ItemCheck / ValueChanged). New control TYPES need a new WireSingleMode /
+        // WireMultiMode overload added just below.
+        private void WireGraphModeEvents()
+        {
+            // Single-mode triggers.
+            WireSingleMode(ComboBox_SelectTarget);
+            WireSingleMode(mRaInput);
+            WireSingleMode(mDecInput);
+
+            // Multi-mode triggers.
+            WireMultiMode(Button_BrowseTargetList);
+            WireMultiMode(Button_SelectAllTargets);
+            WireMultiMode(Button_ClearAllTargets);
+            WireMultiMode(Button_VisibleTonight);
+            WireMultiMode(ComboBox_SortTargets);
+            WireMultiMode(CheckedListBox_SelectedTargets);
+        }
+
+        private void WireSingleMode(ComboBox c)        => c.SelectedIndexChanged += (s, e) => MarkSingleMode();
+        private void WireSingleMode(CoordinateInput ci) => ci.ValueChanged        += (s, e) => MarkSingleMode();
+
+        private void WireMultiMode(Button b)           => b.Click                += (s, e) => MarkMultiMode();
+        private void WireMultiMode(ComboBox c)         => c.SelectedIndexChanged += (s, e) => MarkMultiMode();
+        private void WireMultiMode(CheckedListBox c)   => c.ItemCheck            += (s, e) => MarkMultiMode();
+
+        private void MarkSingleMode()
+        {
+            if (mSuppressGraphModeEvents) return;
+            mGraphMode = GraphMode.Single;
+        }
+
+        private void MarkMultiMode()
+        {
+            if (mSuppressGraphModeEvents) return;
+            mGraphMode = GraphMode.Multi;
+        }
+
         private IProgress<string> BeginChartBuildProgress(int targetCount)
         {
             int thisGeneration = ++mChartBuildGeneration;

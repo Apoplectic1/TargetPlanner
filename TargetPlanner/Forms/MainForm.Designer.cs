@@ -81,7 +81,7 @@
             this.NumericUpDown_RaMinutes = new System.Windows.Forms.NumericUpDown();
             this.TextBox_Declination = new System.Windows.Forms.TextBox();
             this.Label_DecMinuteColon = new System.Windows.Forms.Label();
-            this.Button_GraphTarget = new System.Windows.Forms.Button();
+            this.Button_Graph = new System.Windows.Forms.Button();
             this.NumericUpDown_RaHours = new System.Windows.Forms.NumericUpDown();
             this.NumericUpDown_RaSeconds = new System.Windows.Forms.NumericUpDown();
             this.NumericUpDown_DecMinutes = new System.Windows.Forms.NumericUpDown();
@@ -96,7 +96,6 @@
             this.RadioButton_Year = new System.Windows.Forms.RadioButton();
             this.RadioButton_Day = new System.Windows.Forms.RadioButton();
             this.Button_VisibleTonight = new System.Windows.Forms.Button();
-            this.Button_GraphAllTargets = new System.Windows.Forms.Button();
             this.Button_SelectAllTargets = new System.Windows.Forms.Button();
             this.Button_ClearAllTargets = new System.Windows.Forms.Button();
             this.ProgressBar_ProcessObject = new System.Windows.Forms.ProgressBar();
@@ -780,15 +779,15 @@
             this.Label_DecMinuteColon.TabIndex = 38;
             this.Label_DecMinuteColon.Text = ":";
             // 
-            // Button_GraphTarget
+            // Button_Graph
             // 
-            this.Button_GraphTarget.Location = new System.Drawing.Point(224, 257);
-            this.Button_GraphTarget.Name = "Button_GraphTarget";
-            this.Button_GraphTarget.Size = new System.Drawing.Size(66, 23);
-            this.Button_GraphTarget.TabIndex = 34;
-            this.Button_GraphTarget.Text = "Graph";
-            this.Button_GraphTarget.UseVisualStyleBackColor = true;
-            this.Button_GraphTarget.Click += new System.EventHandler(this.Button_GraphTarget_Click);
+            this.Button_Graph.Location = new System.Drawing.Point(224, 257);
+            this.Button_Graph.Name = "Button_Graph";
+            this.Button_Graph.Size = new System.Drawing.Size(66, 23);
+            this.Button_Graph.TabIndex = 34;
+            this.Button_Graph.Text = "Graph";
+            this.Button_Graph.UseVisualStyleBackColor = true;
+            this.Button_Graph.Click += new System.EventHandler(this.Button_Graph_Click);
             // 
             // NumericUpDown_RaHours
             // 
@@ -983,16 +982,6 @@
             this.Button_VisibleTonight.UseVisualStyleBackColor = true;
             this.Button_VisibleTonight.Click += new System.EventHandler(this.Button_VisibleTonight_Click);
             // 
-            // Button_GraphAllTargets
-            // 
-            this.Button_GraphAllTargets.Location = new System.Drawing.Point(133, 257);
-            this.Button_GraphAllTargets.Name = "Button_GraphAllTargets";
-            this.Button_GraphAllTargets.Size = new System.Drawing.Size(66, 23);
-            this.Button_GraphAllTargets.TabIndex = 1;
-            this.Button_GraphAllTargets.Text = "Graph";
-            this.Button_GraphAllTargets.UseVisualStyleBackColor = true;
-            this.Button_GraphAllTargets.Click += new System.EventHandler(this.Button_GraphAllTargets_Click);
-            // 
             // Button_SelectAllTargets
             // 
             this.Button_SelectAllTargets.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
@@ -1074,7 +1063,7 @@
             this.GroupBox_Target.Controls.Add(this.Button_VisibleTonight);
             this.GroupBox_Target.Controls.Add(this.Label_TargetHours);
             this.GroupBox_Target.Controls.Add(this.Label_RaMinuteColon);
-            this.GroupBox_Target.Controls.Add(this.Button_GraphTarget);
+            this.GroupBox_Target.Controls.Add(this.Button_Graph);
             this.GroupBox_Target.Controls.Add(this.Label_DecDegreeColon);
             this.GroupBox_Target.Controls.Add(this.ComboBox_SelectTarget);
             this.GroupBox_Target.Controls.Add(this.Label_RaHourColon);
@@ -1087,7 +1076,6 @@
             this.GroupBox_Target.Controls.Add(this.NumericUpDown_DecMinutes);
             this.GroupBox_Target.Controls.Add(this.Label_TargetFloor);
             this.GroupBox_Target.Controls.Add(this.NumericUpDown_DecDegrees);
-            this.GroupBox_Target.Controls.Add(this.Button_GraphAllTargets);
             this.GroupBox_Target.Controls.Add(this.NumericUpDown_RaSeconds);
             this.GroupBox_Target.Controls.Add(this.TextBox_RightAscension);
             this.GroupBox_Target.Controls.Add(this.Button_BrowseTargetList);
@@ -1234,7 +1222,7 @@
         private System.Windows.Forms.NumericUpDown NumericUpDown_DecDegrees;
         private System.Windows.Forms.NumericUpDown NumericUpDown_DecMinutes;
         private System.Windows.Forms.NumericUpDown NumericUpDown_RaMinutes;
-        private System.Windows.Forms.Button Button_GraphTarget;
+        private System.Windows.Forms.Button Button_Graph;
         private System.Windows.Forms.Label Label_AstronomicalDawnValue;
         private System.Windows.Forms.Label Label_AstronomicalDawn;
         private System.Windows.Forms.Label Label_AstronomicalDuskValue;
@@ -1279,7 +1267,6 @@
         private System.Windows.Forms.Label Label_Phase;
         private System.Windows.Forms.ComboBox ComboBox_SelectTarget;
         private System.Windows.Forms.Button Button_SelectAllTargets;
-        private System.Windows.Forms.Button Button_GraphAllTargets;
         private System.Windows.Forms.Button Button_ClearAllTargets;
         private System.Windows.Forms.ProgressBar ProgressBar_MultiTargetProcessing;
         private System.Windows.Forms.ProgressBar ProgressBar_ProcessObject;

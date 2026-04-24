@@ -665,8 +665,8 @@ namespace TargetPlanner.Charts
 
         // Dispose the underlying Chart control. Series / ChartAreas / StripLines owned by the
         // Chart are disposed transitively. Safe to call more than once. Callers that swap the
-        // AltitudeChart (Button_GraphTarget_Click's tear-and-rebuild) should Dispose the
-        // prior instance before replacing; repeated clicks otherwise leak GDI handles.
+        // AltitudeChart instance (rather than calling ReloadWithTargets) should Dispose the
+        // prior instance before replacing; otherwise repeated swaps leak GDI handles.
         private bool mDisposed;
         public void Dispose()
         {
