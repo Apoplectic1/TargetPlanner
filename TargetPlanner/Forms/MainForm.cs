@@ -686,9 +686,24 @@ symmetry at the cost of a lower minimum altitude.";
 
         private async Task GetNinaTargets(string[] folderSelectedPaths)
         {
-            mTargetList.Clear();
-            CheckedListBox_SelectedTargets.Items.Clear();
-            ComboBox_SelectTarget.Items.Clear();
+            // Clearing ComboBox_SelectTarget.Items resets its SelectedIndex to -1, which
+            // fires SelectedIndexChanged. Without suppression the WireSingleMode subscription
+            // on the combo flips mGraphMode back to Single here -- undoing the Multi mode
+            // that the Browse button's own click handler set milliseconds earlier. The
+            // CheckedListBox.Items.Clear is wrapped too for the same reason: any stray
+            // ItemCheck / SelectedIndexChanged during the clear shouldn't perturb the mode
+            // that the user's Browse click established.
+            mSuppressGraphModeEvents = true;
+            try
+            {
+                mTargetList.Clear();
+                CheckedListBox_SelectedTargets.Items.Clear();
+                ComboBox_SelectTarget.Items.Clear();
+            }
+            finally
+            {
+                mSuppressGraphModeEvents = false;
+            }
 
             int thisGeneration = ++mProcessObjectGeneration;
 
@@ -744,9 +759,20 @@ symmetry at the cost of a lower minimum altitude.";
 
             if (mTargetList.Count == 0) return;
 
-            foreach (Target t in mTargetList)
+            // ComboBox_SelectTarget has Sorted=true, so Items.Add can re-sort and briefly
+            // shift SelectedIndex, firing SelectedIndexChanged. Same suppression as above
+            // so the sort-during-populate doesn't spuriously flip mGraphMode to Single.
+            mSuppressGraphModeEvents = true;
+            try
             {
-                ComboBox_SelectTarget.Items.Add(t.Name);
+                foreach (Target t in mTargetList)
+                {
+                    ComboBox_SelectTarget.Items.Add(t.Name);
+                }
+            }
+            finally
+            {
+                mSuppressGraphModeEvents = false;
             }
         }
 
