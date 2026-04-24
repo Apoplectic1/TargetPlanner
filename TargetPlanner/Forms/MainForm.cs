@@ -1289,12 +1289,18 @@ symmetry at the cost of a lower minimum altitude.";
             Astronomy.Core.Horizons.IHorizonProfile horizon =
                 new Astronomy.Core.Horizons.ScalarHorizonProfile(pickedNightLocation.Horizon);
 
-            // Duration = 0 means "no minimum-contiguous-window requirement" -- fall through
-            // to the duration-independent IsEverAboveHorizon. (IsAboveHorizonForAtLeast
-            // with minDuration = TimeSpan.Zero happens to produce the same result because
-            // its per-window check is `>= TimeSpan.Zero`, but the dedicated method states
-            // the intent plainly: "above horizon at any point during the night".)
-            bool durationIndependent = pickedNightLocation.Duration <= TimeSpan.Zero;
+            // Only the 0/0 case uses IsEverAboveHorizon. IsAboveHorizonForAtLeast with
+            // minDuration = TimeSpan.Zero produces the same numeric result (its per-window
+            // check is `>= TimeSpan.Zero`), but the 0/0-specific semantic is "no altitude
+            // threshold, no duration requirement -- anything visible at all", which the
+            // dedicated method states plainly. Any other (Horizon, Duration) combination
+            // still uses IsAboveHorizonForAtLeast: Horizon > 0 with Duration = 0 means
+            // "above X altitude at any point", which IsAboveHorizonForAtLeast handles
+            // correctly; Horizon = 0 with Duration > 0 means "above the mathematical
+            // horizon for at least D hours" -- also IsAboveHorizonForAtLeast territory.
+            bool useEverAboveHorizon =
+                pickedNightLocation.Horizon <= 0.0
+                && pickedNightLocation.Duration <= TimeSpan.Zero;
 
             // Suppress graph-mode side effects during the batch SetItemCheckState loop;
             // WireMultiMode(Button_VisibleTonight) runs after us and reliably flips to Multi.
@@ -1306,7 +1312,7 @@ symmetry at the cost of a lower minimum altitude.";
                     string name = CheckedListBox_SelectedTargets.Items[i].ToString();
                     Target target = mTargetList.Find(t => t.Name == name);
                     bool visible = target != null
-                        && (durationIndependent
+                        && (useEverAboveHorizon
                             ? Astronomy.Core.Session.CoarseVisibility.IsEverAboveHorizon(
                                 target, pickedNightLocation, night, horizon)
                             : Astronomy.Core.Session.CoarseVisibility.IsAboveHorizonForAtLeast(
