@@ -238,10 +238,10 @@ symmetry at the cost of a lower minimum altitude.";
             // Add Panel that MSChart will appear in to GroupBox
             Panel_AltitudeChart = new Panel();
             Panel_AltitudeChart.Location = new Point(10, 40);
-            Panel_AltitudeChart.Size = new Size(GroupBox_AltitudeChart.Width - 20, GroupBox_AltitudeChart.Height - 50);
+            Panel_AltitudeChart.Size = new Size(GroupBox_Altitude.Width - 20, GroupBox_Altitude.Height - 50);
             Panel_AltitudeChart.Name = "Panel_Mschart";
             Panel_AltitudeChart.BackColor = Color.FromArgb(255, 128, 128, 128);
-            GroupBox_AltitudeChart.Controls.Add(Panel_AltitudeChart);
+            GroupBox_Altitude.Controls.Add(Panel_AltitudeChart);
 
             // Add actual Altitude Chart to Panel
             mAltitudeChart = new Charts.AltitudeChart(mLocation);
@@ -960,7 +960,16 @@ symmetry at the cost of a lower minimum altitude.";
 
         private void WireMultiMode(Button b)           => b.Click                += (s, e) => MarkMultiMode();
         private void WireMultiMode(ComboBox c)         => c.SelectedIndexChanged += (s, e) => MarkMultiMode();
-        private void WireMultiMode(CheckedListBox c)   => c.ItemCheck            += (s, e) => MarkMultiMode();
+
+        // CheckedListBox: both ItemCheck (checkbox toggle) AND Click (plain row click, or
+        // empty-space click) flip to Multi. A plain row-click without a check toggle still
+        // signals "I'm working with the target list", so Button_Graph should honor the
+        // current CheckedItems instead of falling through to the RA/Dec single target.
+        private void WireMultiMode(CheckedListBox c)
+        {
+            c.ItemCheck += (s, e) => MarkMultiMode();
+            c.Click     += (s, e) => MarkMultiMode();
+        }
 
         private void MarkSingleMode()
         {
