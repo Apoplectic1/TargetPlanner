@@ -144,7 +144,7 @@ symmetry at the cost of a lower minimum altitude.";
 
         // Per-mouse-click latch: MouseDown clears, ItemCheck / SelectedIndexChanged set,
         // Click reads. If Click fires with the latch still false, no handler ran for this
-        // click -- i.e. the user clicked somewhere in the list but nothing changed
+        // click -- i.e. the user clicked somewhere in the control but nothing changed
         // (empty space below rows, or a row that's already highlighted and wasn't
         // toggled). Per spec, that case flips to Multi.
         private bool mCheckedListBoxClickFiredHandler;
@@ -991,8 +991,8 @@ symmetry at the cost of a lower minimum altitude.";
         //   - Click (no other handler)   -> neither a checkbox nor highlight changed
         //                                   (empty-space click, or a click on an already-
         //                                   highlighted row with no toggle). Per spec,
-        //                                   this plain "I'm using the list" click flips
-        //                                   to Multi.
+        //                                   this plain "I'm using the control" click
+        //                                   flips to Multi.
         //
         // mCheckedListBoxJustToggled is a one-click latch consumed by SelectedIndexChanged
         // to disambiguate toggle-plus-highlight from plain highlight.
