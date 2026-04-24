@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Threading;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
 using TargetPlanner.Support;
@@ -321,7 +322,11 @@ namespace TargetPlanner.Charts
         // phaseProgress (if non-null) is propagated through to AltitudeSeries.BuildSeriesList;
         // it fires "Day" / "Year" / "Optimal" once per target. Subscribers that want a per-tick
         // count should multiply by mTargetList.Count to know the Maximum.
-        public void BuildTargetSeriesList(IProgress<string> phaseProgress = null)
+        //
+        // ct cancels the Year+Optimal Task.Run compute per target; Day / Moon (sync, pre-await)
+        // have already been built by the time this method returns for each target.
+        public void BuildTargetSeriesList(IProgress<string> phaseProgress = null,
+                                          CancellationToken ct = default)
         {
             foreach (Target target in mTargetList.ToList())
             {
@@ -330,7 +335,7 @@ namespace TargetPlanner.Charts
                 // on first access; no per-call property assignment needed.
                 // Fire-and-forget: BuildSeriesList owns its own try/catch for diagnostics.
                 // The discard suppresses CS4014 and documents the intent explicitly.
-                _ = SeriesFor(target).BuildSeriesList(phaseProgress);
+                _ = SeriesFor(target).BuildSeriesList(phaseProgress, ct);
             }
         }
 
@@ -346,7 +351,8 @@ namespace TargetPlanner.Charts
         // objects, which are no longer in mChart.Series -- so the writes land on disconnected
         // data and do not cross-contaminate the new cycle.
         public void ReloadWithTargets(Location newLocation, IEnumerable<Target> targets,
-                                      IProgress<string> phaseProgress = null)
+                                      IProgress<string> phaseProgress = null,
+                                      CancellationToken ct = default)
         {
             if (newLocation == null) throw new ArgumentNullException(nameof(newLocation));
             if (targets == null)     throw new ArgumentNullException(nameof(targets));
@@ -380,7 +386,7 @@ namespace TargetPlanner.Charts
                 mTargetList.Add(t);
             }
 
-            BuildTargetSeriesList(phaseProgress);
+            BuildTargetSeriesList(phaseProgress, ct);
         }
 
         // Regenerate only the Optimal series in place for every target in the target list.

@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms.DataVisualization.Charting;
 
@@ -129,7 +130,8 @@ namespace TargetPlanner.Charts
         // so the subscriber (e.g. a ProgressBar Value setter) runs on the UI thread.
         // On exception, a phase may not tick -- subscribers that track a tick count should
         // not rely on exact counts to infer success.
-        public async Task BuildSeriesList(IProgress<string> phaseProgress = null)
+        public async Task BuildSeriesList(IProgress<string> phaseProgress = null,
+                                          CancellationToken ct = default)
         {
             // Each Target owns its AltitudeSeries, so a second build on the same Target (user
             // re-clicks Graph Target, or opens the multi-target popup after the main chart)
@@ -164,7 +166,7 @@ namespace TargetPlanner.Charts
             // vanishing to SynchronizationContext.
             try
             {
-                List<NightCacheEntry> cache = await Task.Run(() => ComputeYearCache());
+                List<NightCacheEntry> cache = await Task.Run(() => ComputeYearCache(ct), ct);
 
                 mYearCache = cache;
                 RenderYearSeries();
@@ -174,6 +176,12 @@ namespace TargetPlanner.Charts
                 // values without touching the snapshot.
                 RenderOptimalSeries(Location.Horizon, Location.Duration);
                 phaseProgress?.Report("Optimal");
+            }
+            catch (OperationCanceledException)
+            {
+                // User clicked Cancel -- unwind quietly. Day/Moon are already in TargetSeriesList
+                // from the sync phase above; Year/Optimal never render. No phase reports past
+                // whatever fired before the cancellation point.
             }
             catch (Exception ex)
             {
@@ -316,8 +324,9 @@ namespace TargetPlanner.Charts
         //
         // Pure compute: no WinForms Series.Points access, no mYearCache assignment. Safe to
         // run on a background thread via Task.Run. The caller assigns the returned list to
-        // mYearCache on the UI thread before rendering.
-        private List<NightCacheEntry> ComputeYearCache()
+        // mYearCache on the UI thread before rendering. ct.ThrowIfCancellationRequested()
+        // runs once per day; caller catches OperationCanceledException to unwind cleanly.
+        private List<NightCacheEntry> ComputeYearCache(CancellationToken ct = default)
         {
             double latSigned  = Location.North ?  Location.Latitude  : -Location.Latitude;
             double decSigned  = Target.North   ?  Target.Declination : -Target.Declination;
@@ -341,6 +350,8 @@ namespace TargetPlanner.Charts
 
             for (int day = 0; day < totalDays; day++)
             {
+                ct.ThrowIfCancellationRequested();
+
                 // Location is immutable; each per-day DateTime becomes a new With-variant.
                 Location dayLoc = Location.With(dateTime: startDay.AddDays(day));
                 NightWindow night = NightCalculator.ComputeNight(dayLoc);

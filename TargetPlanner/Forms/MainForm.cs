@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows.Forms;
 using TargetPlanner.Settings;
 using TargetPlanner.Support;
+using System.Threading;
 using System.Threading.Tasks;
 using LocalLib;
 
@@ -123,6 +124,12 @@ symmetry at the cost of a lower minimum altitude.";
         private GraphMode mGraphMode = GraphMode.Single;
         private bool mSuppressGraphModeEvents;
 
+        // Cancellation handle for the current chart build. Each Button_Graph_Click cancels
+        // the prior CTS (so a rapid re-click unwinds the previous build) and creates a new
+        // one. Button_GraphCancel_Click signals it; the token is observed inside
+        // AltitudeSeries.ComputeYearCache's 365-day loop. Disposed in MainForm_FormClosing.
+        private CancellationTokenSource mGraphCts;
+
         public MainForm()
         {
             InitializeComponent();
@@ -176,6 +183,9 @@ symmetry at the cost of a lower minimum altitude.";
             mLongitudeInput?.Dispose();
             mRaInput?.Dispose();
             mDecInput?.Dispose();
+
+            mGraphCts?.Cancel();
+            mGraphCts?.Dispose();
         }
 
         public void InitializeDynamicControls()
@@ -428,7 +438,13 @@ symmetry at the cost of a lower minimum altitude.";
 
             IProgress<string> phaseProgress = BeginChartBuildProgress(targetCount: targets.Count);
 
-            mAltitudeChart.ReloadWithTargets(mLocation, targets, phaseProgress);
+            // Cancel any prior in-flight build (fast re-click) and start a new CTS tied
+            // to this click. The old CTS is abandoned to GC -- its finalizer handles Dispose.
+            // Button_GraphCancel_Click is the other signal path; both land at the same token.
+            mGraphCts?.Cancel();
+            mGraphCts = new CancellationTokenSource();
+
+            mAltitudeChart.ReloadWithTargets(mLocation, targets, phaseProgress, mGraphCts.Token);
 
             // Snap the radio button state to Day so the UI and the active chart area agree.
             // Setting Checked=true only fires CheckedChanged if the value actually changes,
@@ -462,6 +478,21 @@ symmetry at the cost of a lower minimum altitude.";
             {
                 mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
             }
+        }
+
+        // Signal the in-flight chart build to unwind. The Day / Moon phase is synchronous
+        // and completes before Button_Graph_Click returns, so it can't be cancelled -- only
+        // the Year + Optimal background compute is interruptible. The progress bar is reset
+        // because partial Day ticks would otherwise leave it stuck at ~1/3 full.
+        private void Button_GraphCancel_Click(object sender, EventArgs e)
+        {
+            if (mGraphCts == null) return;
+            mGraphCts.Cancel();
+
+            // Bump the build generation so any late Progress<string> callbacks from the
+            // unwinding tasks no-op instead of re-ticking a zeroed bar.
+            mChartBuildGeneration++;
+            ProgressBar_MultiTargetProcessing.Value = 0;
         }
 
         // ---------- ComboBox_Location ----------

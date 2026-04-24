@@ -1143,6 +1143,7 @@
             this.Button_GraphCancel.TabIndex = 41;
             this.Button_GraphCancel.Text = "Cancel";
             this.Button_GraphCancel.UseVisualStyleBackColor = true;
+            this.Button_GraphCancel.Click += new System.EventHandler(this.Button_GraphCancel_Click);
             // 
             // MainForm
             // 
