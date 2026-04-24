@@ -1032,6 +1032,7 @@
             this.ComboBox_SortTargets.Name = "ComboBox_SortTargets";
             this.ComboBox_SortTargets.Size = new System.Drawing.Size(120, 21);
             this.ComboBox_SortTargets.TabIndex = 11;
+            this.ComboBox_SortTargets.SelectedIndex = 0;
             this.ComboBox_SortTargets.SelectedIndexChanged += new System.EventHandler(this.ComboBox_SortTargets_SelectedIndexChanged);
             // 
             // CheckedListBox_SelectedTargets
