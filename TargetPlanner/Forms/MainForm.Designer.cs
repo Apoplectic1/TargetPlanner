@@ -104,11 +104,11 @@
             this.CheckedListBox_SelectedTargets = new System.Windows.Forms.CheckedListBox();
             this.Button_BrowseTargetList = new System.Windows.Forms.Button();
             this.GroupBox_Target = new System.Windows.Forms.GroupBox();
+            this.Button_GraphCancel = new System.Windows.Forms.Button();
             this.MenuStrip_MainForm = new System.Windows.Forms.MenuStrip();
             this.FileToolStripMenuItem_MainForm = new System.Windows.Forms.ToolStripMenuItem();
             this.GroupBox_AltitudeChart = new System.Windows.Forms.GroupBox();
             this.ProgressBar_MultiTargetProcessing = new System.Windows.Forms.ProgressBar();
-            this.Button_GraphCancel = new System.Windows.Forms.Button();
             this.GroupBox_Local.SuspendLayout();
             this.GroupBox_Location.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeMinutes)).BeginInit();
@@ -781,7 +781,7 @@
             // 
             // Button_Graph
             // 
-            this.Button_Graph.Location = new System.Drawing.Point(224, 257);
+            this.Button_Graph.Location = new System.Drawing.Point(189, 257);
             this.Button_Graph.Name = "Button_Graph";
             this.Button_Graph.Size = new System.Drawing.Size(66, 23);
             this.Button_Graph.TabIndex = 34;
@@ -1032,6 +1032,7 @@
             this.ComboBox_SortTargets.Name = "ComboBox_SortTargets";
             this.ComboBox_SortTargets.Size = new System.Drawing.Size(120, 21);
             this.ComboBox_SortTargets.TabIndex = 11;
+            this.ComboBox_SortTargets.SelectedIndex = 0;
             this.ComboBox_SortTargets.SelectedIndexChanged += new System.EventHandler(this.ComboBox_SortTargets_SelectedIndexChanged);
             // 
             // CheckedListBox_SelectedTargets
@@ -1099,6 +1100,16 @@
             this.GroupBox_Target.TabStop = false;
             this.GroupBox_Target.Text = "Target";
             // 
+            // Button_GraphCancel
+            // 
+            this.Button_GraphCancel.Location = new System.Drawing.Point(280, 257);
+            this.Button_GraphCancel.Name = "Button_GraphCancel";
+            this.Button_GraphCancel.Size = new System.Drawing.Size(75, 23);
+            this.Button_GraphCancel.TabIndex = 41;
+            this.Button_GraphCancel.Text = "Cancel";
+            this.Button_GraphCancel.UseVisualStyleBackColor = true;
+            this.Button_GraphCancel.Click += new System.EventHandler(this.Button_GraphCancel_Click);
+            // 
             // MenuStrip_MainForm
             // 
             this.MenuStrip_MainForm.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
@@ -1134,16 +1145,6 @@
             this.ProgressBar_MultiTargetProcessing.Name = "ProgressBar_MultiTargetProcessing";
             this.ProgressBar_MultiTargetProcessing.Size = new System.Drawing.Size(1331, 18);
             this.ProgressBar_MultiTargetProcessing.TabIndex = 40;
-            // 
-            // Button_GraphCancel
-            // 
-            this.Button_GraphCancel.Location = new System.Drawing.Point(315, 257);
-            this.Button_GraphCancel.Name = "Button_GraphCancel";
-            this.Button_GraphCancel.Size = new System.Drawing.Size(75, 23);
-            this.Button_GraphCancel.TabIndex = 41;
-            this.Button_GraphCancel.Text = "Cancel";
-            this.Button_GraphCancel.UseVisualStyleBackColor = true;
-            this.Button_GraphCancel.Click += new System.EventHandler(this.Button_GraphCancel_Click);
             // 
             // MainForm
             // 
