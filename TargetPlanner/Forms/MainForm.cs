@@ -135,6 +135,15 @@ symmetry at the cost of a lower minimum altitude.";
         // the in-flight build before a new one can start.
         private bool mGraphBuildInProgress;
 
+        // Debounce for the Horizon / Duration spinners. Each ValueChanged restarts the
+        // timer (stop + start), so rapid scrubs coalesce into one trailing-edge
+        // RebuildOptimalData on the Tick. Horizon-line positioning stays immediate in the
+        // ValueChanged handlers because that's cheap (one strip line per chart area) and
+        // gives instant visual feedback during the scrub; only the per-target Optimal
+        // recompute is deferred.
+        private System.Windows.Forms.Timer mOptimalRebuildDebounce;
+        private const int OptimalRebuildDebounceMs = 150;
+
         // Latch used by the CheckedListBox graph-mode wiring. ItemCheck sets it true;
         // the subsequent SelectedIndexChanged consumes + clears it to decide "Multi (a
         // checkbox just toggled) vs. Single (pure highlight change)". MouseUp / KeyUp
@@ -205,6 +214,9 @@ symmetry at the cost of a lower minimum altitude.";
 
             mGraphCts?.Cancel();
             mGraphCts?.Dispose();
+
+            mOptimalRebuildDebounce?.Stop();
+            mOptimalRebuildDebounce?.Dispose();
         }
 
         public void InitializeDynamicControls()
@@ -366,9 +378,9 @@ symmetry at the cost of a lower minimum altitude.";
             TimeSpan newDuration = TimeSpan.FromMinutes((double)NumericUpDown_TargetDuration.Value * 60.0);
             mLocation = mLocation.With(duration: newDuration);
             if (mAltitudeChart == null) return;
-            // Pass the scrubbed value explicitly; the chart's snapshot keeps its Graph-click
-            // Horizon / Duration but the rendered curve follows the spinner live.
-            mAltitudeChart.RebuildOptimalData(mLocation.Horizon, newDuration);
+            // RebuildOptimalData iterates every target's RebuildOptimalSeries; on large
+            // target sets that adds up quickly during live scrubbing. Debounce.
+            RestartOptimalRebuildDebounce();
         }
 
         private void NumericUpDown_TargetFloor_ValueChanged(object sender, EventArgs e)
@@ -376,8 +388,33 @@ symmetry at the cost of a lower minimum altitude.";
             double newHorizon = (double)NumericUpDown_TargetFloor.Value;
             mLocation = mLocation.With(horizon: newHorizon);
             if (mAltitudeChart == null) return;
+            // Horizon-line repositioning stays immediate -- it's one strip line per chart
+            // area and the user wants instant feedback as they scrub. The per-target
+            // Optimal recompute is what's expensive; debounce that.
             mAltitudeChart.UpdateHorizonLines(newHorizon);
-            mAltitudeChart.RebuildOptimalData(newHorizon, mLocation.Duration);
+            RestartOptimalRebuildDebounce();
+        }
+
+        // Lazily-constructed shared Timer. ValueChanged calls Stop()+Start() to reset the
+        // interval, so rapid fire events collapse to one trailing-edge Tick. Tick reads the
+        // latest mLocation.Horizon / Duration (already set by the ValueChanged handlers) so
+        // no per-event state needs to be latched.
+        private void RestartOptimalRebuildDebounce()
+        {
+            if (mOptimalRebuildDebounce == null)
+            {
+                mOptimalRebuildDebounce = new System.Windows.Forms.Timer { Interval = OptimalRebuildDebounceMs };
+                mOptimalRebuildDebounce.Tick += OptimalRebuildDebounce_Tick;
+            }
+            mOptimalRebuildDebounce.Stop();
+            mOptimalRebuildDebounce.Start();
+        }
+
+        private void OptimalRebuildDebounce_Tick(object sender, EventArgs e)
+        {
+            mOptimalRebuildDebounce.Stop();
+            if (mAltitudeChart == null) return;
+            mAltitudeChart.RebuildOptimalData(mLocation.Horizon, mLocation.Duration);
         }
 
         private void DatePicker_ValueChanged(object sender, EventArgs e)
