@@ -125,7 +125,7 @@ symmetry at the cost of a lower minimum altitude.";
         private bool mSuppressGraphModeEvents;
 
         // Cancellation handle for the current chart build. Button_Graph_Click creates a new
-        // CTS per build; Button_GraphCancel_Click signals it; the token is observed inside
+        // CTS per build; Button_Cancel_Click signals it; the token is observed inside
         // AltitudeSeries.ComputeYearCache's 365-day loop and AltitudeChart.ReloadWithTargets'
         // Task.WhenAll. Disposed in MainForm_FormClosing.
         private CancellationTokenSource mGraphCts;
@@ -537,7 +537,7 @@ symmetry at the cost of a lower minimum altitude.";
             {
                 mGraphBuildInProgress = false;
                 Button_Graph.Enabled = true;
-                Button_GraphCancel.Enabled = true;
+                Button_Cancel.Enabled = true;
             }
         }
 
@@ -575,11 +575,11 @@ symmetry at the cost of a lower minimum altitude.";
         // unwinds. If no build is in flight (mGraphBuildInProgress false), early-return
         // without disabling -- the button has nothing to cancel and should stay clickable
         // for the next build.
-        private void Button_GraphCancel_Click(object sender, EventArgs e)
+        private void Button_Cancel_Click(object sender, EventArgs e)
         {
             if (!mGraphBuildInProgress) return;
 
-            Button_GraphCancel.Enabled = false;
+            Button_Cancel.Enabled = false;
 
             mGraphCts?.Cancel();
 
@@ -793,15 +793,58 @@ symmetry at the cost of a lower minimum altitude.";
 
             if (mTargetList.Count == 0) return;
 
-            // ComboBox_SelectTarget has Sorted=true, so Items.Add can re-sort and briefly
-            // shift SelectedIndex, firing SelectedIndexChanged. Same suppression as above
-            // so the sort-during-populate doesn't spuriously flip mGraphMode to Single.
+            // Populate ComboBox_SelectTarget using the same sort order as
+            // CheckedListBox_SelectedTargets (driven by ComboBox_SortTargets), and
+            // auto-select the first entry so mTarget + RA/Dec inputs leave the stale
+            // "M31" default from startup behind.
+            PopulateTargetComboFromTargets(preserveSelection: false);
+        }
+
+        // Repopulates ComboBox_SelectTarget.Items in the order produced by
+        // SortedTargets(mTargetList). Routing every combo-populate through this one helper
+        // is what makes "always apply ComboBox_SortTargets' order to ComboBox_SelectTarget"
+        // an invariant -- the combo has Sorted=false in Designer, so the Items order comes
+        // entirely from what we push in here, and nowhere else in the form adds combo items.
+        //
+        // preserveSelection=true snapshots the current Text, clears + repopulates, then
+        // restores the selection by looking up the prior name in the new Items (falling
+        // back to setting Text if the prior name isn't in the new list -- accepts typed-text
+        // survivors). Used by ResortSelectedTargets on sort-combo change or time-picker
+        // scrub under Transit/Rise modes.
+        //
+        // preserveSelection=false auto-selects index 0 -- used by GetNinaTargets on the
+        // initial NINA load to replace the startup "M31" Text with a real item-backed
+        // selection in the current sort order.
+        private void PopulateTargetComboFromTargets(bool preserveSelection)
+        {
             mSuppressGraphModeEvents = true;
             try
             {
-                foreach (Target t in mTargetList)
+                string priorName = ComboBox_SelectTarget.Text;
+                ComboBox_SelectTarget.Items.Clear();
+                foreach (Target t in SortedTargets(mTargetList))
                 {
                     ComboBox_SelectTarget.Items.Add(t.Name);
+                }
+
+                if (preserveSelection)
+                {
+                    int idx = ComboBox_SelectTarget.Items.IndexOf(priorName);
+                    if (idx >= 0)
+                    {
+                        ComboBox_SelectTarget.SelectedIndex = idx;
+                    }
+                    else
+                    {
+                        // Prior Text wasn't in the new Items (typed-text override from the
+                        // user, or a target that got filtered out). Keep it as typed text
+                        // so we don't silently overwrite the user's pick.
+                        ComboBox_SelectTarget.Text = priorName;
+                    }
+                }
+                else if (ComboBox_SelectTarget.Items.Count > 0)
+                {
+                    ComboBox_SelectTarget.SelectedIndex = 0;
                 }
             }
             finally
@@ -884,6 +927,11 @@ symmetry at the cost of a lower minimum altitude.";
                 mSuppressGraphModeEvents = false;
                 CheckedListBox_SelectedTargets.EndUpdate();
             }
+
+            // Keep ComboBox_SelectTarget in the same sort order as the CheckedListBox.
+            // preserveSelection=true so the user's current pick survives the re-sort
+            // (it just appears at a different dropdown index).
+            PopulateTargetComboFromTargets(preserveSelection: true);
 
             // Reorder the chart legend to match, in place -- no replot, no recompute. Series
             // objects (Points, Color, Tag, ToolTip) are preserved; only their index in

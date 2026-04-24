@@ -104,7 +104,7 @@
             this.CheckedListBox_SelectedTargets = new System.Windows.Forms.CheckedListBox();
             this.Button_BrowseTargetList = new System.Windows.Forms.Button();
             this.GroupBox_Target = new System.Windows.Forms.GroupBox();
-            this.Button_GraphCancel = new System.Windows.Forms.Button();
+            this.Button_Cancel = new System.Windows.Forms.Button();
             this.MenuStrip_MainForm = new System.Windows.Forms.MenuStrip();
             this.FileToolStripMenuItem_MainForm = new System.Windows.Forms.ToolStripMenuItem();
             this.GroupBox_Altitude = new System.Windows.Forms.GroupBox();
@@ -704,7 +704,7 @@
             this.ComboBox_SelectTarget.Location = new System.Drawing.Point(149, 92);
             this.ComboBox_SelectTarget.Name = "ComboBox_SelectTarget";
             this.ComboBox_SelectTarget.Size = new System.Drawing.Size(274, 21);
-            this.ComboBox_SelectTarget.Sorted = true;
+            this.ComboBox_SelectTarget.Sorted = false;
             this.ComboBox_SelectTarget.TabIndex = 40;
             this.ComboBox_SelectTarget.SelectedIndexChanged += new System.EventHandler(this.ComboBox_SelectTarget_SelectedIndexChanged);
             this.ComboBox_SelectTarget.MouseLeave += new System.EventHandler(this.ComboBox_SelectTarget_SelectedIndexChanged);
@@ -1032,7 +1032,6 @@
             this.ComboBox_SortTargets.Name = "ComboBox_SortTargets";
             this.ComboBox_SortTargets.Size = new System.Drawing.Size(120, 21);
             this.ComboBox_SortTargets.TabIndex = 11;
-            this.ComboBox_SortTargets.SelectedIndex = 0;
             this.ComboBox_SortTargets.SelectedIndexChanged += new System.EventHandler(this.ComboBox_SortTargets_SelectedIndexChanged);
             // 
             // CheckedListBox_SelectedTargets
@@ -1060,7 +1059,7 @@
             // 
             // GroupBox_Target
             // 
-            this.GroupBox_Target.Controls.Add(this.Button_GraphCancel);
+            this.GroupBox_Target.Controls.Add(this.Button_Cancel);
             this.GroupBox_Target.Controls.Add(this.Button_VisibleTonight);
             this.GroupBox_Target.Controls.Add(this.Label_TargetHours);
             this.GroupBox_Target.Controls.Add(this.Label_RaMinuteColon);
@@ -1100,15 +1099,15 @@
             this.GroupBox_Target.TabStop = false;
             this.GroupBox_Target.Text = "Target";
             // 
-            // Button_GraphCancel
+            // Button_Cancel
             // 
-            this.Button_GraphCancel.Location = new System.Drawing.Point(280, 257);
-            this.Button_GraphCancel.Name = "Button_GraphCancel";
-            this.Button_GraphCancel.Size = new System.Drawing.Size(75, 23);
-            this.Button_GraphCancel.TabIndex = 41;
-            this.Button_GraphCancel.Text = "Cancel";
-            this.Button_GraphCancel.UseVisualStyleBackColor = true;
-            this.Button_GraphCancel.Click += new System.EventHandler(this.Button_GraphCancel_Click);
+            this.Button_Cancel.Location = new System.Drawing.Point(280, 257);
+            this.Button_Cancel.Name = "Button_Cancel";
+            this.Button_Cancel.Size = new System.Drawing.Size(75, 23);
+            this.Button_Cancel.TabIndex = 41;
+            this.Button_Cancel.Text = "Cancel";
+            this.Button_Cancel.UseVisualStyleBackColor = true;
+            this.Button_Cancel.Click += new System.EventHandler(this.Button_Cancel_Click);
             // 
             // MenuStrip_MainForm
             // 
@@ -1273,7 +1272,7 @@
         private System.Windows.Forms.ProgressBar ProgressBar_MultiTargetProcessing;
         private System.Windows.Forms.ProgressBar ProgressBar_ProcessObject;
         private System.Windows.Forms.Button Button_VisibleTonight;
-        private System.Windows.Forms.Button Button_GraphCancel;
+        private System.Windows.Forms.Button Button_Cancel;
     }
 }
 
