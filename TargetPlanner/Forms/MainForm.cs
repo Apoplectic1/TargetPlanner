@@ -293,6 +293,20 @@ symmetry at the cost of a lower minimum altitude.";
 
             Panel_AltitudeChart.Controls.Add(mAltitudeChart.mChart);
 
+            // Establish a default sort mode authoritatively from code. The VS Designer has a
+            // recurring habit of silently dropping ComboBox_SortTargets.SelectedIndex = 0 from
+            // MainForm.Designer.cs; when that happens the initial SelectedIndex is -1 (no
+            // selection), which leaves SortedTargets falling through to Name order but also
+            // leaves the first Name->Transit sort change not propagating Items[0] into
+            // ComboBox_SelectTarget.Text. Owning the default here makes the behavior
+            // independent of whatever the Designer file looks like at any given commit. The
+            // guard keeps this a no-op if a future Designer edit does preserve the line (so
+            // we don't fire a spurious SelectedIndexChanged on startup).
+            if (ComboBox_SortTargets.SelectedIndex < 0)
+            {
+                ComboBox_SortTargets.SelectedIndex = 0;
+            }
+
             // Fire-and-forget; GetNinaTargets owns its own try/catch for diagnostics.
             _ = GetNinaTargets(folderSelectedPaths);
 
@@ -845,6 +859,13 @@ symmetry at the cost of a lower minimum altitude.";
                 else if (ComboBox_SelectTarget.Items.Count > 0)
                 {
                     ComboBox_SelectTarget.SelectedIndex = 0;
+                    // WinForms DropDown-style ComboBox quirk: after an Items.Clear() + Add()
+                    // churn, setting SelectedIndex alone doesn't reliably update Text when the
+                    // combo previously had a different item selected (the prior Text survives
+                    // the Clear and isn't overwritten by the SelectedIndex setter under these
+                    // conditions). Explicitly push Items[0] into Text so the visible textbox
+                    // matches Items[0] -- which is what "auto-select the first item" means.
+                    ComboBox_SelectTarget.Text = ComboBox_SelectTarget.Items[0].ToString();
                 }
             }
             finally
@@ -880,11 +901,13 @@ symmetry at the cost of a lower minimum altitude.";
         }
 
         // Re-order CheckedListBox_SelectedTargets AND ComboBox_SelectTarget in place using the
-        // current ComboBox_SortTargets mode, preserving per-row check state and the combo's
-        // current Text selection across the rebuild. Called from the sort-mode ComboBox, from
-        // the picker ValueChanged handlers when the active mode is time-dependent, and
-        // internally after anything that changes the list's membership.
-        private void ResortSelectedTargets()
+        // current ComboBox_SortTargets mode, preserving per-row check state across the rebuild.
+        // Called from the sort-mode ComboBox, from the picker ValueChanged handlers when the
+        // active mode is time-dependent, and internally after anything that changes the list's
+        // membership. When <paramref name="autoSelectFirstInCombo"/> is true, ComboBox_SelectTarget
+        // snaps to the first item of the new order; otherwise its current Text selection is
+        // preserved at its new index.
+        private void ResortSelectedTargets(bool autoSelectFirstInCombo = false)
         {
             // Re-sort ComboBox_SelectTarget first -- unconditional if mTargetList has content,
             // because the combo's Items are independent of the CheckedListBox. The early-return
@@ -892,7 +915,7 @@ symmetry at the cost of a lower minimum altitude.";
             // and the combo should follow ComboBox_SortTargets regardless.
             if (mTargetList != null && mTargetList.Count > 0)
             {
-                PopulateTargetComboFromTargets(preserveSelection: true);
+                PopulateTargetComboFromTargets(preserveSelection: !autoSelectFirstInCombo);
             }
 
             if (CheckedListBox_SelectedTargets.Items.Count == 0) return;
@@ -944,6 +967,19 @@ symmetry at the cost of a lower minimum altitude.";
             {
                 mAltitudeChart.ReorderTargets(SortedTargets(mAltitudeChart.Targets));
             }
+
+            // Belt-and-suspenders for the autoSelectFirstInCombo path: re-apply the first-item
+            // Text at the very end, after all CheckedListBox / chart-legend work is finished.
+            // The CheckedListBox Clear/Add above can trigger a SelectedIndexChanged on the
+            // CheckedListBox whose handler calls SyncTargetComboFromCheckedListBoxHighlight,
+            // which writes the CheckedListBox's SelectedItem name into ComboBox_SelectTarget.Text
+            // -- overwriting the "first item of the new sort order" that the initial
+            // PopulateTargetComboFromTargets call wrote. Re-apply here so the combo's visible
+            // Text reliably matches Items[0] of the re-sorted list.
+            if (autoSelectFirstInCombo && ComboBox_SelectTarget.Items.Count > 0)
+            {
+                ComboBox_SelectTarget.Text = ComboBox_SelectTarget.Items[0].ToString();
+            }
         }
 
         // Dispatch on ComboBox_SortTargets.SelectedIndex. Transit and Rise modes fall back to
@@ -975,7 +1011,7 @@ symmetry at the cost of a lower minimum altitude.";
 
         private void ComboBox_SortTargets_SelectedIndexChanged(object sender, EventArgs e)
         {
-            ResortSelectedTargets();
+            ResortSelectedTargets(autoSelectFirstInCombo: true);
         }
 
         // Double-click a target row to open its source NINA .json (Target.Directory is the

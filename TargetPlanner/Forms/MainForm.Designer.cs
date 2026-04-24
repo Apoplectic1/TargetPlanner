@@ -704,7 +704,6 @@
             this.ComboBox_SelectTarget.Location = new System.Drawing.Point(149, 92);
             this.ComboBox_SelectTarget.Name = "ComboBox_SelectTarget";
             this.ComboBox_SelectTarget.Size = new System.Drawing.Size(274, 21);
-            this.ComboBox_SelectTarget.Sorted = false;
             this.ComboBox_SelectTarget.TabIndex = 40;
             this.ComboBox_SelectTarget.SelectedIndexChanged += new System.EventHandler(this.ComboBox_SelectTarget_SelectedIndexChanged);
             this.ComboBox_SelectTarget.MouseLeave += new System.EventHandler(this.ComboBox_SelectTarget_SelectedIndexChanged);
@@ -1032,7 +1031,6 @@
             this.ComboBox_SortTargets.Name = "ComboBox_SortTargets";
             this.ComboBox_SortTargets.Size = new System.Drawing.Size(120, 21);
             this.ComboBox_SortTargets.TabIndex = 11;
-            this.ComboBox_SortTargets.SelectedIndex = 0;
             this.ComboBox_SortTargets.SelectedIndexChanged += new System.EventHandler(this.ComboBox_SortTargets_SelectedIndexChanged);
             // 
             // CheckedListBox_SelectedTargets
