@@ -1289,16 +1289,12 @@ symmetry at the cost of a lower minimum altitude.";
             Astronomy.Core.Horizons.IHorizonProfile horizon =
                 new Astronomy.Core.Horizons.ScalarHorizonProfile(pickedNightLocation.Horizon);
 
-            // Only the 0/0 case uses IsEverAboveHorizon. IsAboveHorizonForAtLeast with
-            // minDuration = TimeSpan.Zero produces the same numeric result (its per-window
-            // check is `>= TimeSpan.Zero`), but the 0/0-specific semantic is "no altitude
-            // threshold, no duration requirement -- anything visible at all", which the
-            // dedicated method states plainly. Any other (Horizon, Duration) combination
-            // still uses IsAboveHorizonForAtLeast: Horizon > 0 with Duration = 0 means
-            // "above X altitude at any point", which IsAboveHorizonForAtLeast handles
-            // correctly; Horizon = 0 with Duration > 0 means "above the mathematical
-            // horizon for at least D hours" -- also IsAboveHorizonForAtLeast territory.
-            bool useEverAboveHorizon =
+            // Only the 0/0 case uses the parameterless IsEverVisible. It hardcodes the
+            // mathematical horizon (0 deg) and has no duration requirement, which matches
+            // the literal "no altitude threshold, no duration minimum" meaning of 0/0.
+            // Any other (Horizon, Duration) combination -- including partial zeros --
+            // still goes through IsAboveHorizonForAtLeast so the non-zero knob is honored.
+            bool useEverVisible =
                 pickedNightLocation.Horizon <= 0.0
                 && pickedNightLocation.Duration <= TimeSpan.Zero;
 
@@ -1312,9 +1308,9 @@ symmetry at the cost of a lower minimum altitude.";
                     string name = CheckedListBox_SelectedTargets.Items[i].ToString();
                     Target target = mTargetList.Find(t => t.Name == name);
                     bool visible = target != null
-                        && (useEverAboveHorizon
-                            ? Astronomy.Core.Session.CoarseVisibility.IsEverAboveHorizon(
-                                target, pickedNightLocation, night, horizon)
+                        && (useEverVisible
+                            ? Astronomy.Core.Session.CoarseVisibility.IsEverVisible(
+                                target, pickedNightLocation, night)
                             : Astronomy.Core.Session.CoarseVisibility.IsAboveHorizonForAtLeast(
                                 target, pickedNightLocation, night, horizon,
                                 pickedNightLocation.Duration));
