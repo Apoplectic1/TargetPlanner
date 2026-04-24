@@ -879,13 +879,22 @@ symmetry at the cost of a lower minimum altitude.";
             }
         }
 
-        // Re-order CheckedListBox_SelectedTargets in place using the current ComboBox_SortTargets
-        // mode, preserving each row's check state across the rebuild. Called from the sort-mode
-        // ComboBox, from the picker ValueChanged handlers when the active mode is time-dependent,
-        // and internally after anything that changes the list's membership. No-ops when the list
-        // is empty or mTargetList isn't populated yet (defensive for form-init event ordering).
+        // Re-order CheckedListBox_SelectedTargets AND ComboBox_SelectTarget in place using the
+        // current ComboBox_SortTargets mode, preserving per-row check state and the combo's
+        // current Text selection across the rebuild. Called from the sort-mode ComboBox, from
+        // the picker ValueChanged handlers when the active mode is time-dependent, and
+        // internally after anything that changes the list's membership.
         private void ResortSelectedTargets()
         {
+            // Re-sort ComboBox_SelectTarget first -- unconditional if mTargetList has content,
+            // because the combo's Items are independent of the CheckedListBox. The early-return
+            // below is only about the CheckedListBox work (which needs its own items to re-sort),
+            // and the combo should follow ComboBox_SortTargets regardless.
+            if (mTargetList != null && mTargetList.Count > 0)
+            {
+                PopulateTargetComboFromTargets(preserveSelection: true);
+            }
+
             if (CheckedListBox_SelectedTargets.Items.Count == 0) return;
             if (mTargetList == null || mTargetList.Count == 0) return;
 
@@ -927,11 +936,6 @@ symmetry at the cost of a lower minimum altitude.";
                 mSuppressGraphModeEvents = false;
                 CheckedListBox_SelectedTargets.EndUpdate();
             }
-
-            // Keep ComboBox_SelectTarget in the same sort order as the CheckedListBox.
-            // preserveSelection=true so the user's current pick survives the re-sort
-            // (it just appears at a different dropdown index).
-            PopulateTargetComboFromTargets(preserveSelection: true);
 
             // Reorder the chart legend to match, in place -- no replot, no recompute. Series
             // objects (Points, Color, Tag, ToolTip) are preserved; only their index in
