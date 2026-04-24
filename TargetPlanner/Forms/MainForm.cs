@@ -464,6 +464,11 @@ symmetry at the cost of a lower minimum altitude.";
             mGraphCts?.Cancel();
             mGraphCts = new CancellationTokenSource();
 
+            // Disable Button_Graph for the duration of the build so the user can't stack
+            // clicks. Button_GraphCancel stays enabled so a cancel can still be requested;
+            // it disables itself when clicked and re-enables alongside Button_Graph in the
+            // finally block below.
+            Button_Graph.Enabled = false;
             bool swapped;
             mGraphBuildInProgress = true;
             try
@@ -474,6 +479,8 @@ symmetry at the cost of a lower minimum altitude.";
             finally
             {
                 mGraphBuildInProgress = false;
+                Button_Graph.Enabled = true;
+                Button_GraphCancel.Enabled = true;
             }
 
             // No swap happened (outer Cancel, or every target failed / was cancelled). Leave
@@ -520,10 +527,19 @@ symmetry at the cost of a lower minimum altitude.";
         // and completes before Button_Graph_Click returns, so it can't be cancelled -- only
         // the Year + Optimal background compute is interruptible. The progress bar is reset
         // because partial Day ticks would otherwise leave it stuck at ~1/3 full.
+        //
+        // Disables itself to prevent a second click from firing while cancellation
+        // propagates; Button_Graph_Click's finally re-enables it when the build fully
+        // unwinds. If no build is in flight (mGraphBuildInProgress false), early-return
+        // without disabling -- the button has nothing to cancel and should stay clickable
+        // for the next build.
         private void Button_GraphCancel_Click(object sender, EventArgs e)
         {
-            if (mGraphCts == null) return;
-            mGraphCts.Cancel();
+            if (!mGraphBuildInProgress) return;
+
+            Button_GraphCancel.Enabled = false;
+
+            mGraphCts?.Cancel();
 
             // Bump the build generation so any late Progress<string> callbacks from the
             // unwinding tasks no-op instead of re-ticking a zeroed bar.
