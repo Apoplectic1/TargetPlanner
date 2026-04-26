@@ -60,9 +60,12 @@ try {
     }
 
     Write-Host "`n--> vpk upload github (publish)" -ForegroundColor Cyan
+    # --tag aligns the GitHub release tag with the git tag (vpk's default would
+    # be the bare version "1.0.0", but our git/MinVer convention is "v1.0.0").
     vpk upload github `
         --repoUrl 'https://github.com/Apoplectic1/TargetPlanner' `
         --token $env:GITHUB_TOKEN `
+        --tag $tag `
         --publish
     if ($LASTEXITCODE -ne 0) { throw "vpk upload failed" }
 
