@@ -191,6 +191,10 @@ namespace TargetPlanner.Charts
             {
                 BuildMoonSeries();
             }
+            // Fire unconditionally so the tick budget (2 + N*4) is consistent across the
+            // startup path (mNightCache null, real per-target moon work) and the Graph path
+            // (mNightCache non-null, target wired to mSharedMoonSeries upstream).
+            phaseProgress?.Report("Moon");
             BuildDaySeries();
             phaseProgress?.Report("Day");
 

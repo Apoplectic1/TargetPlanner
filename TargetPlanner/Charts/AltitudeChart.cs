@@ -667,6 +667,7 @@ namespace TargetPlanner.Charts
             }
 
             mSharedMoonSeries = moonSeries;
+            phaseProgress?.Report("SharedCache");
 
             // Eagerly construct AltitudeSeries instances with the shared cache, populating
             // mSeriesByTarget up front. SeriesFor's lazy-init branch remains for non-reload

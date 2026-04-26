@@ -1280,9 +1280,13 @@ Right-click anywhere on the chart to clear all overlays.";
         {
             int thisGeneration = ++mChartBuildGeneration;
 
+            // Tick budget: 1 (Click) + 1 (SharedCache) + 4 per target (Moon/Day/Year/Optimal).
             ProgressBar_MultiTargetProcessing.Minimum = 0;
-            ProgressBar_MultiTargetProcessing.Maximum = Math.Max(1, targetCount * 3);
-            ProgressBar_MultiTargetProcessing.Value   = 0;
+            ProgressBar_MultiTargetProcessing.Maximum = Math.Max(1, 2 + targetCount * 4);
+            // Synchronous Click tick: paints before the first await so the user sees immediate
+            // feedback. Routing through the Progress<string> callback would queue a SyncContext
+            // post that may not paint until after the next await yields.
+            ProgressBar_MultiTargetProcessing.Value   = 1;
 
             return new Progress<string>(_ =>
             {
