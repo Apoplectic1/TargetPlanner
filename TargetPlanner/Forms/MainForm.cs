@@ -31,55 +31,72 @@ namespace TargetPlanner
         private ToolTip mToolTip;
         private int mToolTipIndex;
 
-        // Dedicated ToolTip instance for the Optimal radio button. Kept separate from mToolTip
-        // because its AutoPopDelay must be much longer (the explanatory text runs several
-        // paragraphs) and mToolTip's ShowCheckBoxObjectToolTip handler resets AutoPopDelay to
-        // 5 seconds on every CheckedListBox hover -- globals wouldn't stick.
+        // Dedicated ToolTip instance for the explanatory radio-button tooltips (Optimal,
+        // Day). Kept separate from mToolTip because AutoPopDelay must be much longer (text
+        // runs several paragraphs) and mToolTip's ShowCheckBoxObjectToolTip handler resets
+        // AutoPopDelay to 5 seconds on every CheckedListBox hover -- globals wouldn't stick.
         private ToolTip mOptimalRadioTooltip;
 
         private const string OptimalRadioTooltipText =
-@"All three curves describe the best imaging session windows available
-on each night of the next year bounded by Local Horizon and Duration
-hours.  They answer three different planning questions:
-
-Ceiling Window — Answers: ""What is the highest altitude reached for
-Duration hours above the Local Horizon?"".
-
-This is the highest altitude reached inside any above-horizon window
-that's long enough to image for Duration hours. It's the target's
-ceiling for that night.
+@"These curves present the best imaging windows available on each 
+night of the next year, all bounded by a minimum Target Floor (degrees) 
+and Duration (hours). They each answer different planning questions:
 
 
-Floor Window — Answers: ""What is the lowest altitude reached for
-Duration hours above the Local Horizon?"".
+Ceiling — Answers: ""What is the highest altitude reached for Duration 
+hours above the Target Floor?""
 
-This is the lowestest altitude reached inside any above-horizon window
-that's long enough to image for Duration hours. It's the target's
-floor for that night.
-
-This window is transit-centered when duration fits inside the
-above-horizon window. If not, the window is pushed against whichever
-wall is closest to the Meridian.
+    This is the target's highest altitude while above Target Floor 
+    for Duration hours. It's the target's highest imaging altitude 
+    for that night.
 
 
-Symmetric Floor Window — Answers: ""Can I image this target
-symetrically around the Meridian?"".
+Floor — Answers: ""What is the lowest target altitude required to 
+image for Duration hours above the Target Floor?""
 
-When possible, this curve is present. When not possible (night too
-short, transit too close to dusk/dawn, etc.), the curve is removed.
+    This is the target's best, lowest altitude above Target Floor for 
+    Duration hours. It's the target's lowest imaging altitude for 
+    that night.
+
+    Floor is transit centered when duration fits inside a target floor 
+    window. If not, the window is pushed against  whichever wall 
+    is closest to the meridian.
 
 
-On an ideal night, all three curves bunch together near zenith; the
-Symetric matchies Floor because the best window IS the symetric one.
+Symmetric — Answers: ""Can I image this target symmetrically 
+about the meridian?""
+
+    This is the target's best meridian centered floor, while above 
+    Target Floor for Duration hours. This is the lowest altitude 
+    required to image equally around the meridian for that night.
+
+    When possible, this curve is present. When a night is too short,
+    transit is too close to dusk/dawn or if the symmetrical duration 
+    would dip below the Target Floor, the curve is removed.
+
+
+On an ideal night, all three curves bunch together near zenith;
+Symmetric matches Floor because the best window is the symmetric one.
 
 On a marginal night, the Ceiling is still decent but Floor drops and
-Symetric disappears entirely.
+Symmetric disappears entirely.
 
-When Floor and Symetric coincide, transit falls comfortably inside the
-night and a centered Duration hour session fits. When they diverge,
-the best-placed session is asymmetric: Floor shows you the practical
-achievable floor and Symetric shows the floor you could have with
-symmetry at the cost of a lower minimum altitude.";
+When Floor and Symmetric coincide, transit falls comfortably inside a
+best-placed Duration window. When they diverge, the best-placed window 
+is asymmetric. Floor shows the practical achievable floor and Symmetric 
+shows the floor you could have with symmetry at the cost of a lower 
+minimum altitude.";
+
+        private const string DayRadioTooltipText =
+@"Day View — Altitude curves for tonight, dusk through dawn, for every
+selected target.
+
+Left-click a target's curve to overlay its best imaging window for
+tonight. Click multiple curves to see best imaging windows
+for several targets at once to compare and sequence windows.
+
+Left-click the same curve again to remove that overlay.
+Right-click anywhere on the chart to clear all overlays.";
 
         private Panel Panel_AltitudeChart;
 
@@ -196,6 +213,7 @@ symmetry at the cost of a lower minimum altitude.";
             mOptimalRadioTooltip.InitialDelay = 5000;
             mOptimalRadioTooltip.ReshowDelay  = 500;
             mOptimalRadioTooltip.SetToolTip(RadioButton_Optimal, OptimalRadioTooltipText);
+            mOptimalRadioTooltip.SetToolTip(RadioButton_Day, DayRadioTooltipText);
         }
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)

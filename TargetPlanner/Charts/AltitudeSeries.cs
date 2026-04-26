@@ -198,9 +198,9 @@ namespace TargetPlanner.Charts
             // phase never touches TargetSeriesList concurrently with ShowChartAreaSeries /
             // UpdateNowLine (both iterate TargetSeriesList on the UI thread).
             FindOrCreateSeries(Target.Name, "Year",                 mSeriesColor);
-            FindOrCreateSeries(Target.Name, "Optimal",              mSeriesColor);
-            FindOrCreateSeries(Target.Name, "OptimalFloor",         mSeriesColor);
-            FindOrCreateSeries(Target.Name, "OptimalFloorCentered", mSeriesColor);
+            FindOrCreateSeries(Target.Name, "Optimal",              mSeriesColor).LegendToolTip = "Ceiling";
+            FindOrCreateSeries(Target.Name, "OptimalFloor",         mSeriesColor).LegendToolTip = "Floor";
+            FindOrCreateSeries(Target.Name, "OptimalFloorCentered", mSeriesColor).LegendToolTip = "Symmetric";
 
             mYearCache = await Task.Run(() => ComputeYearCache(ct), ct);
 
@@ -381,7 +381,7 @@ namespace TargetPlanner.Charts
             }
 
             return string.Format(CultureInfo.InvariantCulture,
-                "{0}\nBest {1}h window: {2:HH:mm} → {3:HH:mm}\nFloor: {4:0}°",
+                "{0}\nBest {1}h window: {2:h:mm tt} → {3:h:mm tt}\nBest {1}h window Floor: {4:0}°",
                 Target.Name, durLabel, window.Value.Start, window.Value.End, window.Value.Floor);
         }
 
