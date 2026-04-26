@@ -42,7 +42,6 @@ Or open `TargetPlanner.sln` in Visual Studio and F5.
 
 This is a personal tool — the defaults reflect the author's setup:
 
-- Default location: *Penns Park* (40.28°N, 74.99°W). Change via the *Location* dropdown or by editing the lat/long fields.
 - Default target: *M31*.
 - NINA targets root: `E:\Photography\Astro Photography\Captures\Nina\Targets` (constant at `MainForm.NinaTargetsRootPath`).
 
