@@ -2,9 +2,12 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Reflection;
 using System.Windows.Forms;
+using TargetPlanner.Forms;
 using TargetPlanner.Settings;
 using TargetPlanner.Support;
+using TargetPlanner.Updates;
 using System.Threading;
 using System.Threading.Tasks;
 using LocalLib;
@@ -195,6 +198,38 @@ Right-click anywhere on the chart to clear all overlays.";
             UpdateUI();
             UpdateLocalDateTimeEvents();
             InitializeDynamicControls();
+
+            // Show the running version in the title bar so the user can read it without
+            // opening About. Stripped of any build-metadata suffix (the +sha that MinVer
+            // attaches for dev builds).
+            Text = "TargetPlanner v" + GetDisplayVersion();
+
+            // Help menu: extends the existing MenuStrip_MainForm (which already has File).
+            // Two items: Check for Updates... (manual UpdateService entry) and About.
+            var helpMenu = new ToolStripMenuItem("&Help");
+            var checkUpdatesItem = new ToolStripMenuItem("Check for &Updates...");
+            checkUpdatesItem.Click += async (s, e) => await UpdateService.CheckManuallyAsync(this);
+            var aboutItem = new ToolStripMenuItem("&About TargetPlanner");
+            aboutItem.Click += (s, e) => { using (var dlg = new AboutDialog()) dlg.ShowDialog(this); };
+            helpMenu.DropDownItems.Add(checkUpdatesItem);
+            helpMenu.DropDownItems.Add(aboutItem);
+            MenuStrip_MainForm.Items.Add(helpMenu);
+
+            // Run the silent startup update check after the form is visible so the user sees
+            // the UI immediately; the prompt (if any) lands a moment later. Fire-and-forget --
+            // UpdateService swallows exceptions internally so a network failure can't crash here.
+            Shown += async (s, e) => await UpdateService.CheckOnStartupAsync(this);
+        }
+
+        // MinVer stamps AssemblyInformationalVersion ("1.0.0" for tagged releases,
+        // "0.0.0-alpha.0.107+sha" for dev builds). Drop the +sha suffix for display.
+        private static string GetDisplayVersion()
+        {
+            var asm = Assembly.GetExecutingAssembly();
+            var info = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
+            string raw = info?.InformationalVersion ?? asm.GetName().Version?.ToString() ?? "unknown";
+            int plus = raw.IndexOf('+');
+            return plus >= 0 ? raw.Substring(0, plus) : raw;
         }
 
         private void MainForm_Load(object sender, EventArgs e)

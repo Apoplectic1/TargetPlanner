@@ -10,17 +10,36 @@
     <StartupObject>TargetPlanner.Program</StartupObject>
     <Deterministic>true</Deterministic>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
-    <!-- Keep the existing Properties/AssemblyInfo.cs as the source of truth for assembly
-         attributes; without this flag the SDK auto-generates a competing AssemblyInfo and the
-         build fails with duplicate-attribute errors. -->
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <!-- The SDK auto-generates AssemblyTitle / Product / Version / etc. from the metadata
+         properties below. Properties/AssemblyInfo.cs is kept only for [ComVisible] and [Guid]
+         (attributes the SDK does NOT auto-generate); its version attributes were removed when
+         MinVer + Velopack were wired in. Per-attribute Generate*=false toggles let us keep
+         AssemblyInfo.cs's two remaining attributes without the duplicate-attribute build error. -->
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <GenerateAssemblyComVisibleAttribute>false</GenerateAssemblyComVisibleAttribute>
+    <GenerateAssemblyGuidAttribute>false</GenerateAssemblyGuidAttribute>
     <Platforms>AnyCPU;x64</Platforms>
+    <!-- Assembly metadata previously in Properties/AssemblyInfo.cs. Version is omitted so
+         MinVer can stamp it from the latest git tag (e.g. v1.0.0 yields assembly 1.0.0). -->
+    <AssemblyTitle>TargetPlanner</AssemblyTitle>
+    <Product>TargetPlanner</Product>
+    <Copyright>Copyright © 2026</Copyright>
+    <!-- MinVer derives version from the latest git tag. Tag prefix `v` matches the release
+         convention `vX.Y.Z`. Untagged commits past a tag get an alpha.0.N prerelease shape so
+         dev builds don't masquerade as a release. -->
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+    <MinVerDefaultPreReleaseIdentifiers>alpha.0</MinVerDefaultPreReleaseIdentifiers>
   </PropertyGroup>
 
   <!-- NuGet packages (formerly packages.config). Versions preserved exactly. -->
   <ItemGroup>
     <PackageReference Include="CoordinateSharp" Version="3.4.1.1" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.4"  />
+    <PackageReference Include="MinVer" Version="7.0.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="Velopack" Version="0.0.1298" />
   </ItemGroup>
 
   <!-- Non-NuGet references. LocalLib is a private sibling assembly; DataVisualization is a

@@ -20,6 +20,9 @@ _ReSharper*/
 # NuGet packages (regenerate with `nuget restore`)
 packages/
 
+# Velopack release output (uploaded to GitHub Releases by scripts/release.ps1, not committed)
+Releases/
+
 # Test / coverage output
 TestResults/
 [Cc]overage*/
