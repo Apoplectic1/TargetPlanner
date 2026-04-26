@@ -328,22 +328,43 @@ namespace TargetPlanner.Charts
                 backup[i] = s.Points[i].YValues[0];
             }
 
-            double startOa = window.Value.Start.ToOADate();
-            double endOa   = window.Value.End.ToOADate();
-
-            for (int i = 0; i < count; i++)
-            {
-                double xOa = s.Points[i].XValue;
-                double y = (xOa >= startOa && xOa <= endOa) ? window.Value.Floor : 0.0;
-                s.Points[i].YValues[0] = y;
-            }
-
+            ApplyOverlayStepFunction(s, window);
             mReplacedDayBackup[s] = backup;
 
             // Series.Points in-place YValues updates don't always auto-invalidate the
             // chart; force a repaint so the rectangle appears without waiting for the
             // next unrelated invalidation.
             mChart.Invalidate();
+        }
+
+        // Overwrite a Day-chart Series' Y values in place with a step function: floor altitude
+        // inside the best D-hour window, 0 outside. Preserves point count and X values so
+        // IsXValueIndexed alignment with Moon-Day (and sibling target Day series) is
+        // maintained. Window null -> flatten Y to 0 across the whole curve (overlay toggle
+        // stays active in mReplacedDayBackup; when the user scrubs back to a qualifying
+        // state, the next call will re-render the step properly).
+        //
+        // Shared by ToggleDayCurveWindow (initial click) and RebuildOptimalData (per-target
+        // refresh on Horizon/Duration spinner debounce ticks).
+        private static void ApplyOverlayStepFunction(Series s,
+            (DateTime Start, DateTime End, double Floor)? window)
+        {
+            int count = s.Points.Count;
+            if (count == 0) return;
+
+            if (window == null)
+            {
+                for (int i = 0; i < count; i++) s.Points[i].YValues[0] = 0.0;
+                return;
+            }
+
+            double startOa = window.Value.Start.ToOADate();
+            double endOa   = window.Value.End.ToOADate();
+            for (int i = 0; i < count; i++)
+            {
+                double xOa = s.Points[i].XValue;
+                s.Points[i].YValues[0] = (xOa >= startOa && xOa <= endOa) ? window.Value.Floor : 0.0;
+            }
         }
 
         // Write a previously-snapshotted Y-value array back onto the given Series in place.
@@ -701,6 +722,7 @@ namespace TargetPlanner.Charts
         // and the chart picks up the new points automatically.
         public void RebuildOptimalData(double horizon, TimeSpan duration)
         {
+            string daySuffix = "-Day";
             foreach (Target target in mTargetList.ToList())
             {
                 if (target == null) continue;
@@ -708,8 +730,23 @@ namespace TargetPlanner.Charts
                 series.RebuildOptimalSeries(horizon, duration);
                 // Day-series hover tooltip summarises the best D-hour window; Horizon /
                 // Duration spinner scrubs feed through the same path so the tooltip stays
-                // in sync with what the Optimal curves display.
+                // in sync with what the Optimal curves display. RebuildDayTooltip also
+                // refreshes the target's mBestDayWindow as a side effect (consumed below).
                 series.RebuildDayTooltip(horizon, duration);
+
+                // Re-render any active best-window overlay for this target's Day curve so
+                // the step rectangle reflects the just-updated BestDayWindow. Without this
+                // the points carry stale values from the click-toggle moment, and the user
+                // sees no change in the overlay despite scrubbing the spinners.
+                string dayName = target.Name + daySuffix;
+                foreach (Series s in series.TargetSeriesList)
+                {
+                    if (s.Name == dayName && mReplacedDayBackup.ContainsKey(s))
+                    {
+                        ApplyOverlayStepFunction(s, series.BestDayWindow);
+                        break;
+                    }
+                }
             }
             mChart.Invalidate();
         }
