@@ -4,6 +4,8 @@ using System.Drawing;
 using System.Linq;
 using System.Reflection;
 using System.Windows.Forms;
+using Astronomy.Core.Moon;
+using TargetPlanner.Filters;
 using TargetPlanner.Forms;
 using TargetPlanner.Settings;
 using TargetPlanner.Support;
@@ -14,6 +16,7 @@ using LocalLib;
 
 using Location = Astronomy.Core.Locations.Location;
 using Target   = Astronomy.Core.Targets.Target;
+using TpFilter = TargetPlanner.Filters.Filter;
 
 namespace TargetPlanner
 {
@@ -30,6 +33,14 @@ namespace TargetPlanner
         private const string NinaTargetsRootPath = @"E:\Photography\Astro Photography\Captures\Nina\Targets";
 
         private Charts.AltitudeChart mAltitudeChart;
+
+        // Filter library + the radio-grouped Filters-menu items. The library persists in
+        // %APPDATA%\TargetPlanner\filters.json and ships with H/O/S/L/R/G/B defaults if
+        // no file exists yet. mFilterMenuItems is the mutually-exclusive radio group that
+        // the Filters menu populates at construction time; SetActiveFilter walks the list
+        // to enforce single-checked.
+        private FilterLibrary mFilterLibrary;
+        private List<ToolStripMenuItem> mFilterMenuItems;
 
         private ToolTip mToolTip;
         private int mToolTipIndex;
@@ -214,6 +225,13 @@ Right-click anywhere on the chart to clear all overlays.";
             helpMenu.DropDownItems.Add(checkUpdatesItem);
             helpMenu.DropDownItems.Add(aboutItem);
             MenuStrip_MainForm.Items.Add(helpMenu);
+
+            // Filters menu: load the per-filter library (or ship-defaults on first launch)
+            // and build a mutually-exclusive radio group of menu items. Disabled is the
+            // first-launch default; a click on any preset writes its values into
+            // mAltitudeChart.MoonAvoidanceProfile and triggers a RebuildOptimalData so the
+            // Day chart's HD Overlay reflects the new avoidance regime immediately.
+            BuildFiltersMenu();
 
             // Run the silent startup update check after the form is visible so the user sees
             // the UI immediately; the prompt (if any) lands a moment later. Fire-and-forget --
@@ -481,6 +499,57 @@ Right-click anywhere on the chart to clear all overlays.";
         {
             mOptimalRebuildDebounce.Stop();
             if (mAltitudeChart == null) return;
+            mAltitudeChart.RebuildOptimalData(mLocation.Horizon, mLocation.Duration);
+        }
+
+        // Loads the filter library (or ships defaults on first launch) and builds the
+        // Filters menu's mutually-exclusive radio group: Disabled (default), one item per
+        // filter in the library, and a future Custom slot. mFilterMenuItems holds the
+        // group so SetActiveFilter can enforce single-checked. The menu is appended to
+        // MenuStrip_MainForm at construction time, after File and Help.
+        private void BuildFiltersMenu()
+        {
+            mFilterLibrary = FilterLibrary.LoadOrDefault();
+            mFilterMenuItems = new List<ToolStripMenuItem>();
+
+            var filtersMenu = new ToolStripMenuItem("&Filters");
+
+            ToolStripMenuItem disabledItem = new ToolStripMenuItem("&Disabled") { Checked = true };
+            disabledItem.Click += (s, e) => SetActiveFilter(null, disabledItem);
+            filtersMenu.DropDownItems.Add(disabledItem);
+            mFilterMenuItems.Add(disabledItem);
+
+            filtersMenu.DropDownItems.Add(new ToolStripSeparator());
+
+            foreach (TpFilter filter in mFilterLibrary.Filters)
+            {
+                ToolStripMenuItem item = new ToolStripMenuItem(filter.Name);
+                TpFilter captured = filter;
+                ToolStripMenuItem capturedItem = item;
+                item.Click += (s, e) => SetActiveFilter(captured.ToProfile(), capturedItem);
+                filtersMenu.DropDownItems.Add(item);
+                mFilterMenuItems.Add(item);
+            }
+
+            MenuStrip_MainForm.Items.Add(filtersMenu);
+        }
+
+        // Update the active moon-avoidance profile and re-render every target's
+        // moon-aware curves. Walks mFilterMenuItems to enforce mutually-exclusive
+        // checked state (only the just-clicked item stays checked). null profile means
+        // "Disabled" -- BestSession.For's overload short-circuits to the moon-blind
+        // path, so this preserves the legacy first-launch behavior.
+        private void SetActiveFilter(MoonAvoidanceProfile profile, ToolStripMenuItem clickedItem)
+        {
+            if (mFilterMenuItems != null)
+            {
+                foreach (ToolStripMenuItem item in mFilterMenuItems)
+                {
+                    item.Checked = (item == clickedItem);
+                }
+            }
+            if (mAltitudeChart == null) return;
+            mAltitudeChart.MoonAvoidanceProfile = profile;
             mAltitudeChart.RebuildOptimalData(mLocation.Horizon, mLocation.Duration);
         }
 

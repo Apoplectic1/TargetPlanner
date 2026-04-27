@@ -1,5 +1,6 @@
 ﻿using Astronomy.Core;
 using Astronomy.Core.Horizons;
+using Astronomy.Core.Moon;
 using Astronomy.Core.Night;
 using Astronomy.Core.Session;
 using Astronomy.Core.Time;
@@ -76,6 +77,13 @@ namespace TargetPlanner.Charts
         // long enough).
         private (DateTime Start, DateTime End, double Floor)? mBestDayWindow;
         public  (DateTime Start, DateTime End, double Floor)? BestDayWindow => mBestDayWindow;
+
+        // Active moon-avoidance profile. AltitudeChart writes this before each rebuild
+        // (Filters menu radio toggle, Lorentzian-control scrub, Edit Filters save) so
+        // ComputeBestDayWindow's BestSession.For call gets the live profile. Null is the
+        // backwards-compatible default -- Core's BestSession.For overload short-circuits
+        // to the moon-blind path when it sees null or a Disabled profile.
+        public MoonAvoidanceProfile MoonAvoidanceProfile { get; set; }
 
         public AltitudeSeries(Location location, Target target, Color seriesColor,
                               NightCache nightCache = null)
@@ -359,7 +367,8 @@ namespace TargetPlanner.Charts
             var best = BestSession.For(
                 Target, Location, night, horizonProfile,
                 duration, duration,
-                alt => Math.Sin(alt * Math.PI / 180.0));
+                alt => Math.Sin(alt * Math.PI / 180.0),
+                profile: MoonAvoidanceProfile);
 
             if (best == null)
             {

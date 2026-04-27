@@ -1,4 +1,5 @@
-﻿using Astronomy.Core.Night;
+﻿using Astronomy.Core.Moon;
+using Astronomy.Core.Night;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -29,6 +30,29 @@ namespace TargetPlanner.Charts
         // own frozen Location.
         public Location Location { get; private set; }
         public bool Legend { set { mLegend.Enabled = value; } }
+
+        // Active moon-avoidance profile for every target rendered in this chart. Setter
+        // pushes the new value to every AltitudeSeries currently in mSeriesByTarget so
+        // their next RebuildDayTooltip / RebuildOptimalSeries pass picks it up. Caller
+        // is responsible for triggering RebuildOptimalData(horizon, duration) after a
+        // change -- mirrors the Horizon / Duration pattern.
+        //
+        // Null is the backwards-compatible default and means "no moon avoidance":
+        // BestSession.For's overload short-circuits to the moon-blind path.
+        private MoonAvoidanceProfile mMoonAvoidanceProfile;
+        public MoonAvoidanceProfile MoonAvoidanceProfile
+        {
+            get { return mMoonAvoidanceProfile; }
+            set
+            {
+                mMoonAvoidanceProfile = value;
+                if (mSeriesByTarget == null) return;
+                foreach (AltitudeSeries s in mSeriesByTarget.Values)
+                {
+                    s.MoonAvoidanceProfile = value;
+                }
+            }
+        }
 
         // Read-only view of the currently-graphed targets in legend order. Callers that want
         // to reorder the legend should walk Targets, compute the new sequence, and call
@@ -149,6 +173,7 @@ namespace TargetPlanner.Charts
                     mTargetColors[target] = color;
                 }
                 series = new AltitudeSeries(Location, target, color);
+                series.MoonAvoidanceProfile = mMoonAvoidanceProfile;
                 mSeriesByTarget[target] = series;
             }
             return series;
@@ -696,8 +721,10 @@ namespace TargetPlanner.Charts
             foreach (Target target in mTargetList)
             {
                 if (target == null) continue;
-                mSeriesByTarget[target] = new AltitudeSeries(
+                AltitudeSeries seriesForTarget = new AltitudeSeries(
                     Location, target, mTargetColors[target], nightCache);
+                seriesForTarget.MoonAvoidanceProfile = mMoonAvoidanceProfile;
+                mSeriesByTarget[target] = seriesForTarget;
             }
 
             // Kick off per-target BuildSeriesList. Each runs its Moon / Day sync preamble
