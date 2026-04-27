@@ -23,6 +23,18 @@ namespace TargetPlanner.Charts
         // BuildYearSeries and consumed on every Horizon/Duration spinner tick by
         // BuildOptimalSeries, so the rebuild path never re-enters ComputeNight (CoordinateSharp,
         // the actual hot path) or GetAltitudeAzimuth.
+        // Per-sample moon state for the moon-aware Optimal-chart rebuild path
+        // (Phase-3 Slice 1). Populated by ComputeYearCache at 10-minute cadence between
+        // Dusk and Dawn so the cache stays profile-independent: the Lorentzian decision
+        // is evaluated at render time against these raw samples, not pre-decided per
+        // night. ~70 entries × 16 B ≈ 1 KB per NightCacheEntry × 365 ≈ 400 KB / target.
+        private struct MoonSample
+        {
+            public DateTime Utc;          // Kind=Utc; sample instant
+            public double   SepDeg;       // target-moon separation, [0, 180]
+            public double   MoonAltDeg;   // topocentric moon altitude
+        }
+
         private struct NightCacheEntry
         {
             public DateTime Dusk;
@@ -35,6 +47,16 @@ namespace TargetPlanner.Charts
             public double   YearAlt;         // max night altitude -- the Year series value
             public bool     IsPolar;         // night.Dusk/Dawn were DateTime.MinValue
             public DateTime SentinelX;       // X coordinate for Year and Optimal points on this day
+
+            // Moon-aware additions (Phase-3 Slice 1). MoonSamples covers Dusk-to-Dawn at
+            // 10-minute cadence; consumers walk it at render time and apply the active
+            // MoonAvoidanceProfile to compute moon-clear intervals. MoonAgeDays is the
+            // night's midpoint -- lunar age moves ~0.5 deg / 12 h, well below Lorentzian
+            // resolution so per-night is enough. Empty / 0 on polar nights (the IsPolar
+            // branch bypasses the moon path) and on cache entries built before the
+            // moon-aware feature.
+            public IReadOnlyList<MoonSample> MoonSamples;
+            public double                    MoonAgeDays;
         }
 
         // Init-only snapshot: Location and Target are captured at construction and cannot be
@@ -500,6 +522,31 @@ namespace TargetPlanner.Charts
                 entry.LstDawn = SiderealTime.Local(entry.Dawn.ToUniversalTime(), lonDegEast);
                 if (entry.LstDawn < entry.LstDusk) entry.LstDawn += 24.0;
 
+                // Moon-aware Optimal-chart rebuild path (Phase-3 Slice 1) needs per-night
+                // moon state. Sampled at 10-minute cadence between Dusk and Dawn -- matches
+                // the cadence BestSession.MoonClearIntersect uses for the Day-chart path.
+                // Each sample is one MoonSeparation.ObserveAt call (one CoordinateSharpGate
+                // hit). ~70 calls per night per target on a typical night. Populated
+                // unconditionally so the cache stays profile-independent: profile changes
+                // re-walk these samples without any CoordinateSharp work.
+                TimeSpan moonStep = TimeSpan.FromMinutes(10);
+                List<MoonSample> samples = new List<MoonSample>(80);
+                DateTime sampleUtc = entry.Dusk;
+                while (sampleUtc <= entry.Dawn)
+                {
+                    var observed = MoonSeparation.ObserveAt(Target, Location, sampleUtc);
+                    samples.Add(new MoonSample
+                    {
+                        Utc        = sampleUtc,
+                        SepDeg     = observed.SeparationDeg,
+                        MoonAltDeg = observed.MoonAltDeg
+                    });
+                    sampleUtc = sampleUtc.Add(moonStep);
+                }
+                entry.MoonSamples = samples;
+                DateTime midUtc = entry.Dusk.AddTicks((entry.Dawn - entry.Dusk).Ticks / 2);
+                entry.MoonAgeDays = LunarAge.DaysAt(midUtc);
+
                 entry.TransitInNight = false;
                 for (int k = -1; k <= 1; k++)
                 {
@@ -610,6 +657,24 @@ namespace TargetPlanner.Charts
                     continue;
                 }
 
+                // Moon-aware short-circuit (Phase-3 Slice 1). When avoidance is enabled
+                // and the night has no (visibility ∩ moon-clear) sub-interval of length
+                // >= Duration, drop all three curves to -90. The cache is
+                // profile-independent: raw moon samples were stored at build time; this
+                // walks them and applies the active profile (no CoordinateSharp here).
+                // On viable nights the existing placement runs unchanged, so the
+                // three curves keep their distinct semantics and the year-trace
+                // "oscillates" between natural maxima and the -90 sentinel as the
+                // lunar cycle moves through.
+                if (MoonAvoidanceProfile != null && MoonAvoidanceProfile.Enabled
+                    && !HasMoonClearViableWindow(entry, raHours, durationHrs, haHorizon, MoonAvoidanceProfile))
+                {
+                    optimalSeries.Points.AddXY(entry.SentinelX, -90.0);
+                    optimalFloorSeries.Points.AddXY(entry.SentinelX, -90.0);
+                    optimalCenteredSeries.Points.AddXY(entry.SentinelX, -90.0);
+                    continue;
+                }
+
                 double optimalAlt  = -90.0;
                 double floorAlt    = -90.0;
                 double centeredAlt = -90.0;
@@ -707,6 +772,136 @@ namespace TargetPlanner.Charts
                 optimalFloorSeries.Points.AddXY(entry.SentinelX, floorAlt);
                 optimalCenteredSeries.Points.AddXY(entry.SentinelX, centeredAlt);
             }
+        }
+
+        // ====================================================================
+        // Phase-3 Slice 1: moon-aware short-circuit helpers for RenderOptimalSeries
+        // ====================================================================
+
+        // Does the night have at least one (visibility ∩ moon-clear) interval of length
+        // >= Duration under the active profile? Used by RenderOptimalSeries to drop all
+        // three Optimal curves to -90 on moon-impacted nights. Defensive: returns true
+        // (no constraint) when the cache entry has no moon samples, so a stale or
+        // pre-Slice-1 cache renders the moon-blind curves rather than going dark.
+        private static bool HasMoonClearViableWindow(
+            NightCacheEntry entry, double raHours, double durationHrs, double haHorizon,
+            MoonAvoidanceProfile profile)
+        {
+            if (profile == null || !profile.Enabled) return true;
+            if (entry.MoonSamples == null || entry.MoonSamples.Count == 0) return true;
+
+            List<(DateTime Start, DateTime End)> visibility =
+                EnumerateVisibilityWindowsUtc(entry, raHours, durationHrs, haHorizon);
+            if (visibility.Count == 0) return false;
+
+            List<(DateTime Start, DateTime End)> moonClear =
+                EnumerateMoonClearIntervalsUtc(entry, profile);
+            if (moonClear.Count == 0) return false;
+
+            TimeSpan minDuration = TimeSpan.FromHours(durationHrs);
+            foreach (var v in visibility)
+            {
+                foreach (var m in moonClear)
+                {
+                    DateTime s = v.Start > m.Start ? v.Start : m.Start;
+                    DateTime e = v.End   < m.End   ? v.End   : m.End;
+                    if (e - s >= minDuration) return true;
+                }
+            }
+            return false;
+        }
+
+        // Enumerate above-horizon visibility windows for the day in UTC, mirroring the
+        // shifted-transit (k = -1, 0, +1) logic in RenderOptimalSeries' placement loop.
+        // Result is empty when no above-horizon arc of length >= Duration fits the night;
+        // single entry for circumpolar above-horizon targets; up to three otherwise.
+        private static List<(DateTime Start, DateTime End)> EnumerateVisibilityWindowsUtc(
+            NightCacheEntry entry, double raHours, double durationHrs, double haHorizon)
+        {
+            const double SiderealHoursPerSolarDay = 24.06570982441908;
+            var result = new List<(DateTime Start, DateTime End)>();
+
+            if (double.IsPositiveInfinity(haHorizon))
+            {
+                double lengthSolar = (entry.LstDawn - entry.LstDusk) * 24.0 / SiderealHoursPerSolarDay;
+                if (lengthSolar >= durationHrs) result.Add((entry.Dusk, entry.Dawn));
+                return result;
+            }
+            if (double.IsNaN(haHorizon)) return result;
+
+            double lstRange = entry.LstDawn - entry.LstDusk;
+            if (lstRange <= 0.0) return result;
+            long durationTicks = (entry.Dawn - entry.Dusk).Ticks;
+
+            for (int k = -1; k <= 1; k++)
+            {
+                double center = raHours + 24.0 * k;
+                double ahStart = center - haHorizon;
+                double ahEnd   = center + haHorizon;
+                double sLst = Math.Max(entry.LstDusk, ahStart);
+                double eLst = Math.Min(entry.LstDawn, ahEnd);
+                if (sLst >= eLst) continue;
+                double lengthSolar = (eLst - sLst) * 24.0 / SiderealHoursPerSolarDay;
+                if (lengthSolar < durationHrs) continue;
+
+                double sFrac = (sLst - entry.LstDusk) / lstRange;
+                double eFrac = (eLst - entry.LstDusk) / lstRange;
+                DateTime utcS = entry.Dusk.AddTicks((long)(sFrac * durationTicks));
+                DateTime utcE = entry.Dusk.AddTicks((long)(eFrac * durationTicks));
+                result.Add((utcS, utcE));
+            }
+            return result;
+        }
+
+        // Walk MoonSamples and emit moon-clear (Start, End) sub-intervals in UTC by
+        // applying MoonAvoidance.IsRejected(sep, age, moonAlt, profile) per sample.
+        // Boundary crossings use the half-step midpoint -- matches the fallback in
+        // BestSession.MoonClearIntersect when the linear-interpolation denominator
+        // collapses; ~5-min boundary uncertainty is well under the 10-min sweep cadence.
+        private static List<(DateTime Start, DateTime End)> EnumerateMoonClearIntervalsUtc(
+            NightCacheEntry entry, MoonAvoidanceProfile profile)
+        {
+            var result = new List<(DateTime Start, DateTime End)>();
+            if (entry.MoonSamples == null || entry.MoonSamples.Count == 0) return result;
+
+            DateTime? clearStart = null;
+            DateTime tPrev = default;
+            bool clearPrev = false;
+            bool first = true;
+
+            foreach (MoonSample s in entry.MoonSamples)
+            {
+                bool clearCur = !MoonAvoidance.IsRejected(
+                    s.SepDeg, entry.MoonAgeDays, s.MoonAltDeg, profile);
+                if (first)
+                {
+                    if (clearCur) clearStart = s.Utc;
+                    tPrev = s.Utc;
+                    clearPrev = clearCur;
+                    first = false;
+                    continue;
+                }
+
+                if (clearPrev != clearCur)
+                {
+                    DateTime crossing = tPrev.AddTicks((s.Utc - tPrev).Ticks / 2);
+                    if (clearCur)
+                    {
+                        clearStart = crossing;
+                    }
+                    else if (clearStart.HasValue)
+                    {
+                        result.Add((clearStart.Value, crossing));
+                        clearStart = null;
+                    }
+                }
+
+                tPrev = s.Utc;
+                clearPrev = clearCur;
+            }
+
+            if (clearStart.HasValue) result.Add((clearStart.Value, tPrev));
+            return result;
         }
 
         private void BuildMoonSeries()
