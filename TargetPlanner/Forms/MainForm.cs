@@ -40,6 +40,7 @@ namespace TargetPlanner
         // the Filters menu populates at construction time; SetActiveFilter walks the list
         // to enforce single-checked.
         private FilterLibrary mFilterLibrary;
+        private ToolStripMenuItem mFiltersMenu;
         private List<ToolStripMenuItem> mFilterMenuItems;
         private ToolStripMenuItem mFilterMenuItem_Custom;
 
@@ -533,16 +534,28 @@ Right-click anywhere on the chart to clear all overlays.";
         private void BuildFiltersMenu()
         {
             mFilterLibrary = FilterLibrary.LoadOrDefault();
-            mFilterMenuItems = new List<ToolStripMenuItem>();
 
-            var filtersMenu = new ToolStripMenuItem("&Filters");
+            // Idempotent: on first call, create the top-level menu and add it to the
+            // strip. On subsequent calls (after EditFiltersForm save), reuse it and
+            // wipe its items. Avoids appending a second "Filters" menu to the strip.
+            if (mFiltersMenu == null)
+            {
+                mFiltersMenu = new ToolStripMenuItem("&Filters");
+                MenuStrip_MainForm.Items.Add(mFiltersMenu);
+            }
+            else
+            {
+                mFiltersMenu.DropDownItems.Clear();
+            }
+
+            mFilterMenuItems = new List<ToolStripMenuItem>();
 
             ToolStripMenuItem disabledItem = new ToolStripMenuItem("&Disabled") { Checked = true };
             disabledItem.Click += (s, e) => SetActiveFilter(null, disabledItem);
-            filtersMenu.DropDownItems.Add(disabledItem);
+            mFiltersMenu.DropDownItems.Add(disabledItem);
             mFilterMenuItems.Add(disabledItem);
 
-            filtersMenu.DropDownItems.Add(new ToolStripSeparator());
+            mFiltersMenu.DropDownItems.Add(new ToolStripSeparator());
 
             foreach (TpFilter filter in mFilterLibrary.Filters)
             {
@@ -550,11 +563,11 @@ Right-click anywhere on the chart to clear all overlays.";
                 TpFilter captured = filter;
                 ToolStripMenuItem capturedItem = item;
                 item.Click += (s, e) => SetActiveFilter(captured.ToProfile(), capturedItem);
-                filtersMenu.DropDownItems.Add(item);
+                mFiltersMenu.DropDownItems.Add(item);
                 mFilterMenuItems.Add(item);
             }
 
-            filtersMenu.DropDownItems.Add(new ToolStripSeparator());
+            mFiltersMenu.DropDownItems.Add(new ToolStripSeparator());
 
             // Custom slot. Direct user click is a no-op -- Custom is meaningfully active
             // only as a side effect of editing the GroupBox controls (which auto-flips
@@ -562,10 +575,37 @@ Right-click anywhere on the chart to clear all overlays.";
             // active profile and control values exactly where they were.
             mFilterMenuItem_Custom = new ToolStripMenuItem("&Custom");
             mFilterMenuItem_Custom.Click += (s, e) => { /* no-op; live values unchanged */ };
-            filtersMenu.DropDownItems.Add(mFilterMenuItem_Custom);
+            mFiltersMenu.DropDownItems.Add(mFilterMenuItem_Custom);
             mFilterMenuItems.Add(mFilterMenuItem_Custom);
 
-            MenuStrip_MainForm.Items.Add(filtersMenu);
+            mFiltersMenu.DropDownItems.Add(new ToolStripSeparator());
+
+            // Edit Filters... opens a modal dialog that mutates mFilterLibrary and
+            // persists to JSON. On OK we rebuild this menu so renamed / added /
+            // removed filters appear; the active filter resets to Disabled.
+            ToolStripMenuItem editItem = new ToolStripMenuItem("&Edit Filters...");
+            editItem.Click += (s, e) => OpenEditFiltersDialog();
+            mFiltersMenu.DropDownItems.Add(editItem);
+        }
+
+        private void OpenEditFiltersDialog()
+        {
+            using (EditFiltersForm dlg = new EditFiltersForm(mFilterLibrary))
+            {
+                if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            }
+
+            // The library was mutated in place + persisted by the dialog. Rebuild the
+            // Filters menu so renamed / added / removed entries show up. Reset the
+            // active filter to Disabled to avoid dangling references to deleted
+            // entries; the user re-picks if they want a specific filter active.
+            BuildFiltersMenu();
+            if (mAltitudeChart != null)
+            {
+                mAltitudeChart.MoonAvoidanceProfile = null;
+                mAltitudeChart.RebuildOptimalData(mLocation.Horizon, mLocation.Duration);
+            }
+            SetLorentzianControlsEnabled(false);
         }
 
         // Update the active moon-avoidance profile and re-render every target's
