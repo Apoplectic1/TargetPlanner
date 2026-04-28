@@ -6,7 +6,27 @@
       "Bash(\"/c/Program Files/Microsoft Visual Studio/18/Enterprise/MSBuild/Current/Bin/MSBuild.exe\" \"TargetPlanner.sln\" -t:Build -p:Configuration=Debug -nologo -verbosity:minimal)",
       "PowerShell(Move-Item *)",
       "PowerShell(& \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Enterprise\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" \"E:\\\\Projects\\\\VisualStudio\\\\Astronomy\\\\TargetPlanner\\\\TargetPlanner.sln\" -restore -p:Configuration=Debug -verbosity:minimal -nologo 2>&1 | Select-Object -Last 50)",
-      "PowerShell(& \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Enterprise\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" \"E:\\\\Projects\\\\VisualStudio\\\\Astronomy\\\\TargetPlanner\\\\TargetPlanner.sln\" -restore -p:Configuration=Debug -verbosity:minimal -nologo 2>&1 | Select-Object -Last 60)"
+      "PowerShell(& \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Enterprise\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" \"E:\\\\Projects\\\\VisualStudio\\\\Astronomy\\\\TargetPlanner\\\\TargetPlanner.sln\" -restore -p:Configuration=Debug -verbosity:minimal -nologo 2>&1 | Select-Object -Last 60)",
+      "Bash(dotnet build *)",
+      "PowerShell(if \\($env:GITHUB_TOKEN\\) { \"GITHUB_TOKEN is set in PowerShell \\(length $\\($env:GITHUB_TOKEN.Length\\)\\)\" } else { \"GITHUB_TOKEN is NOT set in PowerShell\" })",
+      "PowerShell(if \\($env:GITHUB_TOKEN\\) { \"GITHUB_TOKEN visible \\(length $\\($env:GITHUB_TOKEN.Length\\), prefix $\\($env:GITHUB_TOKEN.Substring\\(0,12\\)\\)\\)\" } else { \"GITHUB_TOKEN NOT visible\" })",
+      "PowerShell(.\\\\scripts\\\\release.ps1)",
+      "PowerShell(vpk upload github --repoUrl 'https://github.com/Apoplectic1/TargetPlanner' --token $env:GITHUB_TOKEN --publish)",
+      "Bash(gh release *)",
+      "PowerShell(gh release *)",
+      "PowerShell($r = Invoke-RestMethod -Uri 'https://api.github.com/repos/Apoplectic1/TargetPlanner/releases/tags/v1.0.0' -Headers @{'User-Agent'='claude'}; \"Tag:        $\\($r.tag_name\\)\"; \"Name:       $\\($r.name\\)\"; \"Draft:      $\\($r.draft\\)\"; \"Prerelease: $\\($r.prerelease\\)\"; \"Published:  $\\($r.published_at\\)\"; \"URL:        $\\($r.html_url\\)\"; \"\"; \"Assets:\"; $r.assets | ForEach-Object { \"  - {0,-40} {1,10:N0} bytes\" -f $_.name, $_.size })",
+      "PowerShell($r = Invoke-RestMethod -Uri 'https://api.github.com/repos/Apoplectic1/TargetPlanner/releases' -Headers @{'User-Agent'='claude'}; \"Found $\\($r.Count\\) release\\(s\\):\"; $r | ForEach-Object { \"  Tag: $\\($_.tag_name\\)  Name: $\\($_.name\\)  Draft: $\\($_.draft\\)  Prerelease: $\\($_.prerelease\\)  Published: $\\($_.published_at\\)\" })",
+      "PowerShell($r = Invoke-RestMethod -Uri 'https://api.github.com/repos/Apoplectic1/TargetPlanner/releases/tags/1.0.0' -Headers @{'User-Agent'='claude'}; \"URL: $\\($r.html_url\\)\"; \"\"; \"Assets:\"; $r.assets | ForEach-Object { \"  - {0,-40} {1,10:N0} bytes\" -f $_.name, $_.size })",
+      "PowerShell(vpk upload *)",
+      "PowerShell($headers = @{ 'User-Agent' = 'claude'; 'Authorization' = \"Bearer $env:GITHUB_TOKEN\"; 'Accept' = 'application/vnd.github+json' }; $r = Invoke-RestMethod -Uri 'https://api.github.com/repos/Apoplectic1/TargetPlanner/releases/tags/1.0.0' -Headers $headers; \"Deleting release id $\\($r.id\\) \\(tag $\\($r.tag_name\\)\\)\"; Invoke-RestMethod -Method DELETE -Uri \"https://api.github.com/repos/Apoplectic1/TargetPlanner/releases/$\\($r.id\\)\" -Headers $headers; \"Deleted.\")",
+      "Bash(git push *)",
+      "PowerShell($r = Invoke-RestMethod -Uri 'https://api.github.com/repos/Apoplectic1/TargetPlanner/releases' -Headers @{'User-Agent'='claude'}; \"Found $\\($r.Count\\) release\\(s\\):\"; $r | ForEach-Object { \"  Tag: $\\($_.tag_name\\)  Name: $\\($_.name\\)  Draft: $\\($_.draft\\)  Published: $\\($_.published_at\\)\" }; \"\"; \"Assets on $\\($r[0].tag_name\\):\"; $r[0].assets | ForEach-Object { \"  - {0,-40} {1,10:N0} bytes\" -f $_.name, $_.size }; \"\"; \"URL: $\\($r[0].html_url\\)\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "PowerShell(Join-Path *)",
+      "Bash(git switch *)",
+      "Bash(git merge *)",
+      "Bash(grep -E '\\\\.\\(dll|exe\\)$')"
     ]
   }
 }
