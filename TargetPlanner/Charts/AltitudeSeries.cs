@@ -749,45 +749,5 @@ namespace TargetPlanner.Charts
             return result;
         }
 
-        private void BuildMoonSeries()
-        {
-            TimeSpan utcOffset = TimeZoneInfo.Local.GetUtcOffset(Location.DateTime);
-            double longitudeSign = Location.West ? -1.0 : 1.0;
-
-            // Use the shared Starting NightWindow from the cache when available; the
-            // moon-altitude minute-loop below still calls CoordinateSharpGate for each
-            // minute (one call per minute is per-location, not per-target, so Commit 2
-            // hoists the whole BuildMoonSeries to AltitudeChart and computes the moon
-            // curve once per Graph click instead of once per target).
-            NightWindow night = mCache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(Location);
-            // NightWindow fields are UTC as of the Core DST fix; convert to local once here
-            // because the minute-loop rounds to wall-clock hour boundaries for the X axis.
-            DateTime duskLocal = night.AstronomicalDusk.ToLocalTime();
-            DateTime dawnLocal = night.AstronomicalDawn.ToLocalTime();
-
-            DateTime start = DayChartStart(duskLocal);
-            DateTime stop  = DayChartStop(dawnLocal);
-
-            Series moonSeries = MakeSeries("Moon", "Day",
-                Color.FromArgb((int)(night.LunarIlluminationFraction * 250.0), 209, 209, 209));
-            moonSeries.ChartType = SeriesChartType.Area;
-            moonSeries.IsVisibleInLegend = false;
-
-            TimeSpan delta = stop.Subtract(start);
-
-            // Inclusive endpoint -- match BuildDaySeries so the Day chart's index range covers
-            // the rightmost hour tick. Without this the moon series is one index shorter than
-            // the target series and the rightmost hourly label has no anchor.
-            int totalMinutes = Convert.ToInt32(Math.Round(delta.TotalMinutes, 0));
-            for (int minutes = 0; minutes <= totalMinutes; minutes++)
-            {
-                DateTime point = start.AddMinutes(minutes);
-                CoordinateSharp.Celestial cCelestial = CoordinateSharpGate.Calculate(
-                    Location.Latitude, longitudeSign * Location.Longitude, point, utcOffset.Hours);
-                moonSeries.Points.AddXY(point, cCelestial.MoonAltitude);
-            }
-
-            TargetSeriesList.Add(moonSeries);
-        }
     }
 }

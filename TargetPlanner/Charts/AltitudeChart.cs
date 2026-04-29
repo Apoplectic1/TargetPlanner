@@ -1,4 +1,5 @@
-﻿using Astronomy.Core.Moon;
+﻿using Astronomy.Core.Astrometry;
+using Astronomy.Core.Moon;
 using Astronomy.Core.Night;
 using System;
 using System.Collections.Generic;
@@ -45,10 +46,6 @@ namespace TargetPlanner.Charts
             get { return mMoonAvoidanceProfile; }
             set
             {
-                // TEMP DEBUG (bisection): force every assignment to null so all profile-aware
-                // code paths (Day-chart HD overlay, Optimal-chart short-circuit) revert to
-                // moon-blind behavior. To re-enable moon avoidance, remove this single line.
-                value = null;
                 mMoonAvoidanceProfile = value;
                 if (mSeriesByTarget == null) return;
                 foreach (AltitudeSeries s in mSeriesByTarget.Values)
@@ -599,10 +596,11 @@ namespace TargetPlanner.Charts
         }
 
         // Builds the target-independent Moon-Day series once per Graph click. The minute-loop
-        // hits CoordinateSharpGate for every minute of the night window (~720 gated calls for
-        // a typical 12-hour night); running this once instead of per-target is the other half
-        // of the multi-target speedup. Invoked on the same background Task.Run that builds
-        // NightCache above -- both are CoordinateSharp-gated, no benefit to parallelizing them.
+        // calls AstroUtil.GetMoonAltitude (Meeus, lock-free, ~25 us/call) for every minute of
+        // the night window (~720 calls for a typical 12-hour night). Running this once instead
+        // of per-target is the other half of the multi-target speedup; the lock-free Meeus
+        // backend made the gate-amortization concern go away, but the once-per-Graph-click
+        // hoist remains useful (no point in N copies of identical work).
         //
         // Returns null on polar day / polar night (no valid dusk/dawn to bracket); ShowChart-
         // AreaSeries tolerates a null mSharedMoonSeries and simply omits the moon curve.
@@ -611,10 +609,11 @@ namespace TargetPlanner.Charts
             if (!night.IsValid) return null;
 
             TimeSpan utcOffset = TimeZoneInfo.Local.GetUtcOffset(location.DateTime);
-            double longitudeSign = location.West ? -1.0 : 1.0;
+            double latSigned = location.North ?  location.Latitude  : -location.Latitude;
+            double lonEast   = location.West  ? -location.Longitude :  location.Longitude;
+            ObserverInfo observer = new ObserverInfo(latSigned, lonEast, 0.0);
 
-            // Day-chart start/stop rounded to hour boundaries, same as BuildDaySeries /
-            // BuildMoonSeries use -- keeps the moon area perfectly aligned with target lines.
+            // Day-chart start/stop rounded to hour boundaries; matches BuildDaySeries.
             DateTime duskLocal = night.AstronomicalDusk.ToLocalTime();
             DateTime dawnLocal = night.AstronomicalDawn.ToLocalTime();
             DateTime start = AltitudeSeries.DayChartStart(duskLocal);
@@ -636,9 +635,10 @@ namespace TargetPlanner.Charts
             {
                 ct.ThrowIfCancellationRequested();
                 DateTime point = start.AddMinutes(minutes);
-                CoordinateSharp.Celestial celestial = Astronomy.Core.CoordinateSharpGate.Calculate(
-                    location.Latitude, longitudeSign * location.Longitude, point, utcOffset.Hours);
-                moon.Points.AddXY(point, celestial.MoonAltitude);
+                DateTime pointUtc = new DateTimeOffset(
+                    DateTime.SpecifyKind(point, DateTimeKind.Unspecified), utcOffset).UtcDateTime;
+                double moonAlt = AstroUtil.GetMoonAltitude(pointUtc, observer);
+                moon.Points.AddXY(point, moonAlt);
             }
 
             return moon;

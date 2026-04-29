@@ -347,13 +347,13 @@ namespace TargetPlanner.Caches
                 entry.LstDawn = SiderealTime.Local(entry.Dawn.ToUniversalTime(), lonDegEast);
                 if (entry.LstDawn < entry.LstDusk) entry.LstDawn += 24.0;
 
-                // TEMP DEBUG (bisection, kept through Phase 1-3): skip the ~25,600
-                // MoonSeparation.ObserveAt calls per target. The chart's
-                // MoonAvoidanceProfile setter forces null, so HasMoonClearViableWindow /
-                // EnumerateMoonClearIntervalsUtc never run. Phase 5 will restore the
-                // 10-min sweep below in this method (search "TEMP DEBUG" to find).
-                entry.MoonSamples = new List<MoonSample>(0);
-                /*
+                // Moon-aware Optimal-chart rebuild path needs per-night moon state. Sampled
+                // at 10-minute cadence between Dusk and Dawn so the cache stays profile-
+                // independent: the Lorentzian decision is evaluated at render time against
+                // these raw samples, not pre-decided per night. ~70 samples per night per
+                // target on a typical night. Each is one MoonSeparation.ObserveAt call --
+                // now lock-free (Meeus-backed AstroUtil) so the per-target sweeps run in
+                // parallel across threadpool cores.
                 List<MoonSample> samples = new List<MoonSample>(80);
                 DateTime sampleUtc = entry.Dusk;
                 while (sampleUtc <= entry.Dawn)
@@ -368,7 +368,6 @@ namespace TargetPlanner.Caches
                     sampleUtc = sampleUtc.Add(MoonSampleStep);
                 }
                 entry.MoonSamples = samples;
-                */
                 DateTime midUtc = entry.Dusk.AddTicks((entry.Dawn - entry.Dusk).Ticks / 2);
                 entry.MoonAgeDays = LunarAge.DaysAt(midUtc);
 

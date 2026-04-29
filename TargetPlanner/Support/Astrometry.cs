@@ -1,5 +1,5 @@
-using Astronomy.Core;
-using CoordinateSharp;
+using Astronomy.Core.Astrometry;
+using Astronomy.Core.Night;
 using System;
 
 using Location = Astronomy.Core.Locations.Location;
@@ -13,21 +13,14 @@ namespace TargetPlanner.Support
     // Astronomy.Core.Night.NightCalculator directly for those.
     public class Astrometry
     {
-        public static Celestial mLocal { get; private set; }
-        public static DateTime AstronomicalDawn { get; private set; }
-        public static DateTime AstronomicalDusk { get; private set; }
-        public static double SunAltitude { get; private set; }
-        public static DateTime LunarRise { get; private set; }
-        public static DateTime LunarSet { get; private set; }
-        public static double LunarAltitude { get; private set; }
-        public static string LunarPhase { get; private set; }
-        public static double LunarIlluminationFraction { get; private set; }
-
-        private static EagerLoad mEagerLoad = EagerLoad.Create(EagerLoadType.Celestial);
-        private static DateTime? mDuskToday;
-        private static DateTime? mDawnToday;
-        private static DateTime? mDuskYesterday;
-        private static DateTime? mDawnTomorrow;
+        public static DateTime AstronomicalDawn          { get; private set; }
+        public static DateTime AstronomicalDusk          { get; private set; }
+        public static double   SunAltitude              { get; private set; }
+        public static DateTime LunarRise                 { get; private set; }
+        public static DateTime LunarSet                  { get; private set; }
+        public static double   LunarAltitude             { get; private set; }
+        public static string   LunarPhase                { get; private set; }
+        public static double   LunarIlluminationFraction { get; private set; }
 
         public Astrometry()
         {
@@ -35,47 +28,30 @@ namespace TargetPlanner.Support
 
         public static void Location(Location localLocation)
         {
-            double LatSign  = localLocation.North ? 1.0 : -1.0;
-            double LongSign = localLocation.West  ? -1.0 : 1.0;
-            TimeSpan utcOffset = TimeZoneInfo.Local.GetUtcOffset(localLocation.DateTime);
+            DateTime utc = localLocation.DateTime.ToUniversalTime();
+            double latSigned = localLocation.North ?  localLocation.Latitude  : -localLocation.Latitude;
+            double lonEast   = localLocation.West  ? -localLocation.Longitude :  localLocation.Longitude;
+            ObserverInfo observer = new ObserverInfo(latSigned, lonEast, 0.0);
 
-            mLocal = CoordinateSharpGate.Calculate(
-                LatSign  * localLocation.Latitude,
-                LongSign * localLocation.Longitude,
-                localLocation.DateTime, mEagerLoad, utcOffset.Hours);
+            // Astronomical-twilight night window bracketing now.
+            NightWindow night = NightCalculator.ComputeNight(localLocation);
+            AstronomicalDawn = night.AstronomicalDawn != DateTime.MinValue
+                ? night.AstronomicalDawn.ToLocalTime() : DateTime.MinValue;
+            AstronomicalDusk = night.AstronomicalDusk != DateTime.MinValue
+                ? night.AstronomicalDusk.ToLocalTime() : DateTime.MinValue;
+            LunarIlluminationFraction = night.LunarIlluminationFraction;
 
-            SunAltitude = mLocal.SunAltitude;
-            LunarAltitude = mLocal.MoonAltitude;
-            LunarRise = mLocal.MoonRise.HasValue ? mLocal.MoonRise.Value : DateTime.MinValue;
-            LunarSet = mLocal.MoonSet.HasValue ? mLocal.MoonSet.Value : DateTime.MinValue;
-            LunarPhase = mLocal.MoonIllum.PhaseName;
-            LunarIlluminationFraction = mLocal.MoonIllum.Fraction;
+            // Per-moment sun / moon altitudes at the observer.
+            SunAltitude   = AstroUtil.GetSunAltitude (utc, observer);
+            LunarAltitude = AstroUtil.GetMoonAltitude(utc, observer);
 
-            mDawnToday = mLocal.AdditionalSolarTimes.AstronomicalDawn;
-            mDuskToday = mLocal.AdditionalSolarTimes.AstronomicalDusk;
+            // Lunar phase name from synodic-cycle bucket.
+            LunarPhase = AstroUtil.GetMoonPhaseName(utc);
 
-            if (localLocation.DateTime >= mDawnToday)
-            {
-                mLocal = CoordinateSharpGate.Calculate(
-                    LatSign  * localLocation.Latitude,
-                    LongSign * localLocation.Longitude,
-                    localLocation.DateTime.AddDays(1), mEagerLoad, utcOffset.Hours);
-                mDawnTomorrow = mLocal.AdditionalSolarTimes.AstronomicalDawn;
-
-                AstronomicalDawn = mDawnTomorrow ?? DateTime.MinValue;
-                AstronomicalDusk = mDuskToday    ?? DateTime.MinValue;
-            }
-            else
-            {
-                mLocal = CoordinateSharpGate.Calculate(
-                    LatSign  * localLocation.Latitude,
-                    LongSign * localLocation.Longitude,
-                    localLocation.DateTime.AddDays(-1), mEagerLoad, utcOffset.Hours);
-                mDuskYesterday = mLocal.AdditionalSolarTimes.AstronomicalDusk;
-
-                AstronomicalDawn = mDawnToday     ?? DateTime.MinValue;
-                AstronomicalDusk = mDuskYesterday ?? DateTime.MinValue;
-            }
+            // Moon rise / set on today's UTC calendar day; convert to local for the UI label.
+            RiseAndSetEvent moonRs = AstroUtil.GetMoonRiseAndSet(utc, latSigned, lonEast);
+            LunarRise = moonRs.Rise.HasValue ? moonRs.Rise.Value.ToLocalTime() : DateTime.MinValue;
+            LunarSet  = moonRs.Set .HasValue ? moonRs.Set .Value.ToLocalTime() : DateTime.MinValue;
         }
     }
 }
