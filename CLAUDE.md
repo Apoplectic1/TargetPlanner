@@ -6,6 +6,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Windows Forms desktop tool for astrophotography planning. Given a target (RA/Dec) and a location (lat/long, horizon, minimum duration above horizon), it plots altitude over time and ingests NINA sequence files (`.json`, `DeepSkyObjectContainer`) to build a batch target list. Written for the author's own astrophotography workflow — defaults reflect that (default location "Penns Park", hardcoded NINA targets root `E:\Photography\Astro Photography\Captures\Nina\Targets`). At launch the chart panel is blank; the user clicks `Button_Graph` to populate it. After NINA load completes the first sorted target becomes `mSelection.SelectedSingle`; before that completes the combo and RA/Dec inputs are empty.
 
+## Glossary
+
+Acronyms used throughout this file and adjacent plans / memory files.
+
+**Apps & plugins (the user's portfolio):**
+- **TP** — TargetPlanner. *This* app.
+- **NINA** — Nighttime Imaging 'N' Astronomy. The imaging-PC orchestrator the user has standardised on. Local clone path in memory `reference_nina_local_sources.md`.
+- **SGP** — Sequence Generator Pro. NINA's predecessor in the user's workflow; TP was originally written around SGP `.sgf` files. Now historical.
+- **TS / TSP** — Target Scheduler / TargetScheduler Plugin. Tom Palmer's existing NINA plugin. Reference for schema compatibility; the Lorentzian formula in `Astronomy.Core/Moon/MoonAvoidance.cs` matches TS's `AstrometryUtils.cs:126` to 1e-12. TSP's sync, scoring, image grading, and file-path tracking are out of scope for the user's IS family.
+- **IS** — IntervalScheduler. User's new .NET 10 desktop app. Heavy lifting: editing projects / targets / exposure plans / templates, 5-minute precompute, plan review, "Replan". Owns the authoritative `scheduler.db` on the desktop.
+- **ISP** — IntervalScheduler Plugin. User's new NINA plugin (.NET Framework 4.8.1, NINA-hosted). Runtime executor + in-night editing UI. Reads the deployed plan from `scheduler.db`.
+- **ISS** — ISSimulator. User's new .NET 10 ISP simulator. May evolve from the existing TP standalone app.
+- **XisfManager** — User's existing .NET 10 image-management app. Performs post-night grading; updates `exposure_plan.accepted_count` via the shared `scheduler.db`.
+
+**Architecture / refactor terms:**
+- **VM** — view-model. Specifically `TargetSelection` (`State/TargetSelection.cs`) post-Phase-2.
+- **SoC** — separation of concerns. The three-phase refactor (commits `0f6c81c` / `1e1986d` / `3425f8e`) is referred to as "the SoC refactor" throughout.
+
+**Domain terms in the chart code:**
+- **HD Overlay** — the Day-chart's best-window step function. "HD" = bounded by Horizon (the floor) and Duration (the minimum window length). Click-toggled per target via the chart's left-click handler; renders as a flat plateau at `Floor` altitude over the Best-D-hour-window's time range.
+- **D-hour window** — a contiguous window of length ≥ Duration (the user-set `Location.Duration`) above Horizon. The "best D-hour window" is the optimal-quality placement of such a window inside tonight's visibility arc, computed by `Astronomy.Core.Session.BestSession.For`.
+- **Ceiling / Floor / Symmetric** — the three Optimal-chart curves. `Ceiling` is the peak altitude in a qualifying window; `Floor` is the floor altitude of the best D-hour placement (transit-centered when it fits, wall-pushed otherwise); `Symmetric` is the floor of a strictly transit-centered placement (`-90` if it doesn't fit). Underlying `Series.Name`s are `"-Optimal"` / `"-OptimalFloor"` / `"-OptimalFloorCentered"` (legacy names).
+
 ## Build / run
 
 - Solution `TargetPlanner.sln` contains **one project** authored here plus a `ProjectReference` to a sibling library:
