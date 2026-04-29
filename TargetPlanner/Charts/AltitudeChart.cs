@@ -136,10 +136,17 @@ namespace TargetPlanner.Charts
         // Only Y values change; X values (the minute grid) are preserved.
         private Dictionary<Series, double[]> mReplacedDayBackup;
 
-        public AltitudeChart(Location location)
+        // Cache store reference (Phase 3 of the SoC refactor). Constructor-injected by
+        // MainForm. AltitudeChart hands it through to every AltitudeSeries it creates,
+        // and uses it in ReloadWithTargets to drive the per-(Location, Target) cache
+        // build instead of calling the gated NightCalculator directly.
+        private readonly TargetPlanner.Caches.IChartCacheStore mCache;
+
+        public AltitudeChart(Location location, TargetPlanner.Caches.IChartCacheStore cache = null)
         {
             if (location == null) throw new ArgumentNullException(nameof(location));
             Location = location;
+            mCache = cache;
 
             mChart = new Chart();
             mChartAreaList = new List<ChartArea>();
@@ -176,7 +183,7 @@ namespace TargetPlanner.Charts
                     color = TargetColorPalette[mTargetColors.Count % TargetColorPalette.Length];
                     mTargetColors[target] = color;
                 }
-                series = new AltitudeSeries(Location, target, color);
+                series = new AltitudeSeries(Location, target, color, mCache);
                 series.MoonAvoidanceProfile = mMoonAvoidanceProfile;
                 mSeriesByTarget[target] = series;
             }
@@ -691,30 +698,30 @@ namespace TargetPlanner.Charts
                 mTargetList.Add(t);
             }
 
-            // Pre-compute the shared NightCache on a background thread. The cache build
-            // itself is gated -- CoordinateSharpGate serialises every CalculateCelestialTimes
-            // call -- but by running it once up front we trade 44*730 gated per-target calls
-            // for 730 gated once, plus later per-target Year work becomes pure math.
-            DateTime seed = newLocation.DateTime;
-            DateTime yearStartDay = NightCache.ComputeYearStartDay(seed);
-            int yearDaysCount = NightCache.ComputeYearDaysCount(seed);
-
-            NightCache nightCache;
+            // Phase 3: ChartCacheStore owns the per-Location NightCache + per-target year
+            // cache. We delegate the per-target build by calling PrepareManyAsync; once the
+            // store has the per-Location NightCache published, BuildSharedMoonSeries can
+            // use its Starting NightWindow.
+            //
+            // If MainForm has been kicking off pre-population in the background after each
+            // NINA load, most targets will already be in the cache and PrepareManyAsync's
+            // Task.WhenAll completes near-instantly. New targets (or new location) build
+            // here. Cancellation surfaces as OperationCanceledException -- caller catches.
             Series moonSeries;
             try
             {
-                // Build the NightCache and the shared Moon series on the SAME Task.Run. Both
-                // hit CoordinateSharpGate (serialized on sLock) so running them on separate
-                // tasks gains nothing -- the lock would just hand off between them. Doing
-                // them sequentially on one thread keeps the threadpool uncluttered.
-                var bg = await Task.Run(() =>
+                if (mCache != null)
                 {
-                    NightCache c = new NightCache(newLocation, yearStartDay, yearDaysCount, ct);
-                    Series m = BuildSharedMoonSeries(newLocation, c.Starting, ct);
-                    return (Cache: c, Moon: m);
-                }, ct);
-                nightCache = bg.Cache;
-                moonSeries = bg.Moon;
+                    // Drives the per-Location NightCache (one CoordinateSharp gate hit) +
+                    // per-target year cache builds (gated by the store's concurrency cap).
+                    await mCache.PrepareManyAsync(mTargetList, ct);
+                }
+
+                Astronomy.Core.Night.NightWindow startingNight =
+                    mCache?.LocationNightCache?.Starting
+                    ?? Astronomy.Core.Night.NightCalculator.ComputeNight(newLocation);
+
+                moonSeries = await Task.Run(() => BuildSharedMoonSeries(newLocation, startingNight, ct), ct);
             }
             catch (OperationCanceledException)
             {
@@ -727,14 +734,15 @@ namespace TargetPlanner.Charts
             mSharedMoonSeries = moonSeries;
             phaseProgress?.Report("SharedCache");
 
-            // Eagerly construct AltitudeSeries instances with the shared cache, populating
-            // mSeriesByTarget up front. SeriesFor's lazy-init branch remains for non-reload
-            // callers (startup fire-and-forget path) but is bypassed here.
+            // Eagerly construct AltitudeSeries instances, populating mSeriesByTarget up
+            // front. Each series reads its per-target cache entry from mCache during
+            // BuildSeriesList. SeriesFor's lazy-init branch (used by non-reload callers,
+            // e.g. UpdateNowLine before a Graph click) is bypassed here.
             foreach (Target target in mTargetList)
             {
                 if (target == null) continue;
                 AltitudeSeries seriesForTarget = new AltitudeSeries(
-                    Location, target, mTargetColors[target], nightCache);
+                    Location, target, mTargetColors[target], mCache);
                 seriesForTarget.MoonAvoidanceProfile = mMoonAvoidanceProfile;
                 mSeriesByTarget[target] = seriesForTarget;
             }

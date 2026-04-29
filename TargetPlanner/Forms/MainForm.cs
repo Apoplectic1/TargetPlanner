@@ -42,6 +42,14 @@ namespace TargetPlanner
 
         private Charts.AltitudeChart mAltitudeChart;
 
+        // Phase 3 of the SoC refactor: ChartCacheStore owns the per-(Location, Target)
+        // year cache + per-Location NightCache. After GetNinaTargets completes we kick
+        // off PrepareManyAsync(KnownTargets) for background pre-population so subsequent
+        // Graph clicks find caches already built. On Location change we call
+        // SetLocationAsync to drop everything and re-populate at the new location.
+        private TargetPlanner.Caches.ChartCacheStore mCache;
+        private CancellationTokenSource mCachePrepCts;
+
         // Filter library + the radio-grouped Filters-menu items. The library persists in
         // %APPDATA%\TargetPlanner\filters.json and ships with H/O/S/L/R/G/B defaults if
         // no file exists yet. mFilterMenuItems is the mutually-exclusive radio group that
@@ -295,6 +303,10 @@ Right-click anywhere on the chart to clear all overlays.";
             mGraphCts?.Cancel();
             mGraphCts?.Dispose();
 
+            mCachePrepCts?.Cancel();
+            mCachePrepCts?.Dispose();
+            mCache?.Dispose();
+
             mOptimalRebuildDebounce?.Stop();
             mOptimalRebuildDebounce?.Dispose();
         }
@@ -350,7 +362,10 @@ Right-click anywhere on the chart to clear all overlays.";
             GroupBox_Altitude.Controls.Add(Panel_AltitudeChart);
 
             // Add actual Altitude Chart to Panel
-            mAltitudeChart = new Charts.AltitudeChart(mLocation);
+            // Phase 3: instantiate the cache store first; the chart takes a reference so
+            // every AltitudeSeries it spawns reads from the shared store.
+            mCache = new TargetPlanner.Caches.ChartCacheStore(mLocation);
+            mAltitudeChart = new Charts.AltitudeChart(mLocation, mCache);
             mAltitudeChart.mChart.Location = new Point(5, 5);
             mAltitudeChart.mChart.Size = new Size(Panel_AltitudeChart.Width - 10, Panel_AltitudeChart.Size.Height - 10);
             mAltitudeChart.mChart.BackColor = Color.FromArgb(255, 239, 235, 233);
@@ -1139,6 +1154,25 @@ Right-click anywhere on the chart to clear all overlays.";
             // CheckedListBox_SelectedTargets via PopulateTargetComboFromTargets +
             // PopulateCheckedListBoxFromTargets, which read the new VM state.
             mSelection.SetKnownTargets(allLoaded);
+
+            // Phase 3: kick off background pre-population of the chart cache so subsequent
+            // Graph clicks find caches already built. Fire-and-forget; cancellation comes
+            // from mCachePrepCts (cancelled on Form close + replaced on each new load so
+            // a re-Browse aborts the prior load's prep). Errors swallowed -- this is a
+            // best-effort warmup, not load-bearing.
+            mCachePrepCts?.Cancel();
+            mCachePrepCts?.Dispose();
+            mCachePrepCts = new CancellationTokenSource();
+            CancellationToken prepToken = mCachePrepCts.Token;
+            _ = Task.Run(async () =>
+            {
+                try { await mCache.PrepareManyAsync(allLoaded, prepToken); }
+                catch (OperationCanceledException) { /* expected on re-load / form close */ }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"ChartCacheStore.PrepareManyAsync warmup failed: {ex}");
+                }
+            }, prepToken);
         }
 
         // Repopulates ComboBox_SelectTarget.Items in the order produced by

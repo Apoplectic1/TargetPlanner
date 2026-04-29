@@ -11,6 +11,7 @@ using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms.DataVisualization.Charting;
+using TargetPlanner.Caches;
 
 using Location = Astronomy.Core.Locations.Location;
 using Target   = Astronomy.Core.Targets.Target;
@@ -19,45 +20,10 @@ namespace TargetPlanner.Charts
 {
     public class AltitudeSeries
     {
-        // Per-day intermediates that do not depend on Horizon or Duration. Populated once by
-        // BuildYearSeries and consumed on every Horizon/Duration spinner tick by
-        // BuildOptimalSeries, so the rebuild path never re-enters ComputeNight (CoordinateSharp,
-        // the actual hot path) or GetAltitudeAzimuth.
-        // Per-sample moon state for the moon-aware Optimal-chart rebuild path
-        // (Phase-3 Slice 1). Populated by ComputeYearCache at 10-minute cadence between
-        // Dusk and Dawn so the cache stays profile-independent: the Lorentzian decision
-        // is evaluated at render time against these raw samples, not pre-decided per
-        // night. ~70 entries × 16 B ≈ 1 KB per NightCacheEntry × 365 ≈ 400 KB / target.
-        private struct MoonSample
-        {
-            public DateTime Utc;          // Kind=Utc; sample instant
-            public double   SepDeg;       // target-moon separation, [0, 180]
-            public double   MoonAltDeg;   // topocentric moon altitude
-        }
-
-        private struct NightCacheEntry
-        {
-            public DateTime Dusk;
-            public DateTime Dawn;
-            public double   AltDusk;         // target altitude at Dusk, degrees
-            public double   AltDawn;         // target altitude at Dawn, degrees
-            public double   LstDusk;         // Local Sidereal Time at Dusk, hours
-            public double   LstDawn;         // LST at Dawn, hours; linearized so LstDawn > LstDusk
-            public bool     TransitInNight;  // does RA_hours (mod 24) fall in [LstDusk, LstDawn]?
-            public double   YearAlt;         // max night altitude -- the Year series value
-            public bool     IsPolar;         // night.Dusk/Dawn were DateTime.MinValue
-            public DateTime SentinelX;       // X coordinate for Year and Optimal points on this day
-
-            // Moon-aware additions (Phase-3 Slice 1). MoonSamples covers Dusk-to-Dawn at
-            // 10-minute cadence; consumers walk it at render time and apply the active
-            // MoonAvoidanceProfile to compute moon-clear intervals. MoonAgeDays is the
-            // night's midpoint -- lunar age moves ~0.5 deg / 12 h, well below Lorentzian
-            // resolution so per-night is enough. Empty / 0 on polar nights (the IsPolar
-            // branch bypasses the moon path) and on cache entries built before the
-            // moon-aware feature.
-            public IReadOnlyList<MoonSample> MoonSamples;
-            public double                    MoonAgeDays;
-        }
+        // Per-day intermediates that do not depend on Horizon or Duration. Owned by
+        // ChartCacheStore as of Phase 3 of the SoC refactor; AltitudeSeries holds a reference
+        // to the cache entry's read-only list and renders against it. Profile changes scrub
+        // through the cached MoonSamples without re-hitting CoordinateSharp.
 
         // Init-only snapshot: Location and Target are captured at construction and cannot be
         // swapped afterward. Spinner edits on the main form update mLocation there; the
@@ -68,7 +34,7 @@ namespace TargetPlanner.Charts
         public Location Location { get; }
         public Target Target { get; }
         public List<Series> TargetSeriesList { get; private set; }
-        private List<NightCacheEntry> mYearCache;
+        private IReadOnlyList<NightCacheEntry> mYearCache;
 
         // Explicit per-target color, assigned once by AltitudeChart at reload from a stable
         // palette. Every Series this instance creates (Day / Year / Optimal / OptimalFloor /
@@ -81,15 +47,11 @@ namespace TargetPlanner.Charts
         // on a legend click. Setting a concrete Color here opts out of the auto-palette.
         private readonly Color mSeriesColor;
 
-        // Optional shared cache of NightWindows for Location. When non-null, BuildDaySeries /
-        // BuildMoonSeries / ComputeYearCache read from it instead of calling the gated
-        // NightCalculator.ComputeNight themselves. AltitudeChart.ReloadWithTargets builds the
-        // cache once per Graph click and hands the same instance to every target, amortizing
-        // the CoordinateSharp serial-lock cost across all targets.
-        //
-        // Null for callers that bypass ReloadWithTargets (e.g. the startup fire-and-forget
-        // path via BuildTargetSeriesList); those fall back to the direct per-call path.
-        private readonly NightCache mNightCache;
+        // Cache store reference (Phase 3 of the SoC refactor). Owns the per-(Location, Target)
+        // year cache + the per-Location NightCache. AltitudeSeries reads from it; never
+        // builds its own. Null is treated as "no cache available" -- BuildSeriesList early-
+        // returns instead of synchronously building (the prior fallback path is retired).
+        private readonly IChartCacheStore mCache;
 
         // Cached best D-hour session for the Day chart, in local time. Populated by
         // BuildDaySeries and refreshed by RebuildDayTooltip (Horizon / Duration spinner
@@ -108,14 +70,14 @@ namespace TargetPlanner.Charts
         public MoonAvoidanceProfile MoonAvoidanceProfile { get; set; }
 
         public AltitudeSeries(Location location, Target target, Color seriesColor,
-                              NightCache nightCache = null)
+                              IChartCacheStore cache)
         {
             if (location == null) throw new ArgumentNullException(nameof(location));
             if (target == null)   throw new ArgumentNullException(nameof(target));
             Location = location;
             Target = target;
             mSeriesColor = seriesColor;
-            mNightCache = nightCache;
+            mCache = cache;
             TargetSeriesList = new List<Series>();
         }
 
@@ -212,18 +174,11 @@ namespace TargetPlanner.Charts
             // FindOrCreateSeries, but clearing here keeps all four on the same lifecycle.
             TargetSeriesList.Clear();
 
-            // When AltitudeChart hands us a shared NightCache, it also hoists the Moon-Day
-            // series into mSharedMoonSeries on the same background task -- running the
-            // minute-loop N times (once per target) would pay the CoordinateSharpGate cost
-            // N redundant times for an identical curve. Startup fire-and-forget (cache
-            // null) still builds it inline so the initial chart gets a moon fill.
-            if (mNightCache == null)
-            {
-                BuildMoonSeries();
-            }
-            // Fire unconditionally so the tick budget (2 + N*4) is consistent across the
-            // startup path (mNightCache null, real per-target moon work) and the Graph path
-            // (mNightCache non-null, target wired to mSharedMoonSeries upstream).
+            // Phase 3: AltitudeChart hoists the shared Moon-Day series itself; per-target
+            // BuildMoonSeries inside this method is no longer needed. Tick budget stays at
+            // 2 + N*4 ticks because Moon is reported synthetically before any per-target
+            // work begins (AltitudeChart.ReloadWithTargets reports it once after building
+            // the shared moon series).
             phaseProgress?.Report("Moon");
             BuildDaySeries();
             phaseProgress?.Report("Day");
@@ -236,7 +191,20 @@ namespace TargetPlanner.Charts
             FindOrCreateSeries(Target.Name, "OptimalFloor",         mSeriesColor).LegendToolTip = "Floor";
             FindOrCreateSeries(Target.Name, "OptimalFloorCentered", mSeriesColor).LegendToolTip = "Symmetric";
 
-            mYearCache = await Task.Run(() => ComputeYearCache(ct), ct);
+            // Pull (or trigger build of) the per-target year cache from ChartCacheStore.
+            // GetOrBuildAsync runs the compute on the threadpool; if multiple targets are
+            // building concurrently, the cache store's gate amortizes them. Cancellation
+            // surfaces as OperationCanceledException -- caller (ReloadWithTargets) catches
+            // it and unwinds.
+            if (mCache == null)
+            {
+                mYearCache = new List<NightCacheEntry>();  // empty placeholder; render no-ops
+            }
+            else
+            {
+                TargetCacheEntry entry = await mCache.GetOrBuildAsync(Target, ct);
+                mYearCache = entry.YearDays;
+            }
 
             RenderYearSeries();
             phaseProgress?.Report("Year");
@@ -278,7 +246,7 @@ namespace TargetPlanner.Charts
             // Use the shared cache's Starting NightWindow when AltitudeChart supplied one;
             // otherwise fall through to the direct (gated) NightCalculator call for the
             // fire-and-forget startup path.
-            NightWindow night = mNightCache?.Starting ?? NightCalculator.ComputeNight(Location);
+            NightWindow night = mCache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(Location);
             // NightWindow fields are UTC as of the Core DST fix; convert to local once here
             // because the minute-loop rounds to wall-clock hour boundaries for the X axis.
             DateTime duskLocal = night.AstronomicalDusk.ToLocalTime();
@@ -385,7 +353,7 @@ namespace TargetPlanner.Charts
             // UI thread during BuildDaySeries; for 13+ target builds this was visible as
             // a noticeable "build takes a while" stall. Cache-first keeps the per-target
             // cost at pure math.
-            NightWindow night = mNightCache?.Starting ?? NightCalculator.ComputeNight(Location);
+            NightWindow night = mCache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(Location);
             IHorizonProfile horizonProfile = new ScalarHorizonProfile(horizon);
 
             var best = BestSession.For(
@@ -441,121 +409,9 @@ namespace TargetPlanner.Charts
                 Target.Name, durLabel, window.Value.Start, window.Value.End, window.Value.Floor);
         }
 
-        // Walk 365 days, call ComputeNight and two AltAz.Of calls per day, return the
-        // Horizon/Duration-independent intermediates. Year values are invariant to Horizon and
-        // Duration so this never needs to run on a spinner tick.
-        //
-        // Pure compute: no WinForms Series.Points access, no mYearCache assignment. Safe to
-        // run on a background thread via Task.Run. The caller assigns the returned list to
-        // mYearCache on the UI thread before rendering. ct.ThrowIfCancellationRequested()
-        // runs once per day; caller catches OperationCanceledException to unwind cleanly.
-        private List<NightCacheEntry> ComputeYearCache(CancellationToken ct = default)
-        {
-            double latSigned  = Location.North ?  Location.Latitude  : -Location.Latitude;
-            double decSigned  = Target.North   ?  Target.Declination : -Target.Declination;
-            double lonDegEast = Location.West  ? -Location.Longitude :  Location.Longitude;
-            double raHours    = Target.RightAscension;
-
-            double meridianAlt = TargetGeometry.MeridianAltitude(latSigned, decSigned);
-
-            // Seed the 365-day scan from the observer's picked moment, not real-world "now".
-            // Location is the immutable snapshot captured at AltitudeSeries construction, so
-            // each Graph click produces a fresh instance keyed to the DatePicker's value at
-            // that moment. Previously this read DateTime.Now unconditionally, so picking a
-            // future / past date updated the Year / Optimal title but the data stayed
-            // anchored to the current real-world month.
-            DateTime seed     = Location.DateTime;
-            DateTime startDay = mNightCache?.YearStartDay ?? NightCache.ComputeYearStartDay(seed);
-            int      totalDays = mNightCache?.YearDays.Count ?? NightCache.ComputeYearDaysCount(seed);
-
-            List<NightCacheEntry> cache = new List<NightCacheEntry>(totalDays);
-
-            for (int day = 0; day < totalDays; day++)
-            {
-                ct.ThrowIfCancellationRequested();
-
-                // Pull from the shared NightCache when AltitudeChart supplied one; otherwise
-                // fall through to the gated per-day NightCalculator call (fire-and-forget
-                // startup path keeps working even without a pre-built cache). For the shared
-                // path, this loop's per-day work reduces to pure-math AltAz -- which
-                // parallelizes freely across targets instead of serialising on the
-                // CoordinateSharp lock.
-                NightWindow night;
-                if (mNightCache != null)
-                {
-                    night = mNightCache.YearDays[day];
-                }
-                else
-                {
-                    Location dayLoc = Location.With(dateTime: startDay.AddDays(day));
-                    night = NightCalculator.ComputeNight(dayLoc);
-                }
-
-                NightCacheEntry entry = new NightCacheEntry();
-
-                if (!night.IsValid)
-                {
-                    entry.IsPolar   = true;
-                    entry.SentinelX = startDay.AddDays(day).AddHours(12);
-                    entry.YearAlt   = -90.0;
-                    cache.Add(entry);
-                    continue;
-                }
-
-                // night.AstronomicalDusk / AstronomicalDawn are Kind=Utc (see NightCalculator).
-                // Cached as-is; downstream math (AltAz.Of, SiderealTime.Local) wants UTC anyway.
-                entry.Dusk      = night.AstronomicalDusk;
-                entry.Dawn      = night.AstronomicalDawn;
-                // SentinelX is the X-axis coordinate for Year/Optimal points. Kept in UTC
-                // here; the chart's X axis is DateTime-valued and Windows renders Kind=Utc
-                // values against the local time zone, so the visual is wall-clock local.
-                entry.SentinelX = entry.Dawn.AddMinutes(-1);
-
-                // AltAz.Of internally calls location.DateTime.ToUniversalTime(), which is a
-                // no-op on Kind=Utc -- so entry.Dusk / Dawn feed through unchanged to the
-                // altitude math.
-                entry.AltDusk = AltAzCalculator.Of(Target, Location.With(dateTime: entry.Dusk)).Altitude;
-                entry.AltDawn = AltAzCalculator.Of(Target, Location.With(dateTime: entry.Dawn)).Altitude;
-
-                // .ToUniversalTime() on Kind=Utc is a no-op; left in place to advertise that
-                // SiderealTime.Local wants a UTC instant, so future refactors don't quietly
-                // swap in a Kind=Local value and shift LST by the local offset.
-                entry.LstDusk = SiderealTime.Local(entry.Dusk.ToUniversalTime(), lonDegEast);
-                entry.LstDawn = SiderealTime.Local(entry.Dawn.ToUniversalTime(), lonDegEast);
-                if (entry.LstDawn < entry.LstDusk) entry.LstDawn += 24.0;
-
-                // TEMP DEBUG (bisection, kept through Phase 1-3): skip the ~25,600
-                // MoonSeparation.ObserveAt calls per target that drive the multi-minute
-                // multi-target build hang. Empty-samples is already a no-op in
-                // HasMoonClearViableWindow / EnumerateMoonClearIntervalsUtc, and with the
-                // chart's profile forced to null (see AltitudeChart.MoonAvoidanceProfile
-                // setter) those paths aren't even invoked. Phase 3's ChartCacheStore worker
-                // restores moon-sample collection in a background, pre-populating cache
-                // store with per-target parallelism gated only by CoordinateSharpGate.
-                entry.MoonSamples = new List<MoonSample>(0);
-                DateTime midUtc = entry.Dusk.AddTicks((entry.Dawn - entry.Dusk).Ticks / 2);
-                entry.MoonAgeDays = LunarAge.DaysAt(midUtc);
-
-                entry.TransitInNight = false;
-                for (int k = -1; k <= 1; k++)
-                {
-                    double t = raHours + 24.0 * k;
-                    if (t >= entry.LstDusk && t <= entry.LstDawn)
-                    {
-                        entry.TransitInNight = true;
-                        break;
-                    }
-                }
-
-                double yearAlt = Math.Max(entry.AltDusk, entry.AltDawn);
-                if (entry.TransitInNight && meridianAlt > yearAlt) yearAlt = meridianAlt;
-                entry.YearAlt = yearAlt;
-
-                cache.Add(entry);
-            }
-
-            return cache;
-        }
+        // The 365-day cache build moved to ChartCacheStore.ComputeYearDays in Phase 3 of
+        // the SoC refactor. AltitudeSeries.BuildSeriesList obtains its mYearCache list via
+        // mCache.GetOrBuildAsync(Target, ct) instead.
 
         // UI-thread-only: push the cached Year altitudes into the chart's Year series. Keep
         // this strictly separate from ComputeYearCache -- every Points.Clear / AddXY call
@@ -903,7 +759,7 @@ namespace TargetPlanner.Charts
             // minute (one call per minute is per-location, not per-target, so Commit 2
             // hoists the whole BuildMoonSeries to AltitudeChart and computes the moon
             // curve once per Graph click instead of once per target).
-            NightWindow night = mNightCache?.Starting ?? NightCalculator.ComputeNight(Location);
+            NightWindow night = mCache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(Location);
             // NightWindow fields are UTC as of the Core DST fix; convert to local once here
             // because the minute-loop rounds to wall-clock hour boundaries for the X axis.
             DateTime duskLocal = night.AstronomicalDusk.ToLocalTime();

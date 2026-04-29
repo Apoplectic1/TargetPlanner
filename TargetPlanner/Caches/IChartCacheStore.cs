@@ -1,0 +1,82 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using Astronomy.Core.Night;
+using Location = Astronomy.Core.Locations.Location;
+using Target = Astronomy.Core.Targets.Target;
+
+namespace TargetPlanner.Caches
+{
+    /// <summary>
+    /// Per-(<see cref="Location"/>, <see cref="Target"/>) chart cache. Caches the
+    /// 365-day NightWindow series (target-independent, shared across targets at the
+    /// same location) and the per-target year-of-night precomputes (altitudes, moon
+    /// samples, transit-in-night flags).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Phase 3 of the SoC refactor introduces this type as the cache seam. Becomes the
+    /// single CoordinateSharp call site for chart-cache work, which means a future
+    /// roll-your-own-astronomy effort only has to swap one class's internals. The
+    /// renderer (<see cref="TargetPlanner.Charts.AltitudeSeries"/>) queries cache state
+    /// and renders; it no longer owns its own cache.
+    /// </para>
+    /// <para>
+    /// Threading: implementations run cache builds on the threadpool (<c>Task.Run</c>),
+    /// gated by an internal <see cref="SemaphoreSlim"/> to limit parallel
+    /// CoordinateSharpGate hits. Synchronous read accessors (<see cref="IsReady"/>,
+    /// <see cref="GetOrNull"/>) are lock-free for the consumer. The
+    /// <see cref="TargetReady"/> event is marshalled to the UI thread via the
+    /// <see cref="SynchronizationContext"/> captured at store construction.
+    /// </para>
+    /// </remarks>
+    public interface IChartCacheStore
+    {
+        /// <summary>Location all current cache entries are keyed against.</summary>
+        Location CurrentLocation { get; }
+
+        /// <summary>Per-location <see cref="NightCache"/>; <see langword="null"/> until the
+        /// first build completes for the current location.</summary>
+        NightCache LocationNightCache { get; }
+
+        /// <summary>True iff the cache contains a published entry for <paramref name="t"/>
+        /// at the current location.</summary>
+        bool IsReady(Target t);
+
+        /// <summary>Returns the published entry for <paramref name="t"/> at the current
+        /// location, or <see langword="null"/> if not yet built.</summary>
+        TargetCacheEntry GetOrNull(Target t);
+
+        /// <summary>Build (or wait for an in-flight build of) the entry for
+        /// <paramref name="t"/> at the current location. Idempotent: concurrent calls for
+        /// the same target dedupe to one underlying compute.</summary>
+        Task<TargetCacheEntry> GetOrBuildAsync(Target t, CancellationToken ct);
+
+        /// <summary>Pre-build entries for many targets in parallel (gated by the store's
+        /// internal concurrency semaphore). Returns when all builds have completed
+        /// (or one has cancelled / faulted).</summary>
+        Task PrepareManyAsync(IEnumerable<Target> targets, CancellationToken ct);
+
+        /// <summary>Cancel all in-flight builds, drop every cached entry, switch to
+        /// <paramref name="newLocation"/>. Subsequent <see cref="GetOrBuildAsync"/> /
+        /// <see cref="PrepareManyAsync"/> calls build against the new location.</summary>
+        Task SetLocationAsync(Location newLocation);
+
+        /// <summary>Fires after a <see cref="TargetCacheEntry"/> has been published.
+        /// Marshalled to the UI thread.</summary>
+        event EventHandler<TargetReadyEventArgs> TargetReady;
+    }
+
+    public sealed class TargetReadyEventArgs : EventArgs
+    {
+        public Target Target { get; }
+        public TargetCacheEntry Entry { get; }
+
+        public TargetReadyEventArgs(Target target, TargetCacheEntry entry)
+        {
+            Target = target;
+            Entry  = entry;
+        }
+    }
+}
