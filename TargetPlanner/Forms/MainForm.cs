@@ -44,17 +44,6 @@ namespace TargetPlanner
         private List<ToolStripMenuItem> mFilterMenuItems;
         private ToolStripMenuItem mFilterMenuItem_Custom;
 
-        // Lorentzian / relaxation controls hosted in the existing GroupBox_MoonAvoidance.
-        // Created programmatically by BuildLorentzianControls (the Designer placeholders
-        // are hidden at runtime). User scrubs flip the Filters menu to Custom; menu
-        // selections write preset values into these controls under mSuppressFilterEvents.
-        private NumericUpDown mNumericUpDown_MoonSeparation;
-        private NumericUpDown mNumericUpDown_MoonWidth;
-        private CheckBox      mCheckBox_MoonRelaxEnabled;
-        private NumericUpDown mNumericUpDown_MoonRelaxMin;
-        private NumericUpDown mNumericUpDown_MoonRelaxMax;
-        private NumericUpDown mNumericUpDown_MoonRelaxScale;
-
         // Mirror of CoordinateInput.mSuppress: raised while preset-load writes values
         // into the Lorentzian controls so OnLorentzianControlChanged returns early
         // instead of recursively flipping the menu back to Custom.
@@ -251,10 +240,9 @@ Right-click anywhere on the chart to clear all overlays.";
             // Day chart's HD Overlay reflects the new avoidance regime immediately.
             BuildFiltersMenu();
 
-            // Replace the Designer placeholder controls inside GroupBox_MoonAvoidance
-            // with the seven Lorentzian/relaxation controls. Initial state: greyed
-            // (Disabled is the first-launch active filter, set by BuildFiltersMenu).
-            BuildLorentzianControls();
+            // Initial control state: greyed (Disabled is the first-launch active filter,
+            // set by BuildFiltersMenu). The controls themselves are Designer-resident on
+            // GroupBox_MoonAvoidance.
             SetLorentzianControlsEnabled(false);
 
             // Run the silent startup update check after the form is visible so the user sees
@@ -642,93 +630,6 @@ Right-click anywhere on the chart to clear all overlays.";
             mAltitudeChart.RebuildOptimalData(mLocation.Horizon, mLocation.Duration);
         }
 
-        // Replaces the Designer placeholder controls inside GroupBox_MoonAvoidance with
-        // the seven Lorentzian/relaxation controls. Wires each control's change event to
-        // OnLorentzianControlChanged. Called once at construction time after
-        // BuildFiltersMenu and after InitializeDynamicControls (mAltitudeChart exists).
-        private void BuildLorentzianControls()
-        {
-            // Hide the Designer-resident placeholders. They stay in MainForm.Designer.cs
-            // (and the user's working tree); a future Designer pass can remove them
-            // outright. Setting Visible=false keeps the file clean of hand-edits while
-            // making the runtime UI honest about what's active.
-            if (CheckBox_Moon_Avoid != null) CheckBox_Moon_Avoid.Visible = false;
-            if (RadioButton_Moon_BroadBand != null) RadioButton_Moon_BroadBand.Visible = false;
-            if (RadioButton_Moon_NarrowBand != null) RadioButton_Moon_NarrowBand.Visible = false;
-            if (NumericUpDown_Moon_MinMoonAngle != null) NumericUpDown_Moon_MinMoonAngle.Visible = false;
-            if (NumericUpDown_Moon_MaxMoonIumination != null) NumericUpDown_Moon_MaxMoonIumination.Visible = false;
-
-            const int row1Y = 22;
-            const int row2Y = 52;
-
-            // Row 1: Sep + Width + RelaxEnabled
-            GroupBox_MoonAvoidance.Controls.Add(MakeLorentzianLabel("Sep:", 5, row1Y + 2));
-            mNumericUpDown_MoonSeparation = MakeLorentzianSpinner(
-                40, row1Y, 50, min: 0, max: 180, dec: 0, increment: 5m, value: 60m);
-            GroupBox_MoonAvoidance.Controls.Add(mNumericUpDown_MoonSeparation);
-
-            GroupBox_MoonAvoidance.Controls.Add(MakeLorentzianLabel("Width:", 100, row1Y + 2));
-            mNumericUpDown_MoonWidth = MakeLorentzianSpinner(
-                140, row1Y, 40, min: 0, max: 30, dec: 0, increment: 1m, value: 7m);
-            GroupBox_MoonAvoidance.Controls.Add(mNumericUpDown_MoonWidth);
-
-            mCheckBox_MoonRelaxEnabled = new CheckBox
-            {
-                Name = "CheckBox_MoonRelaxEnabled",
-                Text = "Relax",
-                AutoSize = true,
-                Location = new Point(200, row1Y + 2),
-                Checked = false,
-            };
-            GroupBox_MoonAvoidance.Controls.Add(mCheckBox_MoonRelaxEnabled);
-
-            // Row 2: RelaxMin + RelaxMax + RelaxScale
-            GroupBox_MoonAvoidance.Controls.Add(MakeLorentzianLabel("Min:", 5, row2Y + 2));
-            mNumericUpDown_MoonRelaxMin = MakeLorentzianSpinner(
-                40, row2Y, 50, min: -45, max: 45, dec: 0, increment: 1m, value: -15m);
-            GroupBox_MoonAvoidance.Controls.Add(mNumericUpDown_MoonRelaxMin);
-
-            GroupBox_MoonAvoidance.Controls.Add(MakeLorentzianLabel("Max:", 100, row2Y + 2));
-            mNumericUpDown_MoonRelaxMax = MakeLorentzianSpinner(
-                130, row2Y, 50, min: -45, max: 45, dec: 0, increment: 1m, value: 5m);
-            GroupBox_MoonAvoidance.Controls.Add(mNumericUpDown_MoonRelaxMax);
-
-            GroupBox_MoonAvoidance.Controls.Add(MakeLorentzianLabel("Scale:", 190, row2Y + 2));
-            mNumericUpDown_MoonRelaxScale = MakeLorentzianSpinner(
-                230, row2Y, 60, min: 0, max: 10, dec: 2, increment: 0.25m, value: 0m);
-            GroupBox_MoonAvoidance.Controls.Add(mNumericUpDown_MoonRelaxScale);
-
-            // Wire change events. ValueChanged fires for any value mutation -- spinner
-            // click, keyboard, or programmatic Value=. The mSuppressFilterEvents flag
-            // covers the programmatic case during preset-load.
-            mNumericUpDown_MoonSeparation.ValueChanged += OnLorentzianControlChanged;
-            mNumericUpDown_MoonWidth.ValueChanged += OnLorentzianControlChanged;
-            mCheckBox_MoonRelaxEnabled.CheckedChanged += OnLorentzianControlChanged;
-            mNumericUpDown_MoonRelaxMin.ValueChanged += OnLorentzianControlChanged;
-            mNumericUpDown_MoonRelaxMax.ValueChanged += OnLorentzianControlChanged;
-            mNumericUpDown_MoonRelaxScale.ValueChanged += OnLorentzianControlChanged;
-        }
-
-        private static Label MakeLorentzianLabel(string text, int x, int y)
-            => new Label { Text = text, AutoSize = true, Location = new Point(x, y) };
-
-        private static NumericUpDown MakeLorentzianSpinner(
-            int x, int y, int width, decimal min, decimal max, int dec,
-            decimal increment, decimal value)
-        {
-            return new NumericUpDown
-            {
-                Location = new Point(x, y),
-                Size = new Size(width, 20),
-                Minimum = min,
-                Maximum = max,
-                DecimalPlaces = dec,
-                Increment = increment,
-                Value = value,
-                TextAlign = HorizontalAlignment.Center,
-            };
-        }
-
         // User scrubbed a Lorentzian control. Build a Custom profile from the live values
         // and route through SetActiveFilter so the menu radio flips to Custom and the
         // chart re-renders. Returns early under mSuppressFilterEvents (preset-load is
@@ -736,15 +637,15 @@ Right-click anywhere on the chart to clear all overlays.";
         private void OnLorentzianControlChanged(object sender, EventArgs e)
         {
             if (mSuppressFilterEvents) return;
-            if (mNumericUpDown_MoonSeparation == null) return;
+            if (NumericUpDown_Moon_Separation == null) return;
 
             MoonAvoidanceProfile custom = MoonAvoidanceProfile.Custom(
-                separationDeg:  (double)mNumericUpDown_MoonSeparation.Value,
-                widthDays:      (double)mNumericUpDown_MoonWidth.Value,
-                relaxEnabled:   mCheckBox_MoonRelaxEnabled.Checked,
-                relaxMinAltDeg: (double)mNumericUpDown_MoonRelaxMin.Value,
-                relaxMaxAltDeg: (double)mNumericUpDown_MoonRelaxMax.Value,
-                relaxScale:     (double)mNumericUpDown_MoonRelaxScale.Value);
+                separationDeg:  (double)NumericUpDown_Moon_Separation.Value,
+                widthDays:      (double)NumericUpDown_Moon_Width.Value,
+                relaxEnabled:   CheckBox_Moon_RelaxEnabled.Checked,
+                relaxMinAltDeg: (double)NumericUpDown_Moon_RelaxMin.Value,
+                relaxMaxAltDeg: (double)NumericUpDown_Moon_RelaxMax.Value,
+                relaxScale:     (double)NumericUpDown_Moon_RelaxScale.Value);
 
             SetActiveFilter(custom, mFilterMenuItem_Custom);
         }
@@ -756,23 +657,23 @@ Right-click anywhere on the chart to clear all overlays.";
         private void WriteProfileToControls(MoonAvoidanceProfile profile)
         {
             if (profile == null) return;
-            if (mNumericUpDown_MoonSeparation == null) return;
+            if (NumericUpDown_Moon_Separation == null) return;
 
             bool wasSuppressed = mSuppressFilterEvents;
             mSuppressFilterEvents = true;
             try
             {
-                mNumericUpDown_MoonSeparation.Value =
-                    ClampToRange(mNumericUpDown_MoonSeparation, (decimal)profile.SeparationDeg);
-                mNumericUpDown_MoonWidth.Value =
-                    ClampToRange(mNumericUpDown_MoonWidth, (decimal)profile.WidthDays);
-                mCheckBox_MoonRelaxEnabled.Checked = profile.RelaxEnabled;
-                mNumericUpDown_MoonRelaxMin.Value =
-                    ClampToRange(mNumericUpDown_MoonRelaxMin, (decimal)profile.RelaxMinAltDeg);
-                mNumericUpDown_MoonRelaxMax.Value =
-                    ClampToRange(mNumericUpDown_MoonRelaxMax, (decimal)profile.RelaxMaxAltDeg);
-                mNumericUpDown_MoonRelaxScale.Value =
-                    ClampToRange(mNumericUpDown_MoonRelaxScale, (decimal)profile.RelaxScale);
+                NumericUpDown_Moon_Separation.Value =
+                    ClampToRange(NumericUpDown_Moon_Separation, (decimal)profile.SeparationDeg);
+                NumericUpDown_Moon_Width.Value =
+                    ClampToRange(NumericUpDown_Moon_Width, (decimal)profile.WidthDays);
+                CheckBox_Moon_RelaxEnabled.Checked = profile.RelaxEnabled;
+                NumericUpDown_Moon_RelaxMin.Value =
+                    ClampToRange(NumericUpDown_Moon_RelaxMin, (decimal)profile.RelaxMinAltDeg);
+                NumericUpDown_Moon_RelaxMax.Value =
+                    ClampToRange(NumericUpDown_Moon_RelaxMax, (decimal)profile.RelaxMaxAltDeg);
+                NumericUpDown_Moon_RelaxScale.Value =
+                    ClampToRange(NumericUpDown_Moon_RelaxScale, (decimal)profile.RelaxScale);
             }
             finally
             {
@@ -784,13 +685,13 @@ Right-click anywhere on the chart to clear all overlays.";
         // filter is Disabled (avoidance off entirely); enables them otherwise.
         private void SetLorentzianControlsEnabled(bool enabled)
         {
-            if (mNumericUpDown_MoonSeparation == null) return;
-            mNumericUpDown_MoonSeparation.Enabled  = enabled;
-            mNumericUpDown_MoonWidth.Enabled       = enabled;
-            mCheckBox_MoonRelaxEnabled.Enabled     = enabled;
-            mNumericUpDown_MoonRelaxMin.Enabled    = enabled;
-            mNumericUpDown_MoonRelaxMax.Enabled    = enabled;
-            mNumericUpDown_MoonRelaxScale.Enabled  = enabled;
+            if (NumericUpDown_Moon_Separation == null) return;
+            NumericUpDown_Moon_Separation.Enabled  = enabled;
+            NumericUpDown_Moon_Width.Enabled       = enabled;
+            CheckBox_Moon_RelaxEnabled.Enabled     = enabled;
+            NumericUpDown_Moon_RelaxMin.Enabled    = enabled;
+            NumericUpDown_Moon_RelaxMax.Enabled    = enabled;
+            NumericUpDown_Moon_RelaxScale.Enabled  = enabled;
         }
 
         private void DatePicker_ValueChanged(object sender, EventArgs e)
