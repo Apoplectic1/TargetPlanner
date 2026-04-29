@@ -8,6 +8,7 @@ using Astronomy.Core.Moon;
 using TargetPlanner.Filters;
 using TargetPlanner.Forms;
 using TargetPlanner.Settings;
+using TargetPlanner.State;
 using TargetPlanner.Support;
 using TargetPlanner.Updates;
 using System.Threading;
@@ -27,8 +28,15 @@ namespace TargetPlanner
         private Location mLocation;
         private (DateTime When, TimeZoneInfo Zone) mLocalDateTime;
 
-        private Target mTarget;
-        private List<Target> mTargetList;
+        // Phase 2 of the SoC refactor: TargetSelection view-model owns target / list / mode
+        // state. UI controls (ComboBox_SelectTarget, CheckedListBox_SelectedTargets, RA/Dec
+        // inputs, Select-All / Clear-All / Visible-Tonight buttons) bind to it. The
+        // mUpdatingUiFromVm flag protects the echo path: when a VM event fires and the
+        // handler programmatically writes back to a UI control, the control's user-input
+        // event re-fires and would round-trip through the VM. The flag short-circuits
+        // those echoes so the VM stays the single source of truth.
+        private TargetSelection mSelection;
+        private bool mUpdatingUiFromVm;
 
         private const string NinaTargetsRootPath = @"E:\Photography\Astro Photography\Captures\Nina\Targets";
 
@@ -151,16 +159,9 @@ Right-click anywhere on the chart to clear all overlays.";
         // the 1-second hold.
         private int mProcessObjectGeneration;
 
-        // Tracks which "last-touched" selection drives Button_Graph_Click:
-        //   Single -> mTarget (RA/Dec inputs + ComboBox_SelectTarget).
-        //   Multi  -> CheckedListBox_SelectedTargets.CheckedItems.
-        // Flipped by the per-control subscriptions set up in WireGraphModeEvents.
-        // Programmatic bulk updates (e.g. PopulateCheckedListBoxFromTargets,
-        // ResortSelectedTargets) fire the same events, so those callers raise
-        // mSuppressGraphModeEvents around their mutations to prevent a spurious flip.
-        private enum GraphMode { Single, Multi }
-        private GraphMode mGraphMode = GraphMode.Single;
-        private bool mSuppressGraphModeEvents;
+        // mGraphMode is now mSelection.Mode (Phase 2 of the SoC refactor). Mutators on the
+        // VM (SetSelectedSingle / SetChecked / SetCheckedSet / SetAllChecked) imply the
+        // mode, so callers don't need to update mode explicitly.
 
         // Cancellation handle for the current chart build. Button_Graph_Click creates a new
         // CTS per build; Button_Cancel_Click signals it; the token is observed inside
@@ -182,19 +183,13 @@ Right-click anywhere on the chart to clear all overlays.";
         private System.Windows.Forms.Timer mOptimalRebuildDebounce;
         private const int OptimalRebuildDebounceMs = 150;
 
-        // Latch used by the CheckedListBox graph-mode wiring. ItemCheck sets it true;
-        // the subsequent SelectedIndexChanged consumes + clears it to decide "Multi (a
-        // checkbox just toggled) vs. Single (pure highlight change)". MouseUp / KeyUp
-        // also clear it to cover the case where ItemCheck fired but SelectedIndexChanged
-        // did not (e.g. toggling the checkbox of an already-selected row).
+        // Latch used by the CheckedListBox VM binding. ItemCheck sets it true; the
+        // subsequent SelectedIndexChanged consumes + clears it to decide "this highlight
+        // change came with a checkbox toggle, leave Mode=Multi alone" vs. "pure highlight,
+        // flip Mode=Single + select the highlighted target". MouseUp / KeyUp also clear it
+        // to cover the case where ItemCheck fired but SelectedIndexChanged did not (e.g.
+        // toggling the checkbox of an already-selected row).
         private bool mCheckedListBoxJustToggled;
-
-        // Per-mouse-click latch: MouseDown clears, ItemCheck / SelectedIndexChanged set,
-        // Click reads. If Click fires with the latch still false, no handler ran for this
-        // click -- i.e. the user clicked somewhere in the control but nothing changed
-        // (empty space below rows, or a row that's already highlighted and wasn't
-        // toggled). Per spec, that case flips to Multi.
-        private bool mCheckedListBoxClickFiredHandler;
 
         public MainForm()
         {
@@ -208,8 +203,11 @@ Right-click anywhere on the chart to clear all overlays.";
 
             mLocalDateTime = (DateTime.Now, TimeZoneInfo.Local);
             mLocation = PickStartupLocation();
-            mTarget = Target.Default;
-            mTargetList = new List<Target>();
+            mSelection = new TargetSelection();
+            // No M31 default seed: SelectedSingle stays null until NINA load completes
+            // (auto-picks first sorted target via OnVmKnownTargetsChanged) or the user
+            // types coordinates / picks from the ComboBox. The RA/Dec edit handlers fall
+            // back to Target.Default if the user types before any selection exists.
 
             mUIState = new UIState();
 
@@ -394,15 +392,10 @@ Right-click anywhere on the chart to clear all overlays.";
             // Fire-and-forget; GetNinaTargets owns its own try/catch for diagnostics.
             _ = GetNinaTargets(folderSelectedPaths);
 
-            // Wire graph-mode tracking after the CoordinateInput helpers and mAltitudeChart
-            // exist but before the combo-text default below, so that the combo-text
-            // assignment fires SelectedIndexChanged through MarkSingleMode (a no-op since
-            // the default is already Single).
-            WireGraphModeEvents();
-
-            // Cosmetic default for the target combo. No chart implication post-Phase-1:
-            // the chart is empty until the user clicks Graph.
-            ComboBox_SelectTarget.Text = "M31";
+            // Wire VM bindings after the CoordinateInput helpers and mAltitudeChart exist.
+            // The ComboBox starts blank; OnVmKnownTargetsChanged populates it after NINA
+            // load completes (~100 ms) and auto-selects the first sorted target.
+            WireSelectionVm();
         }
 
         private void UpdateUI()
@@ -412,9 +405,13 @@ Right-click anywhere on the chart to clear all overlays.";
             TextBox_Latitude.Text = mLocation.Latitude.ToString("F6");
             TextBox_Longitude.Text = mLocation.Longitude.ToString("F6");
 
-            CheckBox_TargetNorth.Checked = mTarget.North;
-            TextBox_RightAscension.Text = mTarget.RightAscension.ToString("F6");
-            TextBox_Declination.Text = mTarget.Declination.ToString("F6");
+            Target t = mSelection?.SelectedSingle;
+            if (t != null)
+            {
+                CheckBox_TargetNorth.Checked = t.North;
+                TextBox_RightAscension.Text = t.RightAscension.ToString("F6");
+                TextBox_Declination.Text = t.Declination.ToString("F6");
+            }
         }
 
         private void UpdateLocalDateTimeEvents()
@@ -461,16 +458,20 @@ Right-click anywhere on the chart to clear all overlays.";
 
         private void OnRightAscensionEdited(object sender, EventArgs e)
         {
-            if (mTarget == null) return;
-            mTarget = mTarget.With(rightAscension: Math.Round(mRaInput.Magnitude, 6));
+            if (mUpdatingUiFromVm) return;
+            Target t = mSelection.SelectedSingle ?? Target.Default;
+            mSelection.SetSelectedSingle(
+                t.With(rightAscension: Math.Round(mRaInput.Magnitude, 6)));
         }
 
         private void OnDeclinationEdited(object sender, EventArgs e)
         {
-            if (mTarget == null) return;
-            mTarget = mTarget.With(
-                declination: Math.Round(mDecInput.Magnitude, 6),
-                north:       mDecInput.Positive);
+            if (mUpdatingUiFromVm) return;
+            Target t = mSelection.SelectedSingle ?? Target.Default;
+            mSelection.SetSelectedSingle(
+                t.With(
+                    declination: Math.Round(mDecInput.Magnitude, 6),
+                    north:       mDecInput.Positive));
         }
 
         private void NumericUpDown_TargetDuration_ValueChanged(object sender, EventArgs e)
@@ -587,7 +588,7 @@ Right-click anywhere on the chart to clear all overlays.";
             //
             // Critical: do NOT route through SetActiveFilter here. SetActiveFilter
             // calls RebuildOptimalData, which calls AltitudeSeries.RebuildOptimalSeries
-            // for every target in the chart's mTargetList; the lazy-init branch in
+            // for every target in the chart's target list; the lazy-init branch in
             // RebuildOptimalSeries (AltitudeSeries.cs:264) synchronously runs
             // ComputeYearCache on the UI thread when the year cache hasn't been built
             // yet. At construction time the M31 seed's async BuildSeriesList is still
@@ -787,10 +788,10 @@ Right-click anywhere on the chart to clear all overlays.";
                 ResortSelectedTargets();
         }
 
-        // Graph the targets indicated by mGraphMode (last-touched). Multi walks the
-        // CheckedListBox; Single falls back to mTarget (RA/Dec inputs + combo). If Multi
-        // is active but nothing is checked (e.g. user just clicked Clear All), fall back
-        // to mTarget so the button always produces a chart.
+        // Graph the targets indicated by mSelection.Mode (last-touched). Multi walks the
+        // VM's Checked set; Single falls back to mSelection.SelectedSingle (RA/Dec inputs +
+        // combo). If Multi is active but Checked is empty (e.g. user just clicked Clear All),
+        // fall back to SelectedSingle so the button always produces a chart.
         //
         // Async: ReloadWithTargets stages every target's Day / Moon / Year / Optimal build
         // off to the side and only swaps into mChart.Series after all of them finish. That
@@ -809,41 +810,42 @@ Right-click anywhere on the chart to clear all overlays.";
 
             var targets = new List<Target>();
 
-            if (mGraphMode == GraphMode.Multi)
+            if (mSelection.Mode == GraphMode.Multi)
             {
                 // Walk CheckedItems in display order so mAltitudeChart's target list -- and
                 // therefore the chart legend -- inherits the CheckedListBox's NaturalStringComparer
-                // sort (see GetNinaTargets). Iterating mTargetList here instead would have used
-                // folder-load order, which is effectively arbitrary.
+                // sort (see GetNinaTargets). Iterating mSelection.KnownTargets here would have
+                // used folder-load order, which is effectively arbitrary.
                 foreach (object item in CheckedListBox_SelectedTargets.CheckedItems)
                 {
                     string name = item.ToString();
-                    Target t = mTargetList?.Find(x => x.Name == name);
+                    Target t = mSelection.KnownTargets.FirstOrDefault(x => x.Name == name);
                     if (t != null) targets.Add(t);
                 }
             }
 
-            // Fall back to Single when Multi yields nothing (or when mGraphMode is Single).
+            // Fall back to Single when Multi yields nothing (or when Mode is Single).
             if (targets.Count == 0)
             {
                 // Resolve combo text to a Target. Covers the edge case where the user typed
                 // into ComboBox_SelectTarget without triggering SelectedIndexChanged /
-                // MouseLeave; without this, mTarget would lag the combo by one edit. If the
-                // text doesn't match a loaded target, Find returns null and mTarget keeps
-                // its existing value.
-                if (mTargetList != null)
+                // MouseLeave; without this, SelectedSingle would lag the combo by one edit.
+                // If the text doesn't match a loaded target, fall through and use whatever
+                // SelectedSingle currently is.
+                Target found = mSelection.KnownTargets.FirstOrDefault(t => t.Name == ComboBox_SelectTarget.Text);
+                if (found != null) mSelection.SetSelectedSingle(found);
+
+                Target current = mSelection.SelectedSingle;
+                if (current == null)
                 {
-                    foreach (Target t in mTargetList)
-                    {
-                        if (t.Name == ComboBox_SelectTarget.Text)
-                        {
-                            mTarget = t;
-                            break;
-                        }
-                    }
+                    // No checked targets, no SelectedSingle, no resolvable combo text.
+                    // Surface a brief auto-dismissing notice instead of silently doing
+                    // nothing (the silent path was confusing -- the user clicked Graph and
+                    // saw no feedback).
+                    ShowTransientMessage("No Targets");
+                    return;
                 }
-                if (mTarget == null) return;
-                targets.Add(mTarget);
+                targets.Add(current);
             }
 
             IProgress<string> phaseProgress = BeginChartBuildProgress(targetCount: targets.Count);
@@ -1031,15 +1033,16 @@ Right-click anywhere on the chart to clear all overlays.";
             finally { mSyncingLocationUI = false; }
         }
 
-        // Push mTarget into the RA / Dec coordinate inputs. No equivalent guard flag because
+        // Push mSelection.SelectedSingle into the RA / Dec coordinate inputs. No equivalent guard flag because
         // OnRightAscensionEdited / OnDeclinationEdited don't have the combo-flip side effect
         // that SyncLocationUIFromModel has to suppress; SetProgrammatic already skips
         // ValueChanged.
         private void SyncTargetUIFromModel()
         {
-            if (mTarget == null) return;
-            mRaInput.SetProgrammatic(mTarget.RightAscension, positive: true);
-            mDecInput.SetProgrammatic(mTarget.Declination,    positive: mTarget.North);
+            Target t = mSelection?.SelectedSingle;
+            if (t == null) return;
+            mRaInput.SetProgrammatic(t.RightAscension, positive: true);
+            mDecInput.SetProgrammatic(t.Declination,   positive: t.North);
         }
 
         private static decimal ClampToRange(NumericUpDown spinner, decimal value)
@@ -1064,30 +1067,23 @@ Right-click anywhere on the chart to clear all overlays.";
 
             if (result.Equals(DialogResult.OK))
             {
+                // Click-Browse implies "I'm about to graph many of these". Flip Mode to
+                // Multi so the post-load Graph click uses the checked set without an
+                // intermediate explicit user action. Pre-VM this was a WireMultiMode hook
+                // on the button's Click event.
+                mSelection.SetMode(GraphMode.Multi);
                 _ = GetNinaTargets(mFolder.SelectedPaths);
             }
         }
 
         private async Task GetNinaTargets(string[] folderSelectedPaths)
         {
-            // Clearing ComboBox_SelectTarget.Items resets its SelectedIndex to -1, which
-            // fires SelectedIndexChanged. Without suppression the WireSingleMode subscription
-            // on the combo flips mGraphMode back to Single here -- undoing the Multi mode
-            // that the Browse button's own click handler set milliseconds earlier. The
-            // CheckedListBox.Items.Clear is wrapped too for the same reason: any stray
-            // ItemCheck / SelectedIndexChanged during the clear shouldn't perturb the mode
-            // that the user's Browse click established.
-            mSuppressGraphModeEvents = true;
-            try
-            {
-                mTargetList.Clear();
-                CheckedListBox_SelectedTargets.Items.Clear();
-                ComboBox_SelectTarget.Items.Clear();
-            }
-            finally
-            {
-                mSuppressGraphModeEvents = false;
-            }
+            // The previous KnownTargets is replaced wholesale at the end of this method
+            // via mSelection.SetKnownTargets(allLoaded). The VM event handlers
+            // (OnVmKnownTargetsChanged) repopulate ComboBox_SelectTarget +
+            // CheckedListBox_SelectedTargets atomically. We don't manually clear those
+            // controls here -- doing so would fire spurious SelectedIndexChanged /
+            // ItemCheck events that round-trip through the VM with stale state.
 
             int thisGeneration = ++mProcessObjectGeneration;
 
@@ -1101,6 +1097,7 @@ Right-click anywhere on the chart to clear all overlays.";
 
             ProgressBar_ProcessObject.Value = 0;
 
+            var allLoaded = new List<Target>();
             try
             {
                 foreach (string folder in folderSelectedPaths)
@@ -1111,7 +1108,7 @@ Right-click anywhere on the chart to clear all overlays.";
                         loaded = TargetPlanner.Nina.TargetLoader.Load(folder, progress);
                     });
 
-                    if (loaded != null) mTargetList.AddRange(loaded);
+                    if (loaded != null) allLoaded.AddRange(loaded);
                     ProgressBar_ProcessObject.Value = ProgressBar_ProcessObject.Maximum;
                 }
 
@@ -1137,24 +1134,19 @@ Right-click anywhere on the chart to clear all overlays.";
                 ProgressBar_ProcessObject.Value = 0;
             }
 
-            // Designer property Sorted=false; we feed the list in whatever ordering
-            // ComboBox_SortTargets currently selects (defaults to Name / NaturalStringComparer).
-            PopulateCheckedListBoxFromTargets(defaultChecked: true);
-
-            if (mTargetList.Count == 0) return;
-
-            // Populate ComboBox_SelectTarget using the same sort order as
-            // CheckedListBox_SelectedTargets (driven by ComboBox_SortTargets), and
-            // auto-select the first entry so mTarget + RA/Dec inputs leave the stale
-            // "M31" default from startup behind.
-            PopulateTargetComboFromTargets(preserveSelection: false);
+            // Push the new known-target list to the VM. KnownTargetsChanged fires once;
+            // OnVmKnownTargetsChanged repopulates ComboBox_SelectTarget +
+            // CheckedListBox_SelectedTargets via PopulateTargetComboFromTargets +
+            // PopulateCheckedListBoxFromTargets, which read the new VM state.
+            mSelection.SetKnownTargets(allLoaded);
         }
 
         // Repopulates ComboBox_SelectTarget.Items in the order produced by
-        // SortedTargets(mTargetList). Routing every combo-populate through this one helper
-        // is what makes "always apply ComboBox_SortTargets' order to ComboBox_SelectTarget"
-        // an invariant -- the combo has Sorted=false in Designer, so the Items order comes
-        // entirely from what we push in here, and nowhere else in the form adds combo items.
+        // SortedTargets(mSelection.KnownTargets). Routing every combo-populate through
+        // this one helper is what makes "always apply ComboBox_SortTargets' order to
+        // ComboBox_SelectTarget" an invariant -- the combo has Sorted=false in Designer,
+        // so the Items order comes entirely from what we push in here, and nowhere else
+        // in the form adds combo items.
         //
         // preserveSelection=true snapshots the current Text, clears + repopulates, then
         // restores the selection by looking up the prior name in the new Items (falling
@@ -1162,17 +1154,20 @@ Right-click anywhere on the chart to clear all overlays.";
         // survivors). Used by ResortSelectedTargets on sort-combo change or time-picker
         // scrub under Transit/Rise modes.
         //
-        // preserveSelection=false auto-selects index 0 -- used by GetNinaTargets on the
-        // initial NINA load to replace the startup "M31" Text with a real item-backed
-        // selection in the current sort order.
+        // preserveSelection=false auto-selects index 0 -- used by OnVmKnownTargetsChanged
+        // after a NINA load to surface a sane selection in the current sort order.
+        //
+        // Runs under mUpdatingUiFromVm so the per-write SelectedIndexChanged events don't
+        // round-trip through OnComboSelectTargetChanged into the VM.
         private void PopulateTargetComboFromTargets(bool preserveSelection)
         {
-            mSuppressGraphModeEvents = true;
+            bool wasUpdating = mUpdatingUiFromVm;
+            mUpdatingUiFromVm = true;
             try
             {
                 string priorName = ComboBox_SelectTarget.Text;
                 ComboBox_SelectTarget.Items.Clear();
-                foreach (Target t in SortedTargets(mTargetList))
+                foreach (Target t in SortedTargets(mSelection.KnownTargets))
                 {
                     ComboBox_SelectTarget.Items.Add(t.Name);
                 }
@@ -1206,95 +1201,55 @@ Right-click anywhere on the chart to clear all overlays.";
             }
             finally
             {
-                mSuppressGraphModeEvents = false;
+                mUpdatingUiFromVm = wasUpdating;
             }
         }
 
-        // Clears CheckedListBox_SelectedTargets and re-adds every target from mTargetList in
-        // the currently-selected sort order, with each row set to defaultChecked. Used on a
-        // fresh target-list load where there's no prior check state to preserve; the
-        // ResortSelectedTargets path handles re-ordering with state preservation.
+        // Clears CheckedListBox_SelectedTargets and re-adds every target from
+        // mSelection.KnownTargets in the currently-selected sort order. Each row is
+        // checked when defaultChecked is true OR when the target is currently in
+        // mSelection.Checked (the latter applies after re-sorts so prior check state
+        // survives a sort-mode change).
+        //
+        // Runs under mUpdatingUiFromVm so the per-Add ItemCheck events don't
+        // round-trip through OnCheckedListBoxItemCheck into the VM.
         private void PopulateCheckedListBoxFromTargets(bool defaultChecked)
         {
-            // Programmatic bulk populate: Items.Add(name, true) fires ItemCheck for every
-            // row. Suppress graph-mode flips so a startup/browse target load doesn't
-            // spuriously put mGraphMode into Multi.
             CheckedListBox_SelectedTargets.BeginUpdate();
-            mSuppressGraphModeEvents = true;
+            bool wasUpdating = mUpdatingUiFromVm;
+            mUpdatingUiFromVm = true;
             try
             {
                 CheckedListBox_SelectedTargets.Items.Clear();
-                foreach (Target t in SortedTargets(mTargetList))
+                foreach (Target t in SortedTargets(mSelection.KnownTargets))
                 {
-                    CheckedListBox_SelectedTargets.Items.Add(t.Name, defaultChecked);
+                    bool isChecked = defaultChecked || mSelection.Checked.Contains(t);
+                    CheckedListBox_SelectedTargets.Items.Add(t.Name, isChecked);
                 }
             }
             finally
             {
-                mSuppressGraphModeEvents = false;
+                mUpdatingUiFromVm = wasUpdating;
                 CheckedListBox_SelectedTargets.EndUpdate();
             }
+
         }
 
         // Re-order CheckedListBox_SelectedTargets AND ComboBox_SelectTarget in place using the
-        // current ComboBox_SortTargets mode, preserving per-row check state across the rebuild.
-        // Called from the sort-mode ComboBox, from the picker ValueChanged handlers when the
-        // active mode is time-dependent, and internally after anything that changes the list's
-        // membership. When <paramref name="autoSelectFirstInCombo"/> is true, ComboBox_SelectTarget
-        // snaps to the first item of the new order; otherwise its current Text selection is
-        // preserved at its new index.
+        // current ComboBox_SortTargets mode. Per-row check state is sourced from
+        // mSelection.Checked; PopulateCheckedListBoxFromTargets reads it directly so we don't
+        // need an explicit snapshot/restore. Called from the sort-mode ComboBox, from the
+        // picker ValueChanged handlers when the active mode is time-dependent, and internally
+        // after anything that changes the list's membership. When
+        // <paramref name="autoSelectFirstInCombo"/> is true, ComboBox_SelectTarget snaps to
+        // the first item of the new order; otherwise its current Text selection is preserved
+        // at its new index.
         private void ResortSelectedTargets(bool autoSelectFirstInCombo = false)
         {
-            // Re-sort ComboBox_SelectTarget first -- unconditional if mTargetList has content,
-            // because the combo's Items are independent of the CheckedListBox. The early-return
-            // below is only about the CheckedListBox work (which needs its own items to re-sort),
-            // and the combo should follow ComboBox_SortTargets regardless.
-            if (mTargetList != null && mTargetList.Count > 0)
-            {
-                PopulateTargetComboFromTargets(preserveSelection: !autoSelectFirstInCombo);
-            }
+            if (mSelection == null || mSelection.KnownTargets.Count == 0) return;
 
-            if (CheckedListBox_SelectedTargets.Items.Count == 0) return;
-            if (mTargetList == null || mTargetList.Count == 0) return;
-
-            // Snapshot check state keyed by name so reordering preserves each row.
-            var checkStates = new Dictionary<string, CheckState>(StringComparer.Ordinal);
-            for (int i = 0; i < CheckedListBox_SelectedTargets.Items.Count; i++)
-            {
-                string n = CheckedListBox_SelectedTargets.Items[i].ToString();
-                checkStates[n] = CheckedListBox_SelectedTargets.GetItemCheckState(i);
-            }
-
-            // Resolve the currently-displayed item names back to Target instances. Unchecked
-            // entries stay in the list -- this is reordering, not filtering.
-            var displayed = new List<Target>();
-            foreach (object item in CheckedListBox_SelectedTargets.Items)
-            {
-                string n = item.ToString();
-                Target t = mTargetList.Find(x => x.Name == n);
-                if (t != null) displayed.Add(t);
-            }
-
-            // Programmatic re-populate; suppress graph-mode flips during the Items churn
-            // (each Items.Add fires ItemCheck). The outer caller -- e.g. the Sort combo's
-            // SelectedIndexChanged -- has its own WireMultiMode hook if mode should flip.
-            CheckedListBox_SelectedTargets.BeginUpdate();
-            mSuppressGraphModeEvents = true;
-            try
-            {
-                CheckedListBox_SelectedTargets.Items.Clear();
-                foreach (Target t in SortedTargets(displayed))
-                {
-                    CheckState cs = checkStates.TryGetValue(t.Name, out var state)
-                        ? state : CheckState.Unchecked;
-                    CheckedListBox_SelectedTargets.Items.Add(t.Name, cs);
-                }
-            }
-            finally
-            {
-                mSuppressGraphModeEvents = false;
-                CheckedListBox_SelectedTargets.EndUpdate();
-            }
+            PopulateTargetComboFromTargets(preserveSelection: !autoSelectFirstInCombo);
+            PopulateCheckedListBoxFromTargets(defaultChecked: false);
 
             // Reorder the chart legend to match, in place -- no replot, no recompute. Series
             // objects (Points, Color, Tag, ToolTip) are preserved; only their index in
@@ -1304,17 +1259,25 @@ Right-click anywhere on the chart to clear all overlays.";
                 mAltitudeChart.ReorderTargets(SortedTargets(mAltitudeChart.Targets));
             }
 
-            // Belt-and-suspenders for the autoSelectFirstInCombo path: re-apply the first-item
-            // Text at the very end, after all CheckedListBox / chart-legend work is finished.
-            // The CheckedListBox Clear/Add above can trigger a SelectedIndexChanged on the
-            // CheckedListBox whose handler calls SyncTargetComboFromCheckedListBoxHighlight,
-            // which writes the CheckedListBox's SelectedItem name into ComboBox_SelectTarget.Text
-            // -- overwriting the "first item of the new sort order" that the initial
-            // PopulateTargetComboFromTargets call wrote. Re-apply here so the combo's visible
-            // Text reliably matches Items[0] of the re-sorted list.
+            // Belt-and-suspenders for autoSelectFirstInCombo: re-apply the first item's text
+            // at the very end. The CheckedListBox repopulate above can trigger a
+            // SelectedIndexChanged whose handler routes through OnCheckedListBoxSelectedIndex-
+            // Changed -> mSelection.SetSelectedSingle, which then writes the highlighted
+            // row's name back into ComboBox_SelectTarget via OnVmSelectedSingleChanged --
+            // overwriting the first-item Text the populate just set. Re-apply under
+            // mUpdatingUiFromVm so the write doesn't round-trip back through the VM.
             if (autoSelectFirstInCombo && ComboBox_SelectTarget.Items.Count > 0)
             {
-                ComboBox_SelectTarget.Text = ComboBox_SelectTarget.Items[0].ToString();
+                bool wasUpdating = mUpdatingUiFromVm;
+                mUpdatingUiFromVm = true;
+                try
+                {
+                    ComboBox_SelectTarget.Text = ComboBox_SelectTarget.Items[0].ToString();
+                }
+                finally
+                {
+                    mUpdatingUiFromVm = wasUpdating;
+                }
             }
         }
 
@@ -1359,7 +1322,7 @@ Right-click anywhere on the chart to clear all overlays.";
             if (index < 0) return;
 
             string name = CheckedListBox_SelectedTargets.Items[index].ToString();
-            Target found = mTargetList.Find(x => x.Name == name);
+            Target found = mSelection.KnownTargets.FirstOrDefault(x => x.Name == name);
             if (found == null) return;
 
             string path = found.Directory;
@@ -1392,7 +1355,7 @@ Right-click anywhere on the chart to clear all overlays.";
             if (mToolTipIndex < 0) return;
 
             string name = CheckedListBox_SelectedTargets.Items[mToolTipIndex].ToString();
-            Target found = mTargetList.Find(x => x.Name == name);
+            Target found = mSelection.KnownTargets.FirstOrDefault(x => x.Name == name);
             if (found == null) return;
 
             mToolTip.SetToolTip(CheckedListBox_SelectedTargets, found.Directory);
@@ -1453,145 +1416,182 @@ Right-click anywhere on the chart to clear all overlays.";
         // thread), so the Value increment is safe even though AltitudeSeries.BuildSeriesList
         // fires the first phase synchronously and the next two from a Task.Run continuation.
         //
-        // Generation guarding: each call bumps mChartBuildGeneration and captures its value.
-        // If the user clicks Graph again before the prior build's Task.Run completes, the
-        // stale callbacks compare-mismatch and no-op -- the new click's bar stays truthful.
-        // Subscribe each control below to its natural "changed" event so a user touch flips
-        // mGraphMode. To wire a new control, append one line to the appropriate list below;
-        // overload resolution picks the right event (Click / SelectedIndexChanged /
-        // ItemCheck / ValueChanged). New control TYPES need a new WireSingleMode /
-        // WireMultiMode overload added just below.
-        private void WireGraphModeEvents()
-        {
-            // Single-mode triggers.
-            WireSingleMode(ComboBox_SelectTarget);
-            WireSingleMode(mRaInput);
-            WireSingleMode(mDecInput);
-
-            // Multi-mode triggers.
-            WireMultiMode(Button_BrowseTargetList);
-            WireMultiMode(Button_SelectAllTargets);
-            WireMultiMode(Button_ClearAllTargets);
-            WireMultiMode(Button_VisibleTonight);
-            WireMultiMode(ComboBox_SortTargets);
-
-            // CheckedListBox is special: a checkbox toggle (ItemCheck) flips to Multi, but
-            // a pure highlight change (SelectedIndexChanged without a preceding ItemCheck)
-            // flips to Single AND syncs ComboBox_SelectTarget + RA/Dec to the highlighted
-            // row. See WireCheckedListBoxGraphMode below.
-            WireCheckedListBoxGraphMode(CheckedListBox_SelectedTargets);
-        }
-
-        private void WireSingleMode(ComboBox c)        => c.SelectedIndexChanged += (s, e) => MarkSingleMode();
-        private void WireSingleMode(CoordinateInput ci) => ci.ValueChanged        += (s, e) => MarkSingleMode();
-
-        private void WireMultiMode(Button b)           => b.Click                += (s, e) => MarkMultiMode();
-        private void WireMultiMode(ComboBox c)         => c.SelectedIndexChanged += (s, e) => MarkMultiMode();
-
-        // CheckedListBox interactions split into three paths:
-        //   - ItemCheck                  -> user toggled a checkbox. Flip to Multi so
-        //                                   Button_Graph builds the CheckedItems set.
-        //   - SelectedIndexChanged       -> highlight changed. Flip to Single if no
-        //     (without a toggle)            ItemCheck in the same click (pure highlight);
-        //                                   leave Multi in place otherwise. Mirror the
-        //                                   highlighted row into ComboBox_SelectTarget in
-        //                                   either case so the target inspector tracks it.
-        //   - Click (no other handler)   -> neither a checkbox nor highlight changed
-        //                                   (empty-space click, or a click on an already-
-        //                                   highlighted row with no toggle). Per spec,
-        //                                   this plain "I'm using the control" click
-        //                                   flips to Multi.
+        // Wire two-way bindings between TargetSelection and the UI controls. User input
+        // flows into the VM via mutator calls; VM events flow back to UI controls. The
+        // mUpdatingUiFromVm flag short-circuits VM-driven UI writes so they don't re-enter
+        // the VM (a UI control's user-input event still fires when the value is set
+        // programmatically; without the guard the write would round-trip).
         //
-        // mCheckedListBoxJustToggled is a one-click latch consumed by SelectedIndexChanged
-        // to disambiguate toggle-plus-highlight from plain highlight.
-        // mCheckedListBoxClickFiredHandler is a separate one-click latch cleared on MouseDown
-        // and set whenever ItemCheck or SelectedIndexChanged ran for this click; the Click
-        // handler inspects it to detect "nothing changed".
-        private void WireCheckedListBoxGraphMode(CheckedListBox c)
+        // Mode flips are implicit: SetSelectedSingle / SetChecked / SetCheckedSet /
+        // SetAllChecked all set Mode as a side effect, so callers don't need to track it.
+        //
+        // CheckedListBox disambiguation: WinForms fires ItemCheck and SelectedIndexChanged
+        // on the same user click when the user toggles a checkbox. ItemCheck routes to
+        // SetChecked (Mode = Multi); we then need to suppress the immediately-following
+        // SelectedIndexChanged path (which would otherwise route to SetSelectedSingle and
+        // flip Mode = Single, undoing the toggle's intent). The mCheckedListBoxJustToggled
+        // latch is set by ItemCheck and consumed by SelectedIndexChanged for that purpose.
+        private void WireSelectionVm()
         {
-            c.MouseDown += (s, e) => mCheckedListBoxClickFiredHandler = false;
+            // VM -> UI bindings.
+            mSelection.KnownTargetsChanged   += OnVmKnownTargetsChanged;
+            mSelection.SelectedSingleChanged += OnVmSelectedSingleChanged;
+            mSelection.CheckedSetChanged     += OnVmCheckedSetChanged;
 
-            c.ItemCheck += (s, e) =>
-            {
-                if (mSuppressGraphModeEvents) return;
-                mCheckedListBoxJustToggled = true;
-                mCheckedListBoxClickFiredHandler = true;
-                MarkMultiMode();
-            };
-
-            c.SelectedIndexChanged += (s, e) =>
-            {
-                if (mSuppressGraphModeEvents) return;
-
-                // De-selection (no row highlighted after the change) -- e.g. the user
-                // clicked empty space and WinForms de-highlighted the previously-selected
-                // row. Treat that as "no meaningful selection change" and fall through to
-                // the Click handler's no-change-flips-to-Multi rule. Consume the toggle
-                // latch so it doesn't leak, but skip setting the handler-fired flag so
-                // Click can still fire MarkMultiMode.
-                if (c.SelectedItem == null)
-                {
-                    mCheckedListBoxJustToggled = false;
-                    return;
-                }
-
-                mCheckedListBoxClickFiredHandler = true;
-
-                // Consume the toggle latch: it's valid for exactly one SelectedIndexChanged.
-                bool wasJustToggled = mCheckedListBoxJustToggled;
-                mCheckedListBoxJustToggled = false;
-
-                SyncTargetComboFromCheckedListBoxHighlight();
-
-                if (!wasJustToggled) MarkSingleMode();
-            };
-
-            c.Click += (s, e) =>
-            {
-                if (mSuppressGraphModeEvents) return;
-                if (!mCheckedListBoxClickFiredHandler) MarkMultiMode();
-            };
-
-            // ItemCheck can fire without a matching SelectedIndexChanged (toggling the
-            // checkbox on the already-selected row -- index doesn't change). MouseUp /
-            // KeyUp clear the toggle latch in that case so it doesn't leak into the next
-            // click.
-            c.MouseUp += (s, e) => mCheckedListBoxJustToggled = false;
-            c.KeyUp   += (s, e) => mCheckedListBoxJustToggled = false;
+            // UI -> VM bindings. ComboBox_SelectTarget.SelectedIndexChanged is Designer-wired
+            // to ComboBox_SelectTarget_SelectedIndexChanged which routes to the VM. Browse /
+            // Sort / VisibleTonight / Select-All / Clear-All buttons are Designer-wired to
+            // their own click handlers which talk to the VM directly. RA/Dec CoordinateInput
+            // events are subscribed in InitializeDynamicControls and route through
+            // OnRightAscensionEdited / OnDeclinationEdited. CheckedListBox needs programmatic
+            // wiring for ItemCheck / SelectedIndexChanged because it has no Designer-wired
+            // handlers for those events today.
+            CheckedListBox_SelectedTargets.ItemCheck      += OnCheckedListBoxItemCheck;
+            CheckedListBox_SelectedTargets.SelectedIndexChanged += OnCheckedListBoxSelectedIndexChanged;
+            CheckedListBox_SelectedTargets.MouseUp += (s, e) => mCheckedListBoxJustToggled = false;
+            CheckedListBox_SelectedTargets.KeyUp   += (s, e) => mCheckedListBoxJustToggled = false;
         }
 
-        // Push the highlighted CheckedListBox row's name into ComboBox_SelectTarget.Text.
-        // That fires the combo's SelectedIndexChanged which (a) resolves mTarget via the
-        // existing ComboBox_SelectTarget_SelectedIndexChanged handler and (b) refreshes
-        // RA/Dec via SyncTargetUIFromModel. mSuppressGraphModeEvents keeps the combo's
-        // WireSingleMode subscription from flipping our graph-mode state as a side effect
-        // (the graph-mode decision is already owned by the caller that invoked us).
-        private void SyncTargetComboFromCheckedListBoxHighlight()
+        private void OnVmKnownTargetsChanged(object sender, EventArgs e)
         {
-            if (CheckedListBox_SelectedTargets.SelectedItem == null) return;
-            string name = CheckedListBox_SelectedTargets.SelectedItem.ToString();
+            // Repopulate ComboBox_SelectTarget and CheckedListBox_SelectedTargets from the
+            // new known-target list (in the current sort order). Default checked = true for
+            // every loaded target -- the user can Clear All / pick a subset afterward.
+            PopulateCheckedListBoxFromTargets(defaultChecked: true);
+            PopulateTargetComboFromTargets(preserveSelection: false);
 
-            mSuppressGraphModeEvents = true;
+            // SetKnownTargets clears SelectedSingle when the prior selection isn't in the
+            // new catalog (different Target instance equality across reloads). Re-establish
+            // a default by picking the *first sorted* known target (matching what the
+            // ComboBox auto-selected via PopulateTargetComboFromTargets above) so RA/Dec
+            // inputs and ComboBox text reflect the same VM state after a load. Using
+            // KnownTargets[0] would pick load-order first, which only coincides with sort
+            // order under Name sort.
+            if (mSelection.SelectedSingle == null && mSelection.KnownTargets.Count > 0)
+            {
+                Target firstSorted = SortedTargets(mSelection.KnownTargets).FirstOrDefault();
+                if (firstSorted != null) mSelection.SetSelectedSingle(firstSorted);
+            }
+        }
+
+        private void OnVmSelectedSingleChanged(object sender, EventArgs e)
+        {
+            Target t = mSelection.SelectedSingle;
+            if (t == null) return;
+
+            bool wasUpdating = mUpdatingUiFromVm;
+            mUpdatingUiFromVm = true;
             try
             {
-                ComboBox_SelectTarget.Text = name;
+                mRaInput.SetProgrammatic(t.RightAscension, positive: true);
+                mDecInput.SetProgrammatic(t.Declination,   positive: t.North);
+                if (ComboBox_SelectTarget.Text != t.Name)
+                    ComboBox_SelectTarget.Text = t.Name;
             }
             finally
             {
-                mSuppressGraphModeEvents = false;
+                mUpdatingUiFromVm = wasUpdating;
             }
         }
 
-        private void MarkSingleMode()
+        private void OnVmCheckedSetChanged(object sender, EventArgs e)
         {
-            if (mSuppressGraphModeEvents) return;
-            mGraphMode = GraphMode.Single;
+            // Push VM.Checked state into the listbox row check states. Walks the listbox
+            // in display order; resolves each row's name to a Target via VM.KnownTargets,
+            // then checks/unchecks based on whether VM.Checked contains it.
+            bool wasUpdating = mUpdatingUiFromVm;
+            mUpdatingUiFromVm = true;
+            try
+            {
+                for (int i = 0; i < CheckedListBox_SelectedTargets.Items.Count; i++)
+                {
+                    string name = CheckedListBox_SelectedTargets.Items[i].ToString();
+                    Target row = mSelection.KnownTargets.FirstOrDefault(x => x.Name == name);
+                    bool shouldBeChecked = row != null && mSelection.Checked.Contains(row);
+                    CheckState desired = shouldBeChecked ? CheckState.Checked : CheckState.Unchecked;
+                    if (CheckedListBox_SelectedTargets.GetItemCheckState(i) != desired)
+                        CheckedListBox_SelectedTargets.SetItemCheckState(i, desired);
+                }
+            }
+            finally
+            {
+                mUpdatingUiFromVm = wasUpdating;
+            }
         }
 
-        private void MarkMultiMode()
+        private void OnCheckedListBoxItemCheck(object sender, ItemCheckEventArgs e)
         {
-            if (mSuppressGraphModeEvents) return;
-            mGraphMode = GraphMode.Multi;
+            if (mUpdatingUiFromVm) return;
+            string name = CheckedListBox_SelectedTargets.Items[e.Index].ToString();
+            Target t = mSelection.KnownTargets.FirstOrDefault(x => x.Name == name);
+            if (t == null) return;
+            bool isChecked = e.NewValue == CheckState.Checked;
+            mSelection.SetChecked(t, isChecked);
+            mCheckedListBoxJustToggled = true;
+        }
+
+        private void OnCheckedListBoxSelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (mUpdatingUiFromVm) return;
+
+            // De-selection (no row highlighted) -- consume the toggle latch and bail.
+            if (CheckedListBox_SelectedTargets.SelectedItem == null)
+            {
+                mCheckedListBoxJustToggled = false;
+                return;
+            }
+
+            // Consume the toggle latch: it's valid for exactly one SelectedIndexChanged.
+            // If a checkbox was just toggled (ItemCheck fired moments ago), don't route
+            // through SetSelectedSingle here -- ItemCheck already established Mode = Multi
+            // and SetSelectedSingle would reset Mode = Single, undoing the toggle's intent.
+            bool wasJustToggled = mCheckedListBoxJustToggled;
+            mCheckedListBoxJustToggled = false;
+            if (wasJustToggled) return;
+
+            string name = CheckedListBox_SelectedTargets.SelectedItem.ToString();
+            Target t = mSelection.KnownTargets.FirstOrDefault(x => x.Name == name);
+            if (t != null) mSelection.SetSelectedSingle(t);
+        }
+
+        // Show a small auto-dismissing notice centered on the main form. Used by
+        // Button_Graph_Click when no targets are picked / checked / typed -- a silent
+        // no-op was confusing. Non-modal: the main form stays interactive while the
+        // notice is on screen.
+        private void ShowTransientMessage(string text, int durationMs = 2000)
+        {
+            var notice = new Form
+            {
+                FormBorderStyle = FormBorderStyle.FixedToolWindow,
+                StartPosition   = FormStartPosition.CenterParent,
+                ShowInTaskbar   = false,
+                ControlBox      = false,
+                Text            = string.Empty,
+                Size            = new Size(220, 80),
+                BackColor       = SystemColors.Info,
+            };
+            var label = new Label
+            {
+                Text      = text,
+                Dock      = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Font      = new Font(SystemFonts.MessageBoxFont.FontFamily, 12F, FontStyle.Bold),
+            };
+            notice.Controls.Add(label);
+
+            var timer = new System.Windows.Forms.Timer { Interval = durationMs };
+            timer.Tick += (s, e) =>
+            {
+                timer.Stop();
+                timer.Dispose();
+                if (!notice.IsDisposed)
+                {
+                    notice.Close();
+                    notice.Dispose();
+                }
+            };
+            notice.Shown += (s, e) => timer.Start();
+            notice.Show(this);
         }
 
         private IProgress<string> BeginChartBuildProgress(int targetCount)
@@ -1632,48 +1632,29 @@ Right-click anywhere on the chart to clear all overlays.";
 
         private void ComboBox_SelectTarget_SelectedIndexChanged(object sender, EventArgs e)
         {
-            // Validate-then-assign: if the Find returns null (combobox text doesn't match any
-            // loaded target), leave mTarget pointing at the previous valid target. Assigning
-            // null to mTarget and bailing would leak a null through to BuildTargetSeriesList ->
-            // SeriesFor(null) -> ArgumentNullException on the next Graph click.
+            // Validate-then-route: if the Find returns null (combobox text doesn't match any
+            // loaded target), leave mSelection.SelectedSingle pointing at the previous valid
+            // target. The OnComboSelectTargetChanged binding registered in WireSelectionVm
+            // also handles this path; this Designer-wired handler is kept as a no-op forwarder
+            // so the VM is the single source of truth for resolution.
+            if (mUpdatingUiFromVm) return;
+            if (mSelection == null) return;
             string selectedTargetName = ComboBox_SelectTarget.Text;
-            Target found = mTargetList.Find(t => t.Name == selectedTargetName);
+            Target found = mSelection.KnownTargets.FirstOrDefault(t => t.Name == selectedTargetName);
             if (found == null) return;
-
-            mTarget = found;
-            SyncTargetUIFromModel();
+            mSelection.SetSelectedSingle(found);
         }
 
-        // SetItemCheckState fires ItemCheck per row; suppress graph-mode side effects so
-        // the programmatic batch doesn't set mCheckedListBoxJustToggled / flip mode. The
-        // button's own Click subscription (WireMultiMode(Button)) fires after this handler
-        // returns and reliably flips mode to Multi.
+        // VM mutator. SetAllChecked fires CheckedSetChanged + ModeChanged (Multi);
+        // OnVmCheckedSetChanged updates the listbox row check states.
         private void Button_ClearAllTargets_Click(object sender, EventArgs e)
         {
-            mSuppressGraphModeEvents = true;
-            try
-            {
-                for (int i = 0; i < CheckedListBox_SelectedTargets.Items.Count; i++)
-                    CheckedListBox_SelectedTargets.SetItemCheckState(i, CheckState.Unchecked);
-            }
-            finally
-            {
-                mSuppressGraphModeEvents = false;
-            }
+            mSelection.SetAllChecked(false);
         }
 
         private void Button_SelectAllTargets_Click(object sender, EventArgs e)
         {
-            mSuppressGraphModeEvents = true;
-            try
-            {
-                for (int i = 0; i < CheckedListBox_SelectedTargets.Items.Count; i++)
-                    CheckedListBox_SelectedTargets.SetItemCheckState(i, CheckState.Checked);
-            }
-            finally
-            {
-                mSuppressGraphModeEvents = false;
-            }
+            mSelection.SetAllChecked(true);
         }
 
         // Check exactly the targets that have a contiguous window of at least
@@ -1686,7 +1667,7 @@ Right-click anywhere on the chart to clear all overlays.";
         // "DatePicker.Value.Date + TimePicker.Value.TimeOfDay" pattern.
         private void Button_VisibleTonight_Click(object sender, EventArgs e)
         {
-            if (mTargetList == null || mTargetList.Count == 0) return;
+            if (mSelection == null || mSelection.KnownTargets.Count == 0) return;
             if (mLocation == null) return;
 
             DateTime tonightAnchor = DatePicker.Value.Date + TimePicker.Value.TimeOfDay;
@@ -1726,30 +1707,23 @@ Right-click anywhere on the chart to clear all overlays.";
                 pickedNightLocation.Horizon <= 0.0
                 && pickedNightLocation.Duration <= TimeSpan.Zero;
 
-            // Suppress graph-mode side effects during the batch SetItemCheckState loop;
-            // WireMultiMode(Button_VisibleTonight) runs after us and reliably flips to Multi.
-            mSuppressGraphModeEvents = true;
-            try
-            {
-                for (int i = 0; i < CheckedListBox_SelectedTargets.Items.Count; i++)
-                {
-                    string name = CheckedListBox_SelectedTargets.Items[i].ToString();
-                    Target target = mTargetList.Find(t => t.Name == name);
-                    bool visible = target != null
-                        && (useEverVisible
-                            ? Astronomy.Core.Session.CoarseVisibility.IsEverVisible(
-                                target, pickedNightLocation, night)
-                            : Astronomy.Core.Session.CoarseVisibility.IsAboveHorizonForAtLeast(
-                                target, pickedNightLocation, night, horizon,
-                                pickedNightLocation.Duration));
-                    CheckedListBox_SelectedTargets.SetItemCheckState(
-                        i, visible ? CheckState.Checked : CheckState.Unchecked);
-                }
-            }
-            finally
-            {
-                mSuppressGraphModeEvents = false;
-            }
+            // Compute the visible-tonight set, then push to the VM in two steps:
+            //   1. SetSelectedSingle to the first sorted visible target. This updates
+            //      ComboBox_SelectTarget.Text + RA/Dec inputs to that target. Implies
+            //      Mode = Single transiently.
+            //   2. SetCheckedSet(visible). This fills the multi-set + flips Mode back
+            //      to Multi (the right end-state for Button_Graph).
+            // Order matters: doing SetCheckedSet first then SetSelectedSingle would
+            // leave Mode = Single. Reversing the order ensures Mode = Multi at exit.
+            var visible = mSelection.KnownTargets.Where(t =>
+                useEverVisible
+                    ? Astronomy.Core.Session.CoarseVisibility.IsEverVisible(t, pickedNightLocation, night)
+                    : Astronomy.Core.Session.CoarseVisibility.IsAboveHorizonForAtLeast(
+                          t, pickedNightLocation, night, horizon, pickedNightLocation.Duration))
+                .ToList();
+            Target firstSorted = SortedTargets(visible).FirstOrDefault();
+            if (firstSorted != null) mSelection.SetSelectedSingle(firstSorted);
+            mSelection.SetCheckedSet(visible);
         }
     }
 }
