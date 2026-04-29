@@ -360,17 +360,19 @@ Right-click anywhere on the chart to clear all overlays.";
             mAltitudeChart.AddChartAreaToList("Day");
             mAltitudeChart.AddChartAreaToList("Year");
             mAltitudeChart.AddChartAreaToList("Optimal");
-            mAltitudeChart.AddToTargetList(mTarget);
-            mAltitudeChart.BuildTargetSeriesList();
-            mAltitudeChart.ShowChartAreaSeries("Day");
 
-
-            mAltitudeChart.ChartTitle = FormatChartTitle("Day");
+            // Phase 1: no startup chart. The chart control / chart areas / legend are
+            // wired up here so the empty chart panel renders cleanly, but no targets
+            // are added and no series are built. The user clicks Button_Graph to
+            // populate the chart; Button_Graph_Click owns the full ReloadWithTargets
+            // path (including UpdateHorizonLines + UpdateNowLine) for the populated
+            // chart. RegisterChartAreas eagerly registers all three chart areas with
+            // mChart.ChartAreas (each Visible = false until ShowChartAreaSeries flips
+            // one) so ReloadWithTargets' early UpdateHorizonLines call can index the
+            // chart areas before any series exist.
+            mAltitudeChart.RegisterChartAreas();
             mAltitudeChart.UIState(mUIState);
             mAltitudeChart.AddLegend();
-            mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
-
-
             mAltitudeChart.Legend = true;
 
             Panel_AltitudeChart.Controls.Add(mAltitudeChart.mChart);
@@ -393,11 +395,13 @@ Right-click anywhere on the chart to clear all overlays.";
             _ = GetNinaTargets(folderSelectedPaths);
 
             // Wire graph-mode tracking after the CoordinateInput helpers and mAltitudeChart
-            // exist but before the M31 seed below, so that the combo-text assignment fires
-            // SelectedIndexChanged through MarkSingleMode (a no-op since the default is
-            // already Single).
+            // exist but before the combo-text default below, so that the combo-text
+            // assignment fires SelectedIndexChanged through MarkSingleMode (a no-op since
+            // the default is already Single).
             WireGraphModeEvents();
 
+            // Cosmetic default for the target combo. No chart implication post-Phase-1:
+            // the chart is empty until the user clicks Graph.
             ComboBox_SelectTarget.Text = "M31";
         }
 

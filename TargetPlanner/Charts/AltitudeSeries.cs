@@ -253,21 +253,23 @@ namespace TargetPlanner.Charts
             RebuildDayTooltip(Location.Horizon, Location.Duration);
         }
 
-        // Rebuild only the Optimal series on Horizon or Duration change. Day, Moon, and Year
-        // don't depend on either input, so they stay as-is. Reads mYearCache (populated during
-        // the initial build) instead of recomputing dusk/dawn/LSTs etc. Cold-start path: if
-        // the cache hasn't been populated yet -- e.g., the user scrubbed a spinner before the
-        // initial Task.Run completed -- build Year synchronously first on the UI thread.
+        // Rebuild only the Optimal series on Horizon / Duration / MoonAvoidanceProfile change.
+        // Day, Moon, and Year don't depend on these inputs, so they stay as-is. Reads
+        // mYearCache (populated during the async BuildSeriesList) instead of recomputing
+        // dusk/dawn/LSTs etc. Cold-start: silent no-op when the cache hasn't been populated
+        // yet -- the async builder is the sole owner of the cache build (a synchronous
+        // ComputeYearCache fallback here used to be safe but became a UI-thread hazard after
+        // moon samples were added: each invocation now runs ~25,600 CoordinateSharp moon
+        // calls per target, which hangs the UI on profile / spinner scrubs that race the
+        // initial async build). The async builder reads the latest MoonAvoidanceProfile
+        // and re-renders Optimal at completion (line 247 below), so the chart converges on
+        // the user's intent without us forcing it here.
         //
         // Horizon and Duration are passed explicitly rather than read from the snapshot so
         // scrubbing a spinner updates the rendered curve without mutating the snapshot.
         public void RebuildOptimalSeries(double horizon, TimeSpan duration)
         {
-            if (mYearCache == null || mYearCache.Count == 0)
-            {
-                mYearCache = ComputeYearCache();
-                RenderYearSeries();
-            }
+            if (mYearCache == null || mYearCache.Count == 0) return;
             RenderOptimalSeries(horizon, duration);
         }
 
@@ -522,28 +524,15 @@ namespace TargetPlanner.Charts
                 entry.LstDawn = SiderealTime.Local(entry.Dawn.ToUniversalTime(), lonDegEast);
                 if (entry.LstDawn < entry.LstDusk) entry.LstDawn += 24.0;
 
-                // Moon-aware Optimal-chart rebuild path (Phase-3 Slice 1) needs per-night
-                // moon state. Sampled at 10-minute cadence between Dusk and Dawn -- matches
-                // the cadence BestSession.MoonClearIntersect uses for the Day-chart path.
-                // Each sample is one MoonSeparation.ObserveAt call (one CoordinateSharpGate
-                // hit). ~70 calls per night per target on a typical night. Populated
-                // unconditionally so the cache stays profile-independent: profile changes
-                // re-walk these samples without any CoordinateSharp work.
-                TimeSpan moonStep = TimeSpan.FromMinutes(10);
-                List<MoonSample> samples = new List<MoonSample>(80);
-                DateTime sampleUtc = entry.Dusk;
-                while (sampleUtc <= entry.Dawn)
-                {
-                    var observed = MoonSeparation.ObserveAt(Target, Location, sampleUtc);
-                    samples.Add(new MoonSample
-                    {
-                        Utc        = sampleUtc,
-                        SepDeg     = observed.SeparationDeg,
-                        MoonAltDeg = observed.MoonAltDeg
-                    });
-                    sampleUtc = sampleUtc.Add(moonStep);
-                }
-                entry.MoonSamples = samples;
+                // TEMP DEBUG (bisection, kept through Phase 1-3): skip the ~25,600
+                // MoonSeparation.ObserveAt calls per target that drive the multi-minute
+                // multi-target build hang. Empty-samples is already a no-op in
+                // HasMoonClearViableWindow / EnumerateMoonClearIntervalsUtc, and with the
+                // chart's profile forced to null (see AltitudeChart.MoonAvoidanceProfile
+                // setter) those paths aren't even invoked. Phase 3's ChartCacheStore worker
+                // restores moon-sample collection in a background, pre-populating cache
+                // store with per-target parallelism gated only by CoordinateSharpGate.
+                entry.MoonSamples = new List<MoonSample>(0);
                 DateTime midUtc = entry.Dusk.AddTicks((entry.Dawn - entry.Dusk).Ticks / 2);
                 entry.MoonAgeDays = LunarAge.DaysAt(midUtc);
 

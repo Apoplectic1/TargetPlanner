@@ -45,6 +45,10 @@ namespace TargetPlanner.Charts
             get { return mMoonAvoidanceProfile; }
             set
             {
+                // TEMP DEBUG (bisection): force every assignment to null so all profile-aware
+                // code paths (Day-chart HD overlay, Optimal-chart short-circuit) revert to
+                // moon-blind behavior. To re-enable moon avoidance, remove this single line.
+                value = null;
                 mMoonAvoidanceProfile = value;
                 if (mSeriesByTarget == null) return;
                 foreach (AltitudeSeries s in mSeriesByTarget.Values)
@@ -443,19 +447,27 @@ namespace TargetPlanner.Charts
             mChartAreaList.Add(mChartArea);
         }
 
-        // Populate mChart.ChartAreas once (on first call) from the registered mChartAreaList,
-        // then on every subsequent call just flip each area's Visible flag. The previous
-        // implementation cleared mChart.ChartAreas and re-added the selected area on every
-        // radio-button switch, which also nuked the user's zoom and legend-color-toggle state.
-        // Keeping the ChartArea instances resident preserves that state across switches.
-        private void AddChartAreaToChart(string chartAreaName)
+        // Register every entry in mChartAreaList with mChart.ChartAreas. Idempotent: skips
+        // when already registered. All areas start hidden (Visible = false); ShowChartAreaSeries
+        // flips one to active. Splitting registration from visibility lets startup callers
+        // (InitializeDynamicControls) register areas eagerly so UpdateHorizonLines / other
+        // pre-render setup can index mChart.ChartAreas before the first ShowChartAreaSeries.
+        public void RegisterChartAreas()
         {
-            if (mChart.ChartAreas.Count == 0)
+            if (mChart.ChartAreas.Count != 0) return;
+            foreach (ChartArea area in mChartAreaList)
             {
-                foreach (ChartArea area in mChartAreaList)
-                    mChart.ChartAreas.Add(area);
+                area.Visible = false;
+                mChart.ChartAreas.Add(area);
             }
+        }
 
+        // Make chartAreaName the active (visible) area; hide the others. Keeping every
+        // ChartArea resident in mChart.ChartAreas (rather than clear+re-add per switch)
+        // preserves the user's zoom and legend-color-toggle state across radio-button flips.
+        private void SetActiveChartArea(string chartAreaName)
+        {
+            RegisterChartAreas();
             foreach (ChartArea area in mChartAreaList)
             {
                 bool active = area.Name == chartAreaName;
@@ -472,7 +484,7 @@ namespace TargetPlanner.Charts
             // return is safer than propagating to a UI event handler.
             if (mChartAreaList.All(ca => ca.Name != chartAreaName)) return;
 
-            AddChartAreaToChart(chartAreaName);
+            SetActiveChartArea(chartAreaName);
 
             // Horizon strip line placement is NOT done here. ReloadWithTargets seeds the
             // lines on every chart area at the snapshot Horizon; subsequent spinner scrubs
