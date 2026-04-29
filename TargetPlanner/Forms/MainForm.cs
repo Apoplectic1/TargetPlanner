@@ -240,10 +240,9 @@ Right-click anywhere on the chart to clear all overlays.";
             // Day chart's HD Overlay reflects the new avoidance regime immediately.
             BuildFiltersMenu();
 
-            // Initial control state: greyed (Disabled is the first-launch active filter,
-            // set by BuildFiltersMenu). The controls themselves are Designer-resident on
-            // GroupBox_MoonAvoidance.
-            SetLorentzianControlsEnabled(false);
+            // BuildFiltersMenu's preselect-first-filter call already wrote starting
+            // values into the Lorentzian controls and greyed them per the master
+            // CheckBox_Moon_AvoidanceEnable state (unchecked at first launch).
 
             // Run the silent startup update check after the form is visible so the user sees
             // the UI immediately; the prompt (if any) lands a moment later. Fire-and-forget --
@@ -515,10 +514,11 @@ Right-click anywhere on the chart to clear all overlays.";
         }
 
         // Loads the filter library (or ships defaults on first launch) and builds the
-        // Filters menu's mutually-exclusive radio group: Disabled (default), one item per
-        // filter in the library, and a future Custom slot. mFilterMenuItems holds the
-        // group so SetActiveFilter can enforce single-checked. The menu is appended to
-        // MenuStrip_MainForm at construction time, after File and Help.
+        // Filters menu's mutually-exclusive radio group: one item per filter, plus a
+        // Custom slot. The CheckBox_Moon_AvoidanceEnable on GroupBox_Moon_Avoidance is the
+        // master on/off switch -- the menu is filter-selection only. mFilterMenuItems
+        // holds the group so SetActiveFilter can enforce single-checked. The menu is
+        // appended to MenuStrip_MainForm at construction time, after File and Help.
         private void BuildFiltersMenu()
         {
             mFilterLibrary = FilterLibrary.LoadOrDefault();
@@ -538,13 +538,8 @@ Right-click anywhere on the chart to clear all overlays.";
 
             mFilterMenuItems = new List<ToolStripMenuItem>();
 
-            ToolStripMenuItem disabledItem = new ToolStripMenuItem("&Disabled") { Checked = true };
-            disabledItem.Click += (s, e) => SetActiveFilter(null, disabledItem);
-            mFiltersMenu.DropDownItems.Add(disabledItem);
-            mFilterMenuItems.Add(disabledItem);
-
-            mFiltersMenu.DropDownItems.Add(new ToolStripSeparator());
-
+            ToolStripMenuItem firstFilterItem = null;
+            MoonAvoidanceProfile firstFilterProfile = null;
             foreach (TpFilter filter in mFilterLibrary.Filters)
             {
                 ToolStripMenuItem item = new ToolStripMenuItem(filter.Name);
@@ -553,6 +548,11 @@ Right-click anywhere on the chart to clear all overlays.";
                 item.Click += (s, e) => SetActiveFilter(captured.ToProfile(), capturedItem);
                 mFiltersMenu.DropDownItems.Add(item);
                 mFilterMenuItems.Add(item);
+                if (firstFilterItem == null)
+                {
+                    firstFilterItem = item;
+                    firstFilterProfile = captured.ToProfile();
+                }
             }
 
             mFiltersMenu.DropDownItems.Add(new ToolStripSeparator());
@@ -570,10 +570,47 @@ Right-click anywhere on the chart to clear all overlays.";
 
             // Edit Filters... opens a modal dialog that mutates mFilterLibrary and
             // persists to JSON. On OK we rebuild this menu so renamed / added /
-            // removed filters appear; the active filter resets to Disabled.
+            // removed filters appear; the active filter falls back to the first
+            // library entry.
             ToolStripMenuItem editItem = new ToolStripMenuItem("&Edit Filters...");
             editItem.Click += (s, e) => OpenEditFiltersDialog();
             mFiltersMenu.DropDownItems.Add(editItem);
+
+            // Pre-select the first library filter visually and write its values into
+            // the Lorentzian controls so the GroupBox has sensible defaults from the
+            // start. Whether avoidance actually applies is gated on
+            // CheckBox_Moon_AvoidanceEnable.
+            //
+            // Critical: do NOT route through SetActiveFilter here. SetActiveFilter
+            // calls RebuildOptimalData, which calls AltitudeSeries.RebuildOptimalSeries
+            // for every target in the chart's mTargetList; the lazy-init branch in
+            // RebuildOptimalSeries (AltitudeSeries.cs:264) synchronously runs
+            // ComputeYearCache on the UI thread when the year cache hasn't been built
+            // yet. At construction time the M31 seed's async BuildSeriesList is still
+            // mid-flight, so the synchronous fallback either races the async builder
+            // or hangs the UI for tens of seconds. Setting MoonAvoidanceProfile alone
+            // is enough -- the setter propagates to every AltitudeSeries in
+            // mSeriesByTarget, and the in-flight async builder picks it up when it
+            // reaches RenderOptimalSeries. The post-Edit-Filters caller in
+            // OpenEditFiltersDialog explicitly calls RebuildOptimalData afterward,
+            // when caches are guaranteed populated.
+            bool avoidanceOn = CheckBox_Moon_AvoidanceEnable != null
+                            && CheckBox_Moon_AvoidanceEnable.Checked;
+            if (firstFilterItem != null)
+            {
+                firstFilterItem.Checked = true;
+                WriteProfileToControls(firstFilterProfile);
+                if (mAltitudeChart != null)
+                {
+                    mAltitudeChart.MoonAvoidanceProfile = avoidanceOn ? firstFilterProfile : null;
+                }
+            }
+            else if (mAltitudeChart != null)
+            {
+                // Empty library: nothing checked, no profile.
+                mAltitudeChart.MoonAvoidanceProfile = null;
+            }
+            SetLorentzianControlsEnabled(avoidanceOn);
         }
 
         private void OpenEditFiltersDialog()
@@ -584,23 +621,29 @@ Right-click anywhere on the chart to clear all overlays.";
             }
 
             // The library was mutated in place + persisted by the dialog. Rebuild the
-            // Filters menu so renamed / added / removed entries show up. Reset the
-            // active filter to Disabled to avoid dangling references to deleted
-            // entries; the user re-picks if they want a specific filter active.
+            // Filters menu so renamed / added / removed entries show up. The active
+            // filter falls back to the first library entry (handled inside
+            // BuildFiltersMenu); the master CheckBox_Moon_AvoidanceEnable state is
+            // preserved.
             BuildFiltersMenu();
+
+            // Trigger the chart redraw explicitly. BuildFiltersMenu deliberately
+            // skips RebuildOptimalData (the construction-time caller can't safely
+            // run it -- see the comment block in BuildFiltersMenu); by the time
+            // OpenEditFiltersDialog runs, year caches are populated and the call
+            // is cheap.
             if (mAltitudeChart != null)
             {
-                mAltitudeChart.MoonAvoidanceProfile = null;
                 mAltitudeChart.RebuildOptimalData(mLocation.Horizon, mLocation.Duration);
             }
-            SetLorentzianControlsEnabled(false);
         }
 
         // Update the active moon-avoidance profile and re-render every target's
         // moon-aware curves. Walks mFilterMenuItems to enforce mutually-exclusive
-        // checked state (only the just-clicked item stays checked). null profile means
-        // "Disabled" -- BestSession.For's overload short-circuits to the moon-blind
-        // path, so this preserves the legacy first-launch behavior.
+        // checked state (only the just-clicked item stays checked). The master
+        // CheckBox_Moon_AvoidanceEnable gates whether the profile is actually pushed to
+        // the chart -- when unchecked, the menu/controls update visibly but the chart
+        // sees null (no avoidance).
         private void SetActiveFilter(MoonAvoidanceProfile profile, ToolStripMenuItem clickedItem)
         {
             if (mFilterMenuItems != null)
@@ -611,9 +654,9 @@ Right-click anywhere on the chart to clear all overlays.";
                 }
             }
 
-            // When clickedItem is a named preset or Disabled, write the profile's values
-            // into the Lorentzian controls. When clickedItem is Custom, the controls ARE
-            // the source -- don't overwrite. WriteProfileToControls raises
+            // When clickedItem is a named preset, write the profile's values into the
+            // Lorentzian controls. When clickedItem is Custom, the controls ARE the
+            // source -- don't overwrite. WriteProfileToControls raises
             // mSuppressFilterEvents internally so its writes don't recursively flip the
             // menu back to Custom via OnLorentzianControlChanged.
             if (clickedItem != mFilterMenuItem_Custom)
@@ -621,11 +664,37 @@ Right-click anywhere on the chart to clear all overlays.";
                 WriteProfileToControls(profile);
             }
 
-            // Grey the controls when avoidance is off; matches the menu's load-bearing
-            // visual state (Disabled -> controls inert).
-            SetLorentzianControlsEnabled(profile != null && profile.Enabled);
+            bool avoidanceOn = CheckBox_Moon_AvoidanceEnable != null
+                            && CheckBox_Moon_AvoidanceEnable.Checked;
+            SetLorentzianControlsEnabled(avoidanceOn);
 
             if (mAltitudeChart == null) return;
+            mAltitudeChart.MoonAvoidanceProfile = avoidanceOn ? profile : null;
+            mAltitudeChart.RebuildOptimalData(mLocation.Horizon, mLocation.Duration);
+        }
+
+        // Master on/off for moon avoidance. When checked, the active filter's profile
+        // (read live from the Lorentzian controls -- they always reflect either a named
+        // filter's values or the user's Custom scrubs) is pushed to the chart. When
+        // unchecked, the chart sees null and skips moon-aware work entirely.
+        private void OnAvoidanceEnableChanged(object sender, EventArgs e)
+        {
+            if (mAltitudeChart == null) return;
+
+            bool enabled = CheckBox_Moon_AvoidanceEnable.Checked;
+            MoonAvoidanceProfile profile = null;
+            if (enabled)
+            {
+                profile = MoonAvoidanceProfile.Custom(
+                    separationDeg:  (double)NumericUpDown_Moon_Separation.Value,
+                    widthDays:      (double)NumericUpDown_Moon_Width.Value,
+                    relaxEnabled:   CheckBox_Moon_RelaxEnabled.Checked,
+                    relaxMinAltDeg: (double)NumericUpDown_Moon_RelaxMin.Value,
+                    relaxMaxAltDeg: (double)NumericUpDown_Moon_RelaxMax.Value,
+                    relaxScale:     (double)NumericUpDown_Moon_RelaxScale.Value);
+            }
+
+            SetLorentzianControlsEnabled(enabled);
             mAltitudeChart.MoonAvoidanceProfile = profile;
             mAltitudeChart.RebuildOptimalData(mLocation.Horizon, mLocation.Duration);
         }
