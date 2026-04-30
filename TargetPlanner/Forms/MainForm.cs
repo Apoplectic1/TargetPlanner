@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Windows.Forms;
 using Astronomy.Core.Moon;
+using Astronomy.Core.Night;
 using TargetPlanner.Filters;
 using TargetPlanner.Forms;
 using TargetPlanner.Settings;
@@ -513,8 +514,8 @@ Right-click anywhere on the chart to clear all overlays.";
 
         // Lazily-constructed shared Timer. ValueChanged calls Stop()+Start() to reset the
         // interval, so rapid fire events collapse to one trailing-edge Tick. Tick reads the
-        // latest mLocation.Horizon / Duration (already set by the ValueChanged handlers) so
-        // no per-event state needs to be latched.
+        // latest mLocation.Horizon / Duration / Lat / Lon (already set by the ValueChanged
+        // handlers) so no per-event state needs to be latched.
         private void RestartOptimalRebuildDebounce()
         {
             if (mOptimalRebuildDebounce == null)
@@ -526,11 +527,41 @@ Right-click anywhere on the chart to clear all overlays.";
             mOptimalRebuildDebounce.Start();
         }
 
+        // Trailing-edge debounce tick. Two responsibilities:
+        // 1. Cache invalidation -- if the location-keying fields drifted from what the cache
+        //    is built against, fire SetLocationAsync. Coalescing here avoids 3 invalidations
+        //    per Lat-D/M/S-spinner scrub. Cache rebuild itself is lazy (next Graph click).
+        // 2. Chart rebuild -- always call RebuildOptimalData, which walks the (possibly
+        //    just-cleared) cache and updates Optimal series. Cleared cache short-circuits
+        //    each AltitudeSeries.RenderOptimalSeries to a no-op without errors.
         private void OptimalRebuildDebounce_Tick(object sender, EventArgs e)
         {
             mOptimalRebuildDebounce.Stop();
+
+            if (mCache != null && !LocationsCacheEquivalent(mLocation, mCache.CurrentLocation))
+            {
+                _ = mCache.SetLocationAsync(mLocation);
+            }
+
             if (mAltitudeChart == null) return;
             mAltitudeChart.RebuildOptimalData(mLocation.Horizon, mLocation.Duration);
+        }
+
+        // Compare the two locations on the fields that key the chart cache: Lat / Lon /
+        // hemisphere flags (geometry) plus the year-start-day (NightCache horizon). Horizon
+        // and Duration are scrub-only inputs to RenderOptimalSeries and don't invalidate the
+        // cache. DateTime within a single year-window is fine; only the year-start
+        // anchor matters (NightCache.ComputeYearStartDay drops the day-of-month and rounds
+        // to the start of the seed's month).
+        private static bool LocationsCacheEquivalent(Location a, Location b)
+        {
+            if (object.ReferenceEquals(a, b)) return true;
+            if (a == null || b == null) return false;
+            return a.Latitude  == b.Latitude
+                && a.Longitude == b.Longitude
+                && a.North     == b.North
+                && a.West      == b.West
+                && NightCache.ComputeYearStartDay(a.DateTime) == NightCache.ComputeYearStartDay(b.DateTime);
         }
 
         // Loads the filter library (or ships defaults on first launch) and builds the
@@ -690,7 +721,10 @@ Right-click anywhere on the chart to clear all overlays.";
 
             if (mAltitudeChart == null) return;
             mAltitudeChart.MoonAvoidanceProfile = avoidanceOn ? profile : null;
-            mAltitudeChart.RebuildOptimalData(mLocation.Horizon, mLocation.Duration);
+            // Lorentzian-scrub coalescing: hammering Moon_Separation / Width / Relax* via
+            // OnLorentzianControlChanged funnels through here, and one trailing-edge tick
+            // does the per-target Optimal-walk after the user lets go.
+            RestartOptimalRebuildDebounce();
         }
 
         // Master on/off for moon avoidance. When checked, the active filter's profile
@@ -716,7 +750,9 @@ Right-click anywhere on the chart to clear all overlays.";
 
             SetLorentzianControlsEnabled(enabled);
             mAltitudeChart.MoonAvoidanceProfile = profile;
-            mAltitudeChart.RebuildOptimalData(mLocation.Horizon, mLocation.Duration);
+            // Debounce so a fast Enable-Disable-Enable click sequence collapses to one
+            // rebuild and the master toggle shares the Lorentzian-scrub debounce path.
+            RestartOptimalRebuildDebounce();
         }
 
         // User scrubbed a Lorentzian control. Build a Custom profile from the live values
@@ -983,6 +1019,14 @@ Right-click anywhere on the chart to clear all overlays.";
 
             mAppSettings.LastSelectedLocationName = name;
             SettingsStore.Save(mAppSettings);
+
+            // Single-shot user intent: invalidate the cache immediately rather than going
+            // through the debounce. Lat/lon scrubs go through OnLocationEdited which uses
+            // the debounce; combo-pick is one click that shouldn't feel laggy.
+            if (mCache != null && !LocationsCacheEquivalent(mLocation, mCache.CurrentLocation))
+            {
+                _ = mCache.SetLocationAsync(mLocation);
+            }
         }
 
         // DropDown nulls the current selection so re-picking the same item (e.g. "Penns Park"
@@ -994,10 +1038,20 @@ Right-click anywhere on the chart to clear all overlays.";
 
         // Fired by every location-input event (lat/lon spinners, textboxes, N/W checkboxes,
         // Horizon, Duration). If the user edited a field by hand, flip the combo to "Custom"
-        // so the combo label always matches the currently-displayed values.
+        // so the combo label always matches the currently-displayed values, and restart the
+        // debounce so the cache invalidates and the Optimal chart rebuilds (the Tick handler
+        // does the cache-equivalency check, so a no-op edit -- e.g., flipping N then back --
+        // ultimately doesn't drop the cache).
         private void OnLocationEdited(object sender, EventArgs e)
         {
             if (mSyncingLocationUI) return;
+
+            // Debounce-restart fires for every user-driven location edit, regardless of
+            // whether the combo is already "Custom". The cache check inside the Tick
+            // determines whether the cache actually drops; the chart's RebuildOptimalData
+            // is harmless when the cache is empty (no-ops per series).
+            RestartOptimalRebuildDebounce();
+
             if (ComboBox_Location.SelectedItem != null &&
                 ComboBox_Location.SelectedItem.ToString() == "Custom") return;
 

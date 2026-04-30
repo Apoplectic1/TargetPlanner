@@ -29,6 +29,8 @@ namespace TargetPlanner.Settings
                     {
                         if (settings.NamedLocations == null || settings.NamedLocations.Count == 0)
                             settings.NamedLocations = BuildDefaultNamedLocations();
+                        else
+                            AppendMissingBuiltins(settings.NamedLocations);
                         return settings;
                     }
                 }
@@ -48,6 +50,21 @@ namespace TargetPlanner.Settings
                 NamedLocations = BuildDefaultNamedLocations(),
                 LastSelectedLocationName = "Penns Park",
             };
+        }
+
+        // Append any built-in default named-locations that aren't already in the user's saved
+        // list. Idempotent: matched by Name (case-insensitive). Lets us add new defaults
+        // (e.g., "Hillsborough") in a release without forcing existing users to delete
+        // settings.json. User-edited Lat/Lon/etc. for an existing entry are preserved
+        // (matching by Name skips the re-add).
+        private static void AppendMissingBuiltins(List<NamedLocationSetting> existing)
+        {
+            foreach (NamedLocationSetting builtin in BuildDefaultNamedLocations())
+            {
+                bool present = existing.Exists(e =>
+                    string.Equals(e.Name, builtin.Name, StringComparison.OrdinalIgnoreCase));
+                if (!present) existing.Add(builtin);
+            }
         }
 
         public static void Save(AppSettings settings)
@@ -72,6 +89,16 @@ namespace TargetPlanner.Settings
             return new List<NamedLocationSetting>
             {
                 NamedLocationSetting.FromLocation(Location.Default),
+                new NamedLocationSetting
+                {
+                    Name = "Hillsborough",
+                    Latitude = 40.459456,
+                    North = true,
+                    Longitude = 74.612921,
+                    West = true,
+                    Horizon = 30.0,
+                    DurationMinutes = 240.0,
+                },
             };
         }
     }

@@ -112,11 +112,7 @@ The form's `WireSelectionVm` subscribes the VM events to UI-update handlers (`On
 
 **Moon avoidance (Phase-3 of the moon-avoidance work shipped: TP commits `4d48793`, `ba75055`, `f79a649`, `76ee915`; Library `b3506f0`).** Per-night Lorentzian-driven moon-clear evaluation that gates both the Day-chart HD Overlay and the three Optimal-chart curves. Architecture / survey at `~/.claude/plans/i-d-like-to-begin-idempotent-hopcroft.md`.
 
-**Local uncommitted state at last save:** the moon-avoidance bisection disables (introduced during the SoC refactor to keep moon-aware paths quiet while the architecture moved) have been removed in the working tree but **not committed**. Two changes:
-- `AltitudeChart.MoonAvoidanceProfile` setter — the `value = null;` short-circuit is gone (profile flows through to every `AltitudeSeries`).
-- `ChartCacheStore.ComputeYearDays` — the 10-min `MoonSeparation.ObserveAt` sweep is restored (cache populates `entry.MoonSamples` again).
-
-With both reverts in the working tree, moon avoidance is functionally re-enabled but the post-NINA-load `mCache.PrepareManyAsync` warmup pays the full CoordinateSharpGate-serialized cost (~25,600 calls × N targets, minutes of background work). The CoordinateSharp roll-your-own follow-up is the path to making this fast. Decide on commit-vs-revert next session.
+Moon avoidance is committed and active end-to-end. Post-NINA-load `mCache.PrepareManyAsync` warmup runs in **2-4 sec for 44 targets** (down from ~17 min pre-CoordinateSharp-removal). The 10-min `MoonSeparation.ObserveAt` sweep populates `entry.MoonSamples` per night per target; the `AltitudeChart.MoonAvoidanceProfile` setter pushes the live profile to every `AltitudeSeries` so chart rebuilds pick it up.
 
 - **Filter library (`Filters/`).** `Filter` is a TP-only POCO with `(Name, SeparationDeg, WidthDays, RelaxEnabled, RelaxMinAltDeg, RelaxMaxAltDeg, RelaxScale, BandwidthNm)`. `Filter.ToProfile()` builds a Core `MoonAvoidanceProfile` (drops `Name` and `BandwidthNm`, both TP-side metadata). `FilterLibrary.LoadOrDefault()` reads `%APPDATA%\TargetPlanner\filters.json` and falls back to in-code defaults (`H/O/S` at 60°/7d, `L/R/G/B` at 120°/14d) on missing-file or malformed-JSON. `Save()` round-trips through `Newtonsoft.Json`; constructor-arg mapping handles deserialization without explicit `[JsonProperty]` decorations. Mutators (`Add` / `RemoveAt` / `Replace` / `ReplaceAll`) for the `EditFiltersForm` shadow-then-commit flow.
 
@@ -150,14 +146,19 @@ With both reverts in the working tree, moon avoidance is functionally re-enabled
 
 ## Open follow-ups (priority order)
 
-In rough recommended order. Detailed plan at `~/.claude/plans/mainform-buildlorentziancontrols-progra-quizzical-hamster.md`.
+Recently shipped (no longer open):
 
-1. **Decide on the uncommitted moon-avoidance re-enable** — see the "Local uncommitted state at last save" note in the Moon avoidance section above. Either commit (Phase 5 done; live with CoordinateSharp slowness until #3) or revert (back to bisection until #3 lands).
-2. **Cache invalidation on Location change** (~1 hour). Wire `mCache.SetLocationAsync` from `OnLatitudeEdited` / `OnLongitudeEdited` / `ComboBox_Location_SelectionIndexChanged`. Add a smart cache-key comparison inside `SetLocationAsync` so spinner edits to Horizon / Duration don't invalidate (they don't affect the cache; only `Latitude` / `Longitude` / `North` / `West` / `NightCache.ComputeYearStartDay(DateTime)` do).
-3. **CoordinateSharp roll-your-own** (~3-5 days). Port from local NINA.Astrometry / SOFA / NOVAS31 (paths in memory `reference_nina_local_sources.md`). Replace CoordinateSharp internals in `Astronomy.Core/Night/NightCalculator.cs`, `Astronomy.Core/Moon/MoonSeparation.cs`, the `LunarIlluminationFraction` path, and `TargetPlanner/Charts/AltitudeChart.BuildSharedMoonSeries`. Drop the CoordinateSharp NuGet from both projects. `ChartCacheStore` is the single TP-side call site (the seam Phase 3 created), which scopes the swap. Add parity tests in `Astronomy.Core.Tests` against the existing CoordinateSharp output to ~1 arcsec.
-4. **Chart-package investigation** — prototype OxyPlot / ScottPlot / LiveCharts2 against a representative test (Day chart + strip lines + click-toggle legend + click-overlay rectangle). Document the input shape that fits the chosen package's API. Informs Phase 4.
-5. **Phase 4: AltitudeChart → stateless renderer** — informed by chart-package decision. Demote `AltitudeChart` to a renderer that takes `(SelectionState, CacheStore, Profile, Horizon, Duration)`. Sets up the chart-package swap. Defer until #4 picks a package.
-6. **Per-sub-interval moon-aware placement** — currently `RenderOptimalSeries` short-circuits "no viable window" but on partially-moon-impacted nights the placement still runs against moon-blind visibility windows. Floor / Symmetric values can technically reflect placement landing in the moon-impacted half. Refactor mirrors `BestSession.MoonClearIntersect`'s sub-interval iteration. Acceptable for v1 per the original moon-avoidance plan.
+- ~~**CoordinateSharp roll-your-own**~~ — pure-C# Meeus replacement landed in `e602bdb` (Library) + `2249834` (TP). Cache pre-population dropped from ~17 min to 2-4 sec on 44 targets; Astronomy.Core is now lock-free and managed-only.
+- ~~**Moon-avoidance re-enable**~~ — committed alongside the CS removal; bisection disables removed.
+- ~~**Cache invalidation on Location change**~~ — wired through `OptimalRebuildDebounce_Tick`'s cache-equivalency check (`LocationsCacheEquivalent` compares Lat / Lon / North / West / `NightCache.ComputeYearStartDay`). Lat/Lon spinner edits go through `OnLocationEdited` (debounced), combo picks fire `SetLocationAsync` immediately. All Lorentzian / Avoidance-Enable paths now route through the shared debounce too.
+
+Still open, in rough recommended order:
+
+1. **Per-sub-interval moon-aware placement** — `RenderOptimalSeries` short-circuits "no viable window" but on partially-moon-impacted nights the placement still runs against moon-blind visibility windows. Floor / Symmetric values can reflect placement landing in the moon-impacted half. Refactor mirrors `BestSession.MoonClearIntersect`'s sub-interval iteration.
+2. **Chart-package investigation** — prototype OxyPlot / ScottPlot / LiveCharts2 against a representative test (Day chart + strip lines + click-toggle legend + click-overlay rectangle). Document the input shape that fits the chosen package's API. Informs the next item.
+3. **Phase 4: AltitudeChart → stateless renderer** — informed by chart-package decision. Demote `AltitudeChart` to a renderer that takes `(SelectionState, CacheStore, Profile, Horizon, Duration)`. Sets up the chart-package swap.
+4. **Step-3 cleanup items from ROADMAP.md** — RA spinner range check consistency, retire chart-side `BuildOptimalSeries` math (use Core's `BestSession.For`), `Astrometry` → `AstrometryUi` rename, `CheckedListBox_SelectedSgpTargets` cosmetic rename.
+5. **IS / ISP work** — current major thrust per memory; the four-phase IntervalScheduler pipeline is the strategic next axis.
 
 ## Core consumer contract
 
