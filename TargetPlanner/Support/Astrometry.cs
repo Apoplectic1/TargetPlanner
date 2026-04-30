@@ -48,8 +48,10 @@ namespace TargetPlanner.Support
             // Lunar phase name from synodic-cycle bucket.
             LunarPhase = AstroUtil.GetMoonPhaseName(utc);
 
-            // Moon rise / set on today's UTC calendar day; convert to local for the UI label.
-            RiseAndSetEvent moonRs = AstroUtil.GetMoonRiseAndSet(utc, latSigned, lonEast);
+            // Moon rise / set on today's UTC calendar day; elevation-corrected for the
+            // observer's horizon dip so high-altitude users see the moon rise earlier and
+            // set later (~3.5 min shift at 1000 m, ~11 min at 10000 m).
+            RiseAndSetEvent moonRs = AstroUtil.GetMoonRiseAndSet(utc, latSigned, lonEast, localLocation.Elevation);
             LunarRise = moonRs.Rise.HasValue ? moonRs.Rise.Value.ToLocalTime() : DateTime.MinValue;
             LunarSet  = moonRs.Set .HasValue ? moonRs.Set .Value.ToLocalTime() : DateTime.MinValue;
         }

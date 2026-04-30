@@ -434,6 +434,16 @@ Right-click anywhere on the chart to clear all overlays.";
         {
             mLocalDateTime = (DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZoneInfo.Local);
             mLocation = mLocation.With(dateTime: mLocalDateTime.When, timeZoneInfo: mLocalDateTime.Zone);
+            RefreshAstrometryLabels();
+        }
+
+        // Re-populate the Astrometry static cache from mLocation and push every dependent
+        // label. ~150 us of Meeus math + 8 string assignments; cheap enough to fire on
+        // every Lat/Lon/Elevation spinner tick without debouncing. Called from
+        // UpdateLocalDateTimeEvents (date/time scrubs), OnLocationEdited (lat/lon/N/W/
+        // elevation spinners), and ComboBox_Location_SelectionIndexChanged (preset picks).
+        private void RefreshAstrometryLabels()
+        {
             Astrometry.Location(mLocation);
 
             Label_AstronomicalDuskValue.Text = Astrometry.AstronomicalDusk.ToShortTimeString();
@@ -1037,6 +1047,9 @@ Right-click anywhere on the chart to clear all overlays.";
             {
                 _ = mCache.SetLocationAsync(mLocation);
             }
+
+            // Refresh the dependent dusk/dawn/altitude/phase labels for the new geo.
+            RefreshAstrometryLabels();
         }
 
         // DropDown nulls the current selection so re-picking the same item (e.g. "Penns Park"
@@ -1055,6 +1068,11 @@ Right-click anywhere on the chart to clear all overlays.";
         private void OnLocationEdited(object sender, EventArgs e)
         {
             if (mSyncingLocationUI) return;
+
+            // Per-edit label refresh. Cheap (~150 us); fires on every spinner tick so
+            // the dependent readouts (dusk/dawn, sun/moon altitude, moon rise/set,
+            // illumination, phase) track the live mLocation values without lag.
+            RefreshAstrometryLabels();
 
             // Debounce-restart fires for every user-driven location edit, regardless of
             // whether the combo is already "Custom". The cache check inside the Tick

@@ -30,6 +30,9 @@
         {
             this.GroupBox_Local = new System.Windows.Forms.GroupBox();
             this.GroupBox_Location = new System.Windows.Forms.GroupBox();
+            this.Label_LocalMeters = new System.Windows.Forms.Label();
+            this.NumericUpDown_LocalElevation = new System.Windows.Forms.NumericUpDown();
+            this.Label_LocalElevation = new System.Windows.Forms.Label();
             this.CheckBox_LocalNorth = new System.Windows.Forms.CheckBox();
             this.Label_Location = new System.Windows.Forms.Label();
             this.ComboBox_Location = new System.Windows.Forms.ComboBox();
@@ -122,11 +125,9 @@
             this.FileToolStripMenuItem_MainForm = new System.Windows.Forms.ToolStripMenuItem();
             this.GroupBox_Altitude = new System.Windows.Forms.GroupBox();
             this.ProgressBar_MultiTargetProcessing = new System.Windows.Forms.ProgressBar();
-            this.Label_LocalElevation = new System.Windows.Forms.Label();
-            this.NumericUpDown_LocalElevation = new System.Windows.Forms.NumericUpDown();
-            this.Label_LocalMeters = new System.Windows.Forms.Label();
             this.GroupBox_Local.SuspendLayout();
             this.GroupBox_Location.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LocalElevation)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeMinutes)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeDegrees)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LongitudeDegrees)).BeginInit();
@@ -151,7 +152,6 @@
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Moon_RelaxScale)).BeginInit();
             this.MenuStrip_MainForm.SuspendLayout();
             this.GroupBox_Altitude.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LocalElevation)).BeginInit();
             this.SuspendLayout();
             // 
             // GroupBox_Local
@@ -194,6 +194,48 @@
             this.GroupBox_Location.TabIndex = 30;
             this.GroupBox_Location.TabStop = false;
             this.GroupBox_Location.Text = "Location";
+            // 
+            // Label_LocalMeters
+            // 
+            this.Label_LocalMeters.AutoSize = true;
+            this.Label_LocalMeters.Location = new System.Drawing.Point(145, 100);
+            this.Label_LocalMeters.Name = "Label_LocalMeters";
+            this.Label_LocalMeters.Size = new System.Drawing.Size(39, 13);
+            this.Label_LocalMeters.TabIndex = 28;
+            this.Label_LocalMeters.Text = "Meters";
+            // 
+            // NumericUpDown_LocalElevation
+            // 
+            this.NumericUpDown_LocalElevation.Increment = new decimal(new int[] {
+            10,
+            0,
+            0,
+            0});
+            this.NumericUpDown_LocalElevation.Location = new System.Drawing.Point(85, 96);
+            this.NumericUpDown_LocalElevation.Maximum = new decimal(new int[] {
+            10000,
+            0,
+            0,
+            0});
+            this.NumericUpDown_LocalElevation.Minimum = new decimal(new int[] {
+            100,
+            0,
+            0,
+            -2147483648});
+            this.NumericUpDown_LocalElevation.Name = "NumericUpDown_LocalElevation";
+            this.NumericUpDown_LocalElevation.Size = new System.Drawing.Size(55, 20);
+            this.NumericUpDown_LocalElevation.TabIndex = 27;
+            this.NumericUpDown_LocalElevation.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.NumericUpDown_LocalElevation.ValueChanged += new System.EventHandler(this.NumericUpDown_LocalElevation_ValueChanged);
+            // 
+            // Label_LocalElevation
+            // 
+            this.Label_LocalElevation.AutoSize = true;
+            this.Label_LocalElevation.Location = new System.Drawing.Point(32, 100);
+            this.Label_LocalElevation.Name = "Label_LocalElevation";
+            this.Label_LocalElevation.Size = new System.Drawing.Size(51, 13);
+            this.Label_LocalElevation.TabIndex = 26;
+            this.Label_LocalElevation.Text = "Elevation";
             // 
             // CheckBox_LocalNorth
             // 
@@ -1370,48 +1412,6 @@
             this.ProgressBar_MultiTargetProcessing.Size = new System.Drawing.Size(1331, 18);
             this.ProgressBar_MultiTargetProcessing.TabIndex = 40;
             // 
-            // Label_LocalElevation
-            // 
-            this.Label_LocalElevation.AutoSize = true;
-            this.Label_LocalElevation.Location = new System.Drawing.Point(41, 100);
-            this.Label_LocalElevation.Name = "Label_LocalElevation";
-            this.Label_LocalElevation.Size = new System.Drawing.Size(42, 13);
-            this.Label_LocalElevation.TabIndex = 26;
-            this.Label_LocalElevation.Text = "Elevation";
-            // 
-            // NumericUpDown_LocalElevation
-            // 
-            this.NumericUpDown_LocalElevation.Increment = new decimal(new int[] {
-            10,
-            0,
-            0,
-            0});
-            this.NumericUpDown_LocalElevation.Location = new System.Drawing.Point(85, 96);
-            this.NumericUpDown_LocalElevation.Maximum = new decimal(new int[] {
-            10000,
-            0,
-            0,
-            0});
-            this.NumericUpDown_LocalElevation.Minimum = new decimal(new int[] {
-            100,
-            0,
-            0,
-            -2147483648});
-            this.NumericUpDown_LocalElevation.Name = "NumericUpDown_LocalElevation";
-            this.NumericUpDown_LocalElevation.Size = new System.Drawing.Size(55, 20);
-            this.NumericUpDown_LocalElevation.TabIndex = 27;
-            this.NumericUpDown_LocalElevation.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_LocalElevation.ValueChanged += new System.EventHandler(this.NumericUpDown_LocalElevation_ValueChanged);
-            //
-            // Label_LocalMeters
-            // 
-            this.Label_LocalMeters.AutoSize = true;
-            this.Label_LocalMeters.Location = new System.Drawing.Point(145, 100);
-            this.Label_LocalMeters.Name = "Label_LocalMeters";
-            this.Label_LocalMeters.Size = new System.Drawing.Size(39, 13);
-            this.Label_LocalMeters.TabIndex = 28;
-            this.Label_LocalMeters.Text = "Meters";
-            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -1430,6 +1430,7 @@
             this.GroupBox_Local.ResumeLayout(false);
             this.GroupBox_Location.ResumeLayout(false);
             this.GroupBox_Location.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LocalElevation)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeMinutes)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeDegrees)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LongitudeDegrees)).EndInit();
@@ -1459,7 +1460,6 @@
             this.MenuStrip_MainForm.PerformLayout();
             this.GroupBox_Altitude.ResumeLayout(false);
             this.GroupBox_Altitude.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LocalElevation)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
