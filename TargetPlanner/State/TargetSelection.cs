@@ -47,11 +47,12 @@ namespace TargetPlanner.State
         public event EventHandler ModeChanged;
 
         /// <summary>
-        /// Replace the loaded-target catalog. <see cref="Checked"/> is reset to the new
-        /// known-target set (default-all-checked policy: a fresh load primes the Multi-mode
-        /// candidate list to "everything"). <see cref="SelectedSingle"/> is preserved iff
-        /// it's still a member of the new known set; otherwise cleared.
-        /// <see cref="Mode"/> is NOT changed -- the user's last-touched mode survives a load.
+        /// Replace the loaded-target catalog. <see cref="Checked"/> is reset to empty
+        /// (default-none-checked policy: a fresh load presents the Multi-mode candidate
+        /// list with everything unchecked, so the user opts in target-by-target rather
+        /// than opting out). <see cref="SelectedSingle"/> is preserved iff it's still a
+        /// member of the new known set; otherwise cleared. <see cref="Mode"/> is NOT
+        /// changed -- the user's last-touched mode survives a load.
         /// </summary>
         public void SetKnownTargets(IEnumerable<Target> targets)
         {
@@ -64,10 +65,10 @@ namespace TargetPlanner.State
                 selectionDropped = true;
             }
 
-            // Default-all-checked policy. The set always replaces; we always notify, since
+            // Default-none-checked policy. The set always replaces; we always notify, since
             // even a same-equal HashSet here is semantically a "fresh population" event for
-            // listeners (the underlying Target instances are likely new even if names match).
-            mChecked = new HashSet<Target>(mKnown);
+            // listeners.
+            mChecked = new HashSet<Target>();
 
             KnownTargetsChanged?.Invoke(this, EventArgs.Empty);
             CheckedSetChanged?.Invoke(this, EventArgs.Empty);

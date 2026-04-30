@@ -427,7 +427,11 @@ namespace TargetPlanner.Charts
             yearSeries.Points.Clear();
             foreach (NightCacheEntry entry in mYearCache)
             {
-                yearSeries.Points.AddXY(entry.SentinelX, entry.YearAlt);
+                int idx = yearSeries.Points.AddXY(entry.SentinelX, entry.YearAlt);
+                yearSeries.Points[idx].ToolTip = string.Format(
+                    CultureInfo.InvariantCulture,
+                    "{0}\n{1:MMM dd, yyyy}\nMax altitude: {2:0.0}°",
+                    Target.Name, entry.SentinelX, entry.YearAlt);
             }
         }
 
@@ -495,9 +499,14 @@ namespace TargetPlanner.Charts
             {
                 if (entry.IsPolar || entry.YearAlt < horizonDeg)
                 {
-                    optimalSeries.Points.AddXY(entry.SentinelX, -90.0);
-                    optimalFloorSeries.Points.AddXY(entry.SentinelX, -90.0);
-                    optimalCenteredSeries.Points.AddXY(entry.SentinelX, -90.0);
+                    int cIdx = optimalSeries.Points.AddXY(entry.SentinelX, -90.0);
+                    int fIdx = optimalFloorSeries.Points.AddXY(entry.SentinelX, -90.0);
+                    int sIdx = optimalCenteredSeries.Points.AddXY(entry.SentinelX, -90.0);
+                    AssignOptimalTooltip(
+                        optimalSeries, cIdx, -90.0,
+                        optimalFloorSeries, fIdx, -90.0,
+                        optimalCenteredSeries, sIdx, -90.0,
+                        entry.SentinelX);
                     continue;
                 }
 
@@ -513,9 +522,14 @@ namespace TargetPlanner.Charts
                 if (MoonAvoidanceProfile != null && MoonAvoidanceProfile.Enabled
                     && !HasMoonClearViableWindow(entry, raHours, durationHrs, haHorizon, MoonAvoidanceProfile))
                 {
-                    optimalSeries.Points.AddXY(entry.SentinelX, -90.0);
-                    optimalFloorSeries.Points.AddXY(entry.SentinelX, -90.0);
-                    optimalCenteredSeries.Points.AddXY(entry.SentinelX, -90.0);
+                    int cIdx = optimalSeries.Points.AddXY(entry.SentinelX, -90.0);
+                    int fIdx = optimalFloorSeries.Points.AddXY(entry.SentinelX, -90.0);
+                    int sIdx = optimalCenteredSeries.Points.AddXY(entry.SentinelX, -90.0);
+                    AssignOptimalTooltip(
+                        optimalSeries, cIdx, -90.0,
+                        optimalFloorSeries, fIdx, -90.0,
+                        optimalCenteredSeries, sIdx, -90.0,
+                        entry.SentinelX);
                     continue;
                 }
 
@@ -612,10 +626,45 @@ namespace TargetPlanner.Charts
                     }
                 }
 
-                optimalSeries.Points.AddXY(entry.SentinelX, optimalAlt);
-                optimalFloorSeries.Points.AddXY(entry.SentinelX, floorAlt);
-                optimalCenteredSeries.Points.AddXY(entry.SentinelX, centeredAlt);
+                int cIdx2 = optimalSeries.Points.AddXY(entry.SentinelX, optimalAlt);
+                int fIdx2 = optimalFloorSeries.Points.AddXY(entry.SentinelX, floorAlt);
+                int sIdx2 = optimalCenteredSeries.Points.AddXY(entry.SentinelX, centeredAlt);
+                AssignOptimalTooltip(
+                    optimalSeries, cIdx2, optimalAlt,
+                    optimalFloorSeries, fIdx2, floorAlt,
+                    optimalCenteredSeries, sIdx2, centeredAlt,
+                    entry.SentinelX);
             }
+        }
+
+        // Format an altitude value for the Optimal hover tooltip. Sentinel '-90' values
+        // (polar / below-horizon / moon-aware short-circuit / centered-window doesn't fit)
+        // render as '—' so the unified tooltip reads cleanly when one or more curves are
+        // unviable for the hovered date.
+        private static string FormatAlt(double alt)
+            => alt <= -89.0
+                ? "—"
+                : alt.ToString("0.0", CultureInfo.InvariantCulture) + "°";
+
+        // Build one unified Optimal hover-tooltip string and assign it to the just-added
+        // DataPoints in all three Optimal curves. Hovering any of the three curves at this
+        // date surfaces the same target+date+Ceiling/Floor/Symmetric block, so the user
+        // sees the value of the curve they're hovering plus the relationship to the other
+        // two without moving the mouse. -90 sentinels render via FormatAlt as '—'.
+        private void AssignOptimalTooltip(
+            Series cSeries, int cIdx, double cAlt,
+            Series fSeries, int fIdx, double fAlt,
+            Series sSeries, int sIdx, double sAlt,
+            DateTime sentinelX)
+        {
+            string text = string.Format(
+                CultureInfo.InvariantCulture,
+                "{0} — {1:MMM dd, yyyy}\nCeiling: {2}\nFloor: {3}\nSymmetric: {4}",
+                Target.Name, sentinelX,
+                FormatAlt(cAlt), FormatAlt(fAlt), FormatAlt(sAlt));
+            cSeries.Points[cIdx].ToolTip = text;
+            fSeries.Points[fIdx].ToolTip = text;
+            sSeries.Points[sIdx].ToolTip = text;
         }
 
         // ====================================================================

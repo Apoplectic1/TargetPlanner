@@ -1108,13 +1108,15 @@ Right-click anywhere on the chart to clear all overlays.";
                 await mAltitudeChart.ReloadWithTargets(
                     mLocation, targets, phaseProgress, mGraphCts.Token);
 
-                // Snap the radio to Day and paint the finished chart. Setting Checked=true
-                // only fires CheckedChanged if the value actually changes, so we
-                // unconditionally run ShowChartAreaSeries + ChartTitle after to cover the
-                // "radio already on Day" path.
-                RadioButton_Day.Checked = true;
-                mAltitudeChart.ShowChartAreaSeries("Day");
-                mAltitudeChart.ChartTitle = FormatChartTitle("Day");
+                // Paint the finished chart on whichever area the user has already
+                // selected via the view radios. Day is the default at form construction
+                // (Designer sets RadioButton_Day.Checked = true) so a fresh launch lands
+                // on Day; subsequent Graph clicks preserve the user's last view choice.
+                string area = RadioButton_Optimal.Checked ? "Optimal"
+                            : RadioButton_Year.Checked    ? "Year"
+                            :                               "Day";
+                mAltitudeChart.ShowChartAreaSeries(area);
+                mAltitudeChart.ChartTitle = FormatChartTitle(area);
                 mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
             }
             finally
@@ -1737,9 +1739,11 @@ Right-click anywhere on the chart to clear all overlays.";
         private void OnVmKnownTargetsChanged(object sender, EventArgs e)
         {
             // Repopulate ComboBox_SelectTarget and CheckedListBox_SelectedTargets from the
-            // new known-target list (in the current sort order). Default checked = true for
-            // every loaded target -- the user can Clear All / pick a subset afterward.
-            PopulateCheckedListBoxFromTargets(defaultChecked: true);
+            // new known-target list (in the current sort order). Default checked = false
+            // for every loaded target -- the user opts in target-by-target rather than
+            // opting out via Clear-All. Matches TargetSelection's default-none-checked
+            // policy in SetKnownTargets.
+            PopulateCheckedListBoxFromTargets(defaultChecked: false);
             PopulateTargetComboFromTargets(preserveSelection: false);
 
             // SetKnownTargets clears SelectedSingle when the prior selection isn't in the
