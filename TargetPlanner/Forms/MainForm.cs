@@ -1094,14 +1094,18 @@ Right-click anywhere on the chart to clear all overlays.";
 
         private Location PickStartupLocation()
         {
-            string preferred = mAppSettings.LastSelectedLocationName;
-            if (!string.IsNullOrEmpty(preferred) && preferred != "Custom")
-            {
-                NamedLocationSetting match = mAppSettings.NamedLocations.Find(x => x.Name == preferred);
-                if (match != null) return match.ToLocation();
-            }
+            // Boot default: Penns Park when present, regardless of the last in-session
+            // selection. mAppSettings.LastSelectedLocationName still tracks the most
+            // recent combo pick (so we can persist it), but it no longer drives the
+            // start-up state -- a fresh launch always lands on Penns Park unless the
+            // built-in is missing from settings.
+            NamedLocationSetting pennsPark = mAppSettings.NamedLocations.Find(x =>
+                string.Equals(x.Name, "Penns Park", StringComparison.OrdinalIgnoreCase));
+            if (pennsPark != null) return pennsPark.ToLocation();
+
             if (mAppSettings.NamedLocations.Count > 0)
                 return mAppSettings.NamedLocations[0].ToLocation();
+
             // Fully qualify: MainForm inherits Control.Location (type Point), which shadows
             // the `using Location = ...` alias in member-access context.
             return Astronomy.Core.Locations.Location.Default;
