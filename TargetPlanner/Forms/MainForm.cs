@@ -1840,44 +1840,54 @@ Right-click anywhere on the chart to clear all overlays.";
             if (t != null) mSelection.SetSelectedSingle(t);
         }
 
+        // Pooled instances for the transient-notice popup. Allocated lazily on first
+        // ShowTransientMessage call and reused across subsequent invocations -- prior
+        // implementation built a fresh Form + Label + Timer per call (GDI handle churn
+        // for a notice that fires once every few minutes at most).
+        private Form mTransientNotice;
+        private Label mTransientLabel;
+        private System.Windows.Forms.Timer mTransientTimer;
+
         // Show a small auto-dismissing notice centered on the main form. Used by
         // Button_Graph_Click when no targets are picked / checked / typed -- a silent
         // no-op was confusing. Non-modal: the main form stays interactive while the
-        // notice is on screen.
+        // notice is on screen. The pooled Form is hidden (not disposed) on Tick so the
+        // next call reuses it.
         private void ShowTransientMessage(string text, int durationMs = 2000)
         {
-            var notice = new Form
+            if (mTransientNotice == null || mTransientNotice.IsDisposed)
             {
-                FormBorderStyle = FormBorderStyle.FixedToolWindow,
-                StartPosition   = FormStartPosition.CenterParent,
-                ShowInTaskbar   = false,
-                ControlBox      = false,
-                Text            = string.Empty,
-                Size            = new Size(220, 80),
-                BackColor       = SystemColors.Info,
-            };
-            var label = new Label
-            {
-                Text      = text,
-                Dock      = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleCenter,
-                Font      = new Font(SystemFonts.MessageBoxFont.FontFamily, 12F, FontStyle.Bold),
-            };
-            notice.Controls.Add(label);
-
-            var timer = new System.Windows.Forms.Timer { Interval = durationMs };
-            timer.Tick += (s, e) =>
-            {
-                timer.Stop();
-                timer.Dispose();
-                if (!notice.IsDisposed)
+                mTransientLabel = new Label
                 {
-                    notice.Close();
-                    notice.Dispose();
-                }
-            };
-            notice.Shown += (s, e) => timer.Start();
-            notice.Show(this);
+                    Dock      = DockStyle.Fill,
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Font      = new Font(SystemFonts.MessageBoxFont.FontFamily, 12F, FontStyle.Bold),
+                };
+                mTransientNotice = new Form
+                {
+                    FormBorderStyle = FormBorderStyle.FixedToolWindow,
+                    StartPosition   = FormStartPosition.CenterParent,
+                    ShowInTaskbar   = false,
+                    ControlBox      = false,
+                    Text            = string.Empty,
+                    Size            = new Size(220, 80),
+                    BackColor       = SystemColors.Info,
+                };
+                mTransientNotice.Controls.Add(mTransientLabel);
+                mTransientTimer = new System.Windows.Forms.Timer();
+                mTransientTimer.Tick += (s, e) =>
+                {
+                    mTransientTimer.Stop();
+                    if (mTransientNotice != null && !mTransientNotice.IsDisposed && mTransientNotice.Visible)
+                        mTransientNotice.Hide();
+                };
+            }
+
+            mTransientLabel.Text = text;
+            mTransientTimer.Stop();
+            mTransientTimer.Interval = durationMs;
+            if (!mTransientNotice.Visible) mTransientNotice.Show(this);
+            mTransientTimer.Start();
         }
 
         private IProgress<string> BeginChartBuildProgress(int targetCount)

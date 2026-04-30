@@ -197,20 +197,7 @@ namespace TargetPlanner.Charts
         {
             foreach (ChartArea area in mChartAreaList)
             {
-                Series reference = null;
-                foreach (Target target in mTargetList.ToList())
-                {
-                    if (target == null) continue;
-                    foreach (Series s in SeriesFor(target).TargetSeriesList.ToList())
-                    {
-                        if (s.Name.EndsWith("-" + area.Name) && s.Points.Count > 0)
-                        {
-                            reference = s;
-                            break;
-                        }
-                    }
-                    if (reference != null) break;
-                }
+                Series reference = FindReferenceSeries(area.Name);
                 if (reference == null) continue;
 
                 DateTime firstX = DateTime.FromOADate(reference.Points[0].XValue);
@@ -234,6 +221,23 @@ namespace TargetPlanner.Charts
                 }
                 line.IntervalOffset = nowIndex - line.StripWidth / 2.0;
             }
+        }
+
+        // First non-empty Series in any target whose name ends with "-{areaName}". Used by
+        // UpdateNowLine to anchor the strip-line offset against. UI-thread-only so we
+        // iterate the live lists directly (no defensive ToList copies).
+        private Series FindReferenceSeries(string areaName)
+        {
+            string suffix = "-" + areaName;
+            foreach (Target target in mTargetList)
+            {
+                if (target == null) continue;
+                foreach (Series s in SeriesFor(target).TargetSeriesList)
+                {
+                    if (s.Points.Count > 0 && s.Name.EndsWith(suffix)) return s;
+                }
+            }
+            return null;
         }
 
         private void Chart_MouseClick(object sender, MouseEventArgs e)
