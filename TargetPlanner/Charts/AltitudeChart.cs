@@ -1234,6 +1234,22 @@ namespace TargetPlanner.Charts
             dawnStripe.IntervalOffset        = dawnLocal.Subtract(chartStart).TotalMinutes;
             dawnStripe.StripWidth            = chartStop.Subtract(dawnLocal).TotalMinutes;
             mChart.ChartAreas[chartAreaName].AxisX.StripLines.Add(dawnStripe);
+
+            // Solid-yellow tail past chartStop. With IsXValueIndexed=true the chart reserves a
+            // sliver of axis past the last data index for the rightmost label, so the dawn
+            // gradient's yellow ends at chartStop and an unfilled strip shows between there and
+            // the chart-area edge. The tail uses the same yellow as the gradient endpoint and
+            // runs well past any plausible padding; a separate strip (rather than extending
+            // dawnStripe.StripWidth) is needed because stretching StripWidth would also stretch
+            // the gray->yellow transition.
+            StripLine dawnTail = new StripLine();
+            dawnTail.BackColor               = Color.FromArgb(145, 255, 238, 88);
+            dawnTail.IntervalOffsetType      = DateTimeIntervalType.Minutes;
+            dawnTail.Interval                = 0;
+            dawnTail.IntervalType            = DateTimeIntervalType.Minutes;
+            dawnTail.IntervalOffset          = chartStop.Subtract(chartStart).TotalMinutes;
+            dawnTail.StripWidth              = 600;
+            mChart.ChartAreas[chartAreaName].AxisX.StripLines.Add(dawnTail);
         }
 
         public void AddLegend()
