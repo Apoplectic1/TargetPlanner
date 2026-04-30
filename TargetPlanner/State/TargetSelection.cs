@@ -31,15 +31,15 @@ namespace TargetPlanner.State
     /// </remarks>
     public sealed class TargetSelection
     {
-        private List<Target> _known = new List<Target>();
-        private Target _selected;
-        private HashSet<Target> _checked = new HashSet<Target>();
-        private GraphMode _mode = GraphMode.Single;
+        private List<Target> mKnown = new List<Target>();
+        private Target mSelected;
+        private HashSet<Target> mChecked = new HashSet<Target>();
+        private GraphMode mMode = GraphMode.Single;
 
-        public IReadOnlyList<Target> KnownTargets => _known;
-        public Target SelectedSingle => _selected;
-        public IReadOnlyCollection<Target> Checked => _checked;
-        public GraphMode Mode => _mode;
+        public IReadOnlyList<Target> KnownTargets => mKnown;
+        public Target SelectedSingle => mSelected;
+        public IReadOnlyCollection<Target> Checked => mChecked;
+        public GraphMode Mode => mMode;
 
         public event EventHandler KnownTargetsChanged;
         public event EventHandler SelectedSingleChanged;
@@ -55,19 +55,19 @@ namespace TargetPlanner.State
         /// </summary>
         public void SetKnownTargets(IEnumerable<Target> targets)
         {
-            _known = targets?.ToList() ?? new List<Target>();
+            mKnown = targets?.ToList() ?? new List<Target>();
 
             bool selectionDropped = false;
-            if (_selected != null && !_known.Contains(_selected))
+            if (mSelected != null && !mKnown.Contains(mSelected))
             {
-                _selected = null;
+                mSelected = null;
                 selectionDropped = true;
             }
 
             // Default-all-checked policy. The set always replaces; we always notify, since
             // even a same-equal HashSet here is semantically a "fresh population" event for
             // listeners (the underlying Target instances are likely new even if names match).
-            _checked = new HashSet<Target>(_known);
+            mChecked = new HashSet<Target>(mKnown);
 
             KnownTargetsChanged?.Invoke(this, EventArgs.Empty);
             CheckedSetChanged?.Invoke(this, EventArgs.Empty);
@@ -82,12 +82,12 @@ namespace TargetPlanner.State
         /// </summary>
         public void SetSelectedSingle(Target t)
         {
-            bool targetChanged = !object.ReferenceEquals(_selected, t);
-            bool modeChanged   = _mode != GraphMode.Single;
+            bool targetChanged = !object.ReferenceEquals(mSelected, t);
+            bool modeChanged   = mMode != GraphMode.Single;
             if (!targetChanged && !modeChanged) return;
 
-            _selected = t;
-            _mode     = GraphMode.Single;
+            mSelected = t;
+            mMode     = GraphMode.Single;
 
             if (targetChanged) SelectedSingleChanged?.Invoke(this, EventArgs.Empty);
             if (modeChanged)   ModeChanged?.Invoke(this, EventArgs.Empty);
@@ -102,17 +102,17 @@ namespace TargetPlanner.State
         {
             if (t == null) return;
 
-            bool wasChecked = _checked.Contains(t);
+            bool wasChecked = mChecked.Contains(t);
             bool checkedChanged = wasChecked != isChecked;
-            bool modeChanged    = _mode != GraphMode.Multi;
+            bool modeChanged    = mMode != GraphMode.Multi;
             if (!checkedChanged && !modeChanged) return;
 
             if (checkedChanged)
             {
-                if (isChecked) _checked.Add(t);
-                else           _checked.Remove(t);
+                if (isChecked) mChecked.Add(t);
+                else           mChecked.Remove(t);
             }
-            _mode = GraphMode.Multi;
+            mMode = GraphMode.Multi;
 
             if (checkedChanged) CheckedSetChanged?.Invoke(this, EventArgs.Empty);
             if (modeChanged)    ModeChanged?.Invoke(this, EventArgs.Empty);
@@ -128,12 +128,12 @@ namespace TargetPlanner.State
                 ? new HashSet<Target>(targets)
                 : new HashSet<Target>();
 
-            bool checkedChanged = !_checked.SetEquals(newSet);
-            bool modeChanged    = _mode != GraphMode.Multi;
+            bool checkedChanged = !mChecked.SetEquals(newSet);
+            bool modeChanged    = mMode != GraphMode.Multi;
             if (!checkedChanged && !modeChanged) return;
 
-            _checked = newSet;
-            _mode    = GraphMode.Multi;
+            mChecked = newSet;
+            mMode    = GraphMode.Multi;
 
             if (checkedChanged) CheckedSetChanged?.Invoke(this, EventArgs.Empty);
             if (modeChanged)    ModeChanged?.Invoke(this, EventArgs.Empty);
@@ -145,7 +145,7 @@ namespace TargetPlanner.State
         /// </summary>
         public void SetAllChecked(bool isChecked)
         {
-            SetCheckedSet(isChecked ? _known : Enumerable.Empty<Target>());
+            SetCheckedSet(isChecked ? mKnown : Enumerable.Empty<Target>());
         }
 
         /// <summary>
@@ -155,8 +155,8 @@ namespace TargetPlanner.State
         /// </summary>
         public void SetMode(GraphMode m)
         {
-            if (_mode == m) return;
-            _mode = m;
+            if (mMode == m) return;
+            mMode = m;
             ModeChanged?.Invoke(this, EventArgs.Empty);
         }
     }

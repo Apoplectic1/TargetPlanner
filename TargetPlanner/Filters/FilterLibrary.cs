@@ -25,10 +25,31 @@ namespace TargetPlanner.Filters
     /// </remarks>
     public sealed class FilterLibrary
     {
+        // Factory built-in defaults. Filter is immutable so the array is safe to share;
+        // FilterLibrary's ctor takes a snapshot via .ToList() so library mutations never
+        // touch this array.
+        private static readonly Filter[] sBuiltinDefaults = new[]
+        {
+            new Filter("H", 60.0,  7.0,  false, -15.0, 5.0, 0.0,   3.0),
+            new Filter("O", 60.0,  7.0,  false, -15.0, 5.0, 0.0,   3.0),
+            new Filter("S", 60.0,  7.0,  false, -15.0, 5.0, 0.0,   3.0),
+            new Filter("L", 120.0, 14.0, false, -15.0, 5.0, 0.0, 300.0),
+            new Filter("R", 120.0, 14.0, false, -15.0, 5.0, 0.0, 100.0),
+            new Filter("G", 120.0, 14.0, false, -15.0, 5.0, 0.0, 100.0),
+            new Filter("B", 120.0, 14.0, false, -15.0, 5.0, 0.0, 100.0),
+        };
+
         private readonly List<Filter> mFilters;
 
         /// <summary>Read-only view of the current library contents (in insertion order).</summary>
         public IReadOnlyList<Filter> Filters => mFilters;
+
+        /// <summary>
+        /// The shipped factory defaults. Used by the Filters menu's "*" modified-indicator
+        /// (see <see cref="DiffersFromBuiltinDefault"/>) and by the EditFiltersForm Defaults
+        /// per-row button to restore a row to its factory values.
+        /// </summary>
+        public static IReadOnlyList<Filter> BuiltinDefaults => sBuiltinDefaults;
 
         /// <summary>Constructs a library from an enumerable of filters. <see langword="null"/> is treated as empty.</summary>
         public FilterLibrary(IEnumerable<Filter> filters)
@@ -117,18 +138,40 @@ namespace TargetPlanner.Filters
         /// <c>L/R/G/B</c> at broadband <c>(120°, 14d)</c>. Bandwidth values are typical
         /// for amateur kits; the user is expected to override via Edit Filters.
         /// </summary>
-        public static FilterLibrary DefaultLibrary()
+        public static FilterLibrary DefaultLibrary() => new FilterLibrary(sBuiltinDefaults);
+
+        /// <summary>
+        /// Returns the built-in factory default with a matching <paramref name="name"/>
+        /// (case-insensitive), or <see langword="null"/> when the name has no factory
+        /// baseline (i.e., user-created filter).
+        /// </summary>
+        public static Filter FindBuiltinDefault(string name)
         {
-            return new FilterLibrary(new[]
+            if (string.IsNullOrEmpty(name)) return null;
+            foreach (Filter f in sBuiltinDefaults)
             {
-                new Filter("H", 60.0,  7.0,  false, -15.0, 5.0, 0.0,   3.0),
-                new Filter("O", 60.0,  7.0,  false, -15.0, 5.0, 0.0,   3.0),
-                new Filter("S", 60.0,  7.0,  false, -15.0, 5.0, 0.0,   3.0),
-                new Filter("L", 120.0, 14.0, false, -15.0, 5.0, 0.0, 300.0),
-                new Filter("R", 120.0, 14.0, false, -15.0, 5.0, 0.0, 100.0),
-                new Filter("G", 120.0, 14.0, false, -15.0, 5.0, 0.0, 100.0),
-                new Filter("B", 120.0, 14.0, false, -15.0, 5.0, 0.0, 100.0),
-            });
+                if (string.Equals(f.Name, name, StringComparison.OrdinalIgnoreCase)) return f;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// True iff <paramref name="f"/> has a built-in factory default by name AND any of
+        /// its value fields (separation, width, relaxation params, bandwidth) differ from
+        /// that baseline. User-created filters (no factory baseline) always return false.
+        /// </summary>
+        public static bool DiffersFromBuiltinDefault(Filter f)
+        {
+            if (f == null) return false;
+            Filter b = FindBuiltinDefault(f.Name);
+            if (b == null) return false;
+            return f.SeparationDeg  != b.SeparationDeg
+                || f.WidthDays      != b.WidthDays
+                || f.RelaxEnabled   != b.RelaxEnabled
+                || f.RelaxMinAltDeg != b.RelaxMinAltDeg
+                || f.RelaxMaxAltDeg != b.RelaxMaxAltDeg
+                || f.RelaxScale     != b.RelaxScale
+                || f.BandwidthNm    != b.BandwidthNm;
         }
     }
 }

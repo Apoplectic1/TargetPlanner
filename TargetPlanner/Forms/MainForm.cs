@@ -24,8 +24,6 @@ namespace TargetPlanner
 {
     public partial class MainForm : Form
     {
-        private OpenFolderDialog mFolder;
-
         private Location mLocation;
         private (DateTime When, TimeZoneInfo Zone) mLocalDateTime;
 
@@ -51,20 +49,34 @@ namespace TargetPlanner
         private TargetPlanner.Caches.ChartCacheStore mCache;
         private CancellationTokenSource mCachePrepCts;
 
-        // Filter library + the radio-grouped Filters-menu items. The library persists in
+        // Filter library + the Filters-menu items. The library persists in
         // %APPDATA%\TargetPlanner\filters.json and ships with H/O/S/L/R/G/B defaults if
-        // no file exists yet. mFilterMenuItems is the mutually-exclusive radio group that
-        // the Filters menu populates at construction time; SetActiveFilter walks the list
-        // to enforce single-checked.
+        // no file exists yet. mFilterMenuItems is the radio group -- one item per
+        // filter; SetActiveFilter walks the list to enforce single-checked. mActiveFilter
+        // is the auto-save target: scrubbing the Lorentzian controls mutates this filter
+        // in-place via the FilterAutoSaveDebounce_Tick path, persisting the change to
+        // filters.json and refreshing the menu's '*' modified-indicator.
         private FilterLibrary mFilterLibrary;
         private ToolStripMenuItem mFiltersMenu;
         private List<ToolStripMenuItem> mFilterMenuItems;
-        private ToolStripMenuItem mFilterMenuItem_Custom;
+        private TpFilter mActiveFilter;
 
-        // Mirror of CoordinateInput.mSuppress: raised while preset-load writes values
-        // into the Lorentzian controls so OnLorentzianControlChanged returns early
-        // instead of recursively flipping the menu back to Custom.
+        // Raised while WriteProfileToControls writes profile values into the Lorentzian
+        // controls so OnLorentzianControlChanged returns early -- those writes aren't
+        // user edits and shouldn't trigger an auto-save tick.
         private bool mSuppressFilterEvents;
+
+        // Set true while the EditFiltersForm modal is showing. The Lorentzian-scrub
+        // auto-save tick consults this so dialog-time edits commit only via the dialog's
+        // own Save button (transactional shadow), not via the main-form auto-save path.
+        private bool mEditFiltersDialogOpen;
+
+        // Debounce timer for the Lorentzian-scrub auto-save into mActiveFilter. Mirrors
+        // the OptimalRebuildDebounce pattern (Stop+Start collapses rapid edits into one
+        // trailing-edge tick). Tick handler replaces mActiveFilter in mFilterLibrary,
+        // saves to filters.json, and refreshes menu '*' labels.
+        private System.Windows.Forms.Timer mFilterAutoSaveDebounce;
+        private const int FilterAutoSaveDebounceMs = 500;
 
         private ToolTip mToolTip;
         private int mToolTipIndex;
@@ -585,11 +597,13 @@ Right-click anywhere on the chart to clear all overlays.";
         }
 
         // Loads the filter library (or ships defaults on first launch) and builds the
-        // Filters menu's mutually-exclusive radio group: one item per filter, plus a
-        // Custom slot. The CheckBox_Moon_AvoidanceEnable on GroupBox_Moon_Avoidance is the
-        // master on/off switch -- the menu is filter-selection only. mFilterMenuItems
-        // holds the group so SetActiveFilter can enforce single-checked. The menu is
-        // appended to MenuStrip_MainForm at construction time, after File and Help.
+        // Filters menu's flat radio group -- one item per library filter. Modified
+        // filters (values differ from FilterLibrary.BuiltinDefaults) get a trailing ' *'
+        // in their menu label. Right-click on a filter opens the modal EditFiltersForm
+        // pre-selected on that filter. The CheckBox_Moon_AvoidanceEnable on
+        // GroupBox_Moon_Avoidance is the master on/off switch -- the menu is
+        // filter-selection only. The menu is appended to MenuStrip_MainForm at
+        // construction time, after File and Help.
         private void BuildFiltersMenu()
         {
             mFilterLibrary = FilterLibrary.LoadOrDefault();
@@ -609,114 +623,195 @@ Right-click anywhere on the chart to clear all overlays.";
 
             mFilterMenuItems = new List<ToolStripMenuItem>();
 
+            TpFilter firstFilter = null;
             ToolStripMenuItem firstFilterItem = null;
-            MoonAvoidanceProfile firstFilterProfile = null;
             foreach (TpFilter filter in mFilterLibrary.Filters)
             {
                 ToolStripMenuItem item = new ToolStripMenuItem(filter.Name);
                 TpFilter captured = filter;
                 ToolStripMenuItem capturedItem = item;
-                item.Click += (s, e) => SetActiveFilter(captured.ToProfile(), capturedItem);
+                item.Click += (s, e) => SetActiveFilter(captured, capturedItem);
+                // Right-click: dismiss the dropdown and open the modal Edit Filters
+                // dialog pre-selected on this filter. ToolStripMenuItem doesn't have a
+                // dedicated right-click event; MouseDown is the standard hook.
+                item.MouseDown += (s, e) =>
+                {
+                    if (e.Button != MouseButtons.Right) return;
+                    ToolStripDropDown owner = capturedItem.Owner as ToolStripDropDown;
+                    if (owner != null) owner.Close();
+                    OpenEditFiltersDialog(captured.Name);
+                };
                 mFiltersMenu.DropDownItems.Add(item);
                 mFilterMenuItems.Add(item);
-                if (firstFilterItem == null)
+                if (firstFilter == null)
                 {
+                    firstFilter = captured;
                     firstFilterItem = item;
-                    firstFilterProfile = captured.ToProfile();
                 }
             }
-
-            mFiltersMenu.DropDownItems.Add(new ToolStripSeparator());
-
-            // Custom slot. Direct user click is a no-op -- Custom is meaningfully active
-            // only as a side effect of editing the GroupBox controls (which auto-flips
-            // the menu via OnLorentzianControlChanged). Clicking it directly leaves the
-            // active profile and control values exactly where they were.
-            mFilterMenuItem_Custom = new ToolStripMenuItem("&Custom");
-            mFilterMenuItem_Custom.Click += (s, e) => { /* no-op; live values unchanged */ };
-            mFiltersMenu.DropDownItems.Add(mFilterMenuItem_Custom);
-            mFilterMenuItems.Add(mFilterMenuItem_Custom);
-
-            mFiltersMenu.DropDownItems.Add(new ToolStripSeparator());
-
-            // Edit Filters... opens a modal dialog that mutates mFilterLibrary and
-            // persists to JSON. On OK we rebuild this menu so renamed / added /
-            // removed filters appear; the active filter falls back to the first
-            // library entry.
-            ToolStripMenuItem editItem = new ToolStripMenuItem("&Edit Filters...");
-            editItem.Click += (s, e) => OpenEditFiltersDialog();
-            mFiltersMenu.DropDownItems.Add(editItem);
 
             // Pre-select the first library filter visually and write its values into
             // the Lorentzian controls so the GroupBox has sensible defaults from the
             // start. Whether avoidance actually applies is gated on
             // CheckBox_Moon_AvoidanceEnable.
             //
-            // Critical: do NOT route through SetActiveFilter here. SetActiveFilter
-            // calls RebuildOptimalData, which calls AltitudeSeries.RebuildOptimalSeries
-            // for every target in the chart's target list; the lazy-init branch in
-            // RebuildOptimalSeries (AltitudeSeries.cs:264) synchronously runs
-            // ComputeYearCache on the UI thread when the year cache hasn't been built
-            // yet. At construction time the M31 seed's async BuildSeriesList is still
-            // mid-flight, so the synchronous fallback either races the async builder
-            // or hangs the UI for tens of seconds. Setting MoonAvoidanceProfile alone
-            // is enough -- the setter propagates to every AltitudeSeries in
+            // Critical: do NOT route through SetActiveFilter here -- SetActiveFilter
+            // restarts the OptimalRebuildDebounce, whose tick can run while the chart's
+            // year caches are still being built (the M31 seed's async BuildSeriesList
+            // is still mid-flight at construction time). Setting MoonAvoidanceProfile
+            // alone is enough -- the setter propagates to every AltitudeSeries in
             // mSeriesByTarget, and the in-flight async builder picks it up when it
             // reaches RenderOptimalSeries. The post-Edit-Filters caller in
             // OpenEditFiltersDialog explicitly calls RebuildOptimalData afterward,
             // when caches are guaranteed populated.
             bool avoidanceOn = CheckBox_Moon_AvoidanceEnable != null
                             && CheckBox_Moon_AvoidanceEnable.Checked;
-            if (firstFilterItem != null)
+            if (firstFilter != null)
             {
                 firstFilterItem.Checked = true;
-                WriteProfileToControls(firstFilterProfile);
+                MoonAvoidanceProfile firstProfile = firstFilter.ToProfile();
+                WriteProfileToControls(firstProfile);
+                mActiveFilter = firstFilter;
                 if (mAltitudeChart != null)
                 {
-                    mAltitudeChart.MoonAvoidanceProfile = avoidanceOn ? firstFilterProfile : null;
+                    mAltitudeChart.MoonAvoidanceProfile = avoidanceOn ? firstProfile : null;
                 }
             }
-            else if (mAltitudeChart != null)
+            else
             {
                 // Empty library: nothing checked, no profile.
-                mAltitudeChart.MoonAvoidanceProfile = null;
+                mActiveFilter = null;
+                if (mAltitudeChart != null)
+                {
+                    mAltitudeChart.MoonAvoidanceProfile = null;
+                }
             }
             SetLorentzianControlsEnabled(avoidanceOn);
+
+            // Initial '*' state on per-item labels and on the top-level Filters title.
+            RefreshFilterMenuLabels();
         }
 
-        private void OpenEditFiltersDialog()
+        // Walk mFilterMenuItems updating each item's Text from the corresponding library
+        // filter's modified-vs-default state. Filters whose values differ from
+        // FilterLibrary.BuiltinDefaults get a trailing ' *'; the top-level
+        // mFiltersMenu.Text gets a trailing ' *' iff any filter is modified. User-
+        // created filters (no built-in baseline) always show no '*'
+        // (DiffersFromBuiltinDefault returns false). Called after BuildFiltersMenu
+        // initial setup and after every filter auto-save tick.
+        private void RefreshFilterMenuLabels()
         {
-            using (EditFiltersForm dlg = new EditFiltersForm(mFilterLibrary))
+            if (mFilterMenuItems == null || mFilterLibrary == null) return;
+            int n = Math.Min(mFilterMenuItems.Count, mFilterLibrary.Filters.Count);
+            bool anyModified = false;
+            for (int i = 0; i < n; i++)
             {
-                if (dlg.ShowDialog(this) != DialogResult.OK) return;
+                TpFilter f = mFilterLibrary.Filters[i];
+                bool modified = FilterLibrary.DiffersFromBuiltinDefault(f);
+                if (modified) anyModified = true;
+                mFilterMenuItems[i].Text = f.Name + (modified ? " *" : "");
+            }
+            if (mFiltersMenu != null)
+                mFiltersMenu.Text = anyModified ? "&Filters *" : "&Filters";
+        }
+
+        // Open the modal Edit Filters dialog. Suspends the main-form auto-save while
+        // the dialog is showing (the dialog has its own transactional Save against a
+        // shadow BindingList). After Save: rebuild the menu, re-resolve mActiveFilter
+        // to the prior-active by name (BuildFiltersMenu's early-init points it at the
+        // first filter), refresh the chart.
+        private void OpenEditFiltersDialog(string preSelectName = null)
+        {
+            mEditFiltersDialogOpen = true;
+            if (mFilterAutoSaveDebounce != null) mFilterAutoSaveDebounce.Stop();
+
+            // Capture the prior-active name BEFORE BuildFiltersMenu (it overwrites
+            // mActiveFilter via the early-init pre-select). After Save, we want to keep
+            // the user on whatever filter they had active before opening the dialog,
+            // not jump to whichever happens to be first in the library.
+            string priorActiveName = mActiveFilter != null ? mActiveFilter.Name : null;
+
+            try
+            {
+                using (EditFiltersForm dlg = new EditFiltersForm(mFilterLibrary, preSelectName))
+                {
+                    if (dlg.ShowDialog(this) != DialogResult.OK) return;
+                }
+            }
+            finally
+            {
+                mEditFiltersDialogOpen = false;
             }
 
             // The library was mutated in place + persisted by the dialog. Rebuild the
-            // Filters menu so renamed / added / removed entries show up. The active
-            // filter falls back to the first library entry (handled inside
-            // BuildFiltersMenu); the master CheckBox_Moon_AvoidanceEnable state is
-            // preserved.
+            // Filters menu so renamed / added / removed entries show up, then re-resolve
+            // mActiveFilter back to the prior-active by name when possible. The master
+            // CheckBox_Moon_AvoidanceEnable state is preserved by BuildFiltersMenu.
             BuildFiltersMenu();
+            RefreshActiveFilterAfterDialogSave(priorActiveName);
 
-            // Trigger the chart redraw explicitly. BuildFiltersMenu deliberately
-            // skips RebuildOptimalData (the construction-time caller can't safely
-            // run it -- see the comment block in BuildFiltersMenu); by the time
-            // OpenEditFiltersDialog runs, year caches are populated and the call
-            // is cheap.
+            // Trigger the chart redraw explicitly. BuildFiltersMenu deliberately skips
+            // RebuildOptimalData (the construction-time caller can't safely run it --
+            // see the comment block in BuildFiltersMenu); by the time
+            // OpenEditFiltersDialog runs, year caches are populated and the call is
+            // cheap.
             if (mAltitudeChart != null)
             {
                 mAltitudeChart.RebuildOptimalData(mLocation.Horizon, mLocation.Duration);
             }
         }
 
-        // Update the active moon-avoidance profile and re-render every target's
-        // moon-aware curves. Walks mFilterMenuItems to enforce mutually-exclusive
-        // checked state (only the just-clicked item stays checked). The master
-        // CheckBox_Moon_AvoidanceEnable gates whether the profile is actually pushed to
-        // the chart -- when unchecked, the menu/controls update visibly but the chart
-        // sees null (no avoidance).
-        private void SetActiveFilter(MoonAvoidanceProfile profile, ToolStripMenuItem clickedItem)
+        // Re-resolve mActiveFilter to a Filter instance in the post-dialog mFilterLibrary
+        // by case-insensitive name match against priorActiveName. Falls back to the
+        // first library filter when priorActiveName has been renamed or removed.
+        // Routes through SetActiveFilter so the menu radio + Lorentzian controls + chart
+        // pick up the (possibly modified) values.
+        private void RefreshActiveFilterAfterDialogSave(string priorActiveName)
         {
+            TpFilter found = null;
+            if (priorActiveName != null)
+            {
+                foreach (TpFilter f in mFilterLibrary.Filters)
+                {
+                    if (string.Equals(f.Name, priorActiveName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        found = f;
+                        break;
+                    }
+                }
+            }
+            if (found == null && mFilterLibrary.Filters.Count > 0)
+                found = mFilterLibrary.Filters[0];
+
+            if (found == null)
+            {
+                mActiveFilter = null;
+                return;
+            }
+
+            ToolStripMenuItem item = null;
+            for (int i = 0; i < mFilterLibrary.Filters.Count; i++)
+            {
+                if (object.ReferenceEquals(mFilterLibrary.Filters[i], found))
+                {
+                    if (i < mFilterMenuItems.Count) item = mFilterMenuItems[i];
+                    break;
+                }
+            }
+            SetActiveFilter(found, item);
+        }
+
+        // Activate the named filter: enforce single-checked menu state, populate the
+        // Lorentzian controls from the filter's profile, push the profile to the chart
+        // (gated on the master Enable), and set mActiveFilter -- the auto-save target
+        // that scrubbing the controls will mutate via FilterAutoSaveDebounce_Tick.
+        private void SetActiveFilter(TpFilter filter, ToolStripMenuItem clickedItem)
+        {
+            if (filter == null) return;
+
+            mActiveFilter = filter;
+            MoonAvoidanceProfile profile = filter.ToProfile();
+
             if (mFilterMenuItems != null)
             {
                 foreach (ToolStripMenuItem item in mFilterMenuItems)
@@ -725,15 +820,9 @@ Right-click anywhere on the chart to clear all overlays.";
                 }
             }
 
-            // When clickedItem is a named preset, write the profile's values into the
-            // Lorentzian controls. When clickedItem is Custom, the controls ARE the
-            // source -- don't overwrite. WriteProfileToControls raises
-            // mSuppressFilterEvents internally so its writes don't recursively flip the
-            // menu back to Custom via OnLorentzianControlChanged.
-            if (clickedItem != mFilterMenuItem_Custom)
-            {
-                WriteProfileToControls(profile);
-            }
+            // WriteProfileToControls raises mSuppressFilterEvents internally so its
+            // writes don't trigger OnLorentzianControlChanged's auto-save debounce.
+            WriteProfileToControls(profile);
 
             bool avoidanceOn = CheckBox_Moon_AvoidanceEnable != null
                             && CheckBox_Moon_AvoidanceEnable.Checked;
@@ -741,9 +830,6 @@ Right-click anywhere on the chart to clear all overlays.";
 
             if (mAltitudeChart == null) return;
             mAltitudeChart.MoonAvoidanceProfile = avoidanceOn ? profile : null;
-            // Lorentzian-scrub coalescing: hammering Moon_Separation / Width / Relax* via
-            // OnLorentzianControlChanged funnels through here, and one trailing-edge tick
-            // does the per-target Optimal-walk after the user lets go.
             RestartOptimalRebuildDebounce();
         }
 
@@ -775,16 +861,32 @@ Right-click anywhere on the chart to clear all overlays.";
             RestartOptimalRebuildDebounce();
         }
 
-        // User scrubbed a Lorentzian control. Build a Custom profile from the live values
-        // and route through SetActiveFilter so the menu radio flips to Custom and the
-        // chart re-renders. Returns early under mSuppressFilterEvents (preset-load is
-        // writing to the controls and the change isn't a user edit).
+        // User scrubbed a Lorentzian control. Push the live values to the chart (gated
+        // on master Enable) and start the auto-save debounce -- after 500 ms idle, the
+        // tick handler commits the live values into mActiveFilter and persists. Returns
+        // early under mSuppressFilterEvents (WriteProfileToControls is the writer; its
+        // writes aren't user edits).
         private void OnLorentzianControlChanged(object sender, EventArgs e)
         {
             if (mSuppressFilterEvents) return;
             if (NumericUpDown_Moon_Separation == null) return;
 
-            MoonAvoidanceProfile custom = MoonAvoidanceProfile.Custom(
+            if (mAltitudeChart != null)
+            {
+                bool avoidanceOn = CheckBox_Moon_AvoidanceEnable != null
+                                && CheckBox_Moon_AvoidanceEnable.Checked;
+                mAltitudeChart.MoonAvoidanceProfile = avoidanceOn ? BuildProfileFromControls() : null;
+            }
+            RestartFilterAutoSaveDebounce();
+            RestartOptimalRebuildDebounce();
+        }
+
+        // Read the live Lorentzian control values into a MoonAvoidanceProfile. Used by
+        // OnLorentzianControlChanged for the live chart push and (indirectly, via the
+        // same control reads) by FilterAutoSaveDebounce_Tick when building the
+        // replacement Filter.
+        private MoonAvoidanceProfile BuildProfileFromControls()
+            => MoonAvoidanceProfile.Custom(
                 separationDeg:  (double)NumericUpDown_Moon_Separation.Value,
                 widthDays:      (double)NumericUpDown_Moon_Width.Value,
                 relaxEnabled:   CheckBox_Moon_RelaxEnabled.Checked,
@@ -792,7 +894,66 @@ Right-click anywhere on the chart to clear all overlays.";
                 relaxMaxAltDeg: (double)NumericUpDown_Moon_RelaxMax.Value,
                 relaxScale:     (double)NumericUpDown_Moon_RelaxScale.Value);
 
-            SetActiveFilter(custom, mFilterMenuItem_Custom);
+        // Lazily-constructed shared Timer for the Lorentzian-scrub auto-save. Same
+        // restart-on-edit pattern as RestartOptimalRebuildDebounce: ValueChanged calls
+        // Stop()+Start() to reset the interval, so rapid edits collapse to one
+        // trailing-edge Tick.
+        private void RestartFilterAutoSaveDebounce()
+        {
+            if (mFilterAutoSaveDebounce == null)
+            {
+                mFilterAutoSaveDebounce = new System.Windows.Forms.Timer { Interval = FilterAutoSaveDebounceMs };
+                mFilterAutoSaveDebounce.Tick += FilterAutoSaveDebounce_Tick;
+            }
+            mFilterAutoSaveDebounce.Stop();
+            mFilterAutoSaveDebounce.Start();
+        }
+
+        // Trailing-edge tick for the Lorentzian-scrub auto-save. Builds a replacement
+        // Filter from the live control values (preserving Name and BandwidthNm from
+        // the active filter -- those aren't editable from the main form), replaces the
+        // entry in mFilterLibrary, persists, and refreshes the menu '*' labels.
+        // Suppressed while the EditFiltersForm modal is open; the dialog has its own
+        // Save semantics against a transactional shadow.
+        private void FilterAutoSaveDebounce_Tick(object sender, EventArgs e)
+        {
+            mFilterAutoSaveDebounce.Stop();
+            if (mEditFiltersDialogOpen) return;
+            if (mActiveFilter == null) return;
+
+            int idx = IndexOfActiveFilter();
+            if (idx < 0) return;
+
+            TpFilter updated = new TpFilter(
+                name:           mActiveFilter.Name,
+                separationDeg:  (double)NumericUpDown_Moon_Separation.Value,
+                widthDays:      (double)NumericUpDown_Moon_Width.Value,
+                relaxEnabled:   CheckBox_Moon_RelaxEnabled.Checked,
+                relaxMinAltDeg: (double)NumericUpDown_Moon_RelaxMin.Value,
+                relaxMaxAltDeg: (double)NumericUpDown_Moon_RelaxMax.Value,
+                relaxScale:     (double)NumericUpDown_Moon_RelaxScale.Value,
+                bandwidthNm:    mActiveFilter.BandwidthNm);
+
+            mFilterLibrary.Replace(idx, updated);
+            mActiveFilter = updated;
+
+            try { mFilterLibrary.Save(); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("Filter auto-save failed: " + ex); }
+
+            RefreshFilterMenuLabels();
+        }
+
+        // Locate the active filter's index in mFilterLibrary by reference equality.
+        // Returns -1 when mActiveFilter has been replaced (post-dialog-Save) before a
+        // refresh, or when the library is empty.
+        private int IndexOfActiveFilter()
+        {
+            if (mActiveFilter == null || mFilterLibrary == null) return -1;
+            for (int i = 0; i < mFilterLibrary.Filters.Count; i++)
+            {
+                if (object.ReferenceEquals(mFilterLibrary.Filters[i], mActiveFilter)) return i;
+            }
+            return -1;
         }
 
         // Push the profile's parameters into the Lorentzian controls. Raises
@@ -1157,7 +1318,7 @@ Right-click anywhere on the chart to clear all overlays.";
         }
         private void Button_BrowseTargetList_Click(object sender, EventArgs e)
         {
-            mFolder = new OpenFolderDialog()
+            var folder = new OpenFolderDialog()
             {
                 Title = "NINA Target Folder Browser",
                 AutoUpgradeEnabled = true,
@@ -1167,16 +1328,14 @@ Right-click anywhere on the chart to clear all overlays.";
                 RestoreDirectory = true
             };
 
-            DialogResult result = mFolder.ShowDialog(IntPtr.Zero);
-
-            if (result.Equals(DialogResult.OK))
+            if (folder.ShowDialog(IntPtr.Zero) == DialogResult.OK)
             {
                 // Click-Browse implies "I'm about to graph many of these". Flip Mode to
                 // Multi so the post-load Graph click uses the checked set without an
                 // intermediate explicit user action. Pre-VM this was a WireMultiMode hook
                 // on the button's Click event.
                 mSelection.SetMode(GraphMode.Multi);
-                _ = GetNinaTargets(mFolder.SelectedPaths);
+                _ = GetNinaTargets(folder.SelectedPaths);
             }
         }
 

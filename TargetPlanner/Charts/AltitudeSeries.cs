@@ -12,6 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms.DataVisualization.Charting;
 using TargetPlanner.Caches;
+using TargetPlanner.Support;
 
 using Location = Astronomy.Core.Locations.Location;
 using Target   = Astronomy.Core.Targets.Target;
@@ -476,8 +477,8 @@ namespace TargetPlanner.Charts
             optimalFloorSeries.Points.Clear();
             optimalCenteredSeries.Points.Clear();
 
-            double latSigned   = Location.North ?  Location.Latitude  : -Location.Latitude;
-            double decSigned   = Target.North   ?  Target.Declination : -Target.Declination;
+            double latSigned   = Location.LatSigned();
+            double decSigned   = Target.DecSigned();
             double raHours     = Target.RightAscension;
             double horizonDeg  = horizon;
             double durationHrs = duration.TotalHours;

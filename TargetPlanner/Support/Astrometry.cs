@@ -29,8 +29,8 @@ namespace TargetPlanner.Support
         public static void Location(Location localLocation)
         {
             DateTime utc = localLocation.DateTime.ToUniversalTime();
-            double latSigned = localLocation.North ?  localLocation.Latitude  : -localLocation.Latitude;
-            double lonEast   = localLocation.West  ? -localLocation.Longitude :  localLocation.Longitude;
+            double latSigned = localLocation.LatSigned();
+            double lonEast   = localLocation.LonEast();
             ObserverInfo observer = new ObserverInfo(latSigned, lonEast, localLocation.Elevation);
 
             // Astronomical-twilight night window bracketing now.

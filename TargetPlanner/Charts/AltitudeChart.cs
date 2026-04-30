@@ -609,8 +609,8 @@ namespace TargetPlanner.Charts
             if (!night.IsValid) return null;
 
             TimeSpan utcOffset = TimeZoneInfo.Local.GetUtcOffset(location.DateTime);
-            double latSigned = location.North ?  location.Latitude  : -location.Latitude;
-            double lonEast   = location.West  ? -location.Longitude :  location.Longitude;
+            double latSigned = location.LatSigned();
+            double lonEast   = location.LonEast();
             ObserverInfo observer = new ObserverInfo(latSigned, lonEast, location.Elevation);
 
             // Day-chart start/stop rounded to hour boundaries; matches BuildDaySeries.

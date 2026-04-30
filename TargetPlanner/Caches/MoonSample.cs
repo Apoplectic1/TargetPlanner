@@ -14,15 +14,22 @@ namespace TargetPlanner.Caches
     /// rejection booleans) keeps the cache profile-independent so profile scrubs avoid
     /// re-hitting CoordinateSharp.
     /// </remarks>
-    public struct MoonSample
+    public readonly struct MoonSample
     {
         /// <summary>Sample instant. <see cref="DateTimeKind.Utc"/>.</summary>
-        public DateTime Utc;
+        public DateTime Utc { get; }
 
         /// <summary>Topocentric target-moon separation in degrees, range [0, 180].</summary>
-        public double SepDeg;
+        public double SepDeg { get; }
 
         /// <summary>Moon altitude in degrees, range [-90, +90].</summary>
-        public double MoonAltDeg;
+        public double MoonAltDeg { get; }
+
+        public MoonSample(DateTime utc, double sepDeg, double moonAltDeg)
+        {
+            Utc = utc;
+            SepDeg = sepDeg;
+            MoonAltDeg = moonAltDeg;
+        }
     }
 }

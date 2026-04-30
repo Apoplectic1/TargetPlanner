@@ -7,6 +7,7 @@ using Astronomy.Core;
 using Astronomy.Core.Moon;
 using Astronomy.Core.Night;
 using Astronomy.Core.Time;
+using TargetPlanner.Support;
 using Location = Astronomy.Core.Locations.Location;
 using Target = Astronomy.Core.Targets.Target;
 
@@ -14,22 +15,15 @@ namespace TargetPlanner.Caches
 {
     /// <summary>
     /// Default <see cref="IChartCacheStore"/> implementation. Single-writer cache with
-    /// in-flight de-duping; cache builds run on the threadpool gated by an internal
-    /// concurrency semaphore so we don't slam the process-wide CoordinateSharp lock.
+    /// in-flight de-duping; cache builds run on the threadpool and self-throttle.
     /// </summary>
     /// <remarks>
-    /// Phase 3 of the SoC refactor: this class becomes the single CoordinateSharp call
-    /// site for chart-cache work. The renderer queries cache state instead of owning its
-    /// own. A future roll-your-own-astronomy follow-up only needs to swap the internals
-    /// of <see cref="BuildTargetEntry"/> / <see cref="EnsureNightCacheAsync"/>.
+    /// Phase 3 of the SoC refactor: the renderer queries cache state instead of owning
+    /// its own. Astronomy.Core's Meeus implementation is lock-free, so per-target year
+    /// builds run in parallel across threadpool cores.
     /// </remarks>
     public sealed class ChartCacheStore : IChartCacheStore, IDisposable
     {
-        // Build concurrency cap. CoordinateSharp serializes per-call internally, so going
-        // above 1 here mostly schedules waiters; staying at 1 keeps memory predictable.
-        // Bumped from 1 to a small fixed parallelism to amortize Task scheduling overhead.
-        private const int BuildConcurrency = 4;
-
         // Moon-sample sweep cadence inside ComputeYearDays. Matches the pre-Phase-3 behavior
         // in AltitudeSeries.ComputeYearCache and the cadence BestSession.MoonClearIntersect
         // uses for the Day-chart path.
@@ -37,7 +31,6 @@ namespace TargetPlanner.Caches
 
         private readonly object mGate = new object();
         private readonly SynchronizationContext mUiContext;
-        private readonly SemaphoreSlim mBuildSlots = new SemaphoreSlim(BuildConcurrency, BuildConcurrency);
 
         private Location mLocation;
         private NightCache mNightCache;
@@ -172,7 +165,6 @@ namespace TargetPlanner.Caches
             CancellationTokenSource cts;
             lock (mGate) { cts = mLocationCts; }
             try { cts?.Cancel(); cts?.Dispose(); } catch { }
-            mBuildSlots.Dispose();
         }
 
         // -------------- internals --------------
@@ -205,12 +197,13 @@ namespace TargetPlanner.Caches
             {
                 // Remove the failed/cancelled task from in-flight so a subsequent
                 // GetOrBuildAsync starts fresh instead of re-awaiting the broken Task.
+                // Mirrors the success-path location guard above: if SetLocationAsync
+                // swapped mInFlight while we were building, the new dict doesn't
+                // contain us anyway -- leave it alone.
                 lock (mGate)
                 {
-                    if (mInFlight.TryGetValue(target, out Task<TargetCacheEntry> t) && t.IsCompleted)
-                    {
+                    if (object.ReferenceEquals(mLocation, location))
                         mInFlight.Remove(target);
-                    }
                 }
                 throw;
             }
@@ -251,16 +244,6 @@ namespace TargetPlanner.Caches
             }
         }
 
-        // Helper: gate the per-target build through the concurrency semaphore. Wraps
-        // BuildEntryAsync's await Task.Run so we don't oversubscribe the threadpool with
-        // ComputeYearDays calls.
-        //
-        // Currently mBuildSlots is acquired inside ComputeYearDays via Task.Run, but
-        // PrepareManyAsync would otherwise schedule N tasks all hitting the threadpool
-        // simultaneously. Tightening: wait on mBuildSlots before scheduling. (TODO if perf
-        // becomes an issue; today the bottleneck is CoordinateSharpGate's serial lock.)
-        // For now we let Task.Run in ComputeYearDays self-throttle via the threadpool.
-
         private void FireTargetReady(Target target, TargetCacheEntry entry)
         {
             EventHandler<TargetReadyEventArgs> handler = TargetReady;
@@ -277,22 +260,15 @@ namespace TargetPlanner.Caches
         }
 
         // External cancellation: the caller's ct may fire before the build's locationCts.
-        // Wrap the in-flight build so the caller's await throws on either source.
+        // Wrap the in-flight build so the caller's await throws on either source. The inner
+        // task is keyed to the location's CTS and isn't cancelled from here -- WhenAny just
+        // gives the caller's await a path to observe external cancellation.
         private static async Task<TargetCacheEntry> WithExternalCancel(Task<TargetCacheEntry> inner, CancellationToken external)
         {
             if (!external.CanBeCanceled) return await inner;
-
-            using (CancellationTokenRegistration reg = external.Register(state =>
-            {
-                // No way to cancel the inner task from here -- it's keyed to the location's
-                // CTS. The await below observes external cancellation via Task.WhenAny.
-            }, null))
-            {
-                Task completed = await Task.WhenAny(inner, Task.Delay(Timeout.Infinite, external));
-                if (completed != inner)
-                    external.ThrowIfCancellationRequested();
-                return await inner;
-            }
+            Task completed = await Task.WhenAny(inner, Task.Delay(Timeout.Infinite, external));
+            if (completed != inner) external.ThrowIfCancellationRequested();
+            return await inner;
         }
 
         // -------------- compute --------------
@@ -300,16 +276,12 @@ namespace TargetPlanner.Caches
         // Lifted from AltitudeSeries.ComputeYearCache (Phase 3). Pure compute: no UI access,
         // no instance state. Reads `night` (the per-location NightCache) and `target` /
         // `location` (the per-target inputs). Returns the per-target year-of-night precomputes.
-        //
-        // The moon-sample loop is currently disabled (TEMP DEBUG bisection from Phase 1-3 of
-        // the SoC refactor). Re-enabling moon avoidance is a 1-line revert of the empty-samples
-        // line to the 10-min sweep below.
         private static IReadOnlyList<NightCacheEntry> ComputeYearDays(
             Target target, Location location, NightCache night, CancellationToken ct)
         {
-            double latSigned  = location.North ?  location.Latitude  : -location.Latitude;
-            double decSigned  = target.North   ?  target.Declination : -target.Declination;
-            double lonDegEast = location.West  ? -location.Longitude :  location.Longitude;
+            double latSigned  = location.LatSigned();
+            double decSigned  = target.DecSigned();
+            double lonDegEast = location.LonEast();
             double raHours    = target.RightAscension;
 
             double meridianAlt = TargetGeometry.MeridianAltitude(latSigned, decSigned);
@@ -359,12 +331,10 @@ namespace TargetPlanner.Caches
                 while (sampleUtc <= entry.Dawn)
                 {
                     var observed = MoonSeparation.ObserveAt(target, location, sampleUtc);
-                    samples.Add(new MoonSample
-                    {
-                        Utc        = sampleUtc,
-                        SepDeg     = observed.SeparationDeg,
-                        MoonAltDeg = observed.MoonAltDeg
-                    });
+                    samples.Add(new MoonSample(
+                        utc:        sampleUtc,
+                        sepDeg:     observed.SeparationDeg,
+                        moonAltDeg: observed.MoonAltDeg));
                     sampleUtc = sampleUtc.Add(MoonSampleStep);
                 }
                 entry.MoonSamples = samples;
