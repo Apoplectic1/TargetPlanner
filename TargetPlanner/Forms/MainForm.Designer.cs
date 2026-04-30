@@ -30,6 +30,10 @@
         {
             this.GroupBox_Local = new System.Windows.Forms.GroupBox();
             this.GroupBox_Location = new System.Windows.Forms.GroupBox();
+            this.Lable_Extinction = new System.Windows.Forms.Label();
+            this.Label_Bortle = new System.Windows.Forms.Label();
+            this.ComboBox_Bortle = new System.Windows.Forms.ComboBox();
+            this.NumericUpDown_Extinction = new System.Windows.Forms.NumericUpDown();
             this.Label_LocalMeters = new System.Windows.Forms.Label();
             this.NumericUpDown_LocalElevation = new System.Windows.Forms.NumericUpDown();
             this.Label_LocalElevation = new System.Windows.Forms.Label();
@@ -108,6 +112,7 @@
             this.Button_BrowseTargetList = new System.Windows.Forms.Button();
             this.GroupBox_Target = new System.Windows.Forms.GroupBox();
             this.GroupBox_MoonAvoidance = new System.Windows.Forms.GroupBox();
+            this.GroupBox_Moon_Filters = new System.Windows.Forms.GroupBox();
             this.CheckBox_Moon_AvoidanceEnable = new System.Windows.Forms.CheckBox();
             this.Label_Moon_Seperation = new System.Windows.Forms.Label();
             this.NumericUpDown_Moon_Separation = new System.Windows.Forms.NumericUpDown();
@@ -125,13 +130,9 @@
             this.FileToolStripMenuItem_MainForm = new System.Windows.Forms.ToolStripMenuItem();
             this.GroupBox_Altitude = new System.Windows.Forms.GroupBox();
             this.ProgressBar_MultiTargetProcessing = new System.Windows.Forms.ProgressBar();
-            this.GroupBox_Moon_Filters = new System.Windows.Forms.GroupBox();
-            this.NumericUpDown_Extinction = new System.Windows.Forms.NumericUpDown();
-            this.ComboBox_Bortle = new System.Windows.Forms.ComboBox();
-            this.Label_Bortle = new System.Windows.Forms.Label();
-            this.Lable_Extinction = new System.Windows.Forms.Label();
             this.GroupBox_Local.SuspendLayout();
             this.GroupBox_Location.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Extinction)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LocalElevation)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeMinutes)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeDegrees)).BeginInit();
@@ -157,7 +158,6 @@
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Moon_RelaxScale)).BeginInit();
             this.MenuStrip_MainForm.SuspendLayout();
             this.GroupBox_Altitude.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Extinction)).BeginInit();
             this.SuspendLayout();
             // 
             // GroupBox_Local
@@ -204,6 +204,51 @@
             this.GroupBox_Location.TabIndex = 30;
             this.GroupBox_Location.TabStop = false;
             this.GroupBox_Location.Text = "Location";
+            // 
+            // Lable_Extinction
+            // 
+            this.Lable_Extinction.AutoSize = true;
+            this.Lable_Extinction.Location = new System.Drawing.Point(374, 100);
+            this.Lable_Extinction.Name = "Lable_Extinction";
+            this.Lable_Extinction.Size = new System.Drawing.Size(74, 13);
+            this.Lable_Extinction.TabIndex = 43;
+            this.Lable_Extinction.Text = "Sky Extinction";
+            // 
+            // Label_Bortle
+            // 
+            this.Label_Bortle.AutoSize = true;
+            this.Label_Bortle.Location = new System.Drawing.Point(221, 100);
+            this.Label_Bortle.Name = "Label_Bortle";
+            this.Label_Bortle.Size = new System.Drawing.Size(34, 13);
+            this.Label_Bortle.TabIndex = 42;
+            this.Label_Bortle.Text = "Bortle";
+            // 
+            // ComboBox_Bortle
+            // 
+            this.ComboBox_Bortle.FormattingEnabled = true;
+            this.ComboBox_Bortle.Location = new System.Drawing.Point(258, 96);
+            this.ComboBox_Bortle.Name = "ComboBox_Bortle";
+            this.ComboBox_Bortle.Size = new System.Drawing.Size(42, 21);
+            this.ComboBox_Bortle.TabIndex = 41;
+            // 
+            // NumericUpDown_Extinction
+            // 
+            this.NumericUpDown_Extinction.DecimalPlaces = 2;
+            this.NumericUpDown_Extinction.Increment = new decimal(new int[] {
+            1,
+            0,
+            0,
+            131072});
+            this.NumericUpDown_Extinction.Location = new System.Drawing.Point(306, 96);
+            this.NumericUpDown_Extinction.Maximum = new decimal(new int[] {
+            1,
+            0,
+            0,
+            0});
+            this.NumericUpDown_Extinction.Name = "NumericUpDown_Extinction";
+            this.NumericUpDown_Extinction.Size = new System.Drawing.Size(65, 20);
+            this.NumericUpDown_Extinction.TabIndex = 29;
+            this.NumericUpDown_Extinction.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // Label_LocalMeters
             // 
@@ -858,7 +903,7 @@
             // 
             // Button_Graph
             // 
-            this.Button_Graph.Location = new System.Drawing.Point(6, 116);
+            this.Button_Graph.Location = new System.Drawing.Point(448, 73);
             this.Button_Graph.Name = "Button_Graph";
             this.Button_Graph.Size = new System.Drawing.Size(66, 23);
             this.Button_Graph.TabIndex = 34;
@@ -1114,11 +1159,11 @@
             // CheckedListBox_SelectedTargets
             // 
             this.CheckedListBox_SelectedTargets.FormattingEnabled = true;
-            this.CheckedListBox_SelectedTargets.Location = new System.Drawing.Point(539, 46);
+            this.CheckedListBox_SelectedTargets.Location = new System.Drawing.Point(539, 47);
             this.CheckedListBox_SelectedTargets.MultiColumn = true;
             this.CheckedListBox_SelectedTargets.Name = "CheckedListBox_SelectedTargets";
             this.CheckedListBox_SelectedTargets.ScrollAlwaysVisible = true;
-            this.CheckedListBox_SelectedTargets.Size = new System.Drawing.Size(513, 259);
+            this.CheckedListBox_SelectedTargets.Size = new System.Drawing.Size(513, 274);
             this.CheckedListBox_SelectedTargets.TabIndex = 4;
             this.CheckedListBox_SelectedTargets.ThreeDCheckBoxes = true;
             this.CheckedListBox_SelectedTargets.MouseDoubleClick += new System.Windows.Forms.MouseEventHandler(this.CheckedListBox_SelectedTargets_MouseDoubleClick);
@@ -1136,6 +1181,7 @@
             // 
             // GroupBox_Target
             // 
+            this.GroupBox_Target.Controls.Add(this.GroupBox_Moon_Filters);
             this.GroupBox_Target.Controls.Add(this.GroupBox_MoonAvoidance);
             this.GroupBox_Target.Controls.Add(this.Button_Cancel);
             this.GroupBox_Target.Controls.Add(this.Button_VisibleTonight);
@@ -1172,14 +1218,13 @@
             this.GroupBox_Target.Controls.Add(this.TextBox_Declination);
             this.GroupBox_Target.Location = new System.Drawing.Point(534, 30);
             this.GroupBox_Target.Name = "GroupBox_Target";
-            this.GroupBox_Target.Size = new System.Drawing.Size(1075, 322);
+            this.GroupBox_Target.Size = new System.Drawing.Size(1075, 337);
             this.GroupBox_Target.TabIndex = 3;
             this.GroupBox_Target.TabStop = false;
             this.GroupBox_Target.Text = "Target";
             // 
             // GroupBox_MoonAvoidance
             // 
-            this.GroupBox_MoonAvoidance.Controls.Add(this.GroupBox_Moon_Filters);
             this.GroupBox_MoonAvoidance.Controls.Add(this.CheckBox_Moon_AvoidanceEnable);
             this.GroupBox_MoonAvoidance.Controls.Add(this.Label_Moon_Seperation);
             this.GroupBox_MoonAvoidance.Controls.Add(this.NumericUpDown_Moon_Separation);
@@ -1192,12 +1237,21 @@
             this.GroupBox_MoonAvoidance.Controls.Add(this.NumericUpDown_Moon_RelaxMax);
             this.GroupBox_MoonAvoidance.Controls.Add(this.Label_Moon_RelaxScale);
             this.GroupBox_MoonAvoidance.Controls.Add(this.NumericUpDown_Moon_RelaxScale);
-            this.GroupBox_MoonAvoidance.Location = new System.Drawing.Point(22, 207);
+            this.GroupBox_MoonAvoidance.Location = new System.Drawing.Point(22, 251);
             this.GroupBox_MoonAvoidance.Name = "GroupBox_MoonAvoidance";
-            this.GroupBox_MoonAvoidance.Size = new System.Drawing.Size(497, 109);
+            this.GroupBox_MoonAvoidance.Size = new System.Drawing.Size(497, 75);
             this.GroupBox_MoonAvoidance.TabIndex = 42;
             this.GroupBox_MoonAvoidance.TabStop = false;
             this.GroupBox_MoonAvoidance.Text = "Moon Avoidance";
+            // 
+            // GroupBox_Moon_Filters
+            // 
+            this.GroupBox_Moon_Filters.Location = new System.Drawing.Point(74, 207);
+            this.GroupBox_Moon_Filters.Name = "GroupBox_Moon_Filters";
+            this.GroupBox_Moon_Filters.Size = new System.Drawing.Size(394, 43);
+            this.GroupBox_Moon_Filters.TabIndex = 12;
+            this.GroupBox_Moon_Filters.TabStop = false;
+            this.GroupBox_Moon_Filters.Text = "Filters";
             // 
             // CheckBox_Moon_AvoidanceEnable
             // 
@@ -1213,7 +1267,7 @@
             // Label_Moon_Seperation
             // 
             this.Label_Moon_Seperation.AutoSize = true;
-            this.Label_Moon_Seperation.Location = new System.Drawing.Point(85, 63);
+            this.Label_Moon_Seperation.Location = new System.Drawing.Point(85, 23);
             this.Label_Moon_Seperation.Name = "Label_Moon_Seperation";
             this.Label_Moon_Seperation.Size = new System.Drawing.Size(64, 13);
             this.Label_Moon_Seperation.TabIndex = 6;
@@ -1226,7 +1280,7 @@
             0,
             0,
             0});
-            this.NumericUpDown_Moon_Separation.Location = new System.Drawing.Point(153, 59);
+            this.NumericUpDown_Moon_Separation.Location = new System.Drawing.Point(153, 19);
             this.NumericUpDown_Moon_Separation.Maximum = new decimal(new int[] {
             180,
             0,
@@ -1246,7 +1300,7 @@
             // Label_Moon_Width
             // 
             this.Label_Moon_Width.AutoSize = true;
-            this.Label_Moon_Width.Location = new System.Drawing.Point(207, 63);
+            this.Label_Moon_Width.Location = new System.Drawing.Point(207, 23);
             this.Label_Moon_Width.Name = "Label_Moon_Width";
             this.Label_Moon_Width.Size = new System.Drawing.Size(38, 13);
             this.Label_Moon_Width.TabIndex = 7;
@@ -1254,7 +1308,7 @@
             // 
             // NumericUpDown_Moon_Width
             // 
-            this.NumericUpDown_Moon_Width.Location = new System.Drawing.Point(249, 59);
+            this.NumericUpDown_Moon_Width.Location = new System.Drawing.Point(249, 19);
             this.NumericUpDown_Moon_Width.Maximum = new decimal(new int[] {
             30,
             0,
@@ -1274,7 +1328,7 @@
             // CheckBox_Moon_RelaxEnabled
             // 
             this.CheckBox_Moon_RelaxEnabled.AutoSize = true;
-            this.CheckBox_Moon_RelaxEnabled.Location = new System.Drawing.Point(86, 81);
+            this.CheckBox_Moon_RelaxEnabled.Location = new System.Drawing.Point(86, 47);
             this.CheckBox_Moon_RelaxEnabled.Name = "CheckBox_Moon_RelaxEnabled";
             this.CheckBox_Moon_RelaxEnabled.Size = new System.Drawing.Size(112, 17);
             this.CheckBox_Moon_RelaxEnabled.TabIndex = 2;
@@ -1285,7 +1339,7 @@
             // Label_Moon_RelaxMin
             // 
             this.Label_Moon_RelaxMin.AutoSize = true;
-            this.Label_Moon_RelaxMin.Location = new System.Drawing.Point(202, 82);
+            this.Label_Moon_RelaxMin.Location = new System.Drawing.Point(202, 48);
             this.Label_Moon_RelaxMin.Name = "Label_Moon_RelaxMin";
             this.Label_Moon_RelaxMin.Size = new System.Drawing.Size(27, 13);
             this.Label_Moon_RelaxMin.TabIndex = 8;
@@ -1293,7 +1347,7 @@
             // 
             // NumericUpDown_Moon_RelaxMin
             // 
-            this.NumericUpDown_Moon_RelaxMin.Location = new System.Drawing.Point(235, 78);
+            this.NumericUpDown_Moon_RelaxMin.Location = new System.Drawing.Point(235, 44);
             this.NumericUpDown_Moon_RelaxMin.Maximum = new decimal(new int[] {
             45,
             0,
@@ -1318,7 +1372,7 @@
             // Label_Moon_RelaxMax
             // 
             this.Label_Moon_RelaxMax.AutoSize = true;
-            this.Label_Moon_RelaxMax.Location = new System.Drawing.Point(291, 82);
+            this.Label_Moon_RelaxMax.Location = new System.Drawing.Point(291, 48);
             this.Label_Moon_RelaxMax.Name = "Label_Moon_RelaxMax";
             this.Label_Moon_RelaxMax.Size = new System.Drawing.Size(30, 13);
             this.Label_Moon_RelaxMax.TabIndex = 9;
@@ -1326,7 +1380,7 @@
             // 
             // NumericUpDown_Moon_RelaxMax
             // 
-            this.NumericUpDown_Moon_RelaxMax.Location = new System.Drawing.Point(327, 78);
+            this.NumericUpDown_Moon_RelaxMax.Location = new System.Drawing.Point(327, 44);
             this.NumericUpDown_Moon_RelaxMax.Maximum = new decimal(new int[] {
             45,
             0,
@@ -1351,7 +1405,7 @@
             // Label_Moon_RelaxScale
             // 
             this.Label_Moon_RelaxScale.AutoSize = true;
-            this.Label_Moon_RelaxScale.Location = new System.Drawing.Point(383, 82);
+            this.Label_Moon_RelaxScale.Location = new System.Drawing.Point(383, 48);
             this.Label_Moon_RelaxScale.Name = "Label_Moon_RelaxScale";
             this.Label_Moon_RelaxScale.Size = new System.Drawing.Size(37, 13);
             this.Label_Moon_RelaxScale.TabIndex = 10;
@@ -1365,7 +1419,7 @@
             0,
             0,
             131072});
-            this.NumericUpDown_Moon_RelaxScale.Location = new System.Drawing.Point(426, 78);
+            this.NumericUpDown_Moon_RelaxScale.Location = new System.Drawing.Point(426, 44);
             this.NumericUpDown_Moon_RelaxScale.Maximum = new decimal(new int[] {
             10,
             0,
@@ -1379,7 +1433,7 @@
             // 
             // Button_Cancel
             // 
-            this.Button_Cancel.Location = new System.Drawing.Point(6, 149);
+            this.Button_Cancel.Location = new System.Drawing.Point(448, 102);
             this.Button_Cancel.Name = "Button_Cancel";
             this.Button_Cancel.Size = new System.Drawing.Size(66, 23);
             this.Button_Cancel.TabIndex = 41;
@@ -1423,60 +1477,6 @@
             this.ProgressBar_MultiTargetProcessing.Size = new System.Drawing.Size(1331, 18);
             this.ProgressBar_MultiTargetProcessing.TabIndex = 40;
             // 
-            // GroupBox_Moon_Filters
-            // 
-            this.GroupBox_Moon_Filters.Location = new System.Drawing.Point(92, 10);
-            this.GroupBox_Moon_Filters.Name = "GroupBox_Moon_Filters";
-            this.GroupBox_Moon_Filters.Size = new System.Drawing.Size(394, 43);
-            this.GroupBox_Moon_Filters.TabIndex = 12;
-            this.GroupBox_Moon_Filters.TabStop = false;
-            this.GroupBox_Moon_Filters.Text = "Filters";
-            // 
-            // NumericUpDown_Extinction
-            // 
-            this.NumericUpDown_Extinction.DecimalPlaces = 2;
-            this.NumericUpDown_Extinction.Increment = new decimal(new int[] {
-            1,
-            0,
-            0,
-            131072});
-            this.NumericUpDown_Extinction.Location = new System.Drawing.Point(306, 96);
-            this.NumericUpDown_Extinction.Maximum = new decimal(new int[] {
-            1,
-            0,
-            0,
-            0});
-            this.NumericUpDown_Extinction.Name = "NumericUpDown_Extinction";
-            this.NumericUpDown_Extinction.Size = new System.Drawing.Size(65, 20);
-            this.NumericUpDown_Extinction.TabIndex = 29;
-            this.NumericUpDown_Extinction.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            // 
-            // ComboBox_Bortle
-            // 
-            this.ComboBox_Bortle.FormattingEnabled = true;
-            this.ComboBox_Bortle.Location = new System.Drawing.Point(258, 96);
-            this.ComboBox_Bortle.Name = "ComboBox_Bortle";
-            this.ComboBox_Bortle.Size = new System.Drawing.Size(42, 21);
-            this.ComboBox_Bortle.TabIndex = 41;
-            // 
-            // Label_Bortle
-            // 
-            this.Label_Bortle.AutoSize = true;
-            this.Label_Bortle.Location = new System.Drawing.Point(221, 100);
-            this.Label_Bortle.Name = "Label_Bortle";
-            this.Label_Bortle.Size = new System.Drawing.Size(34, 13);
-            this.Label_Bortle.TabIndex = 42;
-            this.Label_Bortle.Text = "Bortle";
-            // 
-            // Lable_Extinction
-            // 
-            this.Lable_Extinction.AutoSize = true;
-            this.Lable_Extinction.Location = new System.Drawing.Point(374, 100);
-            this.Lable_Extinction.Name = "Lable_Extinction";
-            this.Lable_Extinction.Size = new System.Drawing.Size(74, 13);
-            this.Lable_Extinction.TabIndex = 43;
-            this.Lable_Extinction.Text = "Sky Extinction";
-            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -1495,6 +1495,7 @@
             this.GroupBox_Local.ResumeLayout(false);
             this.GroupBox_Location.ResumeLayout(false);
             this.GroupBox_Location.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Extinction)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LocalElevation)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeMinutes)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeDegrees)).EndInit();
@@ -1525,7 +1526,6 @@
             this.MenuStrip_MainForm.PerformLayout();
             this.GroupBox_Altitude.ResumeLayout(false);
             this.GroupBox_Altitude.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Extinction)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
