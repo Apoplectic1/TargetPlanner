@@ -339,7 +339,15 @@ namespace TargetPlanner.Charts
                     m.MoonAltDeg, m.MoonAzDeg,
                     phase, sunAlt, kAtBand, v0);
 
-                int idx = sky.Points.AddXY(startLocal.AddMinutes(i), double.IsNaN(mag) ? -90.0 : mag);
+                // Sky-mode plot inverts Y so brighter sky (lower mag) renders HIGHER
+                // on the chart while AxisY.IsReversed stays false (which keeps the X
+                // axis at the visual bottom). AltitudeChart's ConfigureDayYAxis
+                // installs CustomLabels that re-label these inverted positions with
+                // the actual magnitude values. Tooltip surfaces the actual mag.
+                double plotY = double.IsNaN(mag)
+                    ? -90.0
+                    : (SkyAxisMinMag + SkyAxisMaxMag - mag);
+                int idx = sky.Points.AddXY(startLocal.AddMinutes(i), plotY);
                 sky.Points[idx].ToolTip = string.Format(
                     System.Globalization.CultureInfo.InvariantCulture,
                     "{0}\n{1:h:mm tt}\n{2}",
@@ -350,6 +358,13 @@ namespace TargetPlanner.Charts
 
             TargetSeriesList.Add(sky);
         }
+
+        // Sky sub-mode Y-axis range. Held here because BuildDaySkySeries and
+        // RebuildDaySkySeries both invert plot Y around the (Min + Max) midpoint;
+        // AltitudeChart.ConfigureDayYAxis uses the same constants for axis range +
+        // CustomLabels so the displayed labels match the actual magnitudes.
+        public const double SkyAxisMinMag = 16.0;
+        public const double SkyAxisMaxMag = 22.0;
 
         // Re-emit the MoonSky-Day series in place. Called from AltitudeChart on Bortle /
         // Extinction / ActiveFilter changes that don't invalidate the year cache (no
@@ -391,7 +406,11 @@ namespace TargetPlanner.Charts
                     m.MoonAltDeg, m.MoonAzDeg,
                     phase, sunAlt, kAtBand, v0);
 
-                sky.Points[i].YValues = new double[] { double.IsNaN(mag) ? -90.0 : mag };
+                // Same Sky-mode plot-Y inversion as BuildDaySkySeries.
+                double plotY = double.IsNaN(mag)
+                    ? -90.0
+                    : (SkyAxisMinMag + SkyAxisMaxMag - mag);
+                sky.Points[i].YValues = new double[] { plotY };
                 sky.Points[i].ToolTip = string.Format(
                     System.Globalization.CultureInfo.InvariantCulture,
                     "{0}\n{1:h:mm tt}\n{2}",

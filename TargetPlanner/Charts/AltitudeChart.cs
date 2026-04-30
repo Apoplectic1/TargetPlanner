@@ -144,13 +144,33 @@ namespace TargetPlanner.Charts
         {
             if (mChart.ChartAreas.IndexOf("Day") < 0) return;
             var area = mChart.ChartAreas["Day"];
+            // Both branches keep AxisY.IsReversed = false so the X axis stays at the
+            // visual bottom of the plot in either mode. Sky-mode "brighter higher"
+            // intuition is preserved by inverting the *data* in AltitudeSeries
+            // (plotY = SkyMin + SkyMax - mag) and re-labelling the axis ticks via
+            // CustomLabels so the user sees the actual magnitude values at each
+            // inverted plot position.
+            area.AxisY.CustomLabels.Clear();
             if (CurrentDaySubMode == DaySubMode.Sky)
             {
                 area.AxisY.Interval   = 1;
-                area.AxisY.Maximum    = 22.0;
-                area.AxisY.Minimum    = 16.0;
-                area.AxisY.IsReversed = true;
+                area.AxisY.Maximum    = AltitudeSeries.SkyAxisMaxMag;
+                area.AxisY.Minimum    = AltitudeSeries.SkyAxisMinMag;
+                area.AxisY.IsReversed = false;
                 area.AxisY.Title      = "Sky brightness (mag/arcsec²)";
+
+                // CustomLabels invert the displayed tick text without touching the
+                // axis range. At plot position p, show the actual mag (Min + Max - p)
+                // so the user reads "16" near the top (where bright sky plots) and
+                // "22" near the bottom (where dark sky plots).
+                int min = (int)AltitudeSeries.SkyAxisMinMag;
+                int max = (int)AltitudeSeries.SkyAxisMaxMag;
+                for (int m = min; m <= max; m++)
+                {
+                    double pos = min + max - m;   // inverted plot position for label m
+                    area.AxisY.CustomLabels.Add(new CustomLabel(
+                        pos - 0.5, pos + 0.5, m.ToString(), 0, LabelMarkStyle.SideMark));
+                }
             }
             else
             {
@@ -160,6 +180,7 @@ namespace TargetPlanner.Charts
                 area.AxisY.IsReversed = false;
                 area.AxisY.Title      = "Altitude";
             }
+            area.AxisX.Crossing = double.NaN;
         }
 
         // Read-only view of the currently-graphed targets in legend order. Callers that want
