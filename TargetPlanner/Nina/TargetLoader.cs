@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using TargetPlanner.Support;
 
 using Target = Astronomy.Core.Targets.Target;
 
@@ -42,11 +43,11 @@ namespace TargetPlanner.Nina
                 }
                 catch (Exception ex)
                 {
-                    // Skip unparseable / malformed files but leave a diagnostic trail. The
-                    // previous bare catch dropped both the path and the reason on the floor,
-                    // which made "target X missing from the list" an unsolvable mystery.
-                    System.Diagnostics.Debug.WriteLine(
-                        $"TargetLoader: skipping '{file}' -- {ex.GetType().Name}: {ex.Message}");
+                    // Skip unparseable / malformed files but leave a diagnostic trail in
+                    // tp.log. The previous bare catch dropped both the path and the reason
+                    // on the floor, which made "target X missing from the list" an
+                    // unsolvable mystery.
+                    Log.Warn("TargetLoader: skipping '" + file + "'", ex);
                 }
                 progress?.Report((i, files.Count));
             }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using Newtonsoft.Json;
+using TargetPlanner.Support;
 using Location = Astronomy.Core.Locations.Location;
 
 namespace TargetPlanner.Settings
@@ -39,9 +40,8 @@ namespace TargetPlanner.Settings
             {
                 // Corrupt file, permission denied, disk error, malformed JSON -- fall back to
                 // defaults silently from the user's perspective, but leave a diagnostic trail
-                // so "why did my saved locations disappear?" is traceable.
-                System.Diagnostics.Debug.WriteLine(
-                    $"SettingsStore.Load failed at '{FilePath}': {ex.GetType().Name}: {ex.Message}");
+                // in tp.log so "why did my saved locations disappear?" is traceable.
+                Log.Error("SettingsStore.Load failed at '" + FilePath + "'", ex);
             }
 
             return new AppSettings
@@ -90,9 +90,8 @@ namespace TargetPlanner.Settings
             catch (Exception ex)
             {
                 // Disk full, permission denied, antivirus lock -- silent failure for the user,
-                // but log so the root cause is recoverable.
-                System.Diagnostics.Debug.WriteLine(
-                    $"SettingsStore.Save failed at '{FilePath}': {ex.GetType().Name}: {ex.Message}");
+                // but log to tp.log so the root cause is recoverable.
+                Log.Error("SettingsStore.Save failed at '" + FilePath + "'", ex);
             }
         }
 

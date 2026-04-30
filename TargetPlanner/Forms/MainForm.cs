@@ -377,7 +377,7 @@ Right-click anywhere on the chart to clear all overlays.";
             // Add actual Altitude Chart to Panel
             // Phase 3: instantiate the cache store first; the chart takes a reference so
             // every AltitudeSeries it spawns reads from the shared store.
-            mCache = new TargetPlanner.Caches.ChartCacheStore(mLocation);
+            mCache = new TargetPlanner.Caches.ChartCacheStore(mLocation, SynchronizationContext.Current);
             mAltitudeChart = new Charts.AltitudeChart(mLocation, mCache);
             mAltitudeChart.mChart.Location = new Point(5, 5);
             mAltitudeChart.mChart.Size = new Size(Panel_AltitudeChart.Width - 10, Panel_AltitudeChart.Size.Height - 10);
@@ -938,7 +938,7 @@ Right-click anywhere on the chart to clear all overlays.";
             mActiveFilter = updated;
 
             try { mFilterLibrary.Save(); }
-            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("Filter auto-save failed: " + ex); }
+            catch (Exception ex) { Log.Error("FilterLibrary.Save (auto-save) failed", ex); }
 
             RefreshFilterMenuLabels();
         }
@@ -1392,9 +1392,9 @@ Right-click anywhere on the chart to clear all overlays.";
             }
             catch (Exception ex)
             {
-                // Log the full exception (stack + type) before surfacing a shorter user-facing
-                // message; the bare catch used to swallow the stack trace entirely.
-                System.Diagnostics.Debug.WriteLine($"GetNinaTargets failed: {ex}");
+                // Log the full exception (stack + type) to tp.log before surfacing a shorter
+                // user-facing MessageBox; the bare catch used to swallow the stack entirely.
+                Log.Error("GetNinaTargets failed", ex);
                 MessageBox.Show(ex.Message, "Target load failed", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 ProgressBar_ProcessObject.Value = 0;
             }

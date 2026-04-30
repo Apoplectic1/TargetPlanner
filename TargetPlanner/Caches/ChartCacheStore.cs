@@ -41,12 +41,17 @@ namespace TargetPlanner.Caches
 
         public event EventHandler<TargetReadyEventArgs> TargetReady;
 
-        public ChartCacheStore(Location initialLocation)
+        public ChartCacheStore(Location initialLocation, SynchronizationContext uiContext)
         {
             if (initialLocation == null) throw new ArgumentNullException(nameof(initialLocation));
+            if (uiContext == null) throw new ArgumentNullException(
+                nameof(uiContext),
+                "ChartCacheStore must be constructed on a UI thread; pass SynchronizationContext.Current "
+                + "from the form constructor / InitializeDynamicControls. A null context would silently "
+                + "fall back to firing TargetReady on the build thread, breaking subscribers' UI marshalling.");
             mLocation = initialLocation;
             mLocationCts = new CancellationTokenSource();
-            mUiContext = SynchronizationContext.Current;
+            mUiContext = uiContext;
         }
 
         public Location CurrentLocation
@@ -141,20 +146,21 @@ namespace TargetPlanner.Caches
 
             oldCts.Cancel();
 
-            // Wait for in-flight tasks to observe the cancel and unwind. Swallow the resulting
-            // OperationCanceledException -- it's the expected outcome of the cancel.
+            // Wait for in-flight tasks to observe the cancel and unwind. OperationCanceled
+            // is the expected outcome of the cancel; other exceptions are stale-build
+            // compute errors -- log them but don't fail SetLocationAsync.
             try
             {
                 if (oldNightTask != null) await oldNightTask;
             }
             catch (OperationCanceledException) { }
-            catch { /* don't fail SetLocationAsync on a stale build's compute error */ }
+            catch (Exception ex) { Log.Warn("Stale NightCache build threw during SetLocationAsync", ex); }
 
             foreach (Task<TargetCacheEntry> t in oldInFlight)
             {
                 try { await t; }
                 catch (OperationCanceledException) { }
-                catch { /* same -- stale builds are best-effort */ }
+                catch (Exception ex) { Log.Warn("Stale per-target build threw during SetLocationAsync", ex); }
             }
 
             oldCts.Dispose();
@@ -164,7 +170,8 @@ namespace TargetPlanner.Caches
         {
             CancellationTokenSource cts;
             lock (mGate) { cts = mLocationCts; }
-            try { cts?.Cancel(); cts?.Dispose(); } catch { }
+            try { cts?.Cancel(); cts?.Dispose(); }
+            catch (Exception ex) { Log.Warn("ChartCacheStore.Dispose: cancel/dispose threw", ex); }
         }
 
         // -------------- internals --------------
@@ -249,14 +256,8 @@ namespace TargetPlanner.Caches
             EventHandler<TargetReadyEventArgs> handler = TargetReady;
             if (handler == null) return;
             TargetReadyEventArgs args = new TargetReadyEventArgs(target, entry);
-            if (mUiContext != null)
-            {
-                mUiContext.Post(_ => handler(this, args), null);
-            }
-            else
-            {
-                handler(this, args);
-            }
+            // mUiContext is non-null by ctor invariant -- subscribers always get UI marshalling.
+            mUiContext.Post(_ => handler(this, args), null);
         }
 
         // External cancellation: the caller's ct may fire before the build's locationCts.

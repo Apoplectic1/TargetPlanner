@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
+using TargetPlanner.Support;
 
 namespace TargetPlanner.Filters
 {
@@ -101,9 +102,12 @@ namespace TargetPlanner.Filters
                         return new FilterLibrary(filters);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Fall through to defaults. JSON corruption / IO error / permission denied.
+                // JSON corruption / IO error / permission denied. Fall through to defaults
+                // silently from the user's perspective, but log to tp.log so the root cause
+                // is recoverable.
+                Log.Error("FilterLibrary.LoadOrDefault failed at '" + DefaultPath + "'", ex);
             }
             return DefaultLibrary();
         }
