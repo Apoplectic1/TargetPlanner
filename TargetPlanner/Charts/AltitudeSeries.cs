@@ -292,34 +292,32 @@ namespace TargetPlanner.Charts
             TargetSeriesList.Add(daySeries);
         }
 
-        // Refresh the Day series' hover tooltip AND the Day/Year visibility for the current
+        // Refresh the Day series' hover tooltip AND the Day visibility for the current
         // Horizon / Duration. Called from AltitudeChart.RebuildOptimalData alongside
-        // RebuildOptimalSeries so the tooltip and curve visibility stay in sync with the
-        // Optimal-chart curves on spinner scrubs. Silently no-ops if the Day series hasn't
-        // been built yet (initial async build hasn't finished and the user is already scrubbing).
+        // RebuildOptimalSeries so the tooltip and Day-curve visibility stay in sync with
+        // the Optimal-chart curves on spinner scrubs. Silently no-ops if the Day series
+        // hasn't been built yet (initial async build hasn't finished and the user is
+        // already scrubbing).
         //
-        // Visibility rule: if no D-hour session at the current Horizon fits tonight
-        // (mBestDayWindow == null after ComposeDayTooltip refreshes it), the Day and Year
-        // curves for this target are hidden by setting Color = Transparent. When a session
-        // fits again, Color is restored to mSeriesColor. Spinner re-evaluation is the source
-        // of truth and overrides any prior legend-click toggle on these two series.
+        // Visibility rule (Day only): if no D-hour session at the current Horizon fits
+        // tonight (mBestDayWindow == null after ComposeDayTooltip refreshes it), the Day
+        // curve is hidden by setting Color = Transparent; when a session fits again,
+        // Color is restored to mSeriesColor. Year curves are intentionally NOT scoped by
+        // this rule -- a target with no fit tonight may still have D-hour windows other
+        // months of the year, and the user expects the Year chart to show all checked
+        // targets so they can pick a future imaging window.
         public void RebuildDayTooltip(double horizon, TimeSpan duration)
         {
             string tooltip = ComposeDayTooltip(horizon, duration);
             Color visibleColor = mBestDayWindow != null ? mSeriesColor : Color.Transparent;
 
-            string dayName  = Target.Name + "-Day";
-            string yearName = Target.Name + "-Year";
+            string dayName = Target.Name + "-Day";
             foreach (Series s in TargetSeriesList)
             {
                 if (s.Name == dayName)
                 {
                     s.ToolTip = tooltip;
                     s.Color   = visibleColor;
-                }
-                else if (s.Name == yearName)
-                {
-                    s.Color = visibleColor;
                 }
             }
         }
