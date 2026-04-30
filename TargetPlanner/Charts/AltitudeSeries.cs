@@ -1,4 +1,6 @@
 ﻿using Astronomy.Core;
+using Astronomy.Core.Astrometry;
+using Astronomy.Core.Brightness;
 using Astronomy.Core.Horizons;
 using Astronomy.Core.Moon;
 using Astronomy.Core.Night;
@@ -69,6 +71,13 @@ namespace TargetPlanner.Charts
         // backwards-compatible default -- Core's BestSession.For overload short-circuits
         // to the moon-blind path when it sees null or a Disabled profile.
         public MoonAvoidanceProfile MoonAvoidanceProfile { get; set; }
+
+        // Active filter's center wavelength (nm). Pushed by AltitudeChart on filter
+        // selection changes (Filters menu / radio / dialog Save). Used by the K-S
+        // sky-brightness minute-loop to scale Location.ExtinctionK to the band via
+        // SkyBrightness.ScaleK (Rayleigh λ⁻⁴). Default 550 nm (mid-visible) when no
+        // filter is active.
+        public double ActiveFilterCenterNm { get; set; } = 550.0;
 
         public AltitudeSeries(Location location, Target target, Color seriesColor,
                               IChartCacheStore cache)
@@ -291,6 +300,105 @@ namespace TargetPlanner.Charts
             daySeries.ToolTip = ComposeDayTooltip(Location.Horizon, Location.Duration);
 
             TargetSeriesList.Add(daySeries);
+
+            // K-S sky-brightness companion series. Same minute grid + count as the
+            // altitude series so the chart's IsXValueIndexed=true count invariant
+            // holds. Visibility is toggled by AltitudeChart's Day sub-mode (Sky shows
+            // it; Altitude hides it).
+            BuildDaySkySeries(start, startUtc, count);
+        }
+
+        // Per-minute K-S sky-brightness curve. Computes target Alt/Az, moon Alt/Az,
+        // phase angle, and atmospheric extinction at the active filter's wavelength;
+        // feeds them into SkyBrightness.KsAt. Per-DataPoint tooltips show the time +
+        // sky brightness for the hovered minute.
+        private void BuildDaySkySeries(DateTime startLocal, DateTime startUtc, int count)
+        {
+            Series sky = MakeSeries(Target.Name, "MoonSky-Day", mSeriesColor);
+
+            double kAtBand = SkyBrightness.ScaleK(Location.ExtinctionK, ActiveFilterCenterNm);
+            double v0 = Bortle.DefaultZenithMag(Location.BortleClass);
+
+            // Sun position is target-independent (depends only on observer + UTC). The
+            // observer info is reused across all minute samples so we don't rebuild
+            // the ObserverInfo struct per call -- AstroUtil.GetSunAltitude is the only
+            // per-minute solar work added by twilight modeling.
+            double latSigned = Location.LatSigned();
+            double lonEast   = Location.LonEast();
+            ObserverInfo observer = new ObserverInfo(latSigned, lonEast, Location.Elevation);
+
+            for (int i = 0; i < count; i++)
+            {
+                DateTime utc = startUtc.AddMinutes(i);
+                AltAz t = AltAzCalculator.At(Target, Location, utc);
+                var m = MoonSeparation.ObserveAt(Target, Location, utc);
+                double phase = SkyBrightness.PhaseAngleDegFromAgeDays(LunarAge.DaysAt(utc));
+                double sunAlt = AstroUtil.GetSunAltitude(utc, observer);
+                double mag = SkyBrightness.KsAt(
+                    t.Altitude, t.Azimuth,
+                    m.MoonAltDeg, m.MoonAzDeg,
+                    phase, sunAlt, kAtBand, v0);
+
+                int idx = sky.Points.AddXY(startLocal.AddMinutes(i), double.IsNaN(mag) ? -90.0 : mag);
+                sky.Points[idx].ToolTip = string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "{0}\n{1:h:mm tt}\n{2}",
+                    Target.Name,
+                    startLocal.AddMinutes(i),
+                    double.IsNaN(mag) ? "(target below horizon)" : mag.ToString("0.0") + " mag/arcsec²");
+            }
+
+            TargetSeriesList.Add(sky);
+        }
+
+        // Re-emit the MoonSky-Day series in place. Called from AltitudeChart on Bortle /
+        // Extinction / ActiveFilter changes that don't invalidate the year cache (no
+        // change to visibility geometry; just sky-brightness inputs). Preserves the Day
+        // axis IsXValueIndexed=true count invariant by overwriting Y values rather than
+        // rebuilding the series identity (mirrors the HD-overlay click pattern).
+        public void RebuildDaySkySeries()
+        {
+            string skyName = Target.Name + "-MoonSky-Day";
+            Series sky = null;
+            foreach (Series s in TargetSeriesList)
+            {
+                if (s.Name == skyName) { sky = s; break; }
+            }
+            if (sky == null || sky.Points.Count == 0) return;
+
+            double kAtBand = SkyBrightness.ScaleK(Location.ExtinctionK, ActiveFilterCenterNm);
+            double v0 = Bortle.DefaultZenithMag(Location.BortleClass);
+
+            // The first DataPoint's X value is local-time AddMinutes(0); convert via
+            // OADate to recover the start instant, then march forward by minutes.
+            DateTime startLocal = DateTime.FromOADate(sky.Points[0].XValue);
+            DateTime startUtc = DateTime.SpecifyKind(startLocal, DateTimeKind.Local).ToUniversalTime();
+
+            // Reused per-minute (target-independent).
+            double latSigned = Location.LatSigned();
+            double lonEast   = Location.LonEast();
+            ObserverInfo observer = new ObserverInfo(latSigned, lonEast, Location.Elevation);
+
+            for (int i = 0; i < sky.Points.Count; i++)
+            {
+                DateTime utc = startUtc.AddMinutes(i);
+                AltAz t = AltAzCalculator.At(Target, Location, utc);
+                var m = MoonSeparation.ObserveAt(Target, Location, utc);
+                double phase = SkyBrightness.PhaseAngleDegFromAgeDays(LunarAge.DaysAt(utc));
+                double sunAlt = AstroUtil.GetSunAltitude(utc, observer);
+                double mag = SkyBrightness.KsAt(
+                    t.Altitude, t.Azimuth,
+                    m.MoonAltDeg, m.MoonAzDeg,
+                    phase, sunAlt, kAtBand, v0);
+
+                sky.Points[i].YValues = new double[] { double.IsNaN(mag) ? -90.0 : mag };
+                sky.Points[i].ToolTip = string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "{0}\n{1:h:mm tt}\n{2}",
+                    Target.Name,
+                    startLocal.AddMinutes(i),
+                    double.IsNaN(mag) ? "(target below horizon)" : mag.ToString("0.0") + " mag/arcsec²");
+            }
         }
 
         // Refresh the Day series' hover tooltip AND the Day visibility for the current
@@ -312,13 +420,24 @@ namespace TargetPlanner.Charts
             string tooltip = ComposeDayTooltip(horizon, duration);
             Color visibleColor = mBestDayWindow != null ? mSeriesColor : Color.Transparent;
 
-            string dayName = Target.Name + "-Day";
+            // Day altitude curve: tooltip + transparency-based hide when no moon-clear
+            // D-hour window fits tonight. The MoonSky-Day companion curve mirrors the
+            // hide-on-no-fit (consistency: a target hidden by the Lorentzian fit-check
+            // shouldn't have its sky-brightness curve still visible in Sky sub-mode).
+            // Note: the MoonSky color is only used when sub-mode = Sky; in Altitude mode
+            // ApplyDaySubModeVisibility already disables the series.
+            string dayName     = Target.Name + "-Day";
+            string skyName     = Target.Name + "-MoonSky-Day";
             foreach (Series s in TargetSeriesList)
             {
                 if (s.Name == dayName)
                 {
                     s.ToolTip = tooltip;
                     s.Color   = visibleColor;
+                }
+                else if (s.Name == skyName)
+                {
+                    s.Color = visibleColor;
                 }
             }
         }

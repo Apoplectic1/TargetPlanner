@@ -55,6 +55,113 @@ namespace TargetPlanner.Charts
             }
         }
 
+        // Active filter's center wavelength (nm). Pushed by MainForm.SetActiveFilter on
+        // every filter selection change. Threaded into every AltitudeSeries via the
+        // setter so the next K-S minute-loop uses the band-scaled extinction k.
+        private double mActiveFilterCenterNm = 550.0;
+        public double ActiveFilterCenterNm
+        {
+            get { return mActiveFilterCenterNm; }
+            set
+            {
+                mActiveFilterCenterNm = value;
+                if (mSeriesByTarget == null) return;
+                foreach (AltitudeSeries s in mSeriesByTarget.Values)
+                {
+                    s.ActiveFilterCenterNm = value;
+                }
+            }
+        }
+
+        // Day chart sub-mode: Altitude (default, current behavior) shows the per-target
+        // altitude curves + shared Moon-Day fill. Sky shows the per-target K-S
+        // sky-brightness curves on a reversed-magnitude Y axis. Toggled by the user via
+        // CheckBox_Day_Sky on MainForm; affects only the Day chart-area's series visibility
+        // and Y-axis configuration.
+        public enum DaySubMode { Altitude, Sky }
+        public DaySubMode CurrentDaySubMode { get; private set; } = DaySubMode.Altitude;
+        public void SetDaySubMode(DaySubMode mode)
+        {
+            if (CurrentDaySubMode == mode) return;
+            CurrentDaySubMode = mode;
+            // Smooth in-place toggle when Day is the active chart area: walk the series
+            // already in mChart.Series and flip Enabled based on the new sub-mode; update
+            // the Day Y axis range / title / reversal. NO ClearSeries, NO ChartArea
+            // visibility flip, NO dawn/dusk strip-line rebuild -- minimum visual
+            // disruption. Other chart areas don't care about sub-mode; if Day isn't
+            // active, the next ShowChartAreaSeries("Day") will pick up CurrentDaySubMode
+            // when the user navigates back.
+            if (mChartArea == null || mChartArea.Name != "Day") return;
+            ApplyDaySubModeVisibility();
+            ConfigureDayYAxis();
+            mChart.Invalidate();
+        }
+
+        // Walk every series currently bound to the Day chart area and flip
+        // transparency per the active sub-mode. Series stay Enabled = true always so
+        // legend entries persist across toggles ("include all series on one chart,
+        // flip transparency"). Original Color is stashed in mDaySubModeHiddenColors
+        // when hiding and restored on un-hide. Independent of the legend-toggle's
+        // Series.Tag mechanism (Chart_MouseClick LegendItem) so the two don't compete.
+        private void ApplyDaySubModeVisibility()
+        {
+            if (mDaySubModeHiddenColors == null)
+                mDaySubModeHiddenColors = new Dictionary<Series, Color>();
+            bool wantSky = CurrentDaySubMode == DaySubMode.Sky;
+            foreach (Series s in mChart.Series)
+            {
+                if (s.ChartArea != "Day") continue;
+                bool shouldShow;
+                if (s.Name == "Moon-Day")              shouldShow = !wantSky;  // shared altitude fill
+                else if (s.Name.EndsWith("-MoonSky-Day")) shouldShow = wantSky;
+                else if (s.Name.EndsWith("-Day"))         shouldShow = !wantSky;  // per-target altitude
+                else continue;
+
+                if (shouldShow)
+                {
+                    if (mDaySubModeHiddenColors.TryGetValue(s, out Color saved))
+                    {
+                        s.Color = saved;
+                        mDaySubModeHiddenColors.Remove(s);
+                    }
+                }
+                else
+                {
+                    if (!mDaySubModeHiddenColors.ContainsKey(s) && s.Color != Color.Transparent)
+                    {
+                        mDaySubModeHiddenColors[s] = s.Color;
+                        s.Color = Color.Transparent;
+                    }
+                }
+            }
+        }
+
+        // Day-area Y axis configuration as a function of the current sub-mode. Extracted
+        // so SetDaySubMode can update axis-only without touching X axis or dawn/dusk
+        // gradient (which SetChartAreaAxis would re-add, producing duplicate strip
+        // lines on every toggle).
+        private void ConfigureDayYAxis()
+        {
+            if (mChart.ChartAreas.IndexOf("Day") < 0) return;
+            var area = mChart.ChartAreas["Day"];
+            if (CurrentDaySubMode == DaySubMode.Sky)
+            {
+                area.AxisY.Interval   = 1;
+                area.AxisY.Maximum    = 22.0;
+                area.AxisY.Minimum    = 16.0;
+                area.AxisY.IsReversed = true;
+                area.AxisY.Title      = "Sky brightness (mag/arcsec²)";
+            }
+            else
+            {
+                area.AxisY.Interval   = 10;
+                area.AxisY.Maximum    = 90.0;
+                area.AxisY.Minimum    = 0.0;
+                area.AxisY.IsReversed = false;
+                area.AxisY.Title      = "Altitude";
+            }
+        }
+
         // Read-only view of the currently-graphed targets in legend order. Callers that want
         // to reorder the legend should walk Targets, compute the new sequence, and call
         // ReorderTargets(newSequence) -- do not mutate this list directly.
@@ -108,6 +215,15 @@ namespace TargetPlanner.Charts
         private Dictionary<string, StripLine> mNowLines;
         private Dictionary<string, StripLine> mHorizonLines;
 
+        // Backing store for the Day sub-mode transparency-based hide. When sub-mode
+        // toggles, the inactive series get Color = Transparent and their original
+        // color is stashed here keyed by Series; on un-hide we restore. Decoupled
+        // from the legend-toggle's Series.Tag dance so the two don't compete for the
+        // same backing store. All series stay Enabled = true throughout, so legend
+        // entries persist across sub-mode toggles -- matches the "include all series
+        // on one chart, flip transparency" design.
+        private Dictionary<Series, Color> mDaySubModeHiddenColors;
+
         // Shared Moon-Day series, built once per Graph click (not once per target). Moon
         // altitude depends only on Location and time, not on the observed target, so the
         // per-target build path that used to produce N identical Moon-Day Series (one per
@@ -155,6 +271,7 @@ namespace TargetPlanner.Charts
             mNowLines = new Dictionary<string, StripLine>();
             mHorizonLines = new Dictionary<string, StripLine>();
             mReplacedDayBackup = new Dictionary<Series, double[]>();
+            mDaySubModeHiddenColors = new Dictionary<Series, Color>();
 
             mChart.MouseClick += new MouseEventHandler(this.Chart_MouseClick);
         }
@@ -299,10 +416,14 @@ namespace TargetPlanner.Charts
             // signal.
             if (e.Button == MouseButtons.Left
                 && result.ChartArea != null && result.ChartArea.Name == "Day"
-                && result.Series != null)
+                && result.Series != null
+                && CurrentDaySubMode == DaySubMode.Altitude)
             {
                 string seriesName = result.Series.Name ?? "";
                 if (seriesName == "Moon-Day") return;
+                // Skip the MoonSky-Day sky-brightness series -- the HD overlay assumes
+                // altitude semantics and doesn't apply to sky-brightness curves.
+                if (seriesName.EndsWith("-MoonSky-Day", StringComparison.Ordinal)) return;
                 if (!seriesName.EndsWith("-Day", StringComparison.Ordinal)) return;
 
                 ToggleDayCurveWindow(result.Series);
@@ -508,11 +629,16 @@ namespace TargetPlanner.Charts
             // produce one (polar day / cancelled mid-build); also null on the startup path
             // where AltitudeSeries still builds its own per-target Moon-Day inline and the
             // existing dedup loop below handles it.
+            // Shared Moon-Day fill: always added to the chart, Enabled per sub-mode.
+            // Meaningful only in Day-Altitude (represents lunar altitude on the same
+            // axis as target altitude); in Day-Sky the axis is mag/arcsec² so the fill
+            // is suppressed via Enabled=false. Always-add lets SetDaySubMode toggle
+            // visibility in place without needing to re-add on sub-mode flip.
             if (chartAreaName == "Day" && mSharedMoonSeries != null
                 && mChart.Series.IndexOf(mSharedMoonSeries.Name) < 0)
             {
                 mSharedMoonSeries.ChartArea = chartAreaName;
-                mSharedMoonSeries.Enabled = true;
+                mSharedMoonSeries.Enabled = (CurrentDaySubMode == DaySubMode.Altitude);
                 AddSeries(mSharedMoonSeries);
             }
 
@@ -558,6 +684,10 @@ namespace TargetPlanner.Charts
             }
 
             SetChartAreaAxis(chartAreaName);
+            // Day chart: apply current sub-mode visibility to the freshly-added series.
+            // ShowChartAreaSeries always adds both altitude and sky variants so a later
+            // SetDaySubMode toggle is a cheap Enabled flip without re-add.
+            if (chartAreaName == "Day") ApplyDaySubModeVisibility();
             mChart.ChartAreas[chartAreaName].Visible = true;
         }
 
@@ -771,6 +901,28 @@ namespace TargetPlanner.Charts
         // avoids any ComputeNight / GetAltitudeAzimuth calls. Series object identity is
         // preserved (FindOrCreateSeries reuses them), so mChart.Series references stay valid
         // and the chart picks up the new points automatically.
+        // Re-emit every target's MoonSky-Day series in place. Called from MainForm on
+        // Bortle / Extinction / ActiveFilterCenterNm changes -- inputs that affect
+        // K-S sky brightness but not the underlying year-cache geometry. Light: ~30 ms
+        // per target × N targets via 720-min K-S walk per series. Wraps each per-target
+        // call in a try/catch so a single bad target doesn't strand the rest.
+        public void RebuildDaySkyData()
+        {
+            if (mSeriesByTarget == null) return;
+            foreach (AltitudeSeries s in mSeriesByTarget.Values)
+            {
+                try { s.RebuildDaySkySeries(); }
+                catch (Exception ex) { Support.Log.Warn("RebuildDaySkySeries threw", ex); }
+            }
+            // If we're currently showing the Day-Sky sub-mode, force a chart redraw so
+            // the new Y values paint immediately rather than waiting for the next swap.
+            if (mChartArea != null && mChartArea.Name == "Day"
+                && CurrentDaySubMode == DaySubMode.Sky)
+            {
+                mChart.Invalidate();
+            }
+        }
+
         public void RebuildOptimalData(double horizon, TimeSpan duration)
         {
             string daySuffix = "-Day";
@@ -955,10 +1107,21 @@ namespace TargetPlanner.Charts
                     mChart.ChartAreas[chartAreaName].AxisX.LabelStyle.Format = "h:mm tt";
                     mChart.ChartAreas[chartAreaName].AxisX.Title = "";
 
-                    mChart.ChartAreas[chartAreaName].AxisY.Interval = 10;
-                    mChart.ChartAreas[chartAreaName].AxisY.Maximum = 90.0;
-                    mChart.ChartAreas[chartAreaName].AxisY.Minimum = 0.0;
-                    mChart.ChartAreas[chartAreaName].AxisY.Title = "Altitude";
+                    // Day Y axis branches by sub-mode; extracted so SetDaySubMode can
+                    // re-apply just the Y configuration without re-running AxisX setup
+                    // or AddDawnDuskGradient (which would duplicate strip lines).
+                    if (chartAreaName == "Day")
+                    {
+                        ConfigureDayYAxis();
+                    }
+                    else
+                    {
+                        mChart.ChartAreas[chartAreaName].AxisY.Interval   = 10;
+                        mChart.ChartAreas[chartAreaName].AxisY.Maximum    = 90.0;
+                        mChart.ChartAreas[chartAreaName].AxisY.Minimum    = 0.0;
+                        mChart.ChartAreas[chartAreaName].AxisY.IsReversed = false;
+                        mChart.ChartAreas[chartAreaName].AxisY.Title      = "Altitude";
+                    }
 
                     AddDawnDuskGradient(chartAreaName);
                     break;

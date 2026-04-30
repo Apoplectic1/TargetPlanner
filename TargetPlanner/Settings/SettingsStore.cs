@@ -53,7 +53,7 @@ namespace TargetPlanner.Settings
         }
 
         // Merge built-in default named-locations into the user's saved list. Idempotent;
-        // matched by Name (case-insensitive). Two responsibilities:
+        // matched by Name (case-insensitive). Three responsibilities:
         //
         // 1. Append: a built-in not present in the existing list is appended so adding a
         //    new preset in a release ("Hillsborough") doesn't require deleting settings.json.
@@ -62,6 +62,11 @@ namespace TargetPlanner.Settings
         //    Elevation is 0 (the back-compat default for settings written before the field
         //    existed), copy the built-in's Elevation onto the existing entry. User-set
         //    non-zero elevations are preserved (the merge only fills the zero case).
+        //
+        // 3. Auto-fill BortleClass + ExtinctionK on the same zero-detection rule. K-S
+        //    sky-brightness needs both fields; users upgrading from older settings.json
+        //    files would otherwise see Bortle = 0 / k = 0 (physically nonsensical) on
+        //    every name-matched builtin. User-set non-zero values are preserved.
         private static void MergeBuiltins(List<NamedLocationSetting> existing)
         {
             foreach (NamedLocationSetting builtin in BuildDefaultNamedLocations())
@@ -72,9 +77,14 @@ namespace TargetPlanner.Settings
                 {
                     existing.Add(builtin);
                 }
-                else if (match.Elevation == 0.0 && builtin.Elevation != 0.0)
+                else
                 {
-                    match.Elevation = builtin.Elevation;
+                    if (match.Elevation == 0.0 && builtin.Elevation != 0.0)
+                        match.Elevation = builtin.Elevation;
+                    if (match.BortleClass == 0 && builtin.BortleClass != 0)
+                        match.BortleClass = builtin.BortleClass;
+                    if (match.ExtinctionK == 0.0 && builtin.ExtinctionK != 0.0)
+                        match.ExtinctionK = builtin.ExtinctionK;
                 }
             }
         }
@@ -110,6 +120,8 @@ namespace TargetPlanner.Settings
                     Horizon = 30.0,
                     DurationMinutes = 240.0,
                     Elevation = 28.16,
+                    BortleClass = 5,
+                    ExtinctionK = 0.28,
                 },
             };
         }

@@ -21,6 +21,15 @@ namespace TargetPlanner.Settings
         // settings.json files (which predate the field) deserializing without error.
         public double Elevation { get; set; }
 
+        // Bortle dark-sky class for this site (1 = excellent dark, 9 = inner-city).
+        // Default 0 is the C# default for missing JSON; the SettingsStore.MergeBuiltins
+        // step auto-fills name-matched builtins on load (5 for Penns Park / Hillsborough).
+        public int BortleClass { get; set; }
+
+        // Atmospheric extinction coefficient k at 500 nm (mag/airmass), sea level.
+        // Default 0.0 triggers the same MergeBuiltins auto-fill as BortleClass.
+        public double ExtinctionK { get; set; }
+
         public static NamedLocationSetting FromLocation(Location loc)
         {
             return new NamedLocationSetting
@@ -33,6 +42,8 @@ namespace TargetPlanner.Settings
                 Horizon = loc.Horizon,
                 DurationMinutes = loc.Duration.TotalMinutes,
                 Elevation = loc.Elevation,
+                BortleClass = loc.BortleClass,
+                ExtinctionK = loc.ExtinctionK,
             };
         }
 
@@ -46,7 +57,9 @@ namespace TargetPlanner.Settings
                 duration:     TimeSpan.FromMinutes(DurationMinutes),
                 dateTime:     DateTime.Now,
                 timeZoneInfo: TimeZoneInfo.Local,
-                elevation:    Elevation);
+                elevation:    Elevation,
+                bortleClass:  BortleClass <= 0 ? 5 : BortleClass,
+                extinctionK:  ExtinctionK <= 0 ? 0.28 : ExtinctionK);
         }
     }
 }

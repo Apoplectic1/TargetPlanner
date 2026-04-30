@@ -83,6 +83,9 @@ namespace TargetPlanner
         // alongside BuildFiltersMenu, so the menu and the strip stay in sync.
         // Parallel-indexed with mFilterLibrary.Filters and mFilterMenuItems.
         private List<RadioButton> mFilterRadios;
+        // Programmatic toggle inside GroupBox_Altitude that flips the Day chart between
+        // its altitude and K-S sky-brightness sub-modes (no Designer entry).
+        private CheckBox mCheckBox_Day_Sky;
         private Button mFilterDefaultsButton;
 
         private ToolTip mToolTip;
@@ -357,6 +360,17 @@ Right-click anywhere on the chart to clear all overlays.";
             mRaInput.ValueChanged        += OnRightAscensionEdited;
             mDecInput.ValueChanged       += OnDeclinationEdited;
 
+            // Populate Bortle combo with the nine class numbers (1=excellent dark,
+            // 9=inner-city). Wired programmatically so the Designer doesn't have to
+            // know about the K-S model. SelectedIndexChanged auto-fills the extinction
+            // spinner with the typical k for that class; both feed Location and route
+            // through OnLocationEdited.
+            ComboBox_Bortle.Items.Clear();
+            for (int i = 1; i <= 9; i++) ComboBox_Bortle.Items.Add(i.ToString());
+            ComboBox_Bortle.DropDownStyle      = ComboBoxStyle.DropDownList;
+            ComboBox_Bortle.SelectedIndexChanged += ComboBox_Bortle_SelectedIndexChanged;
+            NumericUpDown_Extinction.ValueChanged += NumericUpDown_Extinction_ValueChanged;
+
             // Populate ComboBox_Location from settings, select the startup location, then
             // push mLocation's values into the lat/lon/N/W/Horizon/Duration inputs.
             ComboBox_Location.SelectedIndexChanged -= ComboBox_Location_SelectionIndexChanged;
@@ -393,6 +407,28 @@ Right-click anywhere on the chart to clear all overlays.";
             mAltitudeChart.AddChartAreaToList("Day");
             mAltitudeChart.AddChartAreaToList("Year");
             mAltitudeChart.AddChartAreaToList("Optimal");
+
+            // Day sub-mode toggle: when checked, the Day chart shows per-target K-S
+            // sky-brightness curves on a reversed-magnitude Y axis instead of altitude.
+            // Added programmatically (not Designer-resident) since it's a sub-mode of
+            // the existing Day radio. Sits inside GroupBox_Altitude alongside the
+            // Day/Year/Optimal radios.
+            mCheckBox_Day_Sky = new CheckBox
+            {
+                Name     = "CheckBox_Day_Sky",
+                Text     = "Sky",
+                Location = new Point(180, 19),
+                Size     = new Size(50, 17),
+                AutoSize = true,
+                TabStop  = false,
+            };
+            mCheckBox_Day_Sky.CheckedChanged += (s, e) =>
+            {
+                mAltitudeChart.SetDaySubMode(mCheckBox_Day_Sky.Checked
+                    ? Charts.AltitudeChart.DaySubMode.Sky
+                    : Charts.AltitudeChart.DaySubMode.Altitude);
+            };
+            GroupBox_Altitude.Controls.Add(mCheckBox_Day_Sky);
 
             // Phase 1: no startup chart. The chart control / chart areas / legend are
             // wired up here so the empty chart panel renders cleanly, but no targets
@@ -510,6 +546,34 @@ Right-click anywhere on the chart to clear all overlays.";
             OnLocationEdited(sender, e);
         }
 
+        // Bortle dropdown change: update Location.BortleClass and overwrite the extinction
+        // spinner with the typical k for the new class. The class also drives V₀ inside
+        // K-S via Bortle.DefaultZenithMag at render time, so a Bortle change triggers a
+        // Day-Sky rebuild via the OnLocationEdited debounce path.
+        private void ComboBox_Bortle_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            int b = ComboBox_Bortle.SelectedIndex + 1;  // index 0 -> Bortle 1
+            if (b < 1 || b > 9) return;
+            double k = Astronomy.Core.Brightness.Bortle.DefaultExtinctionK500(b);
+            mLocation = mLocation.With(bortleClass: b, extinctionK: k);
+
+            // Push the auto-filled k into the spinner without re-firing its handler.
+            NumericUpDown_Extinction.ValueChanged -= NumericUpDown_Extinction_ValueChanged;
+            NumericUpDown_Extinction.Value = ClampToRange(NumericUpDown_Extinction, (decimal)k);
+            NumericUpDown_Extinction.ValueChanged += NumericUpDown_Extinction_ValueChanged;
+
+            OnLocationEdited(sender, e);
+        }
+
+        // Extinction spinner edit: update Location.ExtinctionK directly. Bortle stays
+        // wherever the user left it (manual override -- the user knows their site's k
+        // better than the Bortle table does).
+        private void NumericUpDown_Extinction_ValueChanged(object sender, EventArgs e)
+        {
+            mLocation = mLocation.With(extinctionK: (double)NumericUpDown_Extinction.Value);
+            OnLocationEdited(sender, e);
+        }
+
         private void OnRightAscensionEdited(object sender, EventArgs e)
         {
             if (mUpdatingUiFromVm) return;
@@ -583,6 +647,10 @@ Right-click anywhere on the chart to clear all overlays.";
 
             if (mAltitudeChart == null) return;
             mAltitudeChart.RebuildOptimalData(mLocation.Horizon, mLocation.Duration);
+            // Bortle / Extinction / ActiveFilter changes feed the K-S sky-brightness
+            // minute-loop; rebuild the per-target Day-Sky curves alongside the Optimal
+            // tick so a single 150 ms debounce coalesces both refreshes.
+            mAltitudeChart.RebuildDaySkyData();
         }
 
         // Compare the two locations on the fields that key the chart cache: Lat / Lon /
@@ -1011,6 +1079,12 @@ Right-click anywhere on the chart to clear all overlays.";
 
             if (mAltitudeChart == null) return;
             mAltitudeChart.MoonAvoidanceProfile = avoidanceOn ? profile : null;
+            // Push the active filter's center wavelength to the chart so the K-S
+            // sky-brightness minute-loop scales extinction k via Rayleigh λ⁻⁴ at the
+            // band. Setter propagates to every AltitudeSeries; Day-Sky rebuild fires
+            // via the existing OptimalRebuildDebounce tick (extended to also call
+            // RebuildDaySkyData).
+            mAltitudeChart.ActiveFilterCenterNm = filter.CenterNm;
             RestartOptimalRebuildDebounce();
         }
 
@@ -1469,15 +1543,23 @@ Right-click anywhere on the chart to clear all overlays.";
                 mLatitudeInput.SetProgrammatic(mLocation.Latitude,  positive: mLocation.North);
                 mLongitudeInput.SetProgrammatic(mLocation.Longitude, positive: mLocation.West);
 
-                NumericUpDown_TargetFloor.ValueChanged  -= NumericUpDown_TargetFloor_ValueChanged;
+                NumericUpDown_TargetFloor.ValueChanged    -= NumericUpDown_TargetFloor_ValueChanged;
                 NumericUpDown_TargetDuration.ValueChanged -= NumericUpDown_TargetDuration_ValueChanged;
                 NumericUpDown_LocalElevation.ValueChanged -= NumericUpDown_LocalElevation_ValueChanged;
-                NumericUpDown_TargetFloor.Value  = ClampToRange(NumericUpDown_TargetFloor,  (decimal)mLocation.Horizon);
+                NumericUpDown_Extinction.ValueChanged     -= NumericUpDown_Extinction_ValueChanged;
+                ComboBox_Bortle.SelectedIndexChanged      -= ComboBox_Bortle_SelectedIndexChanged;
+                NumericUpDown_TargetFloor.Value    = ClampToRange(NumericUpDown_TargetFloor,    (decimal)mLocation.Horizon);
                 NumericUpDown_TargetDuration.Value = ClampToRange(NumericUpDown_TargetDuration, (decimal)mLocation.Duration.TotalHours);
                 NumericUpDown_LocalElevation.Value = ClampToRange(NumericUpDown_LocalElevation, (decimal)mLocation.Elevation);
-                NumericUpDown_TargetFloor.ValueChanged  += NumericUpDown_TargetFloor_ValueChanged;
+                NumericUpDown_Extinction.Value     = ClampToRange(NumericUpDown_Extinction,     (decimal)mLocation.ExtinctionK);
+                int bortleIdx = mLocation.BortleClass - 1;
+                if (bortleIdx >= 0 && bortleIdx < ComboBox_Bortle.Items.Count)
+                    ComboBox_Bortle.SelectedIndex = bortleIdx;
+                NumericUpDown_TargetFloor.ValueChanged    += NumericUpDown_TargetFloor_ValueChanged;
                 NumericUpDown_TargetDuration.ValueChanged += NumericUpDown_TargetDuration_ValueChanged;
                 NumericUpDown_LocalElevation.ValueChanged += NumericUpDown_LocalElevation_ValueChanged;
+                NumericUpDown_Extinction.ValueChanged     += NumericUpDown_Extinction_ValueChanged;
+                ComboBox_Bortle.SelectedIndexChanged      += ComboBox_Bortle_SelectedIndexChanged;
             }
             finally { mSyncingLocationUI = false; }
         }

@@ -126,6 +126,10 @@
             this.GroupBox_Altitude = new System.Windows.Forms.GroupBox();
             this.ProgressBar_MultiTargetProcessing = new System.Windows.Forms.ProgressBar();
             this.GroupBox_Moon_Filters = new System.Windows.Forms.GroupBox();
+            this.NumericUpDown_Extinction = new System.Windows.Forms.NumericUpDown();
+            this.ComboBox_Bortle = new System.Windows.Forms.ComboBox();
+            this.Label_Bortle = new System.Windows.Forms.Label();
+            this.Lable_Extinction = new System.Windows.Forms.Label();
             this.GroupBox_Local.SuspendLayout();
             this.GroupBox_Location.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LocalElevation)).BeginInit();
@@ -153,6 +157,7 @@
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Moon_RelaxScale)).BeginInit();
             this.MenuStrip_MainForm.SuspendLayout();
             this.GroupBox_Altitude.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Extinction)).BeginInit();
             this.SuspendLayout();
             // 
             // GroupBox_Local
@@ -168,6 +173,10 @@
             // 
             // GroupBox_Location
             // 
+            this.GroupBox_Location.Controls.Add(this.Lable_Extinction);
+            this.GroupBox_Location.Controls.Add(this.Label_Bortle);
+            this.GroupBox_Location.Controls.Add(this.ComboBox_Bortle);
+            this.GroupBox_Location.Controls.Add(this.NumericUpDown_Extinction);
             this.GroupBox_Location.Controls.Add(this.Label_LocalMeters);
             this.GroupBox_Location.Controls.Add(this.NumericUpDown_LocalElevation);
             this.GroupBox_Location.Controls.Add(this.Label_LocalElevation);
@@ -199,7 +208,7 @@
             // Label_LocalMeters
             // 
             this.Label_LocalMeters.AutoSize = true;
-            this.Label_LocalMeters.Location = new System.Drawing.Point(145, 100);
+            this.Label_LocalMeters.Location = new System.Drawing.Point(143, 100);
             this.Label_LocalMeters.Name = "Label_LocalMeters";
             this.Label_LocalMeters.Size = new System.Drawing.Size(39, 13);
             this.Label_LocalMeters.TabIndex = 28;
@@ -1423,6 +1432,51 @@
             this.GroupBox_Moon_Filters.TabStop = false;
             this.GroupBox_Moon_Filters.Text = "Filters";
             // 
+            // NumericUpDown_Extinction
+            // 
+            this.NumericUpDown_Extinction.DecimalPlaces = 2;
+            this.NumericUpDown_Extinction.Increment = new decimal(new int[] {
+            1,
+            0,
+            0,
+            131072});
+            this.NumericUpDown_Extinction.Location = new System.Drawing.Point(306, 96);
+            this.NumericUpDown_Extinction.Maximum = new decimal(new int[] {
+            1,
+            0,
+            0,
+            0});
+            this.NumericUpDown_Extinction.Name = "NumericUpDown_Extinction";
+            this.NumericUpDown_Extinction.Size = new System.Drawing.Size(65, 20);
+            this.NumericUpDown_Extinction.TabIndex = 29;
+            this.NumericUpDown_Extinction.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            // 
+            // ComboBox_Bortle
+            // 
+            this.ComboBox_Bortle.FormattingEnabled = true;
+            this.ComboBox_Bortle.Location = new System.Drawing.Point(258, 96);
+            this.ComboBox_Bortle.Name = "ComboBox_Bortle";
+            this.ComboBox_Bortle.Size = new System.Drawing.Size(42, 21);
+            this.ComboBox_Bortle.TabIndex = 41;
+            // 
+            // Label_Bortle
+            // 
+            this.Label_Bortle.AutoSize = true;
+            this.Label_Bortle.Location = new System.Drawing.Point(221, 100);
+            this.Label_Bortle.Name = "Label_Bortle";
+            this.Label_Bortle.Size = new System.Drawing.Size(34, 13);
+            this.Label_Bortle.TabIndex = 42;
+            this.Label_Bortle.Text = "Bortle";
+            // 
+            // Lable_Extinction
+            // 
+            this.Lable_Extinction.AutoSize = true;
+            this.Lable_Extinction.Location = new System.Drawing.Point(374, 100);
+            this.Lable_Extinction.Name = "Lable_Extinction";
+            this.Lable_Extinction.Size = new System.Drawing.Size(74, 13);
+            this.Lable_Extinction.TabIndex = 43;
+            this.Lable_Extinction.Text = "Sky Extinction";
+            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -1471,6 +1525,7 @@
             this.MenuStrip_MainForm.PerformLayout();
             this.GroupBox_Altitude.ResumeLayout(false);
             this.GroupBox_Altitude.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Extinction)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -1576,6 +1631,10 @@
         private System.Windows.Forms.NumericUpDown NumericUpDown_LocalElevation;
         private System.Windows.Forms.Label Label_LocalElevation;
         private System.Windows.Forms.GroupBox GroupBox_Moon_Filters;
+        private System.Windows.Forms.Label Lable_Extinction;
+        private System.Windows.Forms.Label Label_Bortle;
+        private System.Windows.Forms.ComboBox ComboBox_Bortle;
+        private System.Windows.Forms.NumericUpDown NumericUpDown_Extinction;
     }
 }
 
