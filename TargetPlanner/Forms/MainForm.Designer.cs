@@ -125,6 +125,7 @@
             this.FileToolStripMenuItem_MainForm = new System.Windows.Forms.ToolStripMenuItem();
             this.GroupBox_Altitude = new System.Windows.Forms.GroupBox();
             this.ProgressBar_MultiTargetProcessing = new System.Windows.Forms.ProgressBar();
+            this.GroupBox_Moon_Filters = new System.Windows.Forms.GroupBox();
             this.GroupBox_Local.SuspendLayout();
             this.GroupBox_Location.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LocalElevation)).BeginInit();
@@ -848,7 +849,7 @@
             // 
             // Button_Graph
             // 
-            this.Button_Graph.Location = new System.Drawing.Point(32, 230);
+            this.Button_Graph.Location = new System.Drawing.Point(6, 116);
             this.Button_Graph.Name = "Button_Graph";
             this.Button_Graph.Size = new System.Drawing.Size(66, 23);
             this.Button_Graph.TabIndex = 34;
@@ -1169,6 +1170,7 @@
             // 
             // GroupBox_MoonAvoidance
             // 
+            this.GroupBox_MoonAvoidance.Controls.Add(this.GroupBox_Moon_Filters);
             this.GroupBox_MoonAvoidance.Controls.Add(this.CheckBox_Moon_AvoidanceEnable);
             this.GroupBox_MoonAvoidance.Controls.Add(this.Label_Moon_Seperation);
             this.GroupBox_MoonAvoidance.Controls.Add(this.NumericUpDown_Moon_Separation);
@@ -1181,9 +1183,9 @@
             this.GroupBox_MoonAvoidance.Controls.Add(this.NumericUpDown_Moon_RelaxMax);
             this.GroupBox_MoonAvoidance.Controls.Add(this.Label_Moon_RelaxScale);
             this.GroupBox_MoonAvoidance.Controls.Add(this.NumericUpDown_Moon_RelaxScale);
-            this.GroupBox_MoonAvoidance.Location = new System.Drawing.Point(130, 207);
+            this.GroupBox_MoonAvoidance.Location = new System.Drawing.Point(22, 207);
             this.GroupBox_MoonAvoidance.Name = "GroupBox_MoonAvoidance";
-            this.GroupBox_MoonAvoidance.Size = new System.Drawing.Size(391, 98);
+            this.GroupBox_MoonAvoidance.Size = new System.Drawing.Size(497, 109);
             this.GroupBox_MoonAvoidance.TabIndex = 42;
             this.GroupBox_MoonAvoidance.TabStop = false;
             this.GroupBox_MoonAvoidance.Text = "Moon Avoidance";
@@ -1191,7 +1193,7 @@
             // CheckBox_Moon_AvoidanceEnable
             // 
             this.CheckBox_Moon_AvoidanceEnable.AutoSize = true;
-            this.CheckBox_Moon_AvoidanceEnable.Location = new System.Drawing.Point(9, 46);
+            this.CheckBox_Moon_AvoidanceEnable.Location = new System.Drawing.Point(9, 24);
             this.CheckBox_Moon_AvoidanceEnable.Name = "CheckBox_Moon_AvoidanceEnable";
             this.CheckBox_Moon_AvoidanceEnable.Size = new System.Drawing.Size(59, 17);
             this.CheckBox_Moon_AvoidanceEnable.TabIndex = 11;
@@ -1202,7 +1204,7 @@
             // Label_Moon_Seperation
             // 
             this.Label_Moon_Seperation.AutoSize = true;
-            this.Label_Moon_Seperation.Location = new System.Drawing.Point(89, 24);
+            this.Label_Moon_Seperation.Location = new System.Drawing.Point(85, 63);
             this.Label_Moon_Seperation.Name = "Label_Moon_Seperation";
             this.Label_Moon_Seperation.Size = new System.Drawing.Size(64, 13);
             this.Label_Moon_Seperation.TabIndex = 6;
@@ -1215,7 +1217,7 @@
             0,
             0,
             0});
-            this.NumericUpDown_Moon_Separation.Location = new System.Drawing.Point(157, 20);
+            this.NumericUpDown_Moon_Separation.Location = new System.Drawing.Point(153, 59);
             this.NumericUpDown_Moon_Separation.Maximum = new decimal(new int[] {
             180,
             0,
@@ -1235,7 +1237,7 @@
             // Label_Moon_Width
             // 
             this.Label_Moon_Width.AutoSize = true;
-            this.Label_Moon_Width.Location = new System.Drawing.Point(211, 24);
+            this.Label_Moon_Width.Location = new System.Drawing.Point(207, 63);
             this.Label_Moon_Width.Name = "Label_Moon_Width";
             this.Label_Moon_Width.Size = new System.Drawing.Size(38, 13);
             this.Label_Moon_Width.TabIndex = 7;
@@ -1243,7 +1245,7 @@
             // 
             // NumericUpDown_Moon_Width
             // 
-            this.NumericUpDown_Moon_Width.Location = new System.Drawing.Point(253, 20);
+            this.NumericUpDown_Moon_Width.Location = new System.Drawing.Point(249, 59);
             this.NumericUpDown_Moon_Width.Maximum = new decimal(new int[] {
             30,
             0,
@@ -1263,7 +1265,7 @@
             // CheckBox_Moon_RelaxEnabled
             // 
             this.CheckBox_Moon_RelaxEnabled.AutoSize = true;
-            this.CheckBox_Moon_RelaxEnabled.Location = new System.Drawing.Point(89, 46);
+            this.CheckBox_Moon_RelaxEnabled.Location = new System.Drawing.Point(86, 81);
             this.CheckBox_Moon_RelaxEnabled.Name = "CheckBox_Moon_RelaxEnabled";
             this.CheckBox_Moon_RelaxEnabled.Size = new System.Drawing.Size(112, 17);
             this.CheckBox_Moon_RelaxEnabled.TabIndex = 2;
@@ -1274,7 +1276,7 @@
             // Label_Moon_RelaxMin
             // 
             this.Label_Moon_RelaxMin.AutoSize = true;
-            this.Label_Moon_RelaxMin.Location = new System.Drawing.Point(89, 71);
+            this.Label_Moon_RelaxMin.Location = new System.Drawing.Point(202, 82);
             this.Label_Moon_RelaxMin.Name = "Label_Moon_RelaxMin";
             this.Label_Moon_RelaxMin.Size = new System.Drawing.Size(27, 13);
             this.Label_Moon_RelaxMin.TabIndex = 8;
@@ -1282,7 +1284,7 @@
             // 
             // NumericUpDown_Moon_RelaxMin
             // 
-            this.NumericUpDown_Moon_RelaxMin.Location = new System.Drawing.Point(122, 67);
+            this.NumericUpDown_Moon_RelaxMin.Location = new System.Drawing.Point(235, 78);
             this.NumericUpDown_Moon_RelaxMin.Maximum = new decimal(new int[] {
             45,
             0,
@@ -1307,7 +1309,7 @@
             // Label_Moon_RelaxMax
             // 
             this.Label_Moon_RelaxMax.AutoSize = true;
-            this.Label_Moon_RelaxMax.Location = new System.Drawing.Point(178, 71);
+            this.Label_Moon_RelaxMax.Location = new System.Drawing.Point(291, 82);
             this.Label_Moon_RelaxMax.Name = "Label_Moon_RelaxMax";
             this.Label_Moon_RelaxMax.Size = new System.Drawing.Size(30, 13);
             this.Label_Moon_RelaxMax.TabIndex = 9;
@@ -1315,7 +1317,7 @@
             // 
             // NumericUpDown_Moon_RelaxMax
             // 
-            this.NumericUpDown_Moon_RelaxMax.Location = new System.Drawing.Point(214, 67);
+            this.NumericUpDown_Moon_RelaxMax.Location = new System.Drawing.Point(327, 78);
             this.NumericUpDown_Moon_RelaxMax.Maximum = new decimal(new int[] {
             45,
             0,
@@ -1340,7 +1342,7 @@
             // Label_Moon_RelaxScale
             // 
             this.Label_Moon_RelaxScale.AutoSize = true;
-            this.Label_Moon_RelaxScale.Location = new System.Drawing.Point(270, 71);
+            this.Label_Moon_RelaxScale.Location = new System.Drawing.Point(383, 82);
             this.Label_Moon_RelaxScale.Name = "Label_Moon_RelaxScale";
             this.Label_Moon_RelaxScale.Size = new System.Drawing.Size(37, 13);
             this.Label_Moon_RelaxScale.TabIndex = 10;
@@ -1354,7 +1356,7 @@
             0,
             0,
             131072});
-            this.NumericUpDown_Moon_RelaxScale.Location = new System.Drawing.Point(313, 67);
+            this.NumericUpDown_Moon_RelaxScale.Location = new System.Drawing.Point(426, 78);
             this.NumericUpDown_Moon_RelaxScale.Maximum = new decimal(new int[] {
             10,
             0,
@@ -1368,7 +1370,7 @@
             // 
             // Button_Cancel
             // 
-            this.Button_Cancel.Location = new System.Drawing.Point(32, 259);
+            this.Button_Cancel.Location = new System.Drawing.Point(6, 149);
             this.Button_Cancel.Name = "Button_Cancel";
             this.Button_Cancel.Size = new System.Drawing.Size(66, 23);
             this.Button_Cancel.TabIndex = 41;
@@ -1411,6 +1413,15 @@
             this.ProgressBar_MultiTargetProcessing.Name = "ProgressBar_MultiTargetProcessing";
             this.ProgressBar_MultiTargetProcessing.Size = new System.Drawing.Size(1331, 18);
             this.ProgressBar_MultiTargetProcessing.TabIndex = 40;
+            // 
+            // GroupBox_Moon_Filters
+            // 
+            this.GroupBox_Moon_Filters.Location = new System.Drawing.Point(92, 10);
+            this.GroupBox_Moon_Filters.Name = "GroupBox_Moon_Filters";
+            this.GroupBox_Moon_Filters.Size = new System.Drawing.Size(394, 43);
+            this.GroupBox_Moon_Filters.TabIndex = 12;
+            this.GroupBox_Moon_Filters.TabStop = false;
+            this.GroupBox_Moon_Filters.Text = "Filters";
             // 
             // MainForm
             // 
@@ -1564,6 +1575,7 @@
         private System.Windows.Forms.Label Label_LocalMeters;
         private System.Windows.Forms.NumericUpDown NumericUpDown_LocalElevation;
         private System.Windows.Forms.Label Label_LocalElevation;
+        private System.Windows.Forms.GroupBox GroupBox_Moon_Filters;
     }
 }
 

@@ -78,6 +78,13 @@ namespace TargetPlanner
         private System.Windows.Forms.Timer mFilterAutoSaveDebounce;
         private const int FilterAutoSaveDebounceMs = 500;
 
+        // GroupBox_Moon_Filters surface: one RadioButton per library filter plus a
+        // single "Defaults" button. Built programmatically by BuildFiltersGroupBox
+        // alongside BuildFiltersMenu, so the menu and the strip stay in sync.
+        // Parallel-indexed with mFilterLibrary.Filters and mFilterMenuItems.
+        private List<RadioButton> mFilterRadios;
+        private Button mFilterDefaultsButton;
+
         private ToolTip mToolTip;
         private int mToolTipIndex;
 
@@ -628,9 +635,16 @@ Right-click anywhere on the chart to clear all overlays.";
             foreach (TpFilter filter in mFilterLibrary.Filters)
             {
                 ToolStripMenuItem item = new ToolStripMenuItem(filter.Name);
-                TpFilter captured = filter;
+                // Capture by Name (stable across auto-save) -- the auto-save tick
+                // replaces the Filter instance in the library, so a captured-by-reference
+                // filter would go stale and SetActiveFilter would fail to find it.
+                string capturedName = filter.Name;
                 ToolStripMenuItem capturedItem = item;
-                item.Click += (s, e) => SetActiveFilter(captured, capturedItem);
+                item.Click += (s, e) =>
+                {
+                    TpFilter live = mFilterLibrary != null ? mFilterLibrary.Find(capturedName) : null;
+                    if (live != null) SetActiveFilter(live);
+                };
                 // Right-click: dismiss the dropdown and open the modal Edit Filters
                 // dialog pre-selected on this filter. ToolStripMenuItem doesn't have a
                 // dedicated right-click event; MouseDown is the standard hook.
@@ -639,13 +653,13 @@ Right-click anywhere on the chart to clear all overlays.";
                     if (e.Button != MouseButtons.Right) return;
                     ToolStripDropDown owner = capturedItem.Owner as ToolStripDropDown;
                     if (owner != null) owner.Close();
-                    OpenEditFiltersDialog(captured.Name);
+                    OpenEditFiltersDialog(capturedName);
                 };
                 mFiltersMenu.DropDownItems.Add(item);
                 mFilterMenuItems.Add(item);
                 if (firstFilter == null)
                 {
-                    firstFilter = captured;
+                    firstFilter = filter;
                     firstFilterItem = item;
                 }
             }
@@ -688,29 +702,184 @@ Right-click anywhere on the chart to clear all overlays.";
             }
             SetLorentzianControlsEnabled(avoidanceOn);
 
-            // Initial '*' state on per-item labels and on the top-level Filters title.
+            // Build the parallel radio strip in GroupBox_Moon_Filters and stamp the
+            // initial '*' state across all surfaces (menu items, radios, top-level title).
+            BuildFiltersGroupBox();
             RefreshFilterMenuLabels();
         }
 
-        // Walk mFilterMenuItems updating each item's Text from the corresponding library
-        // filter's modified-vs-default state. Filters whose values differ from
-        // FilterLibrary.BuiltinDefaults get a trailing ' *'; the top-level
-        // mFiltersMenu.Text gets a trailing ' *' iff any filter is modified. User-
-        // created filters (no built-in baseline) always show no '*'
-        // (DiffersFromBuiltinDefault returns false). Called after BuildFiltersMenu
-        // initial setup and after every filter auto-save tick.
+        // Populate GroupBox_Moon_Filters with one RadioButton per library filter plus a
+        // Defaults button. Defaults takes a fixed 70 px on the right; radios share the
+        // remaining width equally. Idempotent rebuild -- called by BuildFiltersMenu so
+        // the strip stays in sync with the menu after every Edit Filters Save.
+        //
+        // Click on a radio activates that filter (mirrors the menu); right-click opens
+        // the Edit Filters dialog pre-selected on that filter (also mirrors the menu).
+        // The Defaults button restores the active filter to factory defaults via
+        // OnFilterDefaultsClick.
+        private void BuildFiltersGroupBox()
+        {
+            if (GroupBox_Moon_Filters == null) return;
+
+            GroupBox_Moon_Filters.SuspendLayout();
+            try
+            {
+                GroupBox_Moon_Filters.Controls.Clear();
+                if (mFilterRadios == null) mFilterRadios = new List<RadioButton>();
+                mFilterRadios.Clear();
+
+                Rectangle area = GroupBox_Moon_Filters.DisplayRectangle;
+                const int DefaultsWidth = 70;
+                const int Gap = 4;
+                const int Padding = 6;
+                int top = area.Top + 2;
+                int rowH = Math.Max(16, area.Height - 4);
+
+                int defaultsX = area.Right - DefaultsWidth - Padding;
+                mFilterDefaultsButton = new Button
+                {
+                    Name     = "Button_Moon_Defaults",
+                    Text     = "Defaults",
+                    Location = new Point(defaultsX, top - 2),
+                    Size     = new Size(DefaultsWidth, rowH + 2),
+                    TabStop  = false,
+                };
+                mFilterDefaultsButton.Click += OnFilterDefaultsClick;
+                GroupBox_Moon_Filters.Controls.Add(mFilterDefaultsButton);
+
+                int radioLeft = area.Left + Padding;
+                int radioAreaWidth = (defaultsX - Gap) - radioLeft;
+                int n = mFilterLibrary != null ? mFilterLibrary.Filters.Count : 0;
+                if (n == 0) return;
+                int radioWidth = radioAreaWidth / n;
+
+                int x = radioLeft;
+                for (int i = 0; i < n; i++)
+                {
+                    TpFilter filter = mFilterLibrary.Filters[i];
+                    bool modified = FilterLibrary.DiffersFromBuiltinDefault(filter);
+                    // Capture by Name (stable across auto-save) -- the auto-save tick
+                    // replaces the Filter instance in the library, so a captured-by-
+                    // reference filter would go stale (clicking the radio would try to
+                    // activate an instance no longer in the library and SetActiveFilter
+                    // would fail to find an index match, un-checking every radio).
+                    string capturedName = filter.Name;
+                    RadioButton radio = new RadioButton
+                    {
+                        Name     = "RadioButton_Moon_" + IdentifierSafe(filter.Name),
+                        Text     = filter.Name + (modified ? " *" : ""),
+                        Location = new Point(x, top),
+                        Size     = new Size(radioWidth, rowH),
+                        TabStop  = false,
+                        Checked  = object.ReferenceEquals(mActiveFilter, filter),
+                    };
+                    radio.Click += (s, e) =>
+                    {
+                        if (mSuppressFilterEvents) return;
+                        TpFilter live = mFilterLibrary != null ? mFilterLibrary.Find(capturedName) : null;
+                        if (live != null) SetActiveFilter(live);
+                    };
+                    radio.MouseDown += (s, e) =>
+                    {
+                        if (e.Button == MouseButtons.Right) OpenEditFiltersDialog(capturedName);
+                    };
+                    GroupBox_Moon_Filters.Controls.Add(radio);
+                    mFilterRadios.Add(radio);
+                    x += radioWidth;
+                }
+            }
+            finally
+            {
+                GroupBox_Moon_Filters.ResumeLayout();
+            }
+        }
+
+        // Strip non-identifier characters from a filter name so the generated control
+        // Name field stays diagnosable in the VS debugger ("Hα-7nm" -> "H7nm").
+        private static string IdentifierSafe(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "Unnamed";
+            var sb = new System.Text.StringBuilder(s.Length);
+            foreach (char c in s) if (char.IsLetterOrDigit(c) || c == '_') sb.Append(c);
+            return sb.Length > 0 ? sb.ToString() : "Unnamed";
+        }
+
+        // Defaults button click: restore EVERY library filter that has a factory
+        // built-in baseline to its factory values. User-created filters (no baseline
+        // via FilterLibrary.FindBuiltinDefault) are skipped silently. Persists once
+        // at the end, then refreshes both UI surfaces, re-applies the active filter
+        // (its values may have just been reset), and surfaces a 1-second transient
+        // message so the user sees what happened.
+        private void OnFilterDefaultsClick(object sender, EventArgs e)
+        {
+            if (mFilterLibrary == null || mFilterLibrary.Filters.Count == 0) return;
+
+            string activeName = mActiveFilter != null ? mActiveFilter.Name : null;
+            bool anyChanged = false;
+
+            for (int i = 0; i < mFilterLibrary.Filters.Count; i++)
+            {
+                TpFilter current = mFilterLibrary.Filters[i];
+                TpFilter builtin = FilterLibrary.FindBuiltinDefault(current.Name);
+                if (builtin == null) continue;  // user-created -- no factory baseline
+
+                // Adopt the builtin's values; preserve the current Name's casing
+                // (FindBuiltinDefault matched case-insensitively).
+                TpFilter restored = new TpFilter(
+                    name:           current.Name,
+                    separationDeg:  builtin.SeparationDeg,
+                    widthDays:      builtin.WidthDays,
+                    relaxEnabled:   builtin.RelaxEnabled,
+                    relaxMinAltDeg: builtin.RelaxMinAltDeg,
+                    relaxMaxAltDeg: builtin.RelaxMaxAltDeg,
+                    relaxScale:     builtin.RelaxScale,
+                    centerNm:       builtin.CenterNm,
+                    bandwidthNm:    builtin.BandwidthNm);
+                mFilterLibrary.Replace(i, restored);
+                anyChanged = true;
+            }
+
+            if (!anyChanged) return;  // every filter was user-created
+
+            try { mFilterLibrary.Save(); }
+            catch (Exception ex) { Log.Error("FilterLibrary.Save (Defaults click) failed", ex); }
+
+            // Re-resolve mActiveFilter by name -- if it was a builtin, the Replace
+            // above swapped its instance; if user-created it's unchanged. Either way
+            // SetActiveFilter pushes the (possibly-reset) values into the Lorentzian
+            // controls + chart.
+            TpFilter newActive = activeName != null ? mFilterLibrary.Find(activeName) : null;
+            if (newActive != null) SetActiveFilter(newActive);
+            RefreshFilterMenuLabels();
+
+            ShowTransientMessage("Filters reset to defaults", 1000);
+        }
+
+        // Walk both UI surfaces (menu items + groupbox radios) updating each label from
+        // the corresponding library filter's modified-vs-default state. Filters whose
+        // values differ from FilterLibrary.BuiltinDefaults get a trailing ' *'; the
+        // top-level mFiltersMenu.Text also gets ' *' iff any filter is modified. User-
+        // created filters (no built-in baseline) always show no '*'. Called after
+        // BuildFiltersMenu/BuildFiltersGroupBox initial setup and after every filter
+        // auto-save tick.
         private void RefreshFilterMenuLabels()
         {
-            if (mFilterMenuItems == null || mFilterLibrary == null) return;
-            int n = Math.Min(mFilterMenuItems.Count, mFilterLibrary.Filters.Count);
+            if (mFilterLibrary == null) return;
+            int filterCount = mFilterLibrary.Filters.Count;
+            int menuN  = mFilterMenuItems != null ? Math.Min(mFilterMenuItems.Count, filterCount) : 0;
+            int radioN = mFilterRadios    != null ? Math.Min(mFilterRadios.Count,    filterCount) : 0;
             bool anyModified = false;
-            for (int i = 0; i < n; i++)
+
+            for (int i = 0; i < filterCount; i++)
             {
                 TpFilter f = mFilterLibrary.Filters[i];
                 bool modified = FilterLibrary.DiffersFromBuiltinDefault(f);
                 if (modified) anyModified = true;
-                mFilterMenuItems[i].Text = f.Name + (modified ? " *" : "");
+                string label = f.Name + (modified ? " *" : "");
+                if (i < menuN)  mFilterMenuItems[i].Text = label;
+                if (i < radioN) mFilterRadios[i].Text    = label;
             }
+
             if (mFiltersMenu != null)
                 mFiltersMenu.Text = anyModified ? "&Filters *" : "&Filters";
         }
@@ -789,35 +958,47 @@ Right-click anywhere on the chart to clear all overlays.";
                 return;
             }
 
-            ToolStripMenuItem item = null;
-            for (int i = 0; i < mFilterLibrary.Filters.Count; i++)
-            {
-                if (object.ReferenceEquals(mFilterLibrary.Filters[i], found))
-                {
-                    if (i < mFilterMenuItems.Count) item = mFilterMenuItems[i];
-                    break;
-                }
-            }
-            SetActiveFilter(found, item);
+            SetActiveFilter(found);
         }
 
-        // Activate the named filter: enforce single-checked menu state, populate the
-        // Lorentzian controls from the filter's profile, push the profile to the chart
-        // (gated on the master Enable), and set mActiveFilter -- the auto-save target
-        // that scrubbing the controls will mutate via FilterAutoSaveDebounce_Tick.
-        private void SetActiveFilter(TpFilter filter, ToolStripMenuItem clickedItem)
+        // Activate the named filter on both UI surfaces (menu items + groupbox radios):
+        // resolve the index once, then walk each surface setting Checked = (i == idx).
+        // Populates the Lorentzian controls from the filter's profile, pushes the profile
+        // to the chart (gated on the master Enable), and sets mActiveFilter -- the
+        // auto-save target that scrubbing the controls will mutate via
+        // FilterAutoSaveDebounce_Tick.
+        private void SetActiveFilter(TpFilter filter)
         {
             if (filter == null) return;
 
             mActiveFilter = filter;
             MoonAvoidanceProfile profile = filter.ToProfile();
 
+            int idx = -1;
+            for (int i = 0; i < mFilterLibrary.Filters.Count; i++)
+            {
+                if (object.ReferenceEquals(mFilterLibrary.Filters[i], filter)) { idx = i; break; }
+            }
+
             if (mFilterMenuItems != null)
             {
-                foreach (ToolStripMenuItem item in mFilterMenuItems)
+                for (int i = 0; i < mFilterMenuItems.Count; i++)
+                    mFilterMenuItems[i].Checked = (i == idx);
+            }
+
+            if (mFilterRadios != null)
+            {
+                // Programmatic Checked changes don't fire RadioButton.Click (we use Click,
+                // not CheckedChanged, so there's no recursion); the suppress flag is a
+                // belt-and-suspenders guard against any future CheckedChanged subscriber.
+                bool wasSuppressed = mSuppressFilterEvents;
+                mSuppressFilterEvents = true;
+                try
                 {
-                    item.Checked = (item == clickedItem);
+                    for (int i = 0; i < mFilterRadios.Count; i++)
+                        mFilterRadios[i].Checked = (i == idx);
                 }
+                finally { mSuppressFilterEvents = wasSuppressed; }
             }
 
             // WriteProfileToControls raises mSuppressFilterEvents internally so its
@@ -932,6 +1113,7 @@ Right-click anywhere on the chart to clear all overlays.";
                 relaxMinAltDeg: (double)NumericUpDown_Moon_RelaxMin.Value,
                 relaxMaxAltDeg: (double)NumericUpDown_Moon_RelaxMax.Value,
                 relaxScale:     (double)NumericUpDown_Moon_RelaxScale.Value,
+                centerNm:       mActiveFilter.CenterNm,
                 bandwidthNm:    mActiveFilter.BandwidthNm);
 
             mFilterLibrary.Replace(idx, updated);
@@ -1865,8 +2047,12 @@ Right-click anywhere on the chart to clear all overlays.";
                 };
                 mTransientNotice = new Form
                 {
+                    // Manual positioning: FormStartPosition.CenterParent only fires on the
+                    // first Show(); the pooled instance's subsequent Show() calls would
+                    // keep the original position even if the main form has moved. We
+                    // re-center against the main form's live bounds on every Show below.
                     FormBorderStyle = FormBorderStyle.FixedToolWindow,
-                    StartPosition   = FormStartPosition.CenterParent,
+                    StartPosition   = FormStartPosition.Manual,
                     ShowInTaskbar   = false,
                     ControlBox      = false,
                     Text            = string.Empty,
@@ -1886,6 +2072,14 @@ Right-click anywhere on the chart to clear all overlays.";
             mTransientLabel.Text = text;
             mTransientTimer.Stop();
             mTransientTimer.Interval = durationMs;
+
+            // Center on the main form's live bounds (screen coords). Recomputed on every
+            // Show so the notice tracks the user moving / resizing the main form between
+            // displays.
+            mTransientNotice.Location = new Point(
+                this.Left + (this.Width  - mTransientNotice.Width)  / 2,
+                this.Top  + (this.Height - mTransientNotice.Height) / 2);
+
             if (!mTransientNotice.Visible) mTransientNotice.Show(this);
             mTransientTimer.Start();
         }

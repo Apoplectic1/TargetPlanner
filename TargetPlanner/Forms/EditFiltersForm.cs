@@ -61,6 +61,7 @@ namespace TargetPlanner.Forms
             mGrid.Columns.Add(NewTextColumn(nameof(FilterRow.RelaxMinAltDeg), "RelaxMin",       70));
             mGrid.Columns.Add(NewTextColumn(nameof(FilterRow.RelaxMaxAltDeg), "RelaxMax",       70));
             mGrid.Columns.Add(NewTextColumn(nameof(FilterRow.RelaxScale),     "RelaxScale",     80));
+            mGrid.Columns.Add(NewTextColumn(nameof(FilterRow.CenterNm),       "Center (nm)",    80));
             mGrid.Columns.Add(NewTextColumn(nameof(FilterRow.BandwidthNm),    "Bandwidth (nm)", 110));
 
             // Per-row Defaults button. Click restores the row's values to the matching
@@ -279,6 +280,7 @@ namespace TargetPlanner.Forms
             public double RelaxMinAltDeg { get; set; }
             public double RelaxMaxAltDeg { get; set; }
             public double RelaxScale     { get; set; }
+            public double CenterNm       { get; set; }
             public double BandwidthNm    { get; set; }
 
             public static FilterRow From(Filter f) => new FilterRow
@@ -290,6 +292,7 @@ namespace TargetPlanner.Forms
                 RelaxMinAltDeg = f.RelaxMinAltDeg,
                 RelaxMaxAltDeg = f.RelaxMaxAltDeg,
                 RelaxScale     = f.RelaxScale,
+                CenterNm       = f.CenterNm,
                 BandwidthNm    = f.BandwidthNm,
             };
 
@@ -302,6 +305,7 @@ namespace TargetPlanner.Forms
                 RelaxMinAltDeg = -15.0,
                 RelaxMaxAltDeg = 5.0,
                 RelaxScale     = 0.0,
+                CenterNm       = 550.0,
                 BandwidthNm    = 3.0,
             };
 
@@ -313,6 +317,7 @@ namespace TargetPlanner.Forms
                 relaxMinAltDeg: RelaxMinAltDeg,
                 relaxMaxAltDeg: RelaxMaxAltDeg,
                 relaxScale:     RelaxScale,
+                centerNm:       CenterNm,
                 bandwidthNm:    BandwidthNm);
         }
     }

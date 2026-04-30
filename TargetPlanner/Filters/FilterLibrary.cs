@@ -31,13 +31,14 @@ namespace TargetPlanner.Filters
         // touch this array.
         private static readonly Filter[] sBuiltinDefaults = new[]
         {
-            new Filter("H", 60.0,  7.0,  false, -15.0, 5.0, 0.0,   3.0),
-            new Filter("O", 60.0,  7.0,  false, -15.0, 5.0, 0.0,   3.0),
-            new Filter("S", 60.0,  7.0,  false, -15.0, 5.0, 0.0,   3.0),
-            new Filter("L", 120.0, 14.0, false, -15.0, 5.0, 0.0, 300.0),
-            new Filter("R", 120.0, 14.0, false, -15.0, 5.0, 0.0, 100.0),
-            new Filter("G", 120.0, 14.0, false, -15.0, 5.0, 0.0, 100.0),
-            new Filter("B", 120.0, 14.0, false, -15.0, 5.0, 0.0, 100.0),
+            //          name  sep    width  relax  rMin   rMax  rScl  centerNm  bandwidthNm
+            new Filter("H",   60.0,  7.0,   false, -15.0, 5.0,  0.0,  656.3,    3.0),    // Hα line
+            new Filter("O",   60.0,  7.0,   false, -15.0, 5.0,  0.0,  500.7,    3.0),    // [O III] line
+            new Filter("S",   60.0,  7.0,   false, -15.0, 5.0,  0.0,  671.6,    3.0),    // [S II] line
+            new Filter("L",   120.0, 14.0,  false, -15.0, 5.0,  0.0,  540.0,  300.0),    // luminance mid
+            new Filter("R",   120.0, 14.0,  false, -15.0, 5.0,  0.0,  650.0,  100.0),
+            new Filter("G",   120.0, 14.0,  false, -15.0, 5.0,  0.0,  550.0,  100.0),
+            new Filter("B",   120.0, 14.0,  false, -15.0, 5.0,  0.0,  445.0,  100.0),
         };
 
         private readonly List<Filter> mFilters;
@@ -99,7 +100,7 @@ namespace TargetPlanner.Filters
                     string json = File.ReadAllText(DefaultPath);
                     Filter[] filters = JsonConvert.DeserializeObject<Filter[]>(json);
                     if (filters != null && filters.Length > 0)
-                        return new FilterLibrary(filters);
+                        return new FilterLibrary(MigrateLegacyFields(filters));
                 }
             }
             catch (Exception ex)
@@ -110,6 +111,30 @@ namespace TargetPlanner.Filters
                 Log.Error("FilterLibrary.LoadOrDefault failed at '" + DefaultPath + "'", ex);
             }
             return DefaultLibrary();
+        }
+
+        // Mirrors SettingsStore.MergeBuiltins's auto-fill pattern. Filters loaded from
+        // older filters.json files predating CenterNm deserialize with CenterNm = 0.0
+        // (the C# default for missing JSON fields). Walk the deserialized array and for
+        // each filter whose Name matches a builtin AND whose CenterNm is 0, fill in the
+        // builtin's CenterNm. Negative wavelengths are unphysical and 0 is the
+        // unmistakable "field was missing" tell, so the heuristic is safe -- a user
+        // can't legitimately set CenterNm = 0. User-renamed builtins or user-created
+        // filters land at 0 and the user can fix via Edit Filters.
+        private static Filter[] MigrateLegacyFields(Filter[] filters)
+        {
+            Filter[] result = new Filter[filters.Length];
+            for (int i = 0; i < filters.Length; i++)
+            {
+                Filter f = filters[i];
+                if (f.CenterNm == 0.0)
+                {
+                    Filter b = FindBuiltinDefault(f.Name);
+                    if (b != null) f = f.With(centerNm: b.CenterNm);
+                }
+                result[i] = f;
+            }
+            return result;
         }
 
         /// <summary>Save the library to <see cref="DefaultPath"/>, creating directories as needed.</summary>
@@ -175,6 +200,7 @@ namespace TargetPlanner.Filters
                 || f.RelaxMinAltDeg != b.RelaxMinAltDeg
                 || f.RelaxMaxAltDeg != b.RelaxMaxAltDeg
                 || f.RelaxScale     != b.RelaxScale
+                || f.CenterNm       != b.CenterNm
                 || f.BandwidthNm    != b.BandwidthNm;
         }
     }
