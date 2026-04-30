@@ -251,6 +251,13 @@ Right-click anywhere on the chart to clear all overlays.";
             // attaches for dev builds).
             Text = "TargetPlanner v" + GetDisplayVersion();
 
+            // File menu: extend the Designer-resident "File" menu with a Clear All Data
+            // entry. Wipes the three persistent files in %APPDATA%\TargetPlanner (settings,
+            // filters, log) and offers a restart so the next launch boots from defaults.
+            var clearDataItem = new ToolStripMenuItem("&Clear All Data...");
+            clearDataItem.Click += (s, e) => HandleClearAllDataClick();
+            FileToolStripMenuItem_MainForm.DropDownItems.Add(clearDataItem);
+
             // Help menu: extends the existing MenuStrip_MainForm (which already has File).
             // Two items: Check for Updates... (manual UpdateService entry) and About.
             var helpMenu = new ToolStripMenuItem("&Help");
@@ -1086,6 +1093,49 @@ Right-click anywhere on the chart to clear all overlays.";
             // RebuildDaySkyData).
             mAltitudeChart.ActiveFilterCenterNm = filter.CenterNm;
             RestartOptimalRebuildDebounce();
+        }
+
+        // File -> Clear All Data... handler. Confirms via YesNo MessageBox, deletes the
+        // three persistent files in %APPDATA%\TargetPlanner, then offers a restart so the
+        // next launch boots from defaults. tp.log is deleted last so any per-file delete
+        // errors get captured before the log file itself goes away. If the user declines
+        // the restart, in-memory state is unchanged and any subsequent SettingsStore.Save /
+        // FilterLibrary.Save call will recreate the corresponding file with current state.
+        private void HandleClearAllDataClick()
+        {
+            string body =
+                "Clear all TargetPlanner data?\n\n" +
+                "This deletes:\n" +
+                "  • " + SettingsStore.FilePath + "\n" +
+                "  • " + FilterLibrary.DefaultPath + "\n" +
+                "  • " + Log.FilePath + "\n\n" +
+                "This cannot be undone.";
+
+            DialogResult confirm = MessageBox.Show(this, body, "Clear All Data",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+            if (confirm != DialogResult.Yes) return;
+
+            TryDeleteFile(SettingsStore.FilePath);
+            TryDeleteFile(FilterLibrary.DefaultPath);
+            TryDeleteFile(Log.FilePath);
+
+            DialogResult restart = MessageBox.Show(this,
+                "Data cleared.\n\nRestart TargetPlanner now to load defaults?",
+                "Clear All Data",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Information, MessageBoxDefaultButton.Button1);
+            if (restart == DialogResult.Yes) Application.Restart();
+        }
+
+        private static void TryDeleteFile(string path)
+        {
+            try
+            {
+                if (System.IO.File.Exists(path)) System.IO.File.Delete(path);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("ClearAllData: failed to delete '" + path + "'", ex);
+            }
         }
 
         // Master on/off for moon avoidance. When checked, the active filter's profile

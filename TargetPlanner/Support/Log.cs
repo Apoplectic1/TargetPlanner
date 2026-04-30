@@ -13,6 +13,9 @@ namespace TargetPlanner.Support
         private static readonly string sPath = ComputePath();
         private static readonly object sGate = new object();
 
+        // Exposed so clear-all-data can delete it alongside settings.json / filters.json.
+        public static string FilePath => sPath;
+
         public static void Warn(string message)        => Append("WARN",  message, null);
         public static void Warn(string message, Exception ex)  => Append("WARN",  message, ex);
         public static void Error(string message)       => Append("ERROR", message, null);
