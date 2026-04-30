@@ -17,6 +17,10 @@ namespace TargetPlanner.Settings
         public double Horizon { get; set; }
         public double DurationMinutes { get; set; }
 
+        // Observer ground elevation, meters above geoid. Default 0 keeps existing
+        // settings.json files (which predate the field) deserializing without error.
+        public double Elevation { get; set; }
+
         public static NamedLocationSetting FromLocation(Location loc)
         {
             return new NamedLocationSetting
@@ -28,6 +32,7 @@ namespace TargetPlanner.Settings
                 West = loc.West,
                 Horizon = loc.Horizon,
                 DurationMinutes = loc.Duration.TotalMinutes,
+                Elevation = loc.Elevation,
             };
         }
 
@@ -40,7 +45,8 @@ namespace TargetPlanner.Settings
                 horizon:      Horizon,
                 duration:     TimeSpan.FromMinutes(DurationMinutes),
                 dateTime:     DateTime.Now,
-                timeZoneInfo: TimeZoneInfo.Local);
+                timeZoneInfo: TimeZoneInfo.Local,
+                elevation:    Elevation);
         }
     }
 }

@@ -472,6 +472,15 @@ Right-click anywhere on the chart to clear all overlays.";
             OnLocationEdited(sender, e);
         }
 
+        // Single-spinner control (no D/M/S triple) so we don't go through CoordinateInput;
+        // route directly to OnLocationEdited so the combo flips to "Custom" and the cache
+        // invalidation debounce restarts -- same path the lat/lon handlers take.
+        private void NumericUpDown_LocalElevation_ValueChanged(object sender, EventArgs e)
+        {
+            mLocation = mLocation.With(elevation: (double)NumericUpDown_LocalElevation.Value);
+            OnLocationEdited(sender, e);
+        }
+
         private void OnRightAscensionEdited(object sender, EventArgs e)
         {
             if (mUpdatingUiFromVm) return;
@@ -561,6 +570,7 @@ Right-click anywhere on the chart to clear all overlays.";
                 && a.Longitude == b.Longitude
                 && a.North     == b.North
                 && a.West      == b.West
+                && a.Elevation == b.Elevation
                 && NightCache.ComputeYearStartDay(a.DateTime) == NightCache.ComputeYearStartDay(b.DateTime);
         }
 
@@ -1094,10 +1104,13 @@ Right-click anywhere on the chart to clear all overlays.";
 
                 NumericUpDown_TargetFloor.ValueChanged  -= NumericUpDown_TargetFloor_ValueChanged;
                 NumericUpDown_TargetDuration.ValueChanged -= NumericUpDown_TargetDuration_ValueChanged;
+                NumericUpDown_LocalElevation.ValueChanged -= NumericUpDown_LocalElevation_ValueChanged;
                 NumericUpDown_TargetFloor.Value  = ClampToRange(NumericUpDown_TargetFloor,  (decimal)mLocation.Horizon);
                 NumericUpDown_TargetDuration.Value = ClampToRange(NumericUpDown_TargetDuration, (decimal)mLocation.Duration.TotalHours);
+                NumericUpDown_LocalElevation.Value = ClampToRange(NumericUpDown_LocalElevation, (decimal)mLocation.Elevation);
                 NumericUpDown_TargetFloor.ValueChanged  += NumericUpDown_TargetFloor_ValueChanged;
                 NumericUpDown_TargetDuration.ValueChanged += NumericUpDown_TargetDuration_ValueChanged;
+                NumericUpDown_LocalElevation.ValueChanged += NumericUpDown_LocalElevation_ValueChanged;
             }
             finally { mSyncingLocationUI = false; }
         }

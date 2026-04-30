@@ -122,6 +122,9 @@
             this.FileToolStripMenuItem_MainForm = new System.Windows.Forms.ToolStripMenuItem();
             this.GroupBox_Altitude = new System.Windows.Forms.GroupBox();
             this.ProgressBar_MultiTargetProcessing = new System.Windows.Forms.ProgressBar();
+            this.Label_LocalElevation = new System.Windows.Forms.Label();
+            this.NumericUpDown_LocalElevation = new System.Windows.Forms.NumericUpDown();
+            this.Label_LocalMeters = new System.Windows.Forms.Label();
             this.GroupBox_Local.SuspendLayout();
             this.GroupBox_Location.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeMinutes)).BeginInit();
@@ -148,6 +151,7 @@
             ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Moon_RelaxScale)).BeginInit();
             this.MenuStrip_MainForm.SuspendLayout();
             this.GroupBox_Altitude.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LocalElevation)).BeginInit();
             this.SuspendLayout();
             // 
             // GroupBox_Local
@@ -163,6 +167,9 @@
             // 
             // GroupBox_Location
             // 
+            this.GroupBox_Location.Controls.Add(this.Label_LocalMeters);
+            this.GroupBox_Location.Controls.Add(this.NumericUpDown_LocalElevation);
+            this.GroupBox_Location.Controls.Add(this.Label_LocalElevation);
             this.GroupBox_Location.Controls.Add(this.CheckBox_LocalNorth);
             this.GroupBox_Location.Controls.Add(this.Label_Location);
             this.GroupBox_Location.Controls.Add(this.ComboBox_Location);
@@ -183,7 +190,7 @@
             this.GroupBox_Location.Controls.Add(this.NumericUpDown_LatitudeSeconds);
             this.GroupBox_Location.Location = new System.Drawing.Point(18, 19);
             this.GroupBox_Location.Name = "GroupBox_Location";
-            this.GroupBox_Location.Size = new System.Drawing.Size(470, 110);
+            this.GroupBox_Location.Size = new System.Drawing.Size(470, 132);
             this.GroupBox_Location.TabIndex = 30;
             this.GroupBox_Location.TabStop = false;
             this.GroupBox_Location.Text = "Location";
@@ -193,7 +200,7 @@
             this.CheckBox_LocalNorth.AutoSize = true;
             this.CheckBox_LocalNorth.Checked = true;
             this.CheckBox_LocalNorth.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.CheckBox_LocalNorth.Location = new System.Drawing.Point(387, 48);
+            this.CheckBox_LocalNorth.Location = new System.Drawing.Point(387, 52);
             this.CheckBox_LocalNorth.Name = "CheckBox_LocalNorth";
             this.CheckBox_LocalNorth.Size = new System.Drawing.Size(52, 17);
             this.CheckBox_LocalNorth.TabIndex = 25;
@@ -223,7 +230,7 @@
             // NumericUpDown_LatitudeMinutes
             // 
             this.NumericUpDown_LatitudeMinutes.AllowDrop = true;
-            this.NumericUpDown_LatitudeMinutes.Location = new System.Drawing.Point(160, 46);
+            this.NumericUpDown_LatitudeMinutes.Location = new System.Drawing.Point(160, 50);
             this.NumericUpDown_LatitudeMinutes.Maximum = new decimal(new int[] {
             60,
             0,
@@ -242,7 +249,7 @@
             // NumericUpDown_LatitudeDegrees
             // 
             this.NumericUpDown_LatitudeDegrees.AllowDrop = true;
-            this.NumericUpDown_LatitudeDegrees.Location = new System.Drawing.Point(85, 46);
+            this.NumericUpDown_LatitudeDegrees.Location = new System.Drawing.Point(85, 50);
             this.NumericUpDown_LatitudeDegrees.Maximum = new decimal(new int[] {
             90,
             0,
@@ -261,7 +268,7 @@
             // Label_LocalLatitudeText
             // 
             this.Label_LocalLatitudeText.AutoSize = true;
-            this.Label_LocalLatitudeText.Location = new System.Drawing.Point(38, 50);
+            this.Label_LocalLatitudeText.Location = new System.Drawing.Point(38, 54);
             this.Label_LocalLatitudeText.Name = "Label_LocalLatitudeText";
             this.Label_LocalLatitudeText.Size = new System.Drawing.Size(45, 13);
             this.Label_LocalLatitudeText.TabIndex = 3;
@@ -270,7 +277,7 @@
             // Label_LocalLongitudeText
             // 
             this.Label_LocalLongitudeText.AutoSize = true;
-            this.Label_LocalLongitudeText.Location = new System.Drawing.Point(29, 73);
+            this.Label_LocalLongitudeText.Location = new System.Drawing.Point(29, 77);
             this.Label_LocalLongitudeText.Name = "Label_LocalLongitudeText";
             this.Label_LocalLongitudeText.Size = new System.Drawing.Size(54, 13);
             this.Label_LocalLongitudeText.TabIndex = 4;
@@ -279,7 +286,7 @@
             // NumericUpDown_LongitudeDegrees
             // 
             this.NumericUpDown_LongitudeDegrees.AllowDrop = true;
-            this.NumericUpDown_LongitudeDegrees.Location = new System.Drawing.Point(85, 69);
+            this.NumericUpDown_LongitudeDegrees.Location = new System.Drawing.Point(85, 73);
             this.NumericUpDown_LongitudeDegrees.Maximum = new decimal(new int[] {
             180,
             0,
@@ -293,7 +300,7 @@
             // NumericUpDown_LongitudeMinutes
             // 
             this.NumericUpDown_LongitudeMinutes.AllowDrop = true;
-            this.NumericUpDown_LongitudeMinutes.Location = new System.Drawing.Point(160, 69);
+            this.NumericUpDown_LongitudeMinutes.Location = new System.Drawing.Point(160, 73);
             this.NumericUpDown_LongitudeMinutes.Maximum = new decimal(new int[] {
             60,
             0,
@@ -312,7 +319,7 @@
             // Label_LocalLatDegreeColon
             // 
             this.Label_LocalLatDegreeColon.AutoSize = true;
-            this.Label_LocalLatDegreeColon.Location = new System.Drawing.Point(145, 50);
+            this.Label_LocalLatDegreeColon.Location = new System.Drawing.Point(145, 54);
             this.Label_LocalLatDegreeColon.Name = "Label_LocalLatDegreeColon";
             this.Label_LocalLatDegreeColon.Size = new System.Drawing.Size(10, 13);
             this.Label_LocalLatDegreeColon.TabIndex = 8;
@@ -323,7 +330,7 @@
             this.CheckBox_LocalWest.AutoSize = true;
             this.CheckBox_LocalWest.Checked = true;
             this.CheckBox_LocalWest.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.CheckBox_LocalWest.Location = new System.Drawing.Point(387, 71);
+            this.CheckBox_LocalWest.Location = new System.Drawing.Point(387, 75);
             this.CheckBox_LocalWest.Name = "CheckBox_LocalWest";
             this.CheckBox_LocalWest.Size = new System.Drawing.Size(51, 17);
             this.CheckBox_LocalWest.TabIndex = 10;
@@ -333,7 +340,7 @@
             // Label_LocalLonDegreeColon
             // 
             this.Label_LocalLonDegreeColon.AutoSize = true;
-            this.Label_LocalLonDegreeColon.Location = new System.Drawing.Point(145, 73);
+            this.Label_LocalLonDegreeColon.Location = new System.Drawing.Point(145, 77);
             this.Label_LocalLonDegreeColon.Name = "Label_LocalLonDegreeColon";
             this.Label_LocalLonDegreeColon.Size = new System.Drawing.Size(10, 13);
             this.Label_LocalLonDegreeColon.TabIndex = 9;
@@ -341,7 +348,7 @@
             // 
             // TextBox_Longitude
             // 
-            this.TextBox_Longitude.Location = new System.Drawing.Point(306, 69);
+            this.TextBox_Longitude.Location = new System.Drawing.Point(306, 73);
             this.TextBox_Longitude.Name = "TextBox_Longitude";
             this.TextBox_Longitude.Size = new System.Drawing.Size(74, 20);
             this.TextBox_Longitude.TabIndex = 9;
@@ -351,7 +358,7 @@
             // Label_LocalLatMinuteColon
             // 
             this.Label_LocalLatMinuteColon.AutoSize = true;
-            this.Label_LocalLatMinuteColon.Location = new System.Drawing.Point(220, 50);
+            this.Label_LocalLatMinuteColon.Location = new System.Drawing.Point(220, 54);
             this.Label_LocalLatMinuteColon.Name = "Label_LocalLatMinuteColon";
             this.Label_LocalLatMinuteColon.Size = new System.Drawing.Size(10, 13);
             this.Label_LocalLatMinuteColon.TabIndex = 10;
@@ -361,7 +368,7 @@
             // 
             this.TextBox_Latitude.AcceptsReturn = true;
             this.TextBox_Latitude.AllowDrop = true;
-            this.TextBox_Latitude.Location = new System.Drawing.Point(306, 46);
+            this.TextBox_Latitude.Location = new System.Drawing.Point(306, 50);
             this.TextBox_Latitude.MaxLength = 20;
             this.TextBox_Latitude.Name = "TextBox_Latitude";
             this.TextBox_Latitude.Size = new System.Drawing.Size(74, 20);
@@ -372,7 +379,7 @@
             // Label_LocalLonMinuteColon
             // 
             this.Label_LocalLonMinuteColon.AutoSize = true;
-            this.Label_LocalLonMinuteColon.Location = new System.Drawing.Point(220, 73);
+            this.Label_LocalLonMinuteColon.Location = new System.Drawing.Point(220, 77);
             this.Label_LocalLonMinuteColon.Name = "Label_LocalLonMinuteColon";
             this.Label_LocalLonMinuteColon.Size = new System.Drawing.Size(10, 13);
             this.Label_LocalLonMinuteColon.TabIndex = 11;
@@ -387,7 +394,7 @@
             0,
             0,
             131072});
-            this.NumericUpDown_LongitudeSeconds.Location = new System.Drawing.Point(235, 69);
+            this.NumericUpDown_LongitudeSeconds.Location = new System.Drawing.Point(235, 73);
             this.NumericUpDown_LongitudeSeconds.Maximum = new decimal(new int[] {
             60,
             0,
@@ -412,7 +419,7 @@
             0,
             0,
             131072});
-            this.NumericUpDown_LatitudeSeconds.Location = new System.Drawing.Point(235, 46);
+            this.NumericUpDown_LatitudeSeconds.Location = new System.Drawing.Point(235, 50);
             this.NumericUpDown_LatitudeSeconds.Maximum = new decimal(new int[] {
             60,
             0,
@@ -449,7 +456,7 @@
             this.GroupBox_LocalDateTime.Controls.Add(this.Label_LunarAltitudeValue);
             this.GroupBox_LocalDateTime.Controls.Add(this.Label_LunarIlluminationFractionValue);
             this.GroupBox_LocalDateTime.Controls.Add(this.Label_LunarIlluminationFraction);
-            this.GroupBox_LocalDateTime.Location = new System.Drawing.Point(18, 150);
+            this.GroupBox_LocalDateTime.Location = new System.Drawing.Point(18, 157);
             this.GroupBox_LocalDateTime.Name = "GroupBox_LocalDateTime";
             this.GroupBox_LocalDateTime.Size = new System.Drawing.Size(469, 151);
             this.GroupBox_LocalDateTime.TabIndex = 29;
@@ -1363,6 +1370,48 @@
             this.ProgressBar_MultiTargetProcessing.Size = new System.Drawing.Size(1331, 18);
             this.ProgressBar_MultiTargetProcessing.TabIndex = 40;
             // 
+            // Label_LocalElevation
+            // 
+            this.Label_LocalElevation.AutoSize = true;
+            this.Label_LocalElevation.Location = new System.Drawing.Point(41, 100);
+            this.Label_LocalElevation.Name = "Label_LocalElevation";
+            this.Label_LocalElevation.Size = new System.Drawing.Size(42, 13);
+            this.Label_LocalElevation.TabIndex = 26;
+            this.Label_LocalElevation.Text = "Elevation";
+            // 
+            // NumericUpDown_LocalElevation
+            // 
+            this.NumericUpDown_LocalElevation.Increment = new decimal(new int[] {
+            10,
+            0,
+            0,
+            0});
+            this.NumericUpDown_LocalElevation.Location = new System.Drawing.Point(85, 96);
+            this.NumericUpDown_LocalElevation.Maximum = new decimal(new int[] {
+            10000,
+            0,
+            0,
+            0});
+            this.NumericUpDown_LocalElevation.Minimum = new decimal(new int[] {
+            100,
+            0,
+            0,
+            -2147483648});
+            this.NumericUpDown_LocalElevation.Name = "NumericUpDown_LocalElevation";
+            this.NumericUpDown_LocalElevation.Size = new System.Drawing.Size(55, 20);
+            this.NumericUpDown_LocalElevation.TabIndex = 27;
+            this.NumericUpDown_LocalElevation.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.NumericUpDown_LocalElevation.ValueChanged += new System.EventHandler(this.NumericUpDown_LocalElevation_ValueChanged);
+            //
+            // Label_LocalMeters
+            // 
+            this.Label_LocalMeters.AutoSize = true;
+            this.Label_LocalMeters.Location = new System.Drawing.Point(145, 100);
+            this.Label_LocalMeters.Name = "Label_LocalMeters";
+            this.Label_LocalMeters.Size = new System.Drawing.Size(39, 13);
+            this.Label_LocalMeters.TabIndex = 28;
+            this.Label_LocalMeters.Text = "Meters";
+            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -1410,6 +1459,7 @@
             this.MenuStrip_MainForm.PerformLayout();
             this.GroupBox_Altitude.ResumeLayout(false);
             this.GroupBox_Altitude.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LocalElevation)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -1511,6 +1561,9 @@
         private System.Windows.Forms.NumericUpDown NumericUpDown_Moon_RelaxMax;
         private System.Windows.Forms.Label Label_Moon_RelaxScale;
         private System.Windows.Forms.NumericUpDown NumericUpDown_Moon_RelaxScale;
+        private System.Windows.Forms.Label Label_LocalMeters;
+        private System.Windows.Forms.NumericUpDown NumericUpDown_LocalElevation;
+        private System.Windows.Forms.Label Label_LocalElevation;
     }
 }
 

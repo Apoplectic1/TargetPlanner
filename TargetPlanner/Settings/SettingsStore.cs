@@ -30,7 +30,7 @@ namespace TargetPlanner.Settings
                         if (settings.NamedLocations == null || settings.NamedLocations.Count == 0)
                             settings.NamedLocations = BuildDefaultNamedLocations();
                         else
-                            AppendMissingBuiltins(settings.NamedLocations);
+                            MergeBuiltins(settings.NamedLocations);
                         return settings;
                     }
                 }
@@ -52,18 +52,30 @@ namespace TargetPlanner.Settings
             };
         }
 
-        // Append any built-in default named-locations that aren't already in the user's saved
-        // list. Idempotent: matched by Name (case-insensitive). Lets us add new defaults
-        // (e.g., "Hillsborough") in a release without forcing existing users to delete
-        // settings.json. User-edited Lat/Lon/etc. for an existing entry are preserved
-        // (matching by Name skips the re-add).
-        private static void AppendMissingBuiltins(List<NamedLocationSetting> existing)
+        // Merge built-in default named-locations into the user's saved list. Idempotent;
+        // matched by Name (case-insensitive). Two responsibilities:
+        //
+        // 1. Append: a built-in not present in the existing list is appended so adding a
+        //    new preset in a release ("Hillsborough") doesn't require deleting settings.json.
+        //
+        // 2. Auto-fill Elevation: when a built-in name MATCHES an existing entry whose
+        //    Elevation is 0 (the back-compat default for settings written before the field
+        //    existed), copy the built-in's Elevation onto the existing entry. User-set
+        //    non-zero elevations are preserved (the merge only fills the zero case).
+        private static void MergeBuiltins(List<NamedLocationSetting> existing)
         {
             foreach (NamedLocationSetting builtin in BuildDefaultNamedLocations())
             {
-                bool present = existing.Exists(e =>
+                NamedLocationSetting match = existing.Find(e =>
                     string.Equals(e.Name, builtin.Name, StringComparison.OrdinalIgnoreCase));
-                if (!present) existing.Add(builtin);
+                if (match == null)
+                {
+                    existing.Add(builtin);
+                }
+                else if (match.Elevation == 0.0 && builtin.Elevation != 0.0)
+                {
+                    match.Elevation = builtin.Elevation;
+                }
             }
         }
 
@@ -98,6 +110,7 @@ namespace TargetPlanner.Settings
                     West = true,
                     Horizon = 30.0,
                     DurationMinutes = 240.0,
+                    Elevation = 28.16,
                 },
             };
         }
