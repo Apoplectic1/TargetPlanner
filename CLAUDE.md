@@ -145,15 +145,14 @@ Moon avoidance is committed and active end-to-end. Post-NINA-load `mCache.Prepar
 
 Recently shipped items archived to [ROADMAP.md](ROADMAP.md#recently-shipped). Still open, in rough recommended order:
 
-1. **Per-sub-interval moon-aware placement** — `RenderOptimalSeries` short-circuits "no viable window" but on partially-moon-impacted nights the placement still runs against moon-blind visibility windows. Floor / Symmetric values can reflect placement landing in the moon-impacted half. Refactor mirrors `BestSession.MoonClearIntersect`'s sub-interval iteration.
-2. **Chart-package investigation** — prototype OxyPlot / ScottPlot / LiveCharts2 against a representative test (Day chart + strip lines + click-toggle legend + click-overlay rectangle). Document the input shape that fits the chosen package's API. Informs the next item.
-3. **Phase 4: AltitudeChart → stateless renderer** — informed by chart-package decision. Demote `AltitudeChart` to a renderer that takes `(SelectionState, CacheStore, Profile, Horizon, Duration)`. Sets up the chart-package swap.
-4. **Step-3 cleanup items from ROADMAP.md** — RA spinner range check consistency, retire chart-side `BuildOptimalSeries` math (use Core's `BestSession.For`), `Astrometry` → `AstrometryUi` rename, `CheckedListBox_SelectedSgpTargets` cosmetic rename.
-5. **New Core solvers for parameter exploration** — extend `BestSession`/`SessionAltitude` with iterators that find the extremum of one variable while holding others fixed:
+1. **Chart-package investigation** — prototype OxyPlot / ScottPlot / LiveCharts2 against a representative test (Day chart + strip lines + click-toggle legend + click-overlay rectangle). Document the input shape that fits the chosen package's API. Informs the next item.
+2. **Phase 4: AltitudeChart → stateless renderer** — informed by chart-package decision. Demote `AltitudeChart` to a renderer that takes `(SelectionState, CacheStore, Profile, Horizon, Duration)`. Sets up the chart-package swap.
+3. **Step-3 cleanup items from ROADMAP.md** — RA spinner range check consistency, `Astrometry` → `AstrometryUi` rename, `CheckedListBox_SelectedSgpTargets` cosmetic rename.
+4. **New Core solvers for parameter exploration** — extend `BestSession`/`SessionAltitude` with iterators that find the extremum of one variable while holding others fixed:
    - **Longest-Duration solver:** given a fixed Horizon, find the longest D yielding a viable D-hour session for the night.
    - **Lowest-Horizon solver:** given a fixed Duration, find the lowest H opening up a viable D-hour session for the night.
    Both extend the placement primitives (sub-interval-aware) by iterating over the currently-user-set constraints. Consumers: TP (new "what's possible tonight?" surfaces), IS / ISP (planning relaxation when no rigid solution exists). Future enhancement worth flagging here so it shapes the Core API: **partial-moon-impact tolerance** (allow a session to span moon-blocked time at a quality penalty rather than rejecting outright) — deferred until much later, but the placement primitives should be designed in a way that doesn't preclude it.
-6. **IS / ISP work** — current major thrust per memory; the four-phase IntervalScheduler pipeline is the strategic next axis.
+5. **IS / ISP work** — current major thrust per memory; the four-phase IntervalScheduler pipeline is the strategic next axis.
 
 ## Core consumer contract
 

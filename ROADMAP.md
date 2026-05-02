@@ -6,6 +6,7 @@ Captured 2026-04-19 for follow-up later.
 
 Archived from CLAUDE.md's "Open follow-ups" section so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
 
+- **Per-sub-interval moon-aware Optimal placement** — `RenderOptimalSeries` no longer runs placement against moon-blind visibility windows on partially-moon-impacted nights. Library `3737cfa` promoted `BestSession.PlaceBest` to public, added `BestSession.PlaceCentered`, and added the new `SessionAltitude` class with `Floor` / `Ceiling` evaluation helpers. TP follow-up commit migrates the Optimal-chart per-night loop to call `BestSession.PlaceBest` (Floor / Ceiling via `SessionAltitude`) and `BestSession.PlaceCentered` (Symmetric) over `(visibility ∩ moon-clear)` candidates derived chart-side from cached `MoonSamples`. `ComputeBestDayWindow` (Day overlay) also moved to `SessionAltitude.Floor` for SoC consolidation. Retires Step-3 cleanup item "chart-side `BuildOptimalSeries` math". `HasMoonClearViableWindow` short-circuit dropped (PlaceBest/PlaceCentered returning null is the new sentinel).
 - **CoordinateSharp roll-your-own** — pure-C# Meeus replacement landed in `e602bdb` (Library) + `2249834` (TP). Cache pre-population dropped from ~17 min to 2-4 sec on 44 targets; Astronomy.Core is now lock-free and managed-only.
 - **Moon-avoidance re-enable** — committed alongside the CS removal; bisection disables removed.
 - **Cache invalidation on Location change** — `LocationsCacheEquivalent` gates `mCache.SetLocationAsync`; lat/lon edits ride the debounce, combo picks fire immediately (commit `56269db`).
@@ -45,7 +46,7 @@ Notable follow-through from the extraction:
 - `Target.mAltitudeSeries` field removed from the POCO (WinForms chart state can't live in netstandard2.0). Per-target AltitudeSeries ownership now lives in `Dictionary<Target, AltitudeSeries>` on `AltitudeChart`, preserving the recent multi-target correctness fix.
 - `Support/Astrometry.cs` slimmed to a UI state facade — math methods moved to Core; the static dawn/dusk/moon-phase properties and the `Location(...)` populator stay because MainForm binds to them.
 - Parser's namespace was renamed `TargetPlanner.Target` → `TargetPlanner.Sgf` to unblock `using Target = Astronomy.Core.Targets.Target;` aliases in files that would otherwise hit enclosing-namespace lookup. (Parser.cs itself was subsequently retired entirely in commit `ccab2c0` when the NINA target loader replaced it.)
-- Chart code still contains its own inline versions of some Core primitives (`BuildOptimalSeries`' transit-centered / wall-pushed placement is duplicated with `Session.BestSession.For`). Deferred: refactor the chart to consume Core's versions directly (separate plan).
+- ~~Chart code still contains its own inline versions of some Core primitives~~ — **Done.** `RenderOptimalSeries`'s inline transit-centered / wall-pushed math retired in favour of `BestSession.PlaceBest` / `PlaceCentered` + `SessionAltitude.Floor` / `Ceiling` (see "Recently shipped" above for commit refs).
 
 ### Step 3 — Functional cleanup in place (no framework change)
 
@@ -53,7 +54,7 @@ Remaining items (the multi-target race was fixed as a prerequisite to Step 2; se
 
 - RA text-box range check consistency. Currently only `TextBox_RightAscension_TextChanged` enforces `[0, 24)`; the spinner path doesn't.
 - Centralise the dusk/dawn hour-rounding block that's copy-pasted between `BuildDaySeries` and `BuildMoonSeries`.
-- Retire or consolidate `BuildOptimalSeries`' inline transit-centered / wall-pushed math — now duplicated with `Astronomy.Core.Session.BestSession.For`. Either migrate the chart to call Core's version, or explicitly annotate the duplication as intentional (there's an argument for keeping the chart's version narrowly tuned to the `NightCacheEntry` shape).
+- ~~Retire or consolidate `BuildOptimalSeries`' inline transit-centered / wall-pushed math~~ — **Done.** Migrated to `BestSession.PlaceBest` / `PlaceCentered` + `SessionAltitude.Floor` / `Ceiling`; chart-side math is gone.
 - Any correctness fixes that fall out of Step 1.
 - `Location` and `Target` are public settable properties on `AltitudeSeries`; the shared-mutable-state smell hasn't fully gone away. Consider constructor injection or per-build parameters.
 - `Astrometry` UI state facade could stand to be renamed (`AstrometryUi` or similar) to reduce confusion now that the "math" half of Astrometry has moved to Core.

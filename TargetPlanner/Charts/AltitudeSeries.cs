@@ -496,7 +496,7 @@ namespace TargetPlanner.Charts
             var best = BestSession.For(
                 Target, Location, night, horizonProfile,
                 duration, duration,
-                alt => Math.Sin(alt * Math.PI / 180.0),
+                SinAltQuality,
                 profile: MoonAvoidanceProfile);
 
             if (best == null)
@@ -505,9 +505,7 @@ namespace TargetPlanner.Charts
                 return null;
             }
 
-            double altStart = AltAzCalculator.At(Target, Location, best.Value.Start).Altitude;
-            double altEnd   = AltAzCalculator.At(Target, Location, best.Value.End).Altitude;
-            double floor    = Math.Min(altStart, altEnd);
+            double floor = SessionAltitude.Floor(Target, Location, best.Value.Start, best.Value.End);
 
             var triple = (
                 Start: best.Value.Start.ToLocalTime(),
@@ -597,9 +595,14 @@ namespace TargetPlanner.Charts
         // T. The floor altitude is then AltAtHa evaluated at the session endpoint farther from
         // transit -- which is always the session's low point since alt(HA) is monotone away
         // from HA=0.
-        // UI-thread-only: walks mYearCache and writes the three Optimal-area series. All math
-        // is local arithmetic -- no CoordinateSharp, no ComputeNight -- so this is fast enough
-        // to call synchronously from spinner handlers.
+        // UI-thread-only: walks mYearCache and writes the three Optimal-area series. Per
+        // night, computes candidate windows (visibility, optionally intersected with the
+        // active moon-clear sub-intervals) then delegates placement + altitude evaluation
+        // to Core (BestSession.PlaceBest / PlaceCentered + SessionAltitude.Floor /
+        // Ceiling). The chart's per-night cost is dominated by the IntegratedQuality
+        // Simpson sweep inside PlaceBest -- ~20 alt-az calls per candidate window, all
+        // pure Meeus, lock-free. For 365 nights x 1-3 sub-intervals this is tens of ms,
+        // well under the 150 ms OptimalRebuildDebounce_Tick cadence.
         //
         // Null guard: see RenderYearSeries. RebuildOptimalSeries should have populated the
         // cache before calling this, but the defensive check here lets a spinner scrub during
@@ -624,156 +627,78 @@ namespace TargetPlanner.Charts
             double raHours     = Target.RightAscension;
             double horizonDeg  = horizon;
             double durationHrs = duration.TotalHours;
-
-            double meridianAlt = TargetGeometry.MeridianAltitude(latSigned, decSigned);
             double haHorizon   = TargetGeometry.HourAngleAtAltitude(latSigned, decSigned, horizonDeg);
-
-            const double SiderealHoursPerSolarDay = 24.06570982441908;
-            double durationLst = durationHrs * SiderealHoursPerSolarDay / 24.0;
-            double halfDurationLst = durationLst / 2.0;
-            double xIdealDeg = TargetGeometry.AltitudeAtHourAngle(halfDurationLst, latSigned, decSigned);
 
             foreach (NightCacheEntry entry in mYearCache)
             {
-                if (entry.IsPolar || entry.YearAlt < horizonDeg)
-                {
-                    int cIdx = optimalSeries.Points.AddXY(entry.SentinelX, -90.0);
-                    int fIdx = optimalFloorSeries.Points.AddXY(entry.SentinelX, -90.0);
-                    int sIdx = optimalCenteredSeries.Points.AddXY(entry.SentinelX, -90.0);
-                    AssignOptimalTooltip(
-                        optimalSeries, cIdx, -90.0,
-                        optimalFloorSeries, fIdx, -90.0,
-                        optimalCenteredSeries, sIdx, -90.0,
-                        entry.SentinelX);
-                    continue;
-                }
-
-                // Moon-aware short-circuit (Phase-3 Slice 1). When avoidance is enabled
-                // and the night has no (visibility ∩ moon-clear) sub-interval of length
-                // >= Duration, drop all three curves to -90. The cache is
-                // profile-independent: raw moon samples were stored at build time; this
-                // walks them and applies the active profile (no CoordinateSharp here).
-                // On viable nights the existing placement runs unchanged, so the
-                // three curves keep their distinct semantics and the year-trace
-                // "oscillates" between natural maxima and the -90 sentinel as the
-                // lunar cycle moves through.
-                if (MoonAvoidanceProfile != null && MoonAvoidanceProfile.Enabled
-                    && !HasMoonClearViableWindow(entry, raHours, durationHrs, haHorizon, MoonAvoidanceProfile))
-                {
-                    int cIdx = optimalSeries.Points.AddXY(entry.SentinelX, -90.0);
-                    int fIdx = optimalFloorSeries.Points.AddXY(entry.SentinelX, -90.0);
-                    int sIdx = optimalCenteredSeries.Points.AddXY(entry.SentinelX, -90.0);
-                    AssignOptimalTooltip(
-                        optimalSeries, cIdx, -90.0,
-                        optimalFloorSeries, fIdx, -90.0,
-                        optimalCenteredSeries, sIdx, -90.0,
-                        entry.SentinelX);
-                    continue;
-                }
-
-                double optimalAlt  = -90.0;
+                double ceilingAlt  = -90.0;
                 double floorAlt    = -90.0;
                 double centeredAlt = -90.0;
 
-                // Strict transit-centered floor: does a symmetric D-hour session around some
-                // shifted transit fit inside the night window, AND does xIdealDeg clear Horizon?
-                if (xIdealDeg >= horizonDeg)
+                if (!entry.IsPolar && entry.YearAlt >= horizonDeg)
                 {
-                    for (int k = -1; k <= 1; k++)
+                    // Visibility windows in UTC, derived from cached LST/Alt fields. Empty
+                    // when no above-horizon arc fits Duration (target never gets high
+                    // enough or never stays up long enough).
+                    List<(DateTime Start, DateTime End)> candidates =
+                        EnumerateVisibilityWindowsUtc(entry, raHours, durationHrs, haHorizon);
+
+                    // When moon avoidance is on AND the cache has moon samples, intersect
+                    // with the moon-clear sub-intervals derived from cached samples +
+                    // active profile. Defensive hatch: a stale cache without moon samples
+                    // (pre-Slice-1) falls through to the moon-blind candidate set so the
+                    // chart renders curves rather than going dark.
+                    if (MoonAvoidanceProfile != null && MoonAvoidanceProfile.Enabled
+                        && entry.MoonSamples != null && entry.MoonSamples.Count > 0)
                     {
-                        double t = raHours + 24.0 * k;
-                        if (t - halfDurationLst >= entry.LstDusk && t + halfDurationLst <= entry.LstDawn)
+                        List<(DateTime Start, DateTime End)> moonClear =
+                            EnumerateMoonClearIntervalsUtc(entry, MoonAvoidanceProfile);
+                        candidates = IntersectWindows(candidates, moonClear);
+                    }
+
+                    if (candidates.Count > 0)
+                    {
+                        // Floor / Ceiling: best-quality placement (transit-centered or
+                        // wall-pushed) across the candidates; sin(alt) ranks them when
+                        // multiple sub-intervals exist on the same night.
+                        var session = BestSession.PlaceBest(
+                            Target, Location, candidates, duration, duration, SinAltQuality);
+                        if (session != null)
                         {
-                            centeredAlt = xIdealDeg;
-                            break;
+                            floorAlt   = SessionAltitude.Floor(
+                                Target, Location, session.Value.Start, session.Value.End);
+                            ceilingAlt = SessionAltitude.Ceiling(
+                                Target, Location, session.Value.Start, session.Value.End);
+                        }
+
+                        // Symmetric: strict transit-centered placement, no wall-push.
+                        // Reports the floor (= either endpoint altitude, since centered
+                        // sessions are symmetric about transit).
+                        var centered = BestSession.PlaceCentered(
+                            Target, Location, candidates, duration);
+                        if (centered != null)
+                        {
+                            centeredAlt = SessionAltitude.Floor(
+                                Target, Location, centered.Value.Start, centered.Value.End);
                         }
                     }
                 }
 
-                if (double.IsPositiveInfinity(haHorizon))
-                {
-                    double lengthSolar = (entry.LstDawn - entry.LstDusk) * 24.0 / SiderealHoursPerSolarDay;
-                    if (lengthSolar >= durationHrs)
-                    {
-                        optimalAlt = Math.Max(entry.AltDusk, entry.AltDawn);
-                        if (entry.TransitInNight && meridianAlt > optimalAlt) optimalAlt = meridianAlt;
-
-                        // Shifted transit closest to the night (only one of k=-1,0,1 can be).
-                        double nightMid = 0.5 * (entry.LstDusk + entry.LstDawn);
-                        double t = raHours;
-                        double bestDist = Math.Abs(t - nightMid);
-                        for (int k = -1; k <= 1; k += 2)
-                        {
-                            double cand = raHours + 24.0 * k;
-                            double dist = Math.Abs(cand - nightMid);
-                            if (dist < bestDist) { bestDist = dist; t = cand; }
-                        }
-
-                        if (t - halfDurationLst >= entry.LstDusk && t + halfDurationLst <= entry.LstDawn)
-                        {
-                            floorAlt = xIdealDeg;
-                        }
-                        else if (t < entry.LstDusk + halfDurationLst)
-                        {
-                            floorAlt = TargetGeometry.AltitudeAtHourAngle(entry.LstDusk + durationLst - t, latSigned, decSigned);
-                        }
-                        else
-                        {
-                            floorAlt = TargetGeometry.AltitudeAtHourAngle(entry.LstDawn - durationLst - t, latSigned, decSigned);
-                        }
-                    }
-                }
-                else
-                {
-                    for (int k = -1; k <= 1; k++)
-                    {
-                        double center  = raHours + 24.0 * k;
-                        double ahStart = center - haHorizon;
-                        double ahEnd   = center + haHorizon;
-                        double s = Math.Max(entry.LstDusk, ahStart);
-                        double e = Math.Min(entry.LstDawn, ahEnd);
-                        if (s >= e) continue;
-
-                        double lengthSolar = (e - s) * 24.0 / SiderealHoursPerSolarDay;
-                        if (lengthSolar < durationHrs) continue;
-
-                        // Peak altitude in this window.
-                        double altAtStart = (s == entry.LstDusk) ? entry.AltDusk : horizonDeg;
-                        double altAtEnd   = (e == entry.LstDawn) ? entry.AltDawn : horizonDeg;
-                        bool   transitInWindow = (center >= s && center <= e);
-                        double windowMax = transitInWindow
-                            ? meridianAlt
-                            : Math.Max(altAtStart, altAtEnd);
-                        if (windowMax > optimalAlt) optimalAlt = windowMax;
-
-                        // Floor altitude: best D-hour session placement within [s, e].
-                        double windowFloor;
-                        if (center - halfDurationLst >= s && center + halfDurationLst <= e)
-                        {
-                            windowFloor = xIdealDeg;
-                        }
-                        else if (center < s + halfDurationLst)
-                        {
-                            windowFloor = TargetGeometry.AltitudeAtHourAngle(s + durationLst - center, latSigned, decSigned);
-                        }
-                        else
-                        {
-                            windowFloor = TargetGeometry.AltitudeAtHourAngle(e - durationLst - center, latSigned, decSigned);
-                        }
-                        if (windowFloor > floorAlt) floorAlt = windowFloor;
-                    }
-                }
-
-                int cIdx2 = optimalSeries.Points.AddXY(entry.SentinelX, optimalAlt);
-                int fIdx2 = optimalFloorSeries.Points.AddXY(entry.SentinelX, floorAlt);
-                int sIdx2 = optimalCenteredSeries.Points.AddXY(entry.SentinelX, centeredAlt);
+                int cIdx = optimalSeries.Points.AddXY(entry.SentinelX, ceilingAlt);
+                int fIdx = optimalFloorSeries.Points.AddXY(entry.SentinelX, floorAlt);
+                int sIdx = optimalCenteredSeries.Points.AddXY(entry.SentinelX, centeredAlt);
                 AssignOptimalTooltip(
-                    optimalSeries, cIdx2, optimalAlt,
-                    optimalFloorSeries, fIdx2, floorAlt,
-                    optimalCenteredSeries, sIdx2, centeredAlt,
+                    optimalSeries, cIdx, ceilingAlt,
+                    optimalFloorSeries, fIdx, floorAlt,
+                    optimalCenteredSeries, sIdx, centeredAlt,
                     entry.SentinelX);
             }
         }
+
+        // Quality function for Optimal-chart placement. sin(altitude) is the standard
+        // airmass-weighted proxy and matches what ComputeBestDayWindow uses.
+        private static readonly Func<double, double> SinAltQuality =
+            alt => Math.Sin(alt * Math.PI / 180.0);
 
         // Format an altitude value for the Optimal hover tooltip. Sentinel '-90' values
         // (polar / below-horizon / moon-aware short-circuit / centered-window doesn't fit)
@@ -806,40 +731,29 @@ namespace TargetPlanner.Charts
         }
 
         // ====================================================================
-        // Phase-3 Slice 1: moon-aware short-circuit helpers for RenderOptimalSeries
+        // Moon-aware placement helpers for RenderOptimalSeries
         // ====================================================================
 
-        // Does the night have at least one (visibility ∩ moon-clear) interval of length
-        // >= Duration under the active profile? Used by RenderOptimalSeries to drop all
-        // three Optimal curves to -90 on moon-impacted nights. Defensive: returns true
-        // (no constraint) when the cache entry has no moon samples, so a stale or
-        // pre-Slice-1 cache renders the moon-blind curves rather than going dark.
-        private static bool HasMoonClearViableWindow(
-            NightCacheEntry entry, double raHours, double durationHrs, double haHorizon,
-            MoonAvoidanceProfile profile)
+        // Pairwise interval intersection, O(|a| * |b|). Both inputs are typically tiny
+        // (visibility: 1-3 windows; moon-clear: 1-3 sub-intervals on a typical night),
+        // so the quadratic shape is fine without sweep-line bookkeeping. Returns the
+        // common time covered by both lists; empty if no overlap exists. Output is
+        // unsorted relative to neither input but sub-intervals are non-overlapping.
+        private static List<(DateTime Start, DateTime End)> IntersectWindows(
+            List<(DateTime Start, DateTime End)> a,
+            List<(DateTime Start, DateTime End)> b)
         {
-            if (profile == null || !profile.Enabled) return true;
-            if (entry.MoonSamples == null || entry.MoonSamples.Count == 0) return true;
-
-            List<(DateTime Start, DateTime End)> visibility =
-                EnumerateVisibilityWindowsUtc(entry, raHours, durationHrs, haHorizon);
-            if (visibility.Count == 0) return false;
-
-            List<(DateTime Start, DateTime End)> moonClear =
-                EnumerateMoonClearIntervalsUtc(entry, profile);
-            if (moonClear.Count == 0) return false;
-
-            TimeSpan minDuration = TimeSpan.FromHours(durationHrs);
-            foreach (var v in visibility)
+            var result = new List<(DateTime Start, DateTime End)>();
+            foreach (var x in a)
             {
-                foreach (var m in moonClear)
+                foreach (var y in b)
                 {
-                    DateTime s = v.Start > m.Start ? v.Start : m.Start;
-                    DateTime e = v.End   < m.End   ? v.End   : m.End;
-                    if (e - s >= minDuration) return true;
+                    DateTime s = x.Start > y.Start ? x.Start : y.Start;
+                    DateTime e = x.End   < y.End   ? x.End   : y.End;
+                    if (s < e) result.Add((s, e));
                 }
             }
-            return false;
+            return result;
         }
 
         // Enumerate above-horizon visibility windows for the day in UTC, mirroring the
