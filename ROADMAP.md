@@ -48,16 +48,16 @@ Notable follow-through from the extraction:
 - Parser's namespace was renamed `TargetPlanner.Target` → `TargetPlanner.Sgf` to unblock `using Target = Astronomy.Core.Targets.Target;` aliases in files that would otherwise hit enclosing-namespace lookup. (Parser.cs itself was subsequently retired entirely in commit `ccab2c0` when the NINA target loader replaced it.)
 - ~~Chart code still contains its own inline versions of some Core primitives~~ — **Done.** `RenderOptimalSeries`'s inline transit-centered / wall-pushed math retired in favour of `BestSession.PlaceBest` / `PlaceCentered` + `SessionAltitude.Floor` / `Ceiling` (see "Recently shipped" above for commit refs).
 
-### Step 3 — Functional cleanup in place (no framework change)
+### Step 3 — Functional cleanup in place (no framework change) — **Closed**
 
-Remaining items (the multi-target race was fixed as a prerequisite to Step 2; see `df7731e`):
+All originally-listed cleanup items are resolved:
 
-- RA text-box range check consistency. Currently only `TextBox_RightAscension_TextChanged` enforces `[0, 24)`; the spinner path doesn't.
-- Centralise the dusk/dawn hour-rounding block that's copy-pasted between `BuildDaySeries` and `BuildMoonSeries`.
-- ~~Retire or consolidate `BuildOptimalSeries`' inline transit-centered / wall-pushed math~~ — **Done.** Migrated to `BestSession.PlaceBest` / `PlaceCentered` + `SessionAltitude.Floor` / `Ceiling`; chart-side math is gone.
-- Any correctness fixes that fall out of Step 1.
-- `Location` and `Target` are public settable properties on `AltitudeSeries`; the shared-mutable-state smell hasn't fully gone away. Consider constructor injection or per-build parameters.
-- `Astrometry` UI state facade could stand to be renamed (`AstrometryUi` or similar) to reduce confusion now that the "math" half of Astrometry has moved to Core.
+- ~~RA text-box range check consistency~~ — Both spinner and textbox paths share `CoordinateInput`'s `Math.Abs(v) > mMaxMagnitude` enforcement (the original "spinner doesn't enforce" inconsistency went away with the `CoordinateInput` extraction); `NumericUpDown_RaHours.Maximum` tightened from 24 to 23 for strict `[0, 24)` semantics.
+- ~~Centralise the dusk/dawn hour-rounding block~~ — Moot: `BuildMoonSeries` was retired; the hour-rounding logic lives in static helpers `DayChartStart` / `DayChartStop` (`AltitudeSeries.cs`) which both `BuildDaySeries` and `AltitudeChart.BuildSharedMoonSeries` consume.
+- ~~Retire or consolidate `BuildOptimalSeries`' inline transit-centered / wall-pushed math~~ — Migrated to `BestSession.PlaceBest` / `PlaceCentered` + `SessionAltitude.Floor` / `Ceiling`; chart-side math is gone.
+- ~~Any correctness fixes that fall out of Step 1~~ — Step-1 fixes landed in commits before the Step-2 Astronomy.Core extraction; subsequent correctness work (CS removal, moon avoidance, per-sub-interval placement, descending-arc fix) covered the post-Step-2 fall-out.
+- ~~`Location` and `Target` settable properties on `AltitudeSeries`~~ — Moot: both are `{ get; }` only with init-only semantics; class comment makes the contract explicit.
+- ~~`Astrometry` UI state facade rename~~ — Renamed to `AstrometryUi` to disambiguate from `Astronomy.Core.Astrometry` namespace.
 
 ### Step 4 — NINA plugin
 

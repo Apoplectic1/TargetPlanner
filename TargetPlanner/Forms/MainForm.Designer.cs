@@ -916,7 +916,7 @@
             this.NumericUpDown_RaHours.AllowDrop = true;
             this.NumericUpDown_RaHours.Location = new System.Drawing.Point(128, 122);
             this.NumericUpDown_RaHours.Maximum = new decimal(new int[] {
-            24,
+            23,
             0,
             0,
             0});

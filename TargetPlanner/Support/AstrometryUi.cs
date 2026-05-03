@@ -11,7 +11,7 @@ namespace TargetPlanner.Support
     // this class have moved into Astronomy.Core -- call Astronomy.Core.AltAz,
     // Astronomy.Core.TargetGeometry, Astronomy.Core.Time.SiderealTime, and
     // Astronomy.Core.Night.NightCalculator directly for those.
-    public class Astrometry
+    public class AstrometryUi
     {
         public static DateTime AstronomicalDawn          { get; private set; }
         public static DateTime AstronomicalDusk          { get; private set; }
@@ -22,7 +22,7 @@ namespace TargetPlanner.Support
         public static string   LunarPhase                { get; private set; }
         public static double   LunarIlluminationFraction { get; private set; }
 
-        public Astrometry()
+        public AstrometryUi()
         {
         }
 

@@ -499,23 +499,23 @@ Right-click anywhere on the chart to clear all overlays.";
             RefreshAstrometryLabels();
         }
 
-        // Re-populate the Astrometry static cache from mLocation and push every dependent
+        // Re-populate the AstrometryUi static cache from mLocation and push every dependent
         // label. ~150 us of Meeus math + 8 string assignments; cheap enough to fire on
         // every Lat/Lon/Elevation spinner tick without debouncing. Called from
         // UpdateLocalDateTimeEvents (date/time scrubs), OnLocationEdited (lat/lon/N/W/
         // elevation spinners), and ComboBox_Location_SelectionIndexChanged (preset picks).
         private void RefreshAstrometryLabels()
         {
-            Astrometry.Location(mLocation);
+            AstrometryUi.Location(mLocation);
 
-            Label_AstronomicalDuskValue.Text = Astrometry.AstronomicalDusk.ToShortTimeString();
-            Label_AstronomicalDawnValue.Text = Astrometry.AstronomicalDawn.ToShortTimeString();
-            Label_SunAltitudeValue.Text = Astrometry.SunAltitude.ToString("F0") + "\u00B0";
-            Label_LunarAltitudeValue.Text = Astrometry.LunarAltitude.ToString("F0") + "\u00B0";
-            Label_LunarIlluminationFractionValue.Text = (Astrometry.LunarIlluminationFraction * 100).ToString("F0") + "%";
-            Label_LunarPhaseValue.Text = Astrometry.LunarPhase;
-            Label_MoonRiseValue.Text = Astrometry.LunarRise.ToShortTimeString();
-            Label_MoonSetValue.Text = Astrometry.LunarSet.ToShortTimeString();
+            Label_AstronomicalDuskValue.Text = AstrometryUi.AstronomicalDusk.ToShortTimeString();
+            Label_AstronomicalDawnValue.Text = AstrometryUi.AstronomicalDawn.ToShortTimeString();
+            Label_SunAltitudeValue.Text = AstrometryUi.SunAltitude.ToString("F0") + "\u00B0";
+            Label_LunarAltitudeValue.Text = AstrometryUi.LunarAltitude.ToString("F0") + "\u00B0";
+            Label_LunarIlluminationFractionValue.Text = (AstrometryUi.LunarIlluminationFraction * 100).ToString("F0") + "%";
+            Label_LunarPhaseValue.Text = AstrometryUi.LunarPhase;
+            Label_MoonRiseValue.Text = AstrometryUi.LunarRise.ToShortTimeString();
+            Label_MoonSetValue.Text = AstrometryUi.LunarSet.ToShortTimeString();
         }
 
         // ---------- Coordinate-input callbacks (ValueChanged from CoordinateInput) ----------
@@ -1967,7 +1967,7 @@ Right-click anywhere on the chart to clear all overlays.";
             mUIState.DayChart = RadioButton_Day.Checked;
             if (RadioButton_Day.Checked == true)
             {
-                Astrometry.Location(mLocation);
+                AstrometryUi.Location(mLocation);
                 mAltitudeChart.ShowChartAreaSeries("Day");
                 mAltitudeChart.ChartTitle = FormatChartTitle("Day");
             }
