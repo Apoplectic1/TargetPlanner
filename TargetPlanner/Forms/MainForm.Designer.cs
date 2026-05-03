@@ -111,8 +111,8 @@
             this.CheckedListBox_SelectedTargets = new System.Windows.Forms.CheckedListBox();
             this.Button_BrowseTargetList = new System.Windows.Forms.Button();
             this.GroupBox_Target = new System.Windows.Forms.GroupBox();
-            this.GroupBox_MoonAvoidance = new System.Windows.Forms.GroupBox();
             this.GroupBox_Moon_Filters = new System.Windows.Forms.GroupBox();
+            this.GroupBox_MoonAvoidance = new System.Windows.Forms.GroupBox();
             this.CheckBox_Moon_AvoidanceEnable = new System.Windows.Forms.CheckBox();
             this.Label_Moon_Seperation = new System.Windows.Forms.Label();
             this.NumericUpDown_Moon_Separation = new System.Windows.Forms.NumericUpDown();
@@ -129,6 +129,7 @@
             this.MenuStrip_MainForm = new System.Windows.Forms.MenuStrip();
             this.FileToolStripMenuItem_MainForm = new System.Windows.Forms.ToolStripMenuItem();
             this.GroupBox_Altitude = new System.Windows.Forms.GroupBox();
+            this.RadioButton_Sky = new System.Windows.Forms.RadioButton();
             this.ProgressBar_MultiTargetProcessing = new System.Windows.Forms.ProgressBar();
             this.GroupBox_Local.SuspendLayout();
             this.GroupBox_Location.SuspendLayout();
@@ -1061,9 +1062,9 @@
             // RadioButton_Sessions
             // 
             this.RadioButton_Sessions.AutoSize = true;
-            this.RadioButton_Sessions.Location = new System.Drawing.Point(112, 19);
+            this.RadioButton_Sessions.Location = new System.Drawing.Point(100, 19);
             this.RadioButton_Sessions.Name = "RadioButton_Sessions";
-            this.RadioButton_Sessions.Size = new System.Drawing.Size(60, 17);
+            this.RadioButton_Sessions.Size = new System.Drawing.Size(67, 17);
             this.RadioButton_Sessions.TabIndex = 38;
             this.RadioButton_Sessions.Text = "Sessions";
             this.RadioButton_Sessions.UseVisualStyleBackColor = true;
@@ -1072,7 +1073,7 @@
             // RadioButton_Year
             // 
             this.RadioButton_Year.AutoSize = true;
-            this.RadioButton_Year.Location = new System.Drawing.Point(60, 19);
+            this.RadioButton_Year.Location = new System.Drawing.Point(168, 19);
             this.RadioButton_Year.Name = "RadioButton_Year";
             this.RadioButton_Year.Size = new System.Drawing.Size(47, 17);
             this.RadioButton_Year.TabIndex = 37;
@@ -1223,6 +1224,15 @@
             this.GroupBox_Target.TabStop = false;
             this.GroupBox_Target.Text = "Target";
             // 
+            // GroupBox_Moon_Filters
+            // 
+            this.GroupBox_Moon_Filters.Location = new System.Drawing.Point(74, 207);
+            this.GroupBox_Moon_Filters.Name = "GroupBox_Moon_Filters";
+            this.GroupBox_Moon_Filters.Size = new System.Drawing.Size(394, 43);
+            this.GroupBox_Moon_Filters.TabIndex = 12;
+            this.GroupBox_Moon_Filters.TabStop = false;
+            this.GroupBox_Moon_Filters.Text = "Filters";
+            // 
             // GroupBox_MoonAvoidance
             // 
             this.GroupBox_MoonAvoidance.Controls.Add(this.CheckBox_Moon_AvoidanceEnable);
@@ -1243,15 +1253,6 @@
             this.GroupBox_MoonAvoidance.TabIndex = 42;
             this.GroupBox_MoonAvoidance.TabStop = false;
             this.GroupBox_MoonAvoidance.Text = "Moon Avoidance";
-            // 
-            // GroupBox_Moon_Filters
-            // 
-            this.GroupBox_Moon_Filters.Location = new System.Drawing.Point(74, 207);
-            this.GroupBox_Moon_Filters.Name = "GroupBox_Moon_Filters";
-            this.GroupBox_Moon_Filters.Size = new System.Drawing.Size(394, 43);
-            this.GroupBox_Moon_Filters.TabIndex = 12;
-            this.GroupBox_Moon_Filters.TabStop = false;
-            this.GroupBox_Moon_Filters.Text = "Filters";
             // 
             // CheckBox_Moon_AvoidanceEnable
             // 
@@ -1459,6 +1460,7 @@
             // 
             // GroupBox_Altitude
             // 
+            this.GroupBox_Altitude.Controls.Add(this.RadioButton_Sky);
             this.GroupBox_Altitude.Controls.Add(this.ProgressBar_MultiTargetProcessing);
             this.GroupBox_Altitude.Controls.Add(this.RadioButton_Year);
             this.GroupBox_Altitude.Controls.Add(this.RadioButton_Sessions);
@@ -1469,6 +1471,18 @@
             this.GroupBox_Altitude.TabIndex = 6;
             this.GroupBox_Altitude.TabStop = false;
             this.GroupBox_Altitude.Text = "Altitude";
+            // 
+            // RadioButton_Sky
+            // 
+            this.RadioButton_Sky.AutoSize = true;
+            this.RadioButton_Sky.Location = new System.Drawing.Point(56, 19);
+            this.RadioButton_Sky.Name = "RadioButton_Sky";
+            this.RadioButton_Sky.Size = new System.Drawing.Size(43, 17);
+            this.RadioButton_Sky.TabIndex = 41;
+            this.RadioButton_Sky.TabStop = true;
+            this.RadioButton_Sky.Text = "Sky";
+            this.RadioButton_Sky.UseVisualStyleBackColor = true;
+            this.RadioButton_Sky.CheckedChanged += new System.EventHandler(this.RadioButton_Sky_CheckedChanged);
             // 
             // ProgressBar_MultiTargetProcessing
             // 
@@ -1635,6 +1649,7 @@
         private System.Windows.Forms.Label Label_Bortle;
         private System.Windows.Forms.ComboBox ComboBox_Bortle;
         private System.Windows.Forms.NumericUpDown NumericUpDown_Extinction;
+        private System.Windows.Forms.RadioButton RadioButton_Sky;
     }
 }
 

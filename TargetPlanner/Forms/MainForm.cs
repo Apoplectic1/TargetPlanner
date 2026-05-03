@@ -83,9 +83,6 @@ namespace TargetPlanner
         // alongside BuildFiltersMenu, so the menu and the strip stay in sync.
         // Parallel-indexed with mFilterLibrary.Filters and mFilterMenuItems.
         private List<RadioButton> mFilterRadios;
-        // Programmatic toggle inside GroupBox_Altitude that flips the Day chart between
-        // its altitude and K-S sky-brightness sub-modes (no Designer entry).
-        private CheckBox mCheckBox_Day_Sky;
         private Button mFilterDefaultsButton;
 
         private ToolTip mToolTip;
@@ -414,28 +411,7 @@ Right-click anywhere on the chart to clear all overlays.";
             mAltitudeChart.AddChartAreaToList("Day");
             mAltitudeChart.AddChartAreaToList("Year");
             mAltitudeChart.AddChartAreaToList("Sessions");
-
-            // Day sub-mode toggle: when checked, the Day chart shows per-target K-S
-            // sky-brightness curves on a reversed-magnitude Y axis instead of altitude.
-            // Added programmatically (not Designer-resident) since it's a sub-mode of
-            // the existing Day radio. Sits inside GroupBox_Altitude alongside the
-            // Day/Year/Sessions radios.
-            mCheckBox_Day_Sky = new CheckBox
-            {
-                Name     = "CheckBox_Day_Sky",
-                Text     = "Sky",
-                Location = new Point(180, 19),
-                Size     = new Size(50, 17),
-                AutoSize = true,
-                TabStop  = false,
-            };
-            mCheckBox_Day_Sky.CheckedChanged += (s, e) =>
-            {
-                mAltitudeChart.SetDaySubMode(mCheckBox_Day_Sky.Checked
-                    ? Charts.AltitudeChart.DaySubMode.Sky
-                    : Charts.AltitudeChart.DaySubMode.Altitude);
-            };
-            GroupBox_Altitude.Controls.Add(mCheckBox_Day_Sky);
+            mAltitudeChart.AddChartAreaToList("Sky");
 
             // Phase 1: no startup chart. The chart control / chart areas / legend are
             // wired up here so the empty chart panel renders cleanly, but no targets
@@ -655,9 +631,9 @@ Right-click anywhere on the chart to clear all overlays.";
             if (mAltitudeChart == null) return;
             mAltitudeChart.RebuildSessionsData(mLocation.Horizon, mLocation.Duration);
             // Bortle / Extinction / ActiveFilter changes feed the K-S sky-brightness
-            // minute-loop; rebuild the per-target Day-Sky curves alongside the Sessions
+            // minute-loop; rebuild the per-target Sky curves alongside the Sessions
             // tick so a single 150 ms debounce coalesces both refreshes.
-            mAltitudeChart.RebuildDaySkyData();
+            mAltitudeChart.RebuildSkyData();
         }
 
         // Compare the two locations on the fields that key the chart cache: Lat / Lon /
@@ -1088,9 +1064,9 @@ Right-click anywhere on the chart to clear all overlays.";
             mAltitudeChart.MoonAvoidanceProfile = avoidanceOn ? profile : null;
             // Push the active filter's center wavelength to the chart so the K-S
             // sky-brightness minute-loop scales extinction k via Rayleigh λ⁻⁴ at the
-            // band. Setter propagates to every AltitudeSeries; Day-Sky rebuild fires
+            // band. Setter propagates to every AltitudeSeries; Sky rebuild fires
             // via the existing SessionsRebuildDebounce tick (extended to also call
-            // RebuildDaySkyData).
+            // RebuildSkyData).
             mAltitudeChart.ActiveFilterCenterNm = filter.CenterNm;
             RestartSessionsRebuildDebounce();
         }
@@ -1418,9 +1394,10 @@ Right-click anywhere on the chart to clear all overlays.";
                 // selected via the view radios. Day is the default at form construction
                 // (Designer sets RadioButton_Day.Checked = true) so a fresh launch lands
                 // on Day; subsequent Graph clicks preserve the user's last view choice.
-                string area = RadioButton_Sessions.Checked ? "Sessions"
-                            : RadioButton_Year.Checked    ? "Year"
-                            :                               "Day";
+                string area = RadioButton_Sky.Checked      ? "Sky"
+                            : RadioButton_Sessions.Checked ? "Sessions"
+                            : RadioButton_Year.Checked     ? "Year"
+                            :                                "Day";
                 mAltitudeChart.ShowChartAreaSeries(area);
                 mAltitudeChart.ChartTitle = FormatChartTitle(area);
                 mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
@@ -1993,15 +1970,30 @@ Right-click anywhere on the chart to clear all overlays.";
             }
         }
 
-        // The Day chart renders one night's altitude curve, so its title includes the
-        // calendar date of the evening. Year and Sessions both render a 365-day sweep starting
-        // from the current month; their title uses the month name instead of a specific day
-        // so the axis label and the title agree.
+        private void RadioButton_Sky_CheckedChanged(object sender, EventArgs e)
+        {
+            mUIState.SkyChart = RadioButton_Sky.Checked;
+            if (RadioButton_Sky.Checked == true)
+            {
+                mAltitudeChart.ShowChartAreaSeries("Sky");
+                mAltitudeChart.ChartTitle = FormatChartTitle("Sky");
+            }
+        }
+
+        // Day and Sky both render one night, so their titles include the calendar date
+        // of the evening. Year and Sessions both render a 365-day sweep starting from the
+        // current month; their title uses the month name instead of a specific day so the
+        // axis label and the title agree.
         private string FormatChartTitle(string areaName)
         {
             if (areaName == "Day")
             {
                 return "Altitude at " + mLocation.Name
+                     + " for evening beginning " + mLocation.DateTime.Date.ToShortDateString();
+            }
+            if (areaName == "Sky")
+            {
+                return "Sky brightness at " + mLocation.Name
                      + " for evening beginning " + mLocation.DateTime.Date.ToShortDateString();
             }
             return "Altitude at " + mLocation.Name

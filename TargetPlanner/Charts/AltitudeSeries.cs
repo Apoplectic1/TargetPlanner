@@ -301,20 +301,20 @@ namespace TargetPlanner.Charts
 
             TargetSeriesList.Add(daySeries);
 
-            // K-S sky-brightness companion series. Same minute grid + count as the
-            // altitude series so the chart's IsXValueIndexed=true count invariant
-            // holds. Visibility is toggled by AltitudeChart's Day sub-mode (Sky shows
-            // it; Altitude hides it).
-            BuildDaySkySeries(start, startUtc, count);
+            // K-S sky-brightness companion series, lives on the Sky chart area.
+            // Built in lockstep with the Day altitude series so toggling between Day
+            // and Sky radios is instant -- both grids are populated at Reload time.
+            BuildSkySeries(start, startUtc, count);
         }
 
         // Per-minute K-S sky-brightness curve. Computes target Alt/Az, moon Alt/Az,
         // phase angle, and atmospheric extinction at the active filter's wavelength;
         // feeds them into SkyBrightness.KsAt. Per-DataPoint tooltips show the time +
-        // sky brightness for the hovered minute.
-        private void BuildDaySkySeries(DateTime startLocal, DateTime startUtc, int count)
+        // sky brightness for the hovered minute. Series lands on the "Sky" chart
+        // area; ShowChartAreaSeries binds it via series.ChartArea = "Sky".
+        private void BuildSkySeries(DateTime startLocal, DateTime startUtc, int count)
         {
-            Series sky = MakeSeries(Target.Name, "MoonSky-Day", mSeriesColor);
+            Series sky = MakeSeries(Target.Name, "Sky", mSeriesColor);
 
             double kAtBand = SkyBrightness.ScaleK(Location.ExtinctionK, ActiveFilterCenterNm);
             double v0 = Bortle.DefaultZenithMag(Location.BortleClass);
@@ -339,9 +339,9 @@ namespace TargetPlanner.Charts
                     m.MoonAltDeg, m.MoonAzDeg,
                     phase, sunAlt, kAtBand, v0);
 
-                // Sky-mode plot inverts Y so brighter sky (lower mag) renders HIGHER
+                // Sky-area plot inverts Y so brighter sky (lower mag) renders HIGHER
                 // on the chart while AxisY.IsReversed stays false (which keeps the X
-                // axis at the visual bottom). AltitudeChart's ConfigureDayYAxis
+                // axis at the visual bottom). AltitudeChart's ConfigureSkyYAxis
                 // installs CustomLabels that re-label these inverted positions with
                 // the actual magnitude values. Tooltip surfaces the actual mag.
                 double plotY = double.IsNaN(mag)
@@ -359,21 +359,22 @@ namespace TargetPlanner.Charts
             TargetSeriesList.Add(sky);
         }
 
-        // Sky sub-mode Y-axis range. Held here because BuildDaySkySeries and
-        // RebuildDaySkySeries both invert plot Y around the (Min + Max) midpoint;
-        // AltitudeChart.ConfigureDayYAxis uses the same constants for axis range +
+        // Sky-area Y-axis range. Held here because BuildSkySeries and
+        // RebuildSkySeries both invert plot Y around the (Min + Max) midpoint;
+        // AltitudeChart.ConfigureSkyYAxis uses the same constants for axis range +
         // CustomLabels so the displayed labels match the actual magnitudes.
         public const double SkyAxisMinMag = 16.0;
         public const double SkyAxisMaxMag = 22.0;
 
-        // Re-emit the MoonSky-Day series in place. Called from AltitudeChart on Bortle /
-        // Extinction / ActiveFilter changes that don't invalidate the year cache (no
-        // change to visibility geometry; just sky-brightness inputs). Preserves the Day
-        // axis IsXValueIndexed=true count invariant by overwriting Y values rather than
-        // rebuilding the series identity (mirrors the HD-overlay click pattern).
-        public void RebuildDaySkySeries()
+        // Re-emit the Sky brightness series in place. Called from AltitudeChart on
+        // Bortle / Extinction / ActiveFilter changes that don't invalidate the year
+        // cache (no change to visibility geometry; just sky-brightness inputs).
+        // Preserves the Sky-area IsXValueIndexed=true count invariant by overwriting
+        // Y values rather than rebuilding the series identity (mirrors the HD-overlay
+        // click pattern).
+        public void RebuildSkySeries()
         {
-            string skyName = Target.Name + "-MoonSky-Day";
+            string skyName = Target.Name + "-Sky";
             Series sky = null;
             foreach (Series s in TargetSeriesList)
             {
@@ -406,7 +407,7 @@ namespace TargetPlanner.Charts
                     m.MoonAltDeg, m.MoonAzDeg,
                     phase, sunAlt, kAtBand, v0);
 
-                // Same Sky-mode plot-Y inversion as BuildDaySkySeries.
+                // Same Sky-area plot-Y inversion as BuildSkySeries.
                 double plotY = double.IsNaN(mag)
                     ? -90.0
                     : (SkyAxisMinMag + SkyAxisMaxMag - mag);
@@ -440,13 +441,11 @@ namespace TargetPlanner.Charts
             Color visibleColor = mBestDayWindow != null ? mSeriesColor : Color.Transparent;
 
             // Day altitude curve: tooltip + transparency-based hide when no moon-clear
-            // D-hour window fits tonight. The MoonSky-Day companion curve mirrors the
+            // D-hour window fits tonight. The Sky brightness companion curve mirrors the
             // hide-on-no-fit (consistency: a target hidden by the Lorentzian fit-check
-            // shouldn't have its sky-brightness curve still visible in Sky sub-mode).
-            // Note: the MoonSky color is only used when sub-mode = Sky; in Altitude mode
-            // ApplyDaySubModeVisibility already disables the series.
+            // shouldn't have its sky-brightness curve still visible on the Sky area).
             string dayName     = Target.Name + "-Day";
-            string skyName     = Target.Name + "-MoonSky-Day";
+            string skyName     = Target.Name + "-Sky";
             foreach (Series s in TargetSeriesList)
             {
                 if (s.Name == dayName)
