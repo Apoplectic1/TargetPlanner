@@ -147,11 +147,10 @@ Recently shipped items archived to [ROADMAP.md](ROADMAP.md#recently-shipped). St
 
 1. **Chart-package investigation** — prototype OxyPlot / ScottPlot / LiveCharts2 against a representative test (Day chart + strip lines + click-toggle legend + click-overlay rectangle). Document the input shape that fits the chosen package's API. Informs the next item.
 2. **Phase 4: AltitudeChart → stateless renderer** — informed by chart-package decision. Demote `AltitudeChart` to a renderer that takes `(SelectionState, CacheStore, Profile, Horizon, Duration)`. Sets up the chart-package swap.
-3. **New Core solvers for parameter exploration** — extend `BestSession`/`SessionAltitude` with iterators that find the extremum of one variable while holding others fixed:
-   - **Longest-Duration solver:** given a fixed Horizon, find the longest D yielding a viable D-hour session for the night.
-   - **Lowest-Horizon solver:** given a fixed Duration, find the lowest H opening up a viable D-hour session for the night.
-   Both extend the placement primitives (sub-interval-aware) by iterating over the currently-user-set constraints. Consumers: TP (new "what's possible tonight?" surfaces), IS / ISP (planning relaxation when no rigid solution exists). Future enhancement worth flagging here so it shapes the Core API: **partial-moon-impact tolerance** (allow a session to span moon-blocked time at a quality penalty rather than rejecting outright) — deferred until much later, but the placement primitives should be designed in a way that doesn't preclude it.
+3. **TP UI surfaces for `SessionSolvers`** — the Library API shipped (`LongestDuration` / `LongestDurationIn` / `LowestHorizon` plus pending Centered variants). TP needs to surface them somewhere user-visible — tooltips, right-click menu, info panel? Needs UX design before implementation.
 4. **IS / ISP work** — current major thrust per memory; the four-phase IntervalScheduler pipeline is the strategic next axis.
+
+**Future-flagged for Core API shape:** **partial-moon-impact tolerance** — allowing a session to span moon-blocked time at a quality penalty rather than rejecting outright. Deferred until much later, but the placement primitives are designed so they don't preclude it (moon profile is optional everywhere; mask computation is behind an internal helper).
 
 ## Core consumer contract
 
