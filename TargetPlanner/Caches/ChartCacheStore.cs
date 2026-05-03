@@ -320,7 +320,7 @@ namespace TargetPlanner.Caches
                 entry.LstDawn = SiderealTime.Local(entry.Dawn.ToUniversalTime(), lonDegEast);
                 if (entry.LstDawn < entry.LstDusk) entry.LstDawn += 24.0;
 
-                // Moon-aware Optimal-chart rebuild path needs per-night moon state. Sampled
+                // Moon-aware Sessions-chart rebuild path needs per-night moon state. Sampled
                 // at 10-minute cadence between Dusk and Dawn so the cache stays profile-
                 // independent: the Lorentzian decision is evaluated at render time against
                 // these raw samples, not pre-decided per night. ~70 samples per night per

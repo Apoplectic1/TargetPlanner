@@ -99,7 +99,7 @@
             this.Label_TargetRightAscensionText = new System.Windows.Forms.Label();
             this.NumericUpDown_DecSeconds = new System.Windows.Forms.NumericUpDown();
             this.NumericUpDown_DecDegrees = new System.Windows.Forms.NumericUpDown();
-            this.RadioButton_Optimal = new System.Windows.Forms.RadioButton();
+            this.RadioButton_Sessions = new System.Windows.Forms.RadioButton();
             this.RadioButton_Year = new System.Windows.Forms.RadioButton();
             this.RadioButton_Day = new System.Windows.Forms.RadioButton();
             this.Button_VisibleTonight = new System.Windows.Forms.Button();
@@ -1058,16 +1058,16 @@
             this.NumericUpDown_DecDegrees.TabIndex = 17;
             this.NumericUpDown_DecDegrees.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
-            // RadioButton_Optimal
+            // RadioButton_Sessions
             // 
-            this.RadioButton_Optimal.AutoSize = true;
-            this.RadioButton_Optimal.Location = new System.Drawing.Point(112, 19);
-            this.RadioButton_Optimal.Name = "RadioButton_Optimal";
-            this.RadioButton_Optimal.Size = new System.Drawing.Size(60, 17);
-            this.RadioButton_Optimal.TabIndex = 38;
-            this.RadioButton_Optimal.Text = "Optimal";
-            this.RadioButton_Optimal.UseVisualStyleBackColor = true;
-            this.RadioButton_Optimal.CheckedChanged += new System.EventHandler(this.RadioButton_Optimal_CheckedChanged);
+            this.RadioButton_Sessions.AutoSize = true;
+            this.RadioButton_Sessions.Location = new System.Drawing.Point(112, 19);
+            this.RadioButton_Sessions.Name = "RadioButton_Sessions";
+            this.RadioButton_Sessions.Size = new System.Drawing.Size(60, 17);
+            this.RadioButton_Sessions.TabIndex = 38;
+            this.RadioButton_Sessions.Text = "Sessions";
+            this.RadioButton_Sessions.UseVisualStyleBackColor = true;
+            this.RadioButton_Sessions.CheckedChanged += new System.EventHandler(this.RadioButton_Sessions_CheckedChanged);
             // 
             // RadioButton_Year
             // 
@@ -1461,7 +1461,7 @@
             // 
             this.GroupBox_Altitude.Controls.Add(this.ProgressBar_MultiTargetProcessing);
             this.GroupBox_Altitude.Controls.Add(this.RadioButton_Year);
-            this.GroupBox_Altitude.Controls.Add(this.RadioButton_Optimal);
+            this.GroupBox_Altitude.Controls.Add(this.RadioButton_Sessions);
             this.GroupBox_Altitude.Controls.Add(this.RadioButton_Day);
             this.GroupBox_Altitude.Location = new System.Drawing.Point(13, 373);
             this.GroupBox_Altitude.Name = "GroupBox_Altitude";
@@ -1598,7 +1598,7 @@
         private System.Windows.Forms.Label Label_RaHourColon;
         private System.Windows.Forms.CheckBox CheckBox_LocalNorth;
         private System.Windows.Forms.CheckBox CheckBox_TargetNorth;
-        private System.Windows.Forms.RadioButton RadioButton_Optimal;
+        private System.Windows.Forms.RadioButton RadioButton_Sessions;
         private System.Windows.Forms.RadioButton RadioButton_Year;
         private System.Windows.Forms.RadioButton RadioButton_Day;
         private System.Windows.Forms.GroupBox GroupBox_Target;

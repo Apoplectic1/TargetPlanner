@@ -23,7 +23,7 @@ namespace TargetPlanner.Charts
 
         // Snapshot set at construction and at each ReloadWithTargets call. Horizon /
         // Duration live-scrub paths pass the current values through
-        // RebuildOptimalData(horizon, duration) / UpdateHorizonLines(horizon) instead of
+        // RebuildSessionsData(horizon, duration) / UpdateHorizonLines(horizon) instead of
         // mutating the snapshot. The immutable-mid-flight invariant the background
         // AltitudeSeries Tasks rely on is preserved: Reload discards mSeriesByTarget so
         // every subsequent SeriesFor(target) call produces a fresh AltitudeSeries against
@@ -34,8 +34,8 @@ namespace TargetPlanner.Charts
 
         // Active moon-avoidance profile for every target rendered in this chart. Setter
         // pushes the new value to every AltitudeSeries currently in mSeriesByTarget so
-        // their next RebuildDayTooltip / RebuildOptimalSeries pass picks it up. Caller
-        // is responsible for triggering RebuildOptimalData(horizon, duration) after a
+        // their next RebuildDayTooltip / RebuildSessionsSeries pass picks it up. Caller
+        // is responsible for triggering RebuildSessionsData(horizon, duration) after a
         // change -- mirrors the Horizon / Duration pattern.
         //
         // Null is the backwards-compatible default and means "no moon avoidance":
@@ -201,7 +201,7 @@ namespace TargetPlanner.Charts
 
         // Explicit per-target color, assigned once by ReloadWithTargets from TargetColorPalette
         // by the target's index in mTargetList. Every Series the target produces (Day / Year /
-        // Optimal / OptimalFloor / OptimalFloorCentered) picks up this color at construction.
+        // Sessions / SessionsFloor / SessionsFloorCentered) picks up this color at construction.
         // See TargetColorPalette for the rationale on explicit vs auto-palette.
         private Dictionary<Target, Color> mTargetColors;
 
@@ -329,7 +329,7 @@ namespace TargetPlanner.Charts
         // area. The target series uses IsXValueIndexed = true, so the X axis is indexed: each
         // data point sits at integer index 0..N-1, with the point's DateTime shown only as a
         // label. StripLine.IntervalOffset is therefore expressed in those same index units --
-        // computed as the offset (in minutes for Day, days for Year / Optimal) from the first
+        // computed as the offset (in minutes for Day, days for Year / Sessions) from the first
         // target data point to "now".
         public void UpdateNowLine(DateTime now)
         {
@@ -352,7 +352,7 @@ namespace TargetPlanner.Charts
                         Interval = 0,
                         IntervalOffsetType = DateTimeIntervalType.Number,
                         StripWidthType = DateTimeIntervalType.Number,
-                        StripWidth = 1.0,  // 1 index unit; ~1 min on Day, ~1 day on Year / Optimal
+                        StripWidth = 1.0,  // 1 index unit; ~1 min on Day, ~1 day on Year / Sessions
                     };
                     mNowLines[area.Name] = line;
                     area.AxisX.StripLines.Add(line);
@@ -427,7 +427,7 @@ namespace TargetPlanner.Charts
             // - Unreplaced curve -> overwrite with the best D-hour window step.
             // - Already-replaced curve -> restore just this one target's original altitude
             //   curve (right-click anywhere still clears every replacement in one shot).
-            // Gated on the Day chart area so Year / Optimal stay unaffected. The Moon-Day
+            // Gated on the Day chart area so Year / Sessions stay unaffected. The Moon-Day
             // series is target-independent and skipped.
             //
             // Don't gate on `result.Object is DataPoint`: HitTest's DataPoint classification
@@ -523,7 +523,7 @@ namespace TargetPlanner.Charts
         // stays active in mReplacedDayBackup; when the user scrubs back to a qualifying
         // state, the next call will re-render the step properly).
         //
-        // Shared by ToggleDayCurveWindow (initial click) and RebuildOptimalData (per-target
+        // Shared by ToggleDayCurveWindow (initial click) and RebuildSessionsData (per-target
         // refresh on Horizon/Duration spinner debounce ticks).
         private static void ApplyOverlayStepFunction(Series s,
             (DateTime Start, DateTime End, double Floor)? window)
@@ -685,7 +685,7 @@ namespace TargetPlanner.Charts
                         // binding defaulted to that single area and always rendered correctly.
                         // Post-W2-11 all three areas live in mChart.ChartAreas simultaneously
                         // (flipped via Visible); a Series without an explicit ChartArea falls
-                        // back to the first one in the collection (Day), so Year / Optimal
+                        // back to the first one in the collection (Day), so Year / Sessions
                         // series would render into the hidden Day area and the active area
                         // would appear empty.
                         series.ChartArea = chartAreaName;
@@ -717,14 +717,14 @@ namespace TargetPlanner.Charts
         // phase of BuildSeriesList runs synchronously on the caller's thread before its
         // first await, so TargetSeriesList is populated with the Day Series by the time
         // InitializeDynamicControls' following ShowChartAreaSeries("Day") line runs. The
-        // Year + Optimal phases continue in the background and populate the same
+        // Year + Sessions phases continue in the background and populate the same
         // AltitudeSeries; the chart picks them up when the user switches to those radios.
         //
         // User-initiated graph clicks go through ReloadWithTargets instead, which stages
         // the whole build off to the side (new AltitudeSeries instances in a local dict),
         // waits for all targets to finish via Task.WhenAll, and swaps atomically.
         //
-        // phaseProgress (if non-null) fires "Day" / "Year" / "Optimal" once per target.
+        // phaseProgress (if non-null) fires "Day" / "Year" / "Sessions" once per target.
         public void BuildTargetSeriesList(IProgress<string> phaseProgress = null,
                                           CancellationToken ct = default)
         {
@@ -916,9 +916,9 @@ namespace TargetPlanner.Charts
             await Task.WhenAll(tasks);
         }
 
-        // Regenerate only the Optimal series in place for every target in the target list.
+        // Regenerate only the Sessions series in place for every target in the target list.
         // Day, Moon, and Year do not depend on Horizon or Duration so they stay untouched;
-        // the Optimal recomputation walks the cache populated during the initial build and
+        // the Sessions recomputation walks the cache populated during the initial build and
         // avoids any ComputeNight / GetAltitudeAzimuth calls. Series object identity is
         // preserved (FindOrCreateSeries reuses them), so mChart.Series references stay valid
         // and the chart picks up the new points automatically.
@@ -944,17 +944,17 @@ namespace TargetPlanner.Charts
             }
         }
 
-        public void RebuildOptimalData(double horizon, TimeSpan duration)
+        public void RebuildSessionsData(double horizon, TimeSpan duration)
         {
             string daySuffix = "-Day";
             foreach (Target target in mTargetList.ToList())
             {
                 if (target == null) continue;
                 AltitudeSeries series = SeriesFor(target);
-                series.RebuildOptimalSeries(horizon, duration);
+                series.RebuildSessionsSeries(horizon, duration);
                 // Day-series hover tooltip summarises the best D-hour window; Horizon /
                 // Duration spinner scrubs feed through the same path so the tooltip stays
-                // in sync with what the Optimal curves display. RebuildDayTooltip also
+                // in sync with what the Sessions curves display. RebuildDayTooltip also
                 // refreshes the target's mBestDayWindow as a side effect (consumed below).
                 series.RebuildDayTooltip(horizon, duration);
 
@@ -1159,7 +1159,7 @@ namespace TargetPlanner.Charts
                     mChart.ChartAreas[chartAreaName].AxisY.Title = "Maximum Daily Altitude";
                     break;
 
-                case "Optimal":
+                case "Sessions":
                     mChart.ChartAreas[chartAreaName].AxisX.Interval = 1.0;
                     mChart.ChartAreas[chartAreaName].AxisX.IntervalType = DateTimeIntervalType.Months;
                     mChart.ChartAreas[chartAreaName].AxisX.LabelStyle.Format = "MMMM";

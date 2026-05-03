@@ -4,7 +4,7 @@ namespace TargetPlanner.Caches
 {
     /// <summary>
     /// One moon-position observation captured during cache build, used at render time
-    /// by the moon-aware curves (Day-chart HD overlay, Optimal-chart short-circuit).
+    /// by the moon-aware curves (Day-chart HD overlay, Sessions-chart placement).
     /// </summary>
     /// <remarks>
     /// Sampled at 10-minute cadence between Dusk and Dawn for each per-target

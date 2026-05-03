@@ -32,7 +32,7 @@ namespace TargetPlanner.Charts
         // swapped afterward. Spinner edits on the main form update mLocation there; the
         // chart's copy stays frozen until the next Graph-click tear-and-rebuild. The one
         // exception is Horizon / Duration, which are scrub-able post-hoc via
-        // RebuildOptimalSeries(horizon, duration) -- those two analysis parameters are
+        // RebuildSessionsSeries(horizon, duration) -- those two analysis parameters are
         // passed explicitly per call rather than being read from this snapshot.
         public Location Location { get; }
         public Target Target { get; }
@@ -40,8 +40,8 @@ namespace TargetPlanner.Charts
         private IReadOnlyList<NightCacheEntry> mYearCache;
 
         // Explicit per-target color, assigned once by AltitudeChart at reload from a stable
-        // palette. Every Series this instance creates (Day / Year / Optimal / OptimalFloor /
-        // OptimalFloorCentered) uses this color. Moon is target-independent and keeps its
+        // palette. Every Series this instance creates (Day / Year / Sessions / SessionsFloor /
+        // SessionsFloorCentered) uses this color. Moon is target-independent and keeps its
         // alpha-scaled-gray color set directly in BuildMoonSeries.
         //
         // Why explicit: with Color.Empty the DataVisualization Chart auto-assigns palette
@@ -130,7 +130,7 @@ namespace TargetPlanner.Charts
 
         // Return the existing Series by name if present so repeat calls reuse the same Series
         // object (preserves chart binding); otherwise create and register a fresh one. This is
-        // what makes BuildYearAndOptimalSeries safe to call more than once per AltitudeSeries
+        // what makes BuildYearAndSessionsSeries safe to call more than once per AltitudeSeries
         // instance -- the Series identity survives rebuilds so mChart.Series keeps referencing
         // the points that just got repopulated.
         private Series FindOrCreateSeries(string name, string seriesType, Color color)
@@ -148,7 +148,7 @@ namespace TargetPlanner.Charts
         // phaseProgress (if non-null) is reported exactly three times per successful build:
         //   "Day"     -- after the synchronous minute-loop Day and Moon series are populated.
         //   "Year"    -- after the Task.Run background compute + UI-thread RenderYearSeries.
-        //   "Optimal" -- after RenderOptimalSeries lands the three Optimal-area curves.
+        //   "Sessions" -- after RenderSessionsSeries lands the three Sessions-area curves.
         // Progress<T> marshals each Report to the subscriber's creation context (UI thread),
         // so the subscribing ProgressBar Value setter runs on the UI thread regardless of
         // where the report originated. On exception, a phase may not tick -- subscribers that
@@ -162,7 +162,7 @@ namespace TargetPlanner.Charts
         //     This is the expensive phase; multiple targets run their Year computes in
         //     parallel across threadpool threads when ReloadWithTargets kicks them off.
         //   - Caller's thread again (continuation post-await): RenderYearSeries +
-        //     RenderOptimalSeries. Reads mYearCache and populates Series.Points.
+        //     RenderSessionsSeries. Reads mYearCache and populates Series.Points.
         //
         // Keeping Moon/Day/Year-render on the caller's thread preserves the pre-refactor
         // parallel-compute-with-serialized-render pattern that benchmarks well even on
@@ -180,7 +180,7 @@ namespace TargetPlanner.Charts
             // Each Target owns its AltitudeSeries, so a second build on the same Target
             // must start from a clean TargetSeriesList -- otherwise BuildMoonSeries /
             // BuildDaySeries, which unconditionally create fresh Series, would leave
-            // duplicates next to the prior run. Year / Optimal are idempotent via
+            // duplicates next to the prior run. Year / Sessions are idempotent via
             // FindOrCreateSeries, but clearing here keeps all four on the same lifecycle.
             TargetSeriesList.Clear();
 
@@ -193,13 +193,13 @@ namespace TargetPlanner.Charts
             BuildDaySeries();
             phaseProgress?.Report("Day");
 
-            // Pre-allocate the Year + Optimal Series up front so the background compute
+            // Pre-allocate the Year + Sessions Series up front so the background compute
             // phase never touches TargetSeriesList concurrently with ShowChartAreaSeries /
             // UpdateNowLine (both iterate TargetSeriesList on the UI thread).
             FindOrCreateSeries(Target.Name, "Year",                 mSeriesColor);
-            FindOrCreateSeries(Target.Name, "Optimal",              mSeriesColor).LegendToolTip = "Ceiling";
-            FindOrCreateSeries(Target.Name, "OptimalFloor",         mSeriesColor).LegendToolTip = "Floor";
-            FindOrCreateSeries(Target.Name, "OptimalFloorCentered", mSeriesColor).LegendToolTip = "Symmetric";
+            FindOrCreateSeries(Target.Name, "Sessions",              mSeriesColor).LegendToolTip = "Ceiling";
+            FindOrCreateSeries(Target.Name, "SessionsFloor",         mSeriesColor).LegendToolTip = "Floor";
+            FindOrCreateSeries(Target.Name, "SessionsFloorCentered", mSeriesColor).LegendToolTip = "Symmetric";
 
             // Pull (or trigger build of) the per-target year cache from ChartCacheStore.
             // GetOrBuildAsync runs the compute on the threadpool; if multiple targets are
@@ -220,18 +220,18 @@ namespace TargetPlanner.Charts
             phaseProgress?.Report("Year");
 
             // Initial render uses the snapshot's Horizon and Duration; spinner scrubs
-            // later call RebuildOptimalSeries(horizon, duration) with fresh values on
+            // later call RebuildSessionsSeries(horizon, duration) with fresh values on
             // the UI thread without touching the snapshot.
-            RenderOptimalSeries(Location.Horizon, Location.Duration);
-            phaseProgress?.Report("Optimal");
+            RenderSessionsSeries(Location.Horizon, Location.Duration);
+            phaseProgress?.Report("Sessions");
 
             // Apply initial Day/Year visibility based on whether tonight qualifies at the
             // build-time spinner state. Subsequent spinner scrubs re-run this through
-            // RebuildOptimalData -> RebuildDayTooltip on the UI thread.
+            // RebuildSessionsData -> RebuildDayTooltip on the UI thread.
             RebuildDayTooltip(Location.Horizon, Location.Duration);
         }
 
-        // Rebuild only the Optimal series on Horizon / Duration / MoonAvoidanceProfile change.
+        // Rebuild only the Sessions series on Horizon / Duration / MoonAvoidanceProfile change.
         // Day, Moon, and Year don't depend on these inputs, so they stay as-is. Reads
         // mYearCache (populated during the async BuildSeriesList) instead of recomputing
         // dusk/dawn/LSTs etc. Cold-start: silent no-op when the cache hasn't been populated
@@ -240,15 +240,15 @@ namespace TargetPlanner.Charts
         // moon samples were added: each invocation now runs ~25,600 CoordinateSharp moon
         // calls per target, which hangs the UI on profile / spinner scrubs that race the
         // initial async build). The async builder reads the latest MoonAvoidanceProfile
-        // and re-renders Optimal at completion (line 247 below), so the chart converges on
+        // and re-renders Sessions at completion (line 247 below), so the chart converges on
         // the user's intent without us forcing it here.
         //
         // Horizon and Duration are passed explicitly rather than read from the snapshot so
         // scrubbing a spinner updates the rendered curve without mutating the snapshot.
-        public void RebuildOptimalSeries(double horizon, TimeSpan duration)
+        public void RebuildSessionsSeries(double horizon, TimeSpan duration)
         {
             if (mYearCache == null || mYearCache.Count == 0) return;
-            RenderOptimalSeries(horizon, duration);
+            RenderSessionsSeries(horizon, duration);
         }
 
         private void BuildDaySeries()
@@ -421,9 +421,9 @@ namespace TargetPlanner.Charts
         }
 
         // Refresh the Day series' hover tooltip AND the Day visibility for the current
-        // Horizon / Duration. Called from AltitudeChart.RebuildOptimalData alongside
-        // RebuildOptimalSeries so the tooltip and Day-curve visibility stay in sync with
-        // the Optimal-chart curves on spinner scrubs. Silently no-ops if the Day series
+        // Horizon / Duration. Called from AltitudeChart.RebuildSessionsData alongside
+        // RebuildSessionsSeries so the tooltip and Day-curve visibility stay in sync with
+        // the Sessions-chart curves on spinner scrubs. Silently no-ops if the Day series
         // hasn't been built yet (initial async build hasn't finished and the user is
         // already scrubbing).
         //
@@ -553,7 +553,7 @@ namespace TargetPlanner.Charts
         // eventually triggers Chart.Invalidate(), which is illegal off the UI thread.
         //
         // Null guard: mYearCache is null until BuildSeriesList's Task.Run completes (or forever
-        // if the compute threw). A UI-thread caller (e.g. RebuildOptimalSeries via a spinner
+        // if the compute threw). A UI-thread caller (e.g. RebuildSessionsSeries via a spinner
         // scrub) that races the initial build could hit this path before the cache exists.
         private void RenderYearSeries()
         {
@@ -571,14 +571,14 @@ namespace TargetPlanner.Charts
             }
         }
 
-        // Walk mYearCache to emit the three Optimal-area curves:
-        //   Optimal               -- peak altitude reached inside any above-horizon window of
+        // Walk mYearCache to emit the three Sessions-area curves:
+        //   Sessions               -- peak altitude reached inside any above-horizon window of
         //                            length >= Duration on that night.
-        //   OptimalFloor          -- lowest altitude experienced during the best D-hour session
+        //   SessionsFloor          -- lowest altitude experienced during the best D-hour session
         //                            that fits inside such a window; the session is transit-
         //                            centered when possible, otherwise pushed against the window
         //                            wall closer to transit.
-        //   OptimalFloorCentered  -- floor of a strictly transit-centered D-hour session. Emits
+        //   SessionsFloorCentered  -- floor of a strictly transit-centered D-hour session. Emits
         //                            xIdealDeg iff the centered session [T - dL/2, T + dL/2]
         //                            fits inside [LstDusk, LstDawn] for some shifted transit
         //                            T = RA + 24k, and xIdealDeg >= Horizon; else -90. Useful
@@ -589,38 +589,38 @@ namespace TargetPlanner.Charts
         // no ComputeNight, no GetAltitudeAzimuth. The Year-as-upper-bound pre-filter short-
         // circuits every day where YearAlt is below the current horizon.
         //
-        // Floor placement (OptimalFloor): for each qualifying above-horizon window [s, e] with
+        // Floor placement (SessionsFloor): for each qualifying above-horizon window [s, e] with
         // shifted transit T = RA + 24k, the best D-hour session is transit-centered if
         // [T - dL/2, T + dL/2] fits; otherwise it's pushed against the wall of [s, e] closer to
         // T. The floor altitude is then AltAtHa evaluated at the session endpoint farther from
         // transit -- which is always the session's low point since alt(HA) is monotone away
         // from HA=0.
-        // UI-thread-only: walks mYearCache and writes the three Optimal-area series. Per
+        // UI-thread-only: walks mYearCache and writes the three Sessions-area series. Per
         // night, computes candidate windows (visibility, optionally intersected with the
         // active moon-clear sub-intervals) then delegates placement + altitude evaluation
         // to Core (BestSession.PlaceBest / PlaceCentered + SessionAltitude.Floor /
         // Ceiling). The chart's per-night cost is dominated by the IntegratedQuality
         // Simpson sweep inside PlaceBest -- ~20 alt-az calls per candidate window, all
         // pure Meeus, lock-free. For 365 nights x 1-3 sub-intervals this is tens of ms,
-        // well under the 150 ms OptimalRebuildDebounce_Tick cadence.
+        // well under the 150 ms SessionsRebuildDebounce_Tick cadence.
         //
-        // Null guard: see RenderYearSeries. RebuildOptimalSeries should have populated the
+        // Null guard: see RenderYearSeries. RebuildSessionsSeries should have populated the
         // cache before calling this, but the defensive check here lets a spinner scrub during
         // the initial async build no-op cleanly instead of throwing.
         //
         // Horizon and duration are passed as parameters (not read from Location) so scrubbing
         // the Horizon / Duration spinners updates the rendered curve without requiring us to
         // mutate the chart's frozen Location snapshot.
-        private void RenderOptimalSeries(double horizon, TimeSpan duration)
+        private void RenderSessionsSeries(double horizon, TimeSpan duration)
         {
             if (mYearCache == null) return;
 
-            Series optimalSeries         = FindOrCreateSeries(Target.Name, "Optimal",              mSeriesColor);
-            Series optimalFloorSeries    = FindOrCreateSeries(Target.Name, "OptimalFloor",         mSeriesColor);
-            Series optimalCenteredSeries = FindOrCreateSeries(Target.Name, "OptimalFloorCentered", mSeriesColor);
-            optimalSeries.Points.Clear();
-            optimalFloorSeries.Points.Clear();
-            optimalCenteredSeries.Points.Clear();
+            Series sessionsSeries         = FindOrCreateSeries(Target.Name, "Sessions",              mSeriesColor);
+            Series sessionsFloorSeries    = FindOrCreateSeries(Target.Name, "SessionsFloor",         mSeriesColor);
+            Series sessionsCenteredSeries = FindOrCreateSeries(Target.Name, "SessionsFloorCentered", mSeriesColor);
+            sessionsSeries.Points.Clear();
+            sessionsFloorSeries.Points.Clear();
+            sessionsCenteredSeries.Points.Clear();
 
             double latSigned   = Location.LatSigned();
             double decSigned   = Target.DecSigned();
@@ -684,23 +684,23 @@ namespace TargetPlanner.Charts
                     }
                 }
 
-                int cIdx = optimalSeries.Points.AddXY(entry.SentinelX, ceilingAlt);
-                int fIdx = optimalFloorSeries.Points.AddXY(entry.SentinelX, floorAlt);
-                int sIdx = optimalCenteredSeries.Points.AddXY(entry.SentinelX, centeredAlt);
-                AssignOptimalTooltip(
-                    optimalSeries, cIdx, ceilingAlt,
-                    optimalFloorSeries, fIdx, floorAlt,
-                    optimalCenteredSeries, sIdx, centeredAlt,
+                int cIdx = sessionsSeries.Points.AddXY(entry.SentinelX, ceilingAlt);
+                int fIdx = sessionsFloorSeries.Points.AddXY(entry.SentinelX, floorAlt);
+                int sIdx = sessionsCenteredSeries.Points.AddXY(entry.SentinelX, centeredAlt);
+                AssignSessionsTooltip(
+                    sessionsSeries, cIdx, ceilingAlt,
+                    sessionsFloorSeries, fIdx, floorAlt,
+                    sessionsCenteredSeries, sIdx, centeredAlt,
                     entry.SentinelX);
             }
         }
 
-        // Quality function for Optimal-chart placement. sin(altitude) is the standard
+        // Quality function for Sessions-chart placement. sin(altitude) is the standard
         // airmass-weighted proxy and matches what ComputeBestDayWindow uses.
         private static readonly Func<double, double> SinAltQuality =
             alt => Math.Sin(alt * Math.PI / 180.0);
 
-        // Format an altitude value for the Optimal hover tooltip. Sentinel '-90' values
+        // Format an altitude value for the Sessions hover tooltip. Sentinel '-90' values
         // (polar / below-horizon / moon-aware short-circuit / centered-window doesn't fit)
         // render as '—' so the unified tooltip reads cleanly when one or more curves are
         // unviable for the hovered date.
@@ -709,12 +709,12 @@ namespace TargetPlanner.Charts
                 ? "—"
                 : alt.ToString("0.0", CultureInfo.InvariantCulture) + "°";
 
-        // Build one unified Optimal hover-tooltip string and assign it to the just-added
-        // DataPoints in all three Optimal curves. Hovering any of the three curves at this
+        // Build one unified Sessions hover-tooltip string and assign it to the just-added
+        // DataPoints in all three Sessions curves. Hovering any of the three curves at this
         // date surfaces the same target+date+Ceiling/Floor/Symmetric block, so the user
         // sees the value of the curve they're hovering plus the relationship to the other
         // two without moving the mouse. -90 sentinels render via FormatAlt as '—'.
-        private void AssignOptimalTooltip(
+        private void AssignSessionsTooltip(
             Series cSeries, int cIdx, double cAlt,
             Series fSeries, int fIdx, double fAlt,
             Series sSeries, int sIdx, double sAlt,
@@ -731,7 +731,7 @@ namespace TargetPlanner.Charts
         }
 
         // ====================================================================
-        // Moon-aware placement helpers for RenderOptimalSeries
+        // Moon-aware placement helpers for RenderSessionsSeries
         // ====================================================================
 
         // Pairwise interval intersection, O(|a| * |b|). Both inputs are typically tiny
@@ -757,7 +757,7 @@ namespace TargetPlanner.Charts
         }
 
         // Enumerate above-horizon visibility windows for the day in UTC, mirroring the
-        // shifted-transit (k = -1, 0, +1) logic in RenderOptimalSeries' placement loop.
+        // shifted-transit (k = -1, 0, +1) logic in RenderSessionsSeries' placement loop.
         // Result is empty when no above-horizon arc of length >= Duration fits the night;
         // single entry for circumpolar above-horizon targets; up to three otherwise.
         private static List<(DateTime Start, DateTime End)> EnumerateVisibilityWindowsUtc(

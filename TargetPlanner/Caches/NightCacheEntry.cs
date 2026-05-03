@@ -51,7 +51,7 @@ namespace TargetPlanner.Caches
         /// <summary>True for polar day / polar night nights where <see cref="Astronomy.Core.Night.NightWindow.IsValid"/> was false.</summary>
         public bool IsPolar;
 
-        /// <summary>X-axis coordinate used for Year/Optimal series points (DateTime ticks).</summary>
+        /// <summary>X-axis coordinate used for Year/Sessions series points (DateTime ticks).</summary>
         public DateTime SentinelX;
 
         /// <summary>Per-night moon samples at 10-minute cadence between Dusk and Dawn.</summary>

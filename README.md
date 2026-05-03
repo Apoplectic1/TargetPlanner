@@ -6,26 +6,26 @@ Windows Forms desktop tool for astrophotography target planning. Plots a deep-sk
 
 ## What it does
 
-- **Three altitude views** — *Day* (minute-by-minute altitude across the coming night, with twilight shading and a live "now" line), *Year* (peak altitude per night across 365 days), *Optimal* (best continuous window per night that meets your Horizon + Duration filter).
+- **Three altitude views** — *Day* (minute-by-minute altitude across the coming night, with twilight shading and a live "now" line), *Year* (peak altitude per night across 365 days), *Sessions* (best continuous window per night that meets your Horizon + Duration filter).
 - **Multi-target overlay** — graph many targets at once. Filter via *Visible Tonight* / *Select All* / *Clear All*; sort by name, RA, declination, or transit time.
 - **NINA sequence ingestion** — auto-loads every `DeepSkyObjectContainer` `.json` under your NINA Targets root and turns them into selectable targets. Skips `Calibration` and `Mosaics` folders.
 - **Picker-driven moment** — Date / Time pickers drive the observation moment; *Now* snaps back to the current instant and moves the red now-line on the chart.
 - **Sky-brightness overlay** — toggle the Day chart between altitude and Krisciunas–Schaefer sky brightness in mag/arcsec², with per-Bortle baseline, atmospheric extinction, and per-filter wavelength scaling.
-- **Moon avoidance** — per-filter Lorentzian moon-avoidance gates the Optimal-chart curves and Day-chart best-window overlay.
+- **Moon avoidance** — per-filter Lorentzian moon-avoidance gates the Sessions-chart curves and Day-chart best-window overlay.
 
 ## Charts
 
-Three chart areas swap behind the **Day / Year / Optimal** radios beside the chart.
+Three chart areas swap behind the **Day / Year / Sessions** radios beside the chart.
 
 **Day chart.** Minute-by-minute altitude through the coming night. Left edge is the hour boundary before astronomical dusk; right edge is the hour boundary after astronomical dawn. Yellow→gray gradient at left marks dusk twilight; gray→yellow gradient at right marks dawn. A red vertical line shows the current moment, refreshed by the **Now** button. A shared gray filled area shows moon altitude across the night.
 
-The Day chart has two sub-modes selected by the **Sky** checkbox next to the Day/Year/Optimal radios:
+The Day chart has two sub-modes selected by the **Sky** checkbox next to the Day/Year/Sessions radios:
 - **Altitude** (default) — per-target altitude curves; click a curve to overlay its best window for tonight (see *HD Overlay* below).
 - **Sky** — per-target sky-brightness curves in mag/arcsec² on a reversed Y axis (brighter sky reads higher).
 
 **Year chart.** Peak altitude per night across 365 days, one curve per target. Hover any point: tooltip shows `{Target}\n{date}\nMax altitude: {alt}°`.
 
-**Optimal chart.** Three per-target curves describe how well a Duration-long imaging window fits inside each night's visibility arc, given your Horizon floor:
+**Sessions chart.** Three per-target curves describe how well a Duration-long imaging window fits inside each night's visibility arc, given your Horizon floor:
 - **Ceiling** — peak altitude reached inside any qualifying window.
 - **Floor** — floor altitude of the best D-hour placement (transit-centred when it fits, wall-pushed otherwise).
 - **Symmetric** — floor altitude of a strictly transit-centred placement; renders as `—` if a D-hour window can't fit symmetrically around transit.
@@ -35,8 +35,8 @@ Hover any of the three curves to see all three values for that night.
 ## Domain terms
 
 - **HD Overlay** — the Day-chart's best-window step function. Bounded by **H**orizon (the Y floor) and **D**uration (the minimum window length). Click a target's Day curve to overlay; click again to restore.
-- **D-hour window** — a contiguous span of length ≥ Duration that stays above Horizon. The "best D-hour window" is the optimal-quality placement of such a window inside tonight's visibility arc.
-- **Ceiling / Floor / Symmetric** — the three Optimal-chart curves (above).
+- **D-hour window** — a contiguous span of length ≥ Duration that stays above Horizon. The "best D-hour window" is the highest-quality placement of such a window inside tonight's visibility arc.
+- **Ceiling / Floor / Symmetric** — the three Sessions-chart curves (above).
 
 ## Chart interactions
 
@@ -72,7 +72,7 @@ Per-location fields:
 
 ## Filters & moon avoidance
 
-Filters serve two purposes: they pin the active wavelength for the Sky-brightness overlay (via centre-nm) and they carry the per-filter Lorentzian moon-avoidance parameters used by the Optimal-chart curves and Day-chart HD overlay.
+Filters serve two purposes: they pin the active wavelength for the Sky-brightness overlay (via centre-nm) and they carry the per-filter Lorentzian moon-avoidance parameters used by the Sessions-chart curves and Day-chart HD overlay.
 
 A master **Enable** checkbox in the Moon Avoidance group gates moon-avoidance globally. When off, all curves render moon-blind.
 
@@ -90,7 +90,7 @@ Lorentzian-control edits on the main form auto-save the active filter on a 500 m
 
 ## Sky brightness (Day Sky sub-mode)
 
-Tick the **Sky** checkbox next to the Day/Year/Optimal radios to swap the Day chart's per-target altitude curves for sky-brightness curves in mag/arcsec². The Y axis range is 16–22 mag/arcsec² with brighter sky reading higher.
+Tick the **Sky** checkbox next to the Day/Year/Sessions radios to swap the Day chart's per-target altitude curves for sky-brightness curves in mag/arcsec². The Y axis range is 16–22 mag/arcsec² with brighter sky reading higher.
 
 Sky brightness composes three contributions in linear (nanolambert) space:
 - **Dark-sky baseline** V₀ — driven by the location's Bortle class, scaled by target airmass and extinction.

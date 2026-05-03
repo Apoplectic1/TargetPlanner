@@ -72,7 +72,7 @@ namespace TargetPlanner
         private bool mEditFiltersDialogOpen;
 
         // Debounce timer for the Lorentzian-scrub auto-save into mActiveFilter. Mirrors
-        // the OptimalRebuildDebounce pattern (Stop+Start collapses rapid edits into one
+        // the SessionsRebuildDebounce pattern (Stop+Start collapses rapid edits into one
         // trailing-edge tick). Tick handler replaces mActiveFilter in mFilterLibrary,
         // saves to filters.json, and refreshes menu '*' labels.
         private System.Windows.Forms.Timer mFilterAutoSaveDebounce;
@@ -91,13 +91,13 @@ namespace TargetPlanner
         private ToolTip mToolTip;
         private int mToolTipIndex;
 
-        // Dedicated ToolTip instance for the explanatory radio-button tooltips (Optimal,
+        // Dedicated ToolTip instance for the explanatory radio-button tooltips (Sessions,
         // Day). Kept separate from mToolTip because AutoPopDelay must be much longer (text
         // runs several paragraphs) and mToolTip's ShowCheckBoxObjectToolTip handler resets
         // AutoPopDelay to 5 seconds on every CheckedListBox hover -- globals wouldn't stick.
-        private ToolTip mOptimalRadioTooltip;
+        private ToolTip mSessionsRadioTooltip;
 
-        private const string OptimalRadioTooltipText =
+        private const string SessionsRadioTooltipText =
 @"These curves present the best imaging windows available on each 
 night of the next year, all bounded by a minimum Target Floor (degrees) 
 and Duration (hours). They each answer different planning questions:
@@ -207,12 +207,12 @@ Right-click anywhere on the chart to clear all overlays.";
 
         // Debounce for the Horizon / Duration spinners. Each ValueChanged restarts the
         // timer (stop + start), so rapid scrubs coalesce into one trailing-edge
-        // RebuildOptimalData on the Tick. Horizon-line positioning stays immediate in the
+        // RebuildSessionsData on the Tick. Horizon-line positioning stays immediate in the
         // ValueChanged handlers because that's cheap (one strip line per chart area) and
-        // gives instant visual feedback during the scrub; only the per-target Optimal
+        // gives instant visual feedback during the scrub; only the per-target Sessions
         // recompute is deferred.
-        private System.Windows.Forms.Timer mOptimalRebuildDebounce;
-        private const int OptimalRebuildDebounceMs = 150;
+        private System.Windows.Forms.Timer mSessionsRebuildDebounce;
+        private const int SessionsRebuildDebounceMs = 150;
 
         // Latch used by the CheckedListBox VM binding. ItemCheck sets it true; the
         // subsequent SelectedIndexChanged consumes + clears it to decide "this highlight
@@ -272,7 +272,7 @@ Right-click anywhere on the chart to clear all overlays.";
             // Filters menu: load the per-filter library (or ship-defaults on first launch)
             // and build a mutually-exclusive radio group of menu items. Disabled is the
             // first-launch default; a click on any preset writes its values into
-            // mAltitudeChart.MoonAvoidanceProfile and triggers a RebuildOptimalData so the
+            // mAltitudeChart.MoonAvoidanceProfile and triggers a RebuildSessionsData so the
             // Day chart's HD Overlay reflects the new avoidance regime immediately.
             BuildFiltersMenu();
 
@@ -304,16 +304,16 @@ Right-click anywhere on the chart to clear all overlays.";
             mToolTip.InitialDelay = 2000;
             mToolTip.ReshowDelay = 2000;
 
-            // Long-lived explanatory tooltip for the Optimal radio button. InitialDelay is
+            // Long-lived explanatory tooltip for the Sessions radio button. InitialDelay is
             // 5 seconds so only a deliberate hover reveals it (casual mouse-overs don't
             // trigger the paragraph-length popup); AutoPopDelay stays long so the full text
             // is readable once it does appear.
-            mOptimalRadioTooltip = new ToolTip();
-            mOptimalRadioTooltip.AutoPopDelay = 60000;
-            mOptimalRadioTooltip.InitialDelay = 5000;
-            mOptimalRadioTooltip.ReshowDelay  = 500;
-            mOptimalRadioTooltip.SetToolTip(RadioButton_Optimal, OptimalRadioTooltipText);
-            mOptimalRadioTooltip.SetToolTip(RadioButton_Day, DayRadioTooltipText);
+            mSessionsRadioTooltip = new ToolTip();
+            mSessionsRadioTooltip.AutoPopDelay = 60000;
+            mSessionsRadioTooltip.InitialDelay = 5000;
+            mSessionsRadioTooltip.ReshowDelay  = 500;
+            mSessionsRadioTooltip.SetToolTip(RadioButton_Sessions, SessionsRadioTooltipText);
+            mSessionsRadioTooltip.SetToolTip(RadioButton_Day, DayRadioTooltipText);
         }
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
@@ -323,7 +323,7 @@ Right-click anywhere on the chart to clear all overlays.";
             // Dispose long-lived resources the form owns. Without this, the ToolTip leaks
             // a native handle.
             mToolTip?.Dispose();
-            mOptimalRadioTooltip?.Dispose();
+            mSessionsRadioTooltip?.Dispose();
             mAltitudeChart?.Dispose();
             mLatitudeInput?.Dispose();
             mLongitudeInput?.Dispose();
@@ -337,8 +337,8 @@ Right-click anywhere on the chart to clear all overlays.";
             mCachePrepCts?.Dispose();
             mCache?.Dispose();
 
-            mOptimalRebuildDebounce?.Stop();
-            mOptimalRebuildDebounce?.Dispose();
+            mSessionsRebuildDebounce?.Stop();
+            mSessionsRebuildDebounce?.Dispose();
         }
 
         public void InitializeDynamicControls()
@@ -413,13 +413,13 @@ Right-click anywhere on the chart to clear all overlays.";
 
             mAltitudeChart.AddChartAreaToList("Day");
             mAltitudeChart.AddChartAreaToList("Year");
-            mAltitudeChart.AddChartAreaToList("Optimal");
+            mAltitudeChart.AddChartAreaToList("Sessions");
 
             // Day sub-mode toggle: when checked, the Day chart shows per-target K-S
             // sky-brightness curves on a reversed-magnitude Y axis instead of altitude.
             // Added programmatically (not Designer-resident) since it's a sub-mode of
             // the existing Day radio. Sits inside GroupBox_Altitude alongside the
-            // Day/Year/Optimal radios.
+            // Day/Year/Sessions radios.
             mCheckBox_Day_Sky = new CheckBox
             {
                 Name     = "CheckBox_Day_Sky",
@@ -604,9 +604,9 @@ Right-click anywhere on the chart to clear all overlays.";
             TimeSpan newDuration = TimeSpan.FromMinutes((double)NumericUpDown_TargetDuration.Value * 60.0);
             mLocation = mLocation.With(duration: newDuration);
             if (mAltitudeChart == null) return;
-            // RebuildOptimalData iterates every target's RebuildOptimalSeries; on large
+            // RebuildSessionsData iterates every target's RebuildSessionsSeries; on large
             // target sets that adds up quickly during live scrubbing. Debounce.
-            RestartOptimalRebuildDebounce();
+            RestartSessionsRebuildDebounce();
         }
 
         private void NumericUpDown_TargetFloor_ValueChanged(object sender, EventArgs e)
@@ -616,36 +616,36 @@ Right-click anywhere on the chart to clear all overlays.";
             if (mAltitudeChart == null) return;
             // Horizon-line repositioning stays immediate -- it's one strip line per chart
             // area and the user wants instant feedback as they scrub. The per-target
-            // Optimal recompute is what's expensive; debounce that.
+            // Sessions recompute is what's expensive; debounce that.
             mAltitudeChart.UpdateHorizonLines(newHorizon);
-            RestartOptimalRebuildDebounce();
+            RestartSessionsRebuildDebounce();
         }
 
         // Lazily-constructed shared Timer. ValueChanged calls Stop()+Start() to reset the
         // interval, so rapid fire events collapse to one trailing-edge Tick. Tick reads the
         // latest mLocation.Horizon / Duration / Lat / Lon (already set by the ValueChanged
         // handlers) so no per-event state needs to be latched.
-        private void RestartOptimalRebuildDebounce()
+        private void RestartSessionsRebuildDebounce()
         {
-            if (mOptimalRebuildDebounce == null)
+            if (mSessionsRebuildDebounce == null)
             {
-                mOptimalRebuildDebounce = new System.Windows.Forms.Timer { Interval = OptimalRebuildDebounceMs };
-                mOptimalRebuildDebounce.Tick += OptimalRebuildDebounce_Tick;
+                mSessionsRebuildDebounce = new System.Windows.Forms.Timer { Interval = SessionsRebuildDebounceMs };
+                mSessionsRebuildDebounce.Tick += SessionsRebuildDebounce_Tick;
             }
-            mOptimalRebuildDebounce.Stop();
-            mOptimalRebuildDebounce.Start();
+            mSessionsRebuildDebounce.Stop();
+            mSessionsRebuildDebounce.Start();
         }
 
         // Trailing-edge debounce tick. Two responsibilities:
         // 1. Cache invalidation -- if the location-keying fields drifted from what the cache
         //    is built against, fire SetLocationAsync. Coalescing here avoids 3 invalidations
         //    per Lat-D/M/S-spinner scrub. Cache rebuild itself is lazy (next Graph click).
-        // 2. Chart rebuild -- always call RebuildOptimalData, which walks the (possibly
-        //    just-cleared) cache and updates Optimal series. Cleared cache short-circuits
-        //    each AltitudeSeries.RenderOptimalSeries to a no-op without errors.
-        private void OptimalRebuildDebounce_Tick(object sender, EventArgs e)
+        // 2. Chart rebuild -- always call RebuildSessionsData, which walks the (possibly
+        //    just-cleared) cache and updates Sessions series. Cleared cache short-circuits
+        //    each AltitudeSeries.RenderSessionsSeries to a no-op without errors.
+        private void SessionsRebuildDebounce_Tick(object sender, EventArgs e)
         {
-            mOptimalRebuildDebounce.Stop();
+            mSessionsRebuildDebounce.Stop();
 
             if (mCache != null && !LocationsCacheEquivalent(mLocation, mCache.CurrentLocation))
             {
@@ -653,16 +653,16 @@ Right-click anywhere on the chart to clear all overlays.";
             }
 
             if (mAltitudeChart == null) return;
-            mAltitudeChart.RebuildOptimalData(mLocation.Horizon, mLocation.Duration);
+            mAltitudeChart.RebuildSessionsData(mLocation.Horizon, mLocation.Duration);
             // Bortle / Extinction / ActiveFilter changes feed the K-S sky-brightness
-            // minute-loop; rebuild the per-target Day-Sky curves alongside the Optimal
+            // minute-loop; rebuild the per-target Day-Sky curves alongside the Sessions
             // tick so a single 150 ms debounce coalesces both refreshes.
             mAltitudeChart.RebuildDaySkyData();
         }
 
         // Compare the two locations on the fields that key the chart cache: Lat / Lon /
         // hemisphere flags (geometry) plus the year-start-day (NightCache horizon). Horizon
-        // and Duration are scrub-only inputs to RenderOptimalSeries and don't invalidate the
+        // and Duration are scrub-only inputs to RenderSessionsSeries and don't invalidate the
         // cache. DateTime within a single year-window is fine; only the year-start
         // anchor matters (NightCache.ComputeYearStartDay drops the day-of-month and rounds
         // to the start of the seed's month).
@@ -745,13 +745,13 @@ Right-click anywhere on the chart to clear all overlays.";
             // CheckBox_Moon_AvoidanceEnable.
             //
             // Critical: do NOT route through SetActiveFilter here -- SetActiveFilter
-            // restarts the OptimalRebuildDebounce, whose tick can run while the chart's
+            // restarts the SessionsRebuildDebounce, whose tick can run while the chart's
             // year caches are still being built (the M31 seed's async BuildSeriesList
             // is still mid-flight at construction time). Setting MoonAvoidanceProfile
             // alone is enough -- the setter propagates to every AltitudeSeries in
             // mSeriesByTarget, and the in-flight async builder picks it up when it
-            // reaches RenderOptimalSeries. The post-Edit-Filters caller in
-            // OpenEditFiltersDialog explicitly calls RebuildOptimalData afterward,
+            // reaches RenderSessionsSeries. The post-Edit-Filters caller in
+            // OpenEditFiltersDialog explicitly calls RebuildSessionsData afterward,
             // when caches are guaranteed populated.
             bool avoidanceOn = CheckBox_Moon_AvoidanceEnable != null
                             && CheckBox_Moon_AvoidanceEnable.Checked;
@@ -995,13 +995,13 @@ Right-click anywhere on the chart to clear all overlays.";
             RefreshActiveFilterAfterDialogSave(priorActiveName);
 
             // Trigger the chart redraw explicitly. BuildFiltersMenu deliberately skips
-            // RebuildOptimalData (the construction-time caller can't safely run it --
+            // RebuildSessionsData (the construction-time caller can't safely run it --
             // see the comment block in BuildFiltersMenu); by the time
             // OpenEditFiltersDialog runs, year caches are populated and the call is
             // cheap.
             if (mAltitudeChart != null)
             {
-                mAltitudeChart.RebuildOptimalData(mLocation.Horizon, mLocation.Duration);
+                mAltitudeChart.RebuildSessionsData(mLocation.Horizon, mLocation.Duration);
             }
         }
 
@@ -1089,10 +1089,10 @@ Right-click anywhere on the chart to clear all overlays.";
             // Push the active filter's center wavelength to the chart so the K-S
             // sky-brightness minute-loop scales extinction k via Rayleigh λ⁻⁴ at the
             // band. Setter propagates to every AltitudeSeries; Day-Sky rebuild fires
-            // via the existing OptimalRebuildDebounce tick (extended to also call
+            // via the existing SessionsRebuildDebounce tick (extended to also call
             // RebuildDaySkyData).
             mAltitudeChart.ActiveFilterCenterNm = filter.CenterNm;
-            RestartOptimalRebuildDebounce();
+            RestartSessionsRebuildDebounce();
         }
 
         // File -> Clear All Data... handler. Confirms via YesNo MessageBox, deletes the
@@ -1163,7 +1163,7 @@ Right-click anywhere on the chart to clear all overlays.";
             mAltitudeChart.MoonAvoidanceProfile = profile;
             // Debounce so a fast Enable-Disable-Enable click sequence collapses to one
             // rebuild and the master toggle shares the Lorentzian-scrub debounce path.
-            RestartOptimalRebuildDebounce();
+            RestartSessionsRebuildDebounce();
         }
 
         // User scrubbed a Lorentzian control. Push the live values to the chart (gated
@@ -1183,7 +1183,7 @@ Right-click anywhere on the chart to clear all overlays.";
                 mAltitudeChart.MoonAvoidanceProfile = avoidanceOn ? BuildProfileFromControls() : null;
             }
             RestartFilterAutoSaveDebounce();
-            RestartOptimalRebuildDebounce();
+            RestartSessionsRebuildDebounce();
         }
 
         // Read the live Lorentzian control values into a MoonAvoidanceProfile. Used by
@@ -1200,7 +1200,7 @@ Right-click anywhere on the chart to clear all overlays.";
                 relaxScale:     (double)NumericUpDown_Moon_RelaxScale.Value);
 
         // Lazily-constructed shared Timer for the Lorentzian-scrub auto-save. Same
-        // restart-on-edit pattern as RestartOptimalRebuildDebounce: ValueChanged calls
+        // restart-on-edit pattern as RestartSessionsRebuildDebounce: ValueChanged calls
         // Stop()+Start() to reset the interval, so rapid edits collapse to one
         // trailing-edge Tick.
         private void RestartFilterAutoSaveDebounce()
@@ -1331,7 +1331,7 @@ Right-click anywhere on the chart to clear all overlays.";
         // combo). If Multi is active but Checked is empty (e.g. user just clicked Clear All),
         // fall back to SelectedSingle so the button always produces a chart.
         //
-        // Async: ReloadWithTargets stages every target's Day / Moon / Year / Optimal build
+        // Async: ReloadWithTargets stages every target's Day / Moon / Year / Sessions build
         // off to the side and only swaps into mChart.Series after all of them finish. That
         // means (a) the prior chart stays fully stable during the compute and (b) Cancel
         // leaves the prior chart untouched instead of half-updating.
@@ -1418,7 +1418,7 @@ Right-click anywhere on the chart to clear all overlays.";
                 // selected via the view radios. Day is the default at form construction
                 // (Designer sets RadioButton_Day.Checked = true) so a fresh launch lands
                 // on Day; subsequent Graph clicks preserve the user's last view choice.
-                string area = RadioButton_Optimal.Checked ? "Optimal"
+                string area = RadioButton_Sessions.Checked ? "Sessions"
                             : RadioButton_Year.Checked    ? "Year"
                             :                               "Day";
                 mAltitudeChart.ShowChartAreaSeries(area);
@@ -1459,7 +1459,7 @@ Right-click anywhere on the chart to clear all overlays.";
 
         // Signal the in-flight chart build to unwind. The Day / Moon phase is synchronous
         // and completes before Button_Graph_Click returns, so it can't be cancelled -- only
-        // the Year + Optimal background compute is interruptible. The progress bar is reset
+        // the Year + Sessions background compute is interruptible. The progress bar is reset
         // because partial Day ticks would otherwise leave it stuck at ~1/3 full.
         //
         // Disables itself to prevent a second click from firing while cancellation
@@ -1531,7 +1531,7 @@ Right-click anywhere on the chart to clear all overlays.";
         // Fired by every location-input event (lat/lon spinners, textboxes, N/W checkboxes,
         // Horizon, Duration). If the user edited a field by hand, flip the combo to "Custom"
         // so the combo label always matches the currently-displayed values, and restart the
-        // debounce so the cache invalidates and the Optimal chart rebuilds (the Tick handler
+        // debounce so the cache invalidates and the Sessions chart rebuilds (the Tick handler
         // does the cache-equivalency check, so a no-op edit -- e.g., flipping N then back --
         // ultimately doesn't drop the cache).
         private void OnLocationEdited(object sender, EventArgs e)
@@ -1545,9 +1545,9 @@ Right-click anywhere on the chart to clear all overlays.";
 
             // Debounce-restart fires for every user-driven location edit, regardless of
             // whether the combo is already "Custom". The cache check inside the Tick
-            // determines whether the cache actually drops; the chart's RebuildOptimalData
+            // determines whether the cache actually drops; the chart's RebuildSessionsData
             // is harmless when the cache is empty (no-ops per series).
-            RestartOptimalRebuildDebounce();
+            RestartSessionsRebuildDebounce();
 
             if (ComboBox_Location.SelectedItem != null &&
                 ComboBox_Location.SelectedItem.ToString() == "Custom") return;
@@ -1983,18 +1983,18 @@ Right-click anywhere on the chart to clear all overlays.";
             }
         }
 
-        private void RadioButton_Optimal_CheckedChanged(object sender, EventArgs e)
+        private void RadioButton_Sessions_CheckedChanged(object sender, EventArgs e)
         {
-            mUIState.OptimalChart = RadioButton_Optimal.Checked;
-            if (RadioButton_Optimal.Checked == true)
+            mUIState.SessionsChart = RadioButton_Sessions.Checked;
+            if (RadioButton_Sessions.Checked == true)
             {
-                mAltitudeChart.ShowChartAreaSeries("Optimal");
-                mAltitudeChart.ChartTitle = FormatChartTitle("Optimal");
+                mAltitudeChart.ShowChartAreaSeries("Sessions");
+                mAltitudeChart.ChartTitle = FormatChartTitle("Sessions");
             }
         }
 
         // The Day chart renders one night's altitude curve, so its title includes the
-        // calendar date of the evening. Year and Optimal both render a 365-day sweep starting
+        // calendar date of the evening. Year and Sessions both render a 365-day sweep starting
         // from the current month; their title uses the month name instead of a specific day
         // so the axis label and the title agree.
         private string FormatChartTitle(string areaName)
@@ -2009,7 +2009,7 @@ Right-click anywhere on the chart to clear all overlays.";
         }
 
         // Reset ProgressBar_MultiTargetProcessing and return an IProgress<string> that ticks
-        // it once per phase ("Day" / "Year" / "Optimal") for each of targetCount targets.
+        // it once per phase ("Day" / "Year" / "Sessions") for each of targetCount targets.
         // Progress<T> marshals Report callbacks back to the creation thread (here, the UI
         // thread), so the Value increment is safe even though AltitudeSeries.BuildSeriesList
         // fires the first phase synchronously and the next two from a Task.Run continuation.
@@ -2220,7 +2220,7 @@ Right-click anywhere on the chart to clear all overlays.";
         {
             int thisGeneration = ++mChartBuildGeneration;
 
-            // Tick budget: 1 (Click) + 1 (SharedCache) + 4 per target (Moon/Day/Year/Optimal).
+            // Tick budget: 1 (Click) + 1 (SharedCache) + 4 per target (Moon/Day/Year/Sessions).
             ProgressBar_MultiTargetProcessing.Minimum = 0;
             ProgressBar_MultiTargetProcessing.Maximum = Math.Max(1, 2 + targetCount * 4);
             // Synchronous Click tick: paints before the first await so the user sees immediate
