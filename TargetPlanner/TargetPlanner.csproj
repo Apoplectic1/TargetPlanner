@@ -6,7 +6,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>TargetPlanner</RootNamespace>
     <AssemblyName>TargetPlanner</AssemblyName>
-    <LangVersion>7.3</LangVersion>
+    <LangVersion>10</LangVersion>
     <StartupObject>TargetPlanner.Program</StartupObject>
     <Deterministic>true</Deterministic>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
@@ -37,6 +37,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="LiveChartsCore.SkiaSharpView.WinForms" Version="2.1.0-dev-365" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="Velopack" Version="0.0.1298" />
   </ItemGroup>
