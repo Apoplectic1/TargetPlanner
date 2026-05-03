@@ -629,34 +629,49 @@ namespace TargetPlanner.Charts
             double durationHrs = duration.TotalHours;
             double haHorizon   = TargetGeometry.HourAngleAtAltitude(latSigned, decSigned, horizonDeg);
 
+            bool moonAware = MoonAvoidanceProfile != null && MoonAvoidanceProfile.Enabled;
+
             foreach (NightCacheEntry entry in mYearCache)
             {
                 double ceilingAlt  = -90.0;
                 double floorAlt    = -90.0;
                 double centeredAlt = -90.0;
 
+                (DateTime Start, DateTime End)? sessionWindow = null;
+                (DateTime Start, DateTime End)? centeredWindow = null;
+                DateTime? transitUtc = null;
+                int candidateCount = 0;
+                bool moonBlockedNight = false;
+
                 if (!entry.IsPolar && entry.YearAlt >= horizonDeg)
                 {
                     // Visibility windows in UTC, derived from cached LST/Alt fields. Empty
                     // when no above-horizon arc fits Duration (target never gets high
                     // enough or never stays up long enough).
-                    List<(DateTime Start, DateTime End)> candidates =
+                    List<(DateTime Start, DateTime End)> visibility =
                         EnumerateVisibilityWindowsUtc(entry, raHours, durationHrs, haHorizon);
+                    List<(DateTime Start, DateTime End)> candidates;
 
                     // When moon avoidance is on AND the cache has moon samples, intersect
                     // with the moon-clear sub-intervals derived from cached samples +
                     // active profile. Defensive hatch: a stale cache without moon samples
                     // (pre-Slice-1) falls through to the moon-blind candidate set so the
                     // chart renders curves rather than going dark.
-                    if (MoonAvoidanceProfile != null && MoonAvoidanceProfile.Enabled
-                        && entry.MoonSamples != null && entry.MoonSamples.Count > 0)
+                    if (moonAware && entry.MoonSamples != null && entry.MoonSamples.Count > 0)
                     {
                         List<(DateTime Start, DateTime End)> moonClear =
                             EnumerateMoonClearIntervalsUtc(entry, MoonAvoidanceProfile);
-                        candidates = IntersectWindows(candidates, moonClear);
+                        candidates = IntersectWindows(visibility, moonClear);
+                        moonBlockedNight = visibility.Count > 0 && candidates.Count == 0;
+                    }
+                    else
+                    {
+                        candidates = visibility;
                     }
 
-                    if (candidates.Count > 0)
+                    candidateCount = candidates.Count;
+
+                    if (candidateCount > 0)
                     {
                         // Floor / Ceiling: best-quality placement (transit-centered or
                         // wall-pushed) across the candidates; sin(alt) ranks them when
@@ -665,10 +680,12 @@ namespace TargetPlanner.Charts
                             Target, Location, candidates, duration, duration, SinAltQuality);
                         if (session != null)
                         {
+                            sessionWindow = (session.Value.Start, session.Value.End);
                             floorAlt   = SessionAltitude.Floor(
                                 Target, Location, session.Value.Start, session.Value.End);
                             ceilingAlt = SessionAltitude.Ceiling(
                                 Target, Location, session.Value.Start, session.Value.End);
+                            transitUtc = ClosestTransitUtc(session.Value.Start);
                         }
 
                         // Symmetric: strict transit-centered placement, no wall-push.
@@ -678,6 +695,7 @@ namespace TargetPlanner.Charts
                             Target, Location, candidates, duration);
                         if (centered != null)
                         {
+                            centeredWindow = (centered.Value.Start, centered.Value.End);
                             centeredAlt = SessionAltitude.Floor(
                                 Target, Location, centered.Value.Start, centered.Value.End);
                         }
@@ -691,8 +709,32 @@ namespace TargetPlanner.Charts
                     sessionsSeries, cIdx, ceilingAlt,
                     sessionsFloorSeries, fIdx, floorAlt,
                     sessionsCenteredSeries, sIdx, centeredAlt,
-                    entry.SentinelX);
+                    entry.SentinelX,
+                    sessionWindow, centeredWindow, transitUtc,
+                    candidateCount, moonBlockedNight, moonAware,
+                    durationHrs, horizonDeg);
             }
+        }
+
+        // Returns the transit (LST = RA crossing) closest in time to the supplied session
+        // start. Required because PlaceBest's session can land on either side of transit
+        // depending on the visibility-arc shape, and the tooltip needs the relevant
+        // transit -- NOT just "next transit at-or-after" -- to label correctly. Two
+        // TransitTime calls per night per target with a viable session; ~730 Meeus calls
+        // per Sessions rebuild on a 365-day chart, lock-free, microsecond cost each.
+        private DateTime ClosestTransitUtc(DateTime sessionStartUtc)
+        {
+            DateTime nextTransit = TransitTime.UtcAtOrAfter(Target, Location, sessionStartUtc);
+            // Search 26h back to be sure the previous sidereal transit (~23h56m before
+            // the next) lies inside the search window even with arbitrary session start.
+            DateTime maybePrev = TransitTime.UtcAtOrAfter(Target, Location, sessionStartUtc.AddHours(-26));
+            if (maybePrev < sessionStartUtc)
+            {
+                long diffPrev = (sessionStartUtc - maybePrev).Ticks;
+                long diffNext = (nextTransit - sessionStartUtc).Ticks;
+                return diffPrev < diffNext ? maybePrev : nextTransit;
+            }
+            return nextTransit;
         }
 
         // Quality function for Sessions-chart placement. sin(altitude) is the standard
@@ -709,22 +751,101 @@ namespace TargetPlanner.Charts
                 ? "—"
                 : alt.ToString("0.0", CultureInfo.InvariantCulture) + "°";
 
-        // Build one unified Sessions hover-tooltip string and assign it to the just-added
-        // DataPoints in all three Sessions curves. Hovering any of the three curves at this
-        // date surfaces the same target+date+Ceiling/Floor/Symmetric block, so the user
-        // sees the value of the curve they're hovering plus the relationship to the other
-        // two without moving the mouse. -90 sentinels render via FormatAlt as '—'.
+        // Build a unified Sessions hover-tooltip string explaining each value's *why*, and
+        // assign it to the just-added DataPoints in all three Sessions curves. Hovering any
+        // curve surfaces the same five-line block:
+        //   {Target} — {date}
+        //   Session: {start} → {end} local · transit {hh:mm} {position}[ (best of N moon-clear)]
+        //   Ceiling: {alt}[ (meridian)]
+        //   Floor:   {alt}
+        //   Symmetric: {alt}[ (centered {start} → {end})]
+        // "(meridian)" appears when the session window contains transit (Ceiling = MeridianAlt).
+        // Symmetric's centered-window suffix appears only when it differs from the Session window.
+        // For nights with no viable session, the Session line collapses to "No Xh window..."
+        // and the three altitude lines render '—' via FormatAlt's sentinel handling.
         private void AssignSessionsTooltip(
             Series cSeries, int cIdx, double cAlt,
             Series fSeries, int fIdx, double fAlt,
             Series sSeries, int sIdx, double sAlt,
-            DateTime sentinelX)
+            DateTime sentinelX,
+            (DateTime Start, DateTime End)? sessionWindow,
+            (DateTime Start, DateTime End)? centeredWindow,
+            DateTime? transitUtc,
+            int candidateCount,
+            bool moonBlockedNight,
+            bool moonAware,
+            double durationHrs,
+            double horizonDeg)
         {
-            string text = string.Format(
-                CultureInfo.InvariantCulture,
-                "{0} — {1:MMM dd, yyyy}\nCeiling: {2}\nFloor: {3}\nSymmetric: {4}",
+            string durStr = durationHrs.ToString("0.##", CultureInfo.InvariantCulture);
+
+            string sessionLine;
+            if (sessionWindow.HasValue)
+            {
+                DateTime sStart = sessionWindow.Value.Start.ToLocalTime();
+                DateTime sEnd   = sessionWindow.Value.End.ToLocalTime();
+                string transitSuffix = "";
+                if (transitUtc.HasValue)
+                {
+                    string position;
+                    if (transitUtc.Value < sessionWindow.Value.Start) position = "before window";
+                    else if (transitUtc.Value > sessionWindow.Value.End) position = "after window";
+                    else position = "in window";
+                    transitSuffix = string.Format(CultureInfo.InvariantCulture,
+                        " · transit {0:h:mm tt} {1}",
+                        transitUtc.Value.ToLocalTime(), position);
+                }
+                string countSuffix = (moonAware && candidateCount >= 2)
+                    ? string.Format(CultureInfo.InvariantCulture,
+                        " (best of {0} moon-clear)", candidateCount)
+                    : "";
+                sessionLine = string.Format(CultureInfo.InvariantCulture,
+                    "Session: {0:h:mm tt} → {1:h:mm tt} local{2}{3}",
+                    sStart, sEnd, transitSuffix, countSuffix);
+            }
+            else if (moonBlockedNight)
+            {
+                sessionLine = string.Format(CultureInfo.InvariantCulture,
+                    "No {0}h moon-clear window tonight", durStr);
+            }
+            else
+            {
+                sessionLine = string.Format(CultureInfo.InvariantCulture,
+                    "No {0}h window above {1:0}° tonight", durStr, horizonDeg);
+            }
+
+            // Ceiling = MeridianAltitude only when the session contains transit; in that
+            // case the suffix tells the user the curve is at the sky-geometry maximum
+            // rather than a wall-pushed endpoint.
+            bool ceilingIsMeridian = sessionWindow.HasValue && transitUtc.HasValue
+                && transitUtc.Value >= sessionWindow.Value.Start
+                && transitUtc.Value <= sessionWindow.Value.End;
+            string ceilingLine = "Ceiling: " + FormatAlt(cAlt)
+                + (ceilingIsMeridian ? " (meridian)" : "");
+
+            string floorLine = "Floor: " + FormatAlt(fAlt);
+
+            // Symmetric's "(centered ... → ...)" suffix only when the centered window
+            // differs from the Session window. Same window -> redundant info, omit.
+            string symmetricSuffix = "";
+            if (centeredWindow.HasValue && sessionWindow.HasValue)
+            {
+                if (centeredWindow.Value.Start != sessionWindow.Value.Start
+                    || centeredWindow.Value.End != sessionWindow.Value.End)
+                {
+                    symmetricSuffix = string.Format(CultureInfo.InvariantCulture,
+                        " (centered {0:h:mm tt} → {1:h:mm tt})",
+                        centeredWindow.Value.Start.ToLocalTime(),
+                        centeredWindow.Value.End.ToLocalTime());
+                }
+            }
+            string symmetricLine = "Symmetric: " + FormatAlt(sAlt) + symmetricSuffix;
+
+            string text = string.Format(CultureInfo.InvariantCulture,
+                "{0} — {1:MMM dd, yyyy}\n{2}\n{3}\n{4}\n{5}",
                 Target.Name, sentinelX,
-                FormatAlt(cAlt), FormatAlt(fAlt), FormatAlt(sAlt));
+                sessionLine, ceilingLine, floorLine, symmetricLine);
+
             cSeries.Points[cIdx].ToolTip = text;
             fSeries.Points[fIdx].ToolTip = text;
             sSeries.Points[sIdx].ToolTip = text;
