@@ -48,6 +48,31 @@ namespace TargetPlanner.Charts
         public const double MinAltitude = 0.0;
         public const double MaxAltitude = 90.0;
 
+        // Plot-area template. The Day chart's plot area is locked to these
+        // dimensions; Sky / Year / Sessions sub-charts (PR4b..d) inherit the same
+        // values so toggling radios doesn't shift the plot's pixel position.
+        // Chart total height grows as the legend wraps to additional rows; Panel +
+        // GroupBox + Form follow the chart's IdealHeight (raised via event).
+        public const int FixedPlotAreaHeight = 420;
+        // Left chrome holds the rotated Y-axis Name + tick labels + breathing room.
+        // Bottom chrome holds the X-axis tick labels only (no legend — that lives in
+        // a sibling FlowLayoutPanel below the chart, not inside the chart's surface).
+        private const int LeftChromePx = 96;          // Y-axis: Name (rotated) + ticks + pad
+        private const int RightChromePx = 24;         // right padding
+        private const int TopChromePx = 20;           // padding above plot
+        private const int XAxisLabelHeightPx = 44;    // X-axis tick labels + pad
+
+        // Total chart height that keeps the plot area at FixedPlotAreaHeight, with
+        // axis chrome top and bottom. Constant — the legend lives outside the chart
+        // so chart total height never changes.
+        private const int ChartFixedHeight =
+            TopChromePx + FixedPlotAreaHeight + XAxisLabelHeightPx;
+
+        // Legend (external, below chart in a FlowLayoutPanel) styling.
+        private const int LegendRowHeightPx = 22;     // single-line legend item height
+        private const int LegendTopPaddingPx = 6;
+        private const int LegendBottomPaddingPx = 6;
+
         // Same palette as legacy AltitudeChart so per-target colors stay stable
         // across the migration. Phase 4e drops the legacy file; this becomes the
         // single source.
@@ -80,7 +105,14 @@ namespace TargetPlanner.Charts
         private static readonly Func<double, double> SinAltQuality =
             alt => Math.Sin(alt * Math.PI / 180.0);
 
-        public CartesianChart Control { get; }
+        // The Container hosts (top) the CartesianChart at fixed height + (bottom) a
+        // FlowLayoutPanel hosting custom legend items that wrap as targets grow.
+        // MainForm adds Container to Panel_AltitudeChart and resizes Panel +
+        // GroupBox + Form to match Container's IdealHeight on legend changes.
+        public Control Control { get; }
+        private readonly Panel mContainer;
+        private readonly CartesianChart mChart;
+        private readonly FlowLayoutPanel mLegendPanel;
 
         // Chart-furniture state preserved across Render calls. Sections /
         // Axes objects are mutated in place; only Series can be re-listed.
@@ -113,6 +145,25 @@ namespace TargetPlanner.Charts
         private readonly OverlayController mOverlay;
         private readonly HoverTooltipController mHover;
         private readonly LegendClickHandler mLegend;
+
+        // Cached IdealHeight from the last layout pass; used to detect changes so
+        // the IdealHeightChanged event only fires when the form actually needs to
+        // resize.
+        private int mLastIdealHeight = -1;
+
+        // Raised when the chart's IdealHeight changes (legend wrap count moved).
+        // MainForm subscribes and resizes Panel_AltitudeChart + GroupBox_Altitude +
+        // Form by the delta so the plot area stays in a fixed pixel position
+        // regardless of target count.
+        public event EventHandler IdealHeightChanged;
+
+        // Total Container height = fixed chart height + the FlowLayoutPanel's
+        // preferred height for its current legend items. Legend panel grows in
+        // height as targets are added (FlowLayoutPanel auto-wraps).
+        // With FlowLayoutPanel.Dock=Top + AutoSize=true, the panel's Height
+        // auto-tracks its content after each layout pass. Container.IdealHeight
+        // is just chart fixed height + that current Height.
+        public int IdealHeight => ChartFixedHeight + mLegendPanel.Height;
 
         public AltitudeSubChart_Day()
         {
@@ -151,39 +202,70 @@ namespace TargetPlanner.Charts
                 Stroke = new SolidColorPaint(SKColors.Green, 2),
             };
 
-            Control = new CartesianChart
+            mChart = new CartesianChart
             {
                 XAxes = new[] { mXAxis },
                 YAxes = new[] { mYAxis },
                 Sections = new[] { mDuskSection, mDawnSection, mNowLine, mHorizonLine },
                 Series = Array.Empty<ISeries>(),
-                LegendPosition = LegendPosition.Bottom,
+                LegendPosition = LegendPosition.Hidden,
                 FindingStrategy = FindingStrategy.ExactMatch,
                 TooltipPosition = TooltipPosition.Hidden,
                 BackColor = Color.FromArgb(70, 70, 70),
-                Dock = DockStyle.Fill,
+                Dock = DockStyle.Top,
+                Height = ChartFixedHeight,
             };
 
-            // Per-instance controllers. Hover uses interpolated mode (300 ms)
-            // because Day altitude curves are smooth and per-DataPoint snap
-            // would feel jittery.
+            // Lock the plot area to a fixed pixel rectangle. Bottom margin is just
+            // X-axis label space — the legend lives outside the chart in a sibling
+            // FlowLayoutPanel, so chart height is constant and X-axis labels sit at
+            // a fixed pixel position relative to the plot area.
+            mChart.DrawMargin = new LiveChartsCore.Measure.Margin(
+                LeftChromePx, TopChromePx, RightChromePx, XAxisLabelHeightPx);
+
+            mLegendPanel = new FlowLayoutPanel
+            {
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = true,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                Dock = DockStyle.Top,
+                BackColor = Color.FromArgb(70, 70, 70),
+                Padding = new Padding(LeftChromePx, LegendTopPaddingPx, RightChromePx, LegendBottomPaddingPx),
+            };
+
+            mContainer = new Panel
+            {
+                BackColor = Color.FromArgb(70, 70, 70),
+                Dock = DockStyle.Fill,
+            };
+            // Order matters for Dock=Top stacking: the LAST control added docks
+            // FIRST. Add legend first (lower z-order), then chart (higher z-order)
+            // so chart claims the top region and legend docks below it.
+            mContainer.Controls.Add(mLegendPanel);
+            mContainer.Controls.Add(mChart);
+            Control = mContainer;
+
+            // Per-instance controllers wired to mChart (the CartesianChart inside
+            // the container). Hover uses interpolated mode (300 ms) because Day
+            // altitude curves are smooth.
             mOverlay = new OverlayController(
-                Control,
+                mChart,
                 () => mSeriesByTarget.Values,
                 series => mTargetWindows.TryGetValue(series, out var w)
                     ? ((double, double, double)?)w
                     : null,
                 _ => { });
             mHover = new HoverTooltipController(
-                Control,
+                mChart,
                 () => mSeriesByTarget.Values,
                 legendTooltipFormatter: null,
                 curveTooltipFormatter: null,
                 debounceMs: 300);
-            mLegend = new LegendClickHandler(Control, _ => { });
+            mLegend = new LegendClickHandler(mChart, _ => { });
 
-            Control.MouseDown += OnChartMouseDown;
-            Control.SizeChanged += OnChartSizeChanged;
+            mChart.MouseDown += OnChartMouseDown;
+            mChart.SizeChanged += OnChartSizeChanged;
         }
 
         // Update the green horizon line in place. Cheap; called from spinner ticks.
@@ -282,7 +364,76 @@ namespace TargetPlanner.Charts
 
             mSeriesByTarget.Clear();
             foreach (var kv in newSeriesByTarget) mSeriesByTarget[kv.Key] = kv.Value;
-            Control.Series = seriesList;
+            mChart.Series = seriesList;
+            BuildLegendItems();
+
+            RecomputeLayout();
+        }
+
+        // Rebuild the external legend FlowLayoutPanel from the current target
+        // series collection. Each item is a small Panel with a color marker +
+        // target-name Label; click toggles the corresponding LineSeries.IsVisible.
+        // FlowLayoutPanel auto-wraps to multiple rows as the legend grows.
+        private void BuildLegendItems()
+        {
+            mLegendPanel.SuspendLayout();
+            mLegendPanel.Controls.Clear();
+            foreach (var kv in mSeriesByTarget)
+            {
+                Target target = kv.Key;
+                LineSeries<ObservablePoint> series = kv.Value;
+                Color color = mTargetColors.TryGetValue(target, out var c) ? c : Color.LightGray;
+                mLegendPanel.Controls.Add(MakeLegendItem(series, target, color));
+            }
+            mLegendPanel.ResumeLayout(performLayout: true);
+        }
+
+        private Control MakeLegendItem(
+            LineSeries<ObservablePoint> series, Target target, Color color)
+        {
+            const int markerWidth = 18;
+            const int markerHeight = 4;
+            const int markerLabelGap = 6;
+
+            var label = new Label
+            {
+                AutoSize = true,
+                ForeColor = Color.LightGray,
+                BackColor = Color.FromArgb(70, 70, 70),
+                Padding = new Padding(markerWidth + markerLabelGap, 2, 12, 2),
+                Margin = new Padding(0, 0, 4, 2),
+                Text = target.Name,
+                Cursor = Cursors.Hand,
+            };
+            label.Paint += (s, e) =>
+            {
+                int y = (label.Height - markerHeight) / 2;
+                using (var brush = new SolidBrush(color))
+                {
+                    e.Graphics.FillRectangle(brush, 0, y, markerWidth, markerHeight);
+                }
+            };
+            label.Click += (s, e) =>
+            {
+                series.IsVisible = !series.IsVisible;
+                label.ForeColor = series.IsVisible ? Color.LightGray : Color.DimGray;
+                // Reassigning Series forces LC2 to re-iterate and re-evaluate
+                // IsVisible. Plain Invalidate() repaints the cached layout but
+                // doesn't pick up IsVisible changes on existing series.
+                mChart.Series = mChart.Series.ToList();
+                mChart.Invalidate();
+            };
+            return label;
+        }
+
+        private void RecomputeLayout()
+        {
+            int idealHeight = IdealHeight;
+            if (idealHeight != mLastIdealHeight)
+            {
+                mLastIdealHeight = idealHeight;
+                IdealHeightChanged?.Invoke(this, EventArgs.Empty);
+            }
         }
 
         // Recompute per-target BestSession windows and apply hide-on-no-fit to the
@@ -350,7 +501,8 @@ namespace TargetPlanner.Charts
             mTargetColors.Clear();
             mSeriesByTarget.Clear();
             mMoonSeries = null;
-            Control.Series = Array.Empty<ISeries>();
+            mChart.Series = Array.Empty<ISeries>();
+            mLegendPanel.Controls.Clear();
         }
 
         // Recreate gradient Fills sized to the actual dusk/dawn widths. LC2 caches
@@ -401,25 +553,18 @@ namespace TargetPlanner.Charts
             if (e.Button == MouseButtons.Right)
             {
                 mOverlay.RestoreAll();
-                Control.Invalidate();
+                mChart.Invalidate();
                 return;
             }
             if (e.Button != MouseButtons.Left) return;
 
-            var clickData = Control.ScalePixelsToData(new LvcPointD(e.X, e.Y));
+            var clickData = mChart.ScalePixelsToData(new LvcPointD(e.X, e.Y));
+            if (clickData.Y < MinAltitude || clickData.Y > MaxAltitude) return;
 
-            // Below the plot area: legend strip.
-            if (clickData.Y < MinAltitude)
-            {
-                mLegend.HandleClick(e.X);
-                return;
-            }
-            // Above the plot area: title / no interactive content.
-            if (clickData.Y > MaxAltitude) return;
-
-            // Inside the plot area: HD overlay hit-test.
+            // Inside the plot area: HD overlay hit-test. Legend clicks are
+            // handled per-item in the external FlowLayoutPanel, not here.
             mOverlay.TryToggleAt(clickData.X, clickData.Y);
-            Control.Invalidate();
+            mChart.Invalidate();
         }
 
         // Build (or refresh) the shared Moon-Day filled area series. Moon altitude
@@ -538,10 +683,10 @@ namespace TargetPlanner.Charts
 
         public void Dispose()
         {
-            Control.MouseDown -= OnChartMouseDown;
-            Control.SizeChanged -= OnChartSizeChanged;
+            mChart.MouseDown -= OnChartMouseDown;
+            mChart.SizeChanged -= OnChartSizeChanged;
             mHover.Dispose();
-            Control.Dispose();
+            mContainer.Dispose();
         }
     }
 }

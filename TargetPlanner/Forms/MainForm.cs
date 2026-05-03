@@ -441,7 +441,12 @@ Right-click anywhere on the chart to clear all overlays.";
             // Year / Sky / Sessions radios still route to the legacy MS Charts.
             mLC2Day = new Charts.AltitudeSubChart_Day();
             mLC2Day.Control.Visible = false;
+            mLC2Day.IdealHeightChanged += OnLC2DayIdealHeightChanged;
             Panel_AltitudeChart.Controls.Add(mLC2Day.Control);
+
+            // Initial form sizing so the empty Day chart's plot area is at the
+            // FixedPlotAreaHeight position even before any Graph click.
+            ResizeAltitudeChartArea(mLC2Day.IdealHeight);
 
             // Establish a default sort mode authoritatively from code. The VS Designer has a
             // recurring habit of silently dropping ComboBox_SortTargets.SelectedIndex = 0 from
@@ -2045,6 +2050,31 @@ Right-click anywhere on the chart to clear all overlays.";
             {
                 c.Visible = ReferenceEquals(c, target);
             }
+        }
+
+        // PR4a: keep the chart's plot area at a fixed pixel height. As legend rows
+        // wrap, AltitudeSubChart_Day raises its IdealHeight; this handler grows the
+        // Panel / GroupBox / Form by the delta so the plot area stays put. Sky /
+        // Year / Sessions sub-charts (PR4b..d) will subscribe similarly with the
+        // same template values.
+        private void OnLC2DayIdealHeightChanged(object sender, EventArgs e)
+        {
+            if (mLC2Day == null) return;
+            ResizeAltitudeChartArea(mLC2Day.IdealHeight);
+        }
+
+        // Resize Panel_AltitudeChart, GroupBox_Altitude, and the form's ClientSize
+        // so the chart's plot area sits at AltitudeSubChart_Day.FixedPlotAreaHeight.
+        // Width is unchanged. Idempotent: a no-delta call is a cheap no-op.
+        private void ResizeAltitudeChartArea(int targetPanelHeight)
+        {
+            if (Panel_AltitudeChart == null || GroupBox_Altitude == null) return;
+            int delta = targetPanelHeight - Panel_AltitudeChart.Height;
+            if (delta == 0) return;
+
+            Panel_AltitudeChart.Height = targetPanelHeight;
+            GroupBox_Altitude.Height += delta;
+            ClientSize = new Size(ClientSize.Width, ClientSize.Height + delta);
         }
 
         // Day and Sky both render one night, so their titles include the calendar date
