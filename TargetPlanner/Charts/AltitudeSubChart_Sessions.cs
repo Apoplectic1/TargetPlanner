@@ -59,12 +59,6 @@ namespace TargetPlanner.Charts
         public const double MinAltitude = 0.0;
         public const double MaxAltitude = 90.0;
 
-        // sin(altitude) airmass-weighted quality metric -- same probe Day / Sky
-        // / Year use. PlaceBest ranks candidates by this when multiple sub-
-        // intervals exist on the same night.
-        private static readonly Func<double, double> SinAltQuality =
-            alt => Math.Sin(alt * Math.PI / 180.0);
-
         public Control Control { get; }
         private readonly Panel mContainer;
         private readonly CartesianChart mChart;
@@ -454,10 +448,12 @@ namespace TargetPlanner.Charts
                         }
 
                         // Ceiling / Floor: best transit-centered-or-wall-pushed
-                        // placement; sin(alt) ranks candidates when multiple.
+                        // placement. altitudeQuality omitted -- PlaceBest defaults
+                        // to sin(alt) via the closed-form fast path (~25× faster
+                        // than the equivalent Simpson lambda).
                         var session = BestSession.PlaceBest(
                             target, locationCapture, candidates,
-                            dur, dur, SinAltQuality);
+                            dur, dur);
                         if (session != null)
                         {
                             floorY[i] = SessionAltitude.Floor(target, locationCapture,

@@ -46,11 +46,6 @@ namespace TargetPlanner.Charts
         private static readonly SKColor YellowOpaque = new SKColor(255, 238, 88, 145);
         private static readonly SKColor YellowFaded  = new SKColor(255, 238, 88,   0);
 
-        // Quality metric for BestSession.For — sin(altitude) is the standard
-        // airmass-weighted proxy. Same as AltitudeSeries.SinAltQuality.
-        private static readonly Func<double, double> SinAltQuality =
-            alt => Math.Sin(alt * Math.PI / 180.0);
-
         // The Container hosts (top) the CartesianChart at fixed height + (bottom) a
         // FlowLayoutPanel hosting custom legend items that wrap as targets grow.
         // MainForm adds Container to Panel_AltitudeChart and resizes Panel +
@@ -642,10 +637,13 @@ namespace TargetPlanner.Charts
         {
             if (duration <= TimeSpan.Zero) return null;
             IHorizonProfile horizonProfile = new ScalarHorizonProfile(horizon);
+            // altitudeQuality omitted -- BestSession.For defaults to sin(alt) via the
+            // closed-form SinAltitudeOverSession path (~25× faster than the equivalent
+            // Simpson lambda). Pass a non-null quality function only if a different
+            // scoring model is needed.
             var best = BestSession.For(
                 target, location, night, horizonProfile,
                 duration, duration,
-                SinAltQuality,
                 profile: profile);
             if (best == null) return null;
             double floor = SessionAltitude.Floor(target, location, best.Value.Start, best.Value.End);

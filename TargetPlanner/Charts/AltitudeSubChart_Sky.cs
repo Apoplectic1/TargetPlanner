@@ -66,13 +66,6 @@ namespace TargetPlanner.Charts
         private static readonly SKColor YellowOpaque = new SKColor(255, 238, 88, 145);
         private static readonly SKColor YellowFaded  = new SKColor(255, 238, 88,   0);
 
-        // sin(altitude) airmass-weighted quality metric used by BestSession.For.
-        // Sky doesn't pick a session, but the visibility check runs the same
-        // BestSession.For probe Day uses to decide hide-on-no-fit, so we feed
-        // the same quality function for byte-identical fit decisions.
-        private static readonly Func<double, double> SinAltQuality =
-            alt => Math.Sin(alt * Math.PI / 180.0);
-
         // The Container hosts (top) the CartesianChart at fixed height + (bottom) a
         // FlowLayoutPanel hosting custom legend items that wrap as targets grow.
         // MainForm adds Container to Panel_AltitudeChart and resizes Panel +
@@ -457,10 +450,12 @@ namespace TargetPlanner.Charts
         {
             if (duration <= TimeSpan.Zero) return false;
             IHorizonProfile horizonProfile = new ScalarHorizonProfile(horizon);
+            // altitudeQuality default (null = sin(alt) closed-form) for the
+            // hide-on-no-fit visibility probe. Sky doesn't pick a session; only the
+            // null/non-null shape of the result matters.
             var best = BestSession.For(
                 target, location, night, horizonProfile,
                 duration, duration,
-                SinAltQuality,
                 profile: profile);
             return best != null;
         }

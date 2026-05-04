@@ -95,13 +95,6 @@ namespace TargetPlanner.Charts
         // doesn't queue stale work behind in-flight stale work.
         private CancellationTokenSource mVisibilityCts;
 
-        // sin(altitude) airmass-weighted quality metric -- same probe Day uses.
-        // Per-night fit decision: BestSession.For with this quality returns
-        // null when no D-hour window fits; any non-null result counts as fit
-        // and the night's YearAlt is plotted; null result becomes a line break.
-        private static readonly Func<double, double> SinAltQuality =
-            alt => Math.Sin(alt * Math.PI / 180.0);
-
         private readonly HoverTooltipController mHover;
 
         private int mLastIdealHeight = -1;
@@ -379,9 +372,13 @@ namespace TargetPlanner.Charts
                             // alpha only; BestSession.For doesn't read it.
                             LunarIlluminationFraction = 0,
                         };
+                        // altitudeQuality default (null = sin(alt) closed-form,
+                        // ~25× faster than Simpson lambda). Year's per-night fit
+                        // decision is null/non-null only -- the actual Quality
+                        // value is unused.
                         var best = BestSession.For(
                             target, locationCapture, nw, horizonProfile,
-                            dur, dur, SinAltQuality, profile: profileCapture);
+                            dur, dur, profile: profileCapture);
                         if (best == null) continue;
 
                         // Floor of the placed session = the lowest altitude
