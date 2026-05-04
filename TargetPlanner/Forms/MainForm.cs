@@ -677,11 +677,22 @@ Right-click anywhere on the chart to clear all overlays.";
             // K-S brightness minute loop. Re-walk the existing minute grid through
             // K-S with the new inputs (no series identity churn). RefreshVisibility
             // above already re-ran the visibility probe for Sky.
-            if (mLC2Sky != null)
-            {
-                mLC2Sky.ActiveFilterCenterNm = mActiveFilterCenterNm;
-                mLC2Sky.RefreshSkyBrightness(mCache, mLocation);
-            }
+            PushSkyKSInputs();
+        }
+
+        // Push the active filter's center wavelength + re-walk the K-S minute grid
+        // through the Sky sub-chart's existing series. Called from the debounce
+        // tick where Bortle / ExtinctionK / Filter scrubs need their effect to
+        // reach Sky's brightness curves. NOT called from RenderArea (Render
+        // rebuilds the K-S grid inline) or SetActiveFilter (the debounce tick
+        // 150 ms later runs this; calling here would cause a redundant
+        // K-S re-walk on filter click). Null-safe; no-op when Sky isn't
+        // instantiated yet (early-init paths).
+        private void PushSkyKSInputs()
+        {
+            if (mLC2Sky == null) return;
+            mLC2Sky.ActiveFilterCenterNm = mActiveFilterCenterNm;
+            mLC2Sky.RefreshSkyBrightness(mCache, mLocation);
         }
 
         // Compare the two locations on the fields that key the chart cache: Lat / Lon /
