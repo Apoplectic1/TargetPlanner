@@ -9,8 +9,10 @@ using System.Windows.Forms;
 using Astronomy.Core;
 using Astronomy.Core.Astrometry;
 using Astronomy.Core.Brightness;
+using Astronomy.Core.Horizons;
 using Astronomy.Core.Moon;
 using Astronomy.Core.Night;
+using Astronomy.Core.Session;
 using LiveChartsCore;
 using LiveChartsCore.Defaults;
 using LiveChartsCore.Measure;
@@ -66,6 +68,13 @@ namespace TargetPlanner.Charts
         // and the legacy MS Charts Sky area).
         private static readonly SKColor YellowOpaque = new SKColor(255, 238, 88, 145);
         private static readonly SKColor YellowFaded  = new SKColor(255, 238, 88,   0);
+
+        // sin(altitude) airmass-weighted quality metric used by BestSession.For.
+        // Sky doesn't pick a session, but the visibility check runs the same
+        // BestSession.For probe Day uses to decide hide-on-no-fit, so we feed
+        // the same quality function for byte-identical fit decisions.
+        private static readonly Func<double, double> SinAltQuality =
+            alt => Math.Sin(alt * Math.PI / 180.0);
 
         // The Container hosts (top) the CartesianChart at fixed height + (bottom) a
         // FlowLayoutPanel hosting custom legend items that wrap as targets grow.
@@ -263,14 +272,6 @@ namespace TargetPlanner.Charts
             DateTime now,
             CancellationToken ct = default)
         {
-            // profile / horizon / duration are accepted for uniform shape with
-            // AltitudeSubChart_Day so MainForm can call all sub-charts the same
-            // way; Sky doesn't consume them (no HD overlay, no horizon line, K-S
-            // factors moon contribution into the brightness directly).
-            _ = profile;
-            _ = horizon;
-            _ = duration;
-
             if (location == null) throw new ArgumentNullException(nameof(location));
             ct.ThrowIfCancellationRequested();
 
@@ -343,7 +344,47 @@ namespace TargetPlanner.Charts
             mChart.Series = seriesList;
             BuildLegendItems();
 
+            // Apply hide-on-no-fit (alpha 0 stroke for targets without a D-hour
+            // window tonight). Same probe as Day so the two charts agree on
+            // which targets are hidden -- the legacy AltitudeSeries paired the
+            // -Day and -Sky series in one Color toggle for exactly this reason.
+            RefreshSkyVisibility(cache, profile, location, horizon, duration);
+
             RecomputeLayout();
+        }
+
+        // Hide-on-no-fit visibility refresh. Mirrors AltitudeSubChart_Day's
+        // RefreshDayWindowsAndVisibility -- per-target BestSession.For tonight
+        // with the current Horizon / Duration / MoonAvoidanceProfile; if no
+        // D-hour window fits, the target's Sky stroke goes alpha 0 (invisible).
+        // The K-S magnitudes themselves are NOT cleared -- only the stroke
+        // alpha toggles -- so a subsequent scrub that re-admits the target
+        // restores the curve at its current K-S values without recomputation.
+        //
+        // Mirrors the legacy AltitudeSeries.RebuildDayTooltip behaviour:
+        // "The Sky brightness companion curve mirrors the hide-on-no-fit
+        //  (consistency: a target hidden by the Lorentzian fit-check shouldn't
+        //  have its sky-brightness curve still visible on the Sky area)."
+        public void RefreshSkyVisibility(
+            IChartCacheStore cache,
+            MoonAvoidanceProfile profile,
+            Location location,
+            double horizon,
+            TimeSpan duration)
+        {
+            if (location == null || mSeriesByTarget.Count == 0) return;
+            NightWindow night = cache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(location);
+            if (!night.IsValid) return;
+
+            foreach (var kv in mSeriesByTarget)
+            {
+                Target target = kv.Key;
+                LineSeries<ObservablePoint> series = kv.Value;
+                if (!mTargetColors.TryGetValue(target, out Color c)) c = Color.White;
+
+                bool fits = HasFit(target, location, night, profile, horizon, duration);
+                ApplyTargetVisibility(series, c, fits);
+            }
         }
 
         // Cheap path for Bortle / ExtinctionK / ActiveFilter scrubs that don't
@@ -381,6 +422,34 @@ namespace TargetPlanner.Charts
             mLastCount = 0;
             mChart.Series = Array.Empty<ISeries>();
             mLegendPanel.Controls.Clear();
+        }
+
+        // True when BestSession.For would place a session for this target on
+        // the supplied night under the current Horizon / Duration / Moon
+        // profile. Same probe Day uses for hide-on-no-fit -- byte-identical
+        // decision so Day's hidden-target list matches Sky's hidden-target list.
+        private static bool HasFit(
+            Target target, Location location, NightWindow night,
+            MoonAvoidanceProfile profile, double horizon, TimeSpan duration)
+        {
+            if (duration <= TimeSpan.Zero) return false;
+            IHorizonProfile horizonProfile = new ScalarHorizonProfile(horizon);
+            var best = BestSession.For(
+                target, location, night, horizonProfile,
+                duration, duration,
+                SinAltQuality,
+                profile: profile);
+            return best != null;
+        }
+
+        // Hide via fully-transparent stroke (zero alpha) when no D-hour window
+        // fits tonight; restore the palette stroke when one fits. Mirrors Day's
+        // ApplyTargetVisibility -- same alpha toggle, same stroke width.
+        private static void ApplyTargetVisibility(
+            LineSeries<ObservablePoint> series, Color color, bool hasWindow)
+        {
+            byte a = hasWindow ? color.A : (byte)0;
+            series.Stroke = new SolidColorPaint(new SKColor(color.R, color.G, color.B, a), 2);
         }
 
         private LineSeries<ObservablePoint> GetOrCreateTargetSeries(Target target, Color c)

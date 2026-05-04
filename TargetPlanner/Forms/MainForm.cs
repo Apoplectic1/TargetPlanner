@@ -91,6 +91,7 @@ namespace TargetPlanner
         // the active chart paints.
         private Charts.AltitudeSubChart_Day mLC2Day;
         private Charts.AltitudeSubChart_Sky mLC2Sky;
+        private Charts.AltitudeSubChart_Year mLC2Year;
 
         private ToolTip mToolTip;
         private int mToolTipIndex;
@@ -331,6 +332,7 @@ Right-click anywhere on the chart to clear all overlays.";
             mAltitudeChart?.Dispose();
             mLC2Day?.Dispose();
             mLC2Sky?.Dispose();
+            mLC2Year?.Dispose();
             mLatitudeInput?.Dispose();
             mLongitudeInput?.Dispose();
             mRaInput?.Dispose();
@@ -350,6 +352,14 @@ Right-click anywhere on the chart to clear all overlays.";
         public void InitializeDynamicControls()
         {
             string[] folderSelectedPaths = { NinaTargetsRootPath };
+
+            // Duration spinner: bump Minimum off the Designer default of 0. The
+            // library tolerates non-positive duration (BestSession.For etc. now
+            // return null in that case rather than throwing), but a UI state
+            // where every target is hidden on every chart at zero duration is a
+            // user-confusion trap, not a useful view. 0.25 h = 15 min is the
+            // smallest practical imaging session.
+            NumericUpDown_TargetDuration.Minimum = 0.25M;
 
             // Construct the four triple-bound coordinate helpers before Sync... pushes values
             // into them. Each helper owns the per-field wiring that used to live in the
@@ -451,10 +461,15 @@ Right-click anywhere on the chart to clear all overlays.";
             mLC2Sky.IdealHeightChanged += OnLC2SkyIdealHeightChanged;
             Panel_AltitudeChart.Controls.Add(mLC2Sky.Control);
 
+            mLC2Year = new Charts.AltitudeSubChart_Year();
+            mLC2Year.Control.Visible = false;
+            mLC2Year.IdealHeightChanged += OnLC2YearIdealHeightChanged;
+            Panel_AltitudeChart.Controls.Add(mLC2Year.Control);
+
             // Initial form sizing so an empty LC2 chart's plot area sits at the
             // ChartLayout.FixedPlotAreaHeight position even before any Graph click.
-            // Day's IdealHeight matches Sky's at boot (same ChartFixedHeight + empty
-            // legend), so seeding from either is equivalent.
+            // All LC2 sub-charts share the same ChartFixedHeight + empty legend
+            // at boot, so seeding from any of them is equivalent.
             ResizeAltitudeChartArea(mLC2Day.IdealHeight);
 
             // Establish a default sort mode authoritatively from code. The VS Designer has a
@@ -623,6 +638,7 @@ Right-click anywhere on the chart to clear all overlays.";
             // Sessions recompute is what's expensive; debounce that.
             mAltitudeChart.UpdateHorizonLines(newHorizon);
             mLC2Day?.UpdateHorizonLine(newHorizon);
+            mLC2Year?.UpdateHorizonLine(newHorizon);
             RestartSessionsRebuildDebounce();
         }
 
@@ -672,11 +688,25 @@ Right-click anywhere on the chart to clear all overlays.";
             // PR4b: LC2 Sky -- push the latest filter wavelength then re-walk the
             // existing minute grid through K-S with the new Bortle / ExtinctionK
             // values. Cheap path; doesn't rebuild night bounds or series identity.
+            // RefreshSkyVisibility runs the same BestSession.For probe Day uses
+            // so unfit targets hide on Sky in lockstep with Day (legacy paired
+            // -Day and -Sky in one Color toggle for the same reason).
             if (mLC2Sky != null)
             {
                 mLC2Sky.ActiveFilterCenterNm = mAltitudeChart.ActiveFilterCenterNm;
                 mLC2Sky.RefreshSkyBrightness(mCache, mLocation);
+                mLC2Sky.RefreshSkyVisibility(
+                    mCache, mAltitudeChart.MoonAvoidanceProfile, mLocation,
+                    mLocation.Horizon, mLocation.Duration);
             }
+            // PR4c: LC2 Year -- per-night line breaks on H/D/M scrubs. Runs the
+            // BestSession.For fit probe per (target, night) on a background
+            // thread; UI thread updates the affected ObservablePoint Y values
+            // when the task completes (replaces any in-flight task on rapid
+            // scrub via the chart's internal CTS).
+            mLC2Year?.RefreshYearVisibility(
+                mAltitudeChart.MoonAvoidanceProfile, mLocation,
+                mLocation.Horizon, mLocation.Duration);
         }
 
         // Compare the two locations on the fields that key the chart cache: Lat / Lon /
@@ -1333,6 +1363,7 @@ Right-click anywhere on the chart to clear all overlays.";
             if (mAltitudeChart != null) mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
             mLC2Day?.UpdateNowLine(mLocalDateTime.When);
             mLC2Sky?.UpdateNowLine(mLocalDateTime.When);
+            mLC2Year?.UpdateNowLine(mLocalDateTime.When);
             // Transit / Rise sort keys are time-dependent; Name is not. Skip the re-sort on
             // Name to avoid a pointless Items.Clear+re-add round-trip on every scrub tick.
             if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
@@ -1346,6 +1377,7 @@ Right-click anywhere on the chart to clear all overlays.";
             if (mAltitudeChart != null) mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
             mLC2Day?.UpdateNowLine(mLocalDateTime.When);
             mLC2Sky?.UpdateNowLine(mLocalDateTime.When);
+            mLC2Year?.UpdateNowLine(mLocalDateTime.When);
             if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
                 ResortSelectedTargets();
         }
@@ -1464,6 +1496,15 @@ Right-click anywhere on the chart to clear all overlays.";
                     ResizeAltitudeChartArea(mLC2Sky.IdealHeight);
                     mAltitudeChart.ChartTitle = FormatChartTitle(area);
                 }
+                else if (area == "Year" && mLC2Year != null)
+                {
+                    ShowOnlyAltitudeChart(mLC2Year.Control);
+                    mLC2Year.Render(targets, mCache, mAltitudeChart.MoonAvoidanceProfile,
+                        mLocation, mLocation.Horizon, mLocation.Duration,
+                        mLocalDateTime.When, mGraphCts.Token);
+                    ResizeAltitudeChartArea(mLC2Year.IdealHeight);
+                    mAltitudeChart.ChartTitle = FormatChartTitle(area);
+                }
                 else
                 {
                     ShowOnlyAltitudeChart(mAltitudeChart.mChart);
@@ -1504,6 +1545,7 @@ Right-click anywhere on the chart to clear all overlays.";
             }
             mLC2Day?.UpdateNowLine(mLocalDateTime.When);
             mLC2Sky?.UpdateNowLine(mLocalDateTime.When);
+            mLC2Year?.UpdateNowLine(mLocalDateTime.When);
         }
 
         // Signal the in-flight chart build to unwind. The Day / Moon phase is synchronous
@@ -2042,9 +2084,24 @@ Right-click anywhere on the chart to clear all overlays.";
             mUIState.YearChart = RadioButton_Year.Checked;
             if (RadioButton_Year.Checked == true)
             {
-                ShowOnlyAltitudeChart(mAltitudeChart.mChart);
-                mAltitudeChart.ShowChartAreaSeries("Year");
-                mAltitudeChart.ChartTitle = FormatChartTitle("Year");
+                if (mLC2Year != null)
+                {
+                    ShowOnlyAltitudeChart(mLC2Year.Control);
+                    if (mAltitudeChart.Targets.Count > 0)
+                    {
+                        mLC2Year.Render(mAltitudeChart.Targets, mCache,
+                            mAltitudeChart.MoonAvoidanceProfile, mLocation,
+                            mLocation.Horizon, mLocation.Duration, mLocalDateTime.When);
+                    }
+                    ResizeAltitudeChartArea(mLC2Year.IdealHeight);
+                    mAltitudeChart.ChartTitle = FormatChartTitle("Year");
+                }
+                else
+                {
+                    ShowOnlyAltitudeChart(mAltitudeChart.mChart);
+                    mAltitudeChart.ShowChartAreaSeries("Year");
+                    mAltitudeChart.ChartTitle = FormatChartTitle("Year");
+                }
             }
         }
 
@@ -2112,6 +2169,12 @@ Right-click anywhere on the chart to clear all overlays.";
         {
             if (mLC2Sky == null) return;
             ResizeAltitudeChartArea(mLC2Sky.IdealHeight);
+        }
+
+        private void OnLC2YearIdealHeightChanged(object sender, EventArgs e)
+        {
+            if (mLC2Year == null) return;
+            ResizeAltitudeChartArea(mLC2Year.IdealHeight);
         }
 
         // Resize Panel_AltitudeChart, GroupBox_Altitude, and the form's ClientSize
