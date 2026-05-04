@@ -28,11 +28,26 @@ namespace TargetPlanner.Settings
                     AppSettings settings = JsonConvert.DeserializeObject<AppSettings>(json);
                     if (settings != null)
                     {
-                        if (settings.NamedLocations == null || settings.NamedLocations.Count == 0)
-                            settings.NamedLocations = BuildDefaultNamedLocations();
+                        // Schema-version gate. Today only Version == CurrentVersion is
+                        // accepted; future versions add a switch on settings.Version with
+                        // per-version migration transforms and fall through to here.
+                        // Any mismatch logs and falls through to BuiltDefaults so the user
+                        // gets a working app rather than a crash on an incompatible file.
+                        if (settings.Version != AppSettings.CurrentVersion)
+                        {
+                            Log.Error(
+                                "SettingsStore.Load: version mismatch at '" + FilePath +
+                                "' (file=" + settings.Version + ", expected=" +
+                                AppSettings.CurrentVersion + "); resetting to defaults");
+                        }
                         else
-                            MergeBuiltins(settings.NamedLocations);
-                        return settings;
+                        {
+                            if (settings.NamedLocations == null || settings.NamedLocations.Count == 0)
+                                settings.NamedLocations = BuildDefaultNamedLocations();
+                            else
+                                MergeBuiltins(settings.NamedLocations);
+                            return settings;
+                        }
                     }
                 }
             }
@@ -46,7 +61,7 @@ namespace TargetPlanner.Settings
 
             return new AppSettings
             {
-                Version = 1,
+                Version = AppSettings.CurrentVersion,
                 NamedLocations = BuildDefaultNamedLocations(),
                 LastSelectedLocationName = "Penns Park",
             };
