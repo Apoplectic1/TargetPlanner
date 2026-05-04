@@ -1,4 +1,6 @@
-# TargetPlanner — Code Review (2026-04-21)
+# TargetPlanner — Code Review (2026-04-21) [ARCHIVED]
+
+> **Archived 2026-05-04.** ~75% of the findings below have been closed by the work since: Phase 4 LiveCharts2 chart migration (deletes `AltitudeChart` / `AltitudeSeries` and most of Categories 1, 2, 7, 8); the SoC refactors (Phases 1–3 — selection VM, cache store, render decoupling); the Library extraction with immutable `Target` / `Location` POCOs + `NightWindow.IsValid` + `AltAz` struct + `RiseSet.RiseSetState` enum; `Support/CoordinateInput.cs` helper for triple-bound RA/Dec/lat/lon; `Log.Error` plumbing through every former-bare catch site; `<GenerateDocumentationFile>true</GenerateDocumentationFile>` flipped on; `System.TimeZone` → `TimeZoneInfo` migration; typo sweep complete. The verified-still-open residuals live in `ROADMAP.md` under "Open code-quality items (CODE_REVIEW.md residual)" — do not add new findings here.
 
 A whole-repo audit across `TargetPlanner/` (WinExe) and `Astronomy.Core/` (netstandard2.0 library). Goal: identify patterns worth cleaning up before further feature work, and sequence the cleanup so we address correctness first and polish last.
 

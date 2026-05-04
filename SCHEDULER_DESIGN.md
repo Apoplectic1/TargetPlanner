@@ -4,6 +4,19 @@
 
 ---
 
+## Status (as of 2026-05-04)
+
+**The library is shipped. The scheduler and plugin are not.**
+
+- ✅ **Astronomy.Core library**: extracted to a sibling repo at `..\..\Library\Astronomy.Core\` on 2026-04-23 (commit `b28ef9e` in TP). Now pure-managed Meeus (CoordinateSharp dropped in `2249834`). 181 tests green. Every primitive listed in the original "Add in the new library" list (TransitTime, VisibilityWindows, IntegratedQuality, BestSession.For / PlaceBest / PlaceCentered / ResolveCandidates, QualitySamples, MoonSeparation, configurable twilight via `NightCalculator` / `TwilightCalculator`, `IHorizonProfile` interface + Scalar / Polyline / ObstructionTable implementations, MoonAvoidance Lorentzian) is now public API.
+- ✅ **Library design choice deviated from the original recon**: the doc proposed *consuming NINA.Astrometry* as the math backend; we instead rolled pure-Meeus inside Astronomy.Core. Reasons that emerged after writing the doc: (a) thread-safety — NOVAS lock would have serialized scheduler workloads; (b) portability — Astronomy.Core targets `netstandard2.0` and runs in net481 / .NET 8 / .NET 10 consumers without dragging NINA's WPF / Ninject / native deps; (c) determinism — pure managed math is straightforward to test against textbook ground truth. The "NINA adapter layer" section below is therefore obsolete — Astronomy.Core IS the analytics layer and has no NINA dependency. Plugin authors that want NINA's primitives (epoch transforms, refraction, planetary ephemerides) still call into NINA.Astrometry directly.
+- ⚠️ **Scheduler / plugin: still future work.** Greedy interval scheduler, plugin scaffolding, scheduler container, EF context, scheduler-side constructs (`IObservabilityConstraint`, `Plan`, `TargetProgress`, `ISchedulingPolicy`) — none of these have started. "Suggested next steps" near the bottom of this doc is updated to reflect that.
+- 🆕 **NINA 3.3.0.1036 added `ConditionalContainer`** (May 2026, commit `e474063a6` on develop) — runtime-predicate primitive that's the natural ISP runtime-gate hook. See the "Plugin design hooks added in NINA 3.3" subsection below. Memory pointer: `~/.claude/.../memory/project_isp_conditional_container.md`.
+
+The body of the document is left intact for archival reasons (it captures rationale that's still useful even when the implementation has moved on). Inline `[STATUS]` notes flag specific stale claims.
+
+---
+
 ## Context
 
 Two things drive this plan:
@@ -26,8 +39,8 @@ Local horizon will eventually be a 360° azimuth→altitude profile (user-entere
 Four local trees are relevant to this effort. The first two are reference-only — not modified by work in this repo. The last two are first-party projects the user maintains.
 
 - **NINA codebase**: `E:\Projects\VisualStudio\Astronomy\NINA`
-  - Tracked branches: `master` (release line, currently NINA 3.2.0.9001) and `develop` (bleeding edge).
-  - Reconnaissance notes below reflect two states: an initial pass against a late-2023 source snapshot (whose claims are mostly still correct for the 3.2.x tree), and a **delta pass against `develop` at SHA `0bc2986df`** capturing what's moved since.
+  - Tracked branches: `master` (release line) and `develop` (bleeding edge, currently at NINA **3.3.0.1036** SHA `fb1889901` as of 2026-05-04).
+  - Reconnaissance notes below reflect three states: an initial pass against a late-2023 source snapshot, a **delta pass against `develop` at SHA `0bc2986df`** (3.2.x), and a smaller **delta pass against 3.3.0.1036** capturing the runtime-predicate primitive added since.
   - Notable subprojects: `NINA.Astrometry` (existing astrometry code — check before reinventing), `NINA.Sequencer` (sequence composition, built-in items, triggers, conditions), `NINA.Plugin` (plugin base class and loader), `NINA.Profile` (profile / settings), `NINA.Core` (shared value types), `NINA.Equipment` (mediators for camera/telescope/etc).
   - Bundled native dependencies: **NOVAS31** (NIST C library) and **SOFA** (IAU C library, 2023-10-11 revision), consumed through managed P/Invoke wrappers in `NINA.Astrometry`. Both are reference-grade astronomical libraries; together they underpin NINA's coordinate transforms, Julian dates, sidereal time, refraction, and planet positions.
   - Ephemeris file bundled: `External/JPLEPH` (JPL DE series), valid for JD 2305424.5 – 2525008.5.
@@ -38,15 +51,19 @@ Four local trees are relevant to this effort. The first two are reference-only �
   - Has its own `CLAUDE.md` — prior Claude-assisted work captured conventions there; read before editing anything in that tree.
 
 - **This repo**: `E:\Projects\VisualStudio\Astronomy\TargetPlanner`
-  - Current home of the analytic Year/Optimal/OptimalFloor chart machinery — effectively a prototype of the session-analysis primitives we're going to formalize.
-  - Also the current home of `Astronomy.Core` (netstandard2.0, CoordinateSharp-only), which XisfFileManager and the future NINA plugin are both expected to consume.
+  - Home of the LiveCharts2 chart machinery (Day / Sky / Year / Sessions sub-charts post-Phase-4 migration) — effectively a working prototype of the session-analysis primitives Astronomy.Core formalized.
+  - **Astronomy.Core moved out** (2026-04-23, TP commit `b28ef9e`) to the sibling Library repo at `..\..\Library\Astronomy.Core\`. TP consumes via `ProjectReference`. CoordinateSharp dropped in TP commit `2249834`; Library is pure-managed Meeus, `netstandard2.0`, lock-free.
+
+- **Astronomy library repo**: `E:\Projects\VisualStudio\Astronomy\Library`
+  - Sibling git repo. Holds `Astronomy.Core` (the netstandard2.0 analytics library), `Astronomy.Core.Tests` (xUnit + BenchmarkDotNet, 181 tests), and the `Astronomy.PCL` / `Astronomy.PCL.Native` interop projects.
+  - Has its own `CLAUDE.md`. Public API contract spelled out there + in the `Core consumer contract` section of TP's CLAUDE.md.
 
 - **XisfFileManager**: `E:\Projects\VisualStudio\Astronomy\XisfFileManager` (GitHub: `Apoplectic1/XisfManager`)
   - Sibling WinForms app on `net10.0-windows`, SDK-style, ~77 files / ~11.3 k LOC, no test project. Browses / renames XISF files and manages calibration frames; already has a **Target Scheduler tab** that reads NINA's `schedulerdb.sqlite` directly and loads `Project` / `Target` / `ExposurePlan` / `AcquiredImage` rows into memory. See `XisfFileManager/TargetScheduler/SqlLiteManager.cs`.
-  - Candidate host for the **intermediate interval-scheduler prototype** — step 4 in "Suggested next steps" — before the scheduler is promoted into a standalone NINA plugin. Rationale: the corpus a planner needs (target list, exposure plans, acquired-image history) is already loaded and on-screen, and the app has no astrometry of its own yet, so wiring in `Astronomy.Core` is a clean addition rather than a duplication.
-  - Framework / dependency fit: `net10.0-windows` consumes `netstandard2.0` `Astronomy.Core` via ProjectReference with no friction. No CoordinateSharp conflict (XFM has none; Core brings its own). No `Astronomy.Core` reference yet.
-  - Branches: `master`, `development`, `TargetScheduler`, `C++/CLI_for_PCL_Library`. Check the `TargetScheduler` branch for prior experiments before starting new scheduler work.
-  - The `\\BIRDWATCHER\SchedulerPlugin\schedulerdb.sqlite` UNC path is **intentional**, not a portability bug. `BIRDWATCHER` is the user's imaging PC — the machine connected to the telescope/camera that runs NINA during live sessions — and is where the future scheduler plugin will ultimately be deployed. XFM on the dev workstation reaches the canonical `schedulerdb.sqlite` over SMB. Any prototype that assumes a local DB file should still work against this SMB path unchanged.
+  - Per the user's current intent (memory `project_intervalscheduler.md`), the new family of apps (IS desktop / ISP NINA plugin / ISS simulator) has split out as its own thing — XFM stays focused on image management. XFM still consumes `Astronomy.Core` via ProjectReference for any astrometry it needs.
+  - Framework / dependency fit: `net10.0-windows` consumes `netstandard2.0` `Astronomy.Core` cleanly.
+  - Branches: `master`, `development`, `TargetScheduler`, `C++/CLI_for_PCL_Library`.
+  - The `\\BIRDWATCHER\SchedulerPlugin\schedulerdb.sqlite` UNC path is **intentional**, not a portability bug. `BIRDWATCHER` is the user's imaging PC — the machine connected to the telescope/camera that runs NINA during live sessions — and is where ISP will ultimately be deployed. Any tool that wants the canonical `schedulerdb.sqlite` reaches through that UNC path. (Memory: `reference_birdwatcher_imaging_pc.md`.)
 
 ---
 
@@ -208,9 +225,9 @@ Concrete primitives NINA.Astrometry does NOT provide:
 
 Re-verification of the claims above against the current develop tip. Nothing in the preceding sections was invalidated — all coordinate primitives, `AstroUtil` methods, `SOFA`/`NOVAS` surface, `RiseAndSetEvent` base + subclasses, the NOVAS `lock`, and the `CustomHorizon` polyline location are as described. **Changes worth folding into library planning:**
 
-- **New `CivilTwilightRiseAndSet`** subclass (−6° threshold) at `NINA.Astrometry/RiseAndSet/CivilTwilightRiseAndSet.cs`. Marked `internal`, which means our adapter layer will need its own parameterized-sun-altitude variant rather than reaching in through NINA's type (still supports our "configurable twilight threshold" primitive cleanly).
+- **New `CivilTwilightRiseAndSet`** subclass (−6° threshold) at `NINA.Astrometry/RiseAndSet/CivilTwilightRiseAndSet.cs`. Marked `internal`. [STATUS] Moot — `Astronomy.Core.Night.TwilightCalculator.ComputeNight(location, sunAltBelowDeg)` covers civil / nautical / astronomical thresholds without depending on NINA's types.
 - **New `AstroUtil.DeltaUT(DateTime, db) → double`** method exposing UT1-UTC. Previously only `DeltaT` was surfaced. Useful if we ever want to compute sub-second precise transit times.
-- **New `NighttimeCalculator` / `TwilightCalculator`** higher-level aggregators that bundle civil / nautical / astronomical / sun / moon rise-set into a single query. Worth wrapping in our adapter layer as a faster path to "what's the night window for this location on this date." Matches the flavor of `ITwilightCalculator` which is now injected into the plugin mediator set.
+- **New `NighttimeCalculator` / `TwilightCalculator`** higher-level aggregators that bundle civil / nautical / astronomical / sun / moon rise-set into a single query. [STATUS] We have our own equivalents — `Astronomy.Core.Night.NightCalculator` / `TwilightCalculator`. ISP plugin code that wants NINA's `ITwilightCalculator` mediator (e.g. for cross-plugin compatibility) can still call into it; pure planning logic uses our equivalents.
 - **Still missing (confirmed):** horizon-profile-aware rise/set, standalone transit-time primitive. These remain contributions of the new library.
 
 ---
@@ -328,6 +345,22 @@ Plugin-API verification against the current develop tip. `PluginBase` / `IPlugin
 - **Expression-system sequence items** (`Constant`, `Variable`, `GlobalConstant`, `GlobalVariable`, `ResetVariable`, `ResetVariableToDate`) and full flat-device / dome / connect-equipment suites are new built-in items. Not directly scheduler concerns but part of the landscape a user's sequence might contain around our container.
 
 **Takeaway for plugin design:** the programmatic-dispatch story got materially better since the original recon. `StartAdvancedSequence(skipValidation)` + `SequenceStarting`/`SequenceFinished` events + `FailureEvent` + `GetCurrentRunningItems()` is enough to build a genuine replanning loop without user clicks beyond the initial Start. Plus `IMessageBroker` gives us a clean way to emit scheduler events to other plugins if we ever want that. The two architectural strings attached: our plugin must implement `ISequenceEntityUpgrader` to survive plugin-version upgrades gracefully, and we should route twilight through `ITwilightCalculator` rather than `AstronomicalTwilightRiseAndSet` directly.
+
+### Delta pass against NINA 3.3.0.1036 (SHA `fb1889901`)
+
+Smaller delta from 3.2.x. The big one for ISP design:
+
+- **🆕 `ConditionalContainer` + `ConditionalStrategy`** (commit `e474063a6`, "Conditional Instruction Set container that evaluates a sequencer expression when reached and runs or skips its contained instructions based on the result"). Files:
+  - `NINA.Sequencer/Container/ConditionalContainer.cs` — `SequenceContainer` subclass with one `[IsExpression] public partial double Predicate` property. Marked `[UsesExpressions]`.
+  - `NINA.Sequencer/Container/ExecutionStrategy/ConditionalStrategy.cs` — `IExecutionStrategy` impl. `Execute(...)` evaluates `container.PredicateExpression`; if `ValueString != "0"` runs sequentially-once, else marks every child Skipped + throws `SequenceItemSkippedException` (clean opt-out from the parent loop).
+  - `NINA.Test/Sequencer/Container/ConditionalContainerTest.cs` — coverage.
+  - **Why this matters:** ISP runtime gates ("should I run this exposure block right now under current sky / moon / weather?") used to require custom containers. Now NINA core ships the primitive. ISP design should plan to wrap each scheduled exposure block in a `ConditionalContainer` whose predicate references custom expression functions registered by ISP (`MoonClear(targetId)`, `SkyBrightnessAt(targetId)`, `TargetAltitude(targetId)`, etc.). The math behind those functions reuses `Astronomy.Core` directly. Memory pointer: `~/.claude/.../memory/project_isp_conditional_container.md`.
+
+Other 3.3.0.1036 changes inspected:
+- `LinkedTemplateFallbackPreviewBehavior` for non-hierarchical template preview — UI helper, no scheduler impact.
+- CET disabled in `NINA.exe` (#295) — ASLR / mitigation toggle; no API impact.
+
+`ITwilightCalculator`, `IMessageBroker`, `ISymbolBroker`, `ISequenceEntityUpgrader`, `StartAdvancedSequence(skipValidation)`, `FailureEvent`, `GetCurrentRunningItems()` — all present and unchanged from the 3.2.x delta block above.
 
 ---
 
@@ -478,49 +511,54 @@ The scheduler can evaluate `integratedQuality(target, start, duration)` thousand
 
 ## Proposed astrometry library surface (revised)
 
-Dividing by "consume from NINA.Astrometry" vs. "add in the new library." Everything in the "add" group is the new library's contribution; everything in "consume" means the new library delegates or re-exports.
+[STATUS] **The library is shipped.** What was originally split into "consume from NINA.Astrometry" and "add in the new library" became a single decision: roll our own pure-Meeus implementation in `Astronomy.Core` and depend on nothing NINA-specific. The lists below are preserved as historical record (they document the original framing); each entry is annotated with its current status.
 
-### Consume from `NINA.Astrometry` (do not reinvent)
+### Original "Consume from NINA.Astrometry" list — superseded
 
-- `Coordinates`, `TopocentricCoordinates`, `Angle`, `Separation`, `ObserverInfo`, `Location` — coordinate primitives.
-- `AstroUtil.GetJulianDate(DateTime) → double`.
-- `AstroUtil.GetLocalSiderealTime(date, longitude) → hours`.
-- `AstroUtil.GetHourAngle(siderealTime, ra) → Angle`.
-- `AstroUtil.GetAltitude(hourAngle, latitude, declination) → Angle` — replaces our ad-hoc `AltAtHa`.
-- `AstroUtil.Airmass(altitude) → double` — use for default `sin(alt)` quality computation and diagnostic displays.
-- `AstroUtil.GetMoonPosition(date, jd, observer)`, `GetMoonIllumination(date)`, `GetMoonAltitude(date, observerInfo)`, `GetMoonPhase(date)` — moon data.
-- `SOFA.Seps(ra1, dec1, ra2, dec2) → radians` — for moon-separation composition.
-- `RiseAndSetEvent` hierarchy (base + twilight + sun + moon subclasses) — rise/set for stars/bodies via `CustomRiseAndSet`.
-- `CustomHorizon` (in `NINA.Core.Model`) — polyline horizon representation. Adapter converts to our `IHorizonProfile`.
-- `IDeepSkyObject` — target abstraction. Our scheduler's target type either is `IDeepSkyObject` or wraps it.
+The original idea was to delegate coordinate primitives + JD / LST / HA / altitude / airmass / moon position / rise-set / horizon to NINA.Astrometry and just write the session-level math on top. Reasons we deviated (and built our own equivalents in `Astronomy.Core`):
 
-### Add in the new library
+- **Thread-safety**: NOVAS uses a process-wide lock inside `NINA.Astrometry.NOVAS.Place()`; a scheduler that hot-loops thousands of altitude evaluations across targets serializes through it. Pure-Meeus managed code avoids this entirely.
+- **Portability**: TP's chart cache build runs on net481; future schedulers run on .NET 8/10; the ISP plugin runs inside NINA's net481 host. `netstandard2.0` Astronomy.Core works in all three without dragging NINA's WPF / native deps into non-NINA consumers (XisfManager, IS desktop, ISS simulator).
+- **Determinism**: pure-managed Meeus gives bit-stable results across machines, no DLL bundling concerns.
 
-- `interface IHorizonProfile` — `double AltitudeAt(double azimuthDeg)`. Implementations: `ScalarHorizon`, `PolylineHorizon` (wraps `CustomHorizon`), `ObstructionTableHorizon` (360° user-entered).
-- `TransitUtc(target, date, loc) → DateTime` — analytic inverse of `LST = RA` on the given date's night.
-- `LowerCulminationAltitude(latDeg, decDeg) → degrees` — min altitude, mirror of `MeridianAltitude` (which NINA.Astrometry doesn't expose directly; we can compute from `AstroUtil.GetAltitude` with HA=0).
-- `RiseSetUtc(target, night, loc, horizonProfile) → (DateTime?, DateTime?)` — horizon-profile-aware rise/set. Internally uses the scalar fast-path as a seed, refines against the profile at the candidate rise/set azimuth via Newton iteration.
-- `VisibilityWindows(target, night, horizonProfile) → IReadOnlyList<(DateTime start, DateTime end)>` — above-horizon intervals intersected with the night window. Typically 0–2 segments per night.
-- `IntegratedQuality(target, loc, startUtc, duration, qualityFunc) → double` — closed-form for `q = sin(alt)`; Simpson over 20 points for arbitrary `q`.
-- `BestSessionFor(target, night, horizonProfile, minDur, maxDur, qualityFunc) → (DateTime start, DateTime end, double quality)?` — transit-centered when the visibility window allows; wall-pushed when it doesn't.
-- `QualitySamples(target, loc, night, slotSize, qualityFunc) → IReadOnlyList<(DateTime start, DateTime end, double qualityPerHour)>` — sampled grid the scheduler consumes.
-- `MoonSeparation(target, loc, utc) → degrees` — composition of `GetMoonPosition` + `SOFA.Seps`.
-- `MoonSeparationIntervals(target, night, minSepDeg) → IReadOnlyList<(start, end)>` — intervals during the night where separation ≥ threshold.
-- Configurable twilight: `ComputeNight(loc, date, sunAltBelowDeg = −18.0) → NightWindow`. Parameterized version of the hardcoded NINA twilight classes.
+NINA.Astrometry primitives still useful to plugin authors for things `Astronomy.Core` deliberately doesn't cover:
+- `IDeepSkyObject` / `Coordinates` for sequencer-target serialization (ISP must read NINA's target store).
+- `NOVAS.PlanetApparentCoordinates` / `BodyPositionAndVelocity` for solar-system bodies if ever needed.
+- `IDeepSkyObject.RotationPositionAngle` for camera-rotator integration.
 
-### Scheduler-side constructs (in the plugin, not the library)
+### "Add in the new library" — ✅ all shipped in `Astronomy.Core`
 
-- `interface IObservabilityConstraint` — composable observability predicates. Implementations: `AltitudeConstraint`, `AirmassConstraint`, `MoonSeparationConstraint`, `AtNightConstraint`, `AboveHorizonProfileConstraint`. Mirrors astroplan's pattern.
+All entries below are public API today. Full tour in `Astronomy.Core/CLAUDE.md`; brief pointers:
+
+- `IHorizonProfile` — `Astronomy.Core.Horizons.IHorizonProfile`, with `ScalarHorizonProfile`, `PolylineHorizonProfile`, `ObstructionTableHorizonProfile` implementations.
+- Transit time — `Astronomy.Core.Session.TransitTime.UtcAtOrAfter(target, location, after)` (analytic LST=RA inverse).
+- Lower culmination altitude — `Astronomy.Core.TargetGeometry.LowerCulminationAltitude(latDeg, decDeg)`.
+- Horizon-profile-aware rise/set — `Astronomy.Core.Session.RiseSet.NextAtOrAfter(target, location, after, horizonProfile)`.
+- Visibility windows — `Astronomy.Core.Session.VisibilityWindows.For(target, location, night, horizonProfile)`.
+- Integrated quality — `Astronomy.Core.Session.IntegratedQuality.OverSession(target, location, start, end, qualityFunc)` plus `SinAltitudeOverSession` closed form.
+- Best-session placement — `Astronomy.Core.Session.BestSession.For(target, location, night, horizonProfile, minDuration, maxDuration, altitudeQuality, profile?)` (transit-centered-or-wall-pushed). Companion `PlaceBest(...)` / `PlaceCentered(...)` / `ResolveCandidates(...)` helpers for callers that want to share candidates across multiple placement strategies.
+- Quality samples — `Astronomy.Core.Session.QualitySamples.OverNight(...)`.
+- Moon separation — `Astronomy.Core.Moon.MoonSeparation.DegreesAt(...)` / `ObserveAt(...)` / `IntervalsAboveDeg(...)`.
+- Configurable twilight — `Astronomy.Core.Night.NightCalculator.ComputeNight(location)` (default −18°) plus `Astronomy.Core.Night.TwilightCalculator.ComputeNight(location, sunAltBelowDeg)` for arbitrary thresholds.
+- Moon avoidance Lorentzian — `Astronomy.Core.Moon.MoonAvoidance.LorentzianRequiredSep(...)` / `IsRejected(...)` plus `MoonAvoidanceProfile` POCO with `Disabled` / `Narrowband` / `Broadband` / `Custom(...)` factories.
+
+Solver-flavor companions (added later, originally not in the doc): `Astronomy.Core.Session.SessionSolvers.LongestDuration*` and `LowestHorizon*` — for "what's the longest fittable session?" / "how low can I drop the horizon and still fit duration D?" queries.
+
+### Scheduler-side constructs (in the plugin, not the library) — ⚠️ still future
+
+These remain unbuilt and are the meat of the IS / ISP work:
+
+- `interface IObservabilityConstraint` — composable observability predicates. Implementations: `AltitudeConstraint`, `AirmassConstraint`, `MoonSeparationConstraint`, `AtNightConstraint`, `AboveHorizonProfileConstraint`. Mirrors astroplan's pattern. **Note**: with NINA 3.3.0.1036's `ConditionalContainer` in scope, ISP may not need its own constraint composition layer at all — runtime gates can be NINA expression strings on a `ConditionalContainer`'s `Predicate`. The IS desktop app might still want a typed constraint layer for plan-time decisions. Decide during IS/ISP design.
 - `Plan` — ordered, non-overlapping (target, start, end, quality) assignments.
 - `TargetProgress` — what has been imaged so far per target (completed TimeSpan, goal TimeSpan). Feeds back into replanning.
 - `ISchedulingPolicy` — user policy (meridian-chase, narrow-window, keep-busy) expressed as objective weights and constraint composition.
 - `GreedyIntervalScheduler` (initial implementation) — the solver.
 
-### Thread safety and time representation
+### Thread safety and time representation — ✅ contract documented
 
-- **New library should be pure / instance-based / no static state.** Current `Astrometry.Location(...)` in the TargetPlanner codebase mutates static fields for UI consumption; don't carry that forward. Mark it deprecated in TargetPlanner.
-- **Inherit NINA's `DateTime` UTC convention** since NINA.Astrometry uses it. Enforce UTC at library boundaries via method contracts; internal calculations use Julian Date.
-- **Be aware of the NOVAS lock.** If the scheduler ever wants to parallelize per-target quality sampling across cores, route through SOFA where possible, or accept the serialization cost.
+- **`Astronomy.Core` is pure / instance-based / no static state.** Documented in TP CLAUDE.md "Core consumer contract" + Library CLAUDE.md "Thread safety". `Support/AstrometryUi.cs` (UI state facade) is the one mutable-static exception and lives in TP, not Library.
+- **DateTime UTC convention enforced at boundaries.** `NightWindow.AstronomicalDawn` / `AstronomicalDusk` are `DateTimeKind.Utc`. Methods taking `DateTime utc` expect UTC; `AltAz.Of(target, location)` reads `Location.DateTime` and converts via `.ToUniversalTime()` (no-op if already Utc). Documented in TP CLAUDE.md.
+- **NOVAS lock concern**: moot since `Astronomy.Core` doesn't consume NOVAS. Library is lock-free / managed-only since CoordinateSharp removal.
 
 ---
 
@@ -713,7 +751,7 @@ Core analytics layer should be pure functions — no shared mutable state, no ca
 - **LCO MILP scheduler** (papers only; internal code). MILP formulation well-documented in the literature. Useful if you ever go down the formal-optimization path.
 - **NINA.Astrometry source** at `E:\Projects\VisualStudio\Astronomy\NINA\NINA.Astrometry`. Primary reference for coordinate / time / rise-set / moon / sun primitives. Treat as the canonical implementation of these concepts.
 - **NOVAS31** (NIST C library) and **SOFA** (IAU C library) reference docs. The native DLLs bundled with NINA; their public APIs are what the managed wrappers expose.
-- **CoordinateSharp** (currently in the TargetPlanner repo's `packages.config`). Redundant once we adopt NINA.Astrometry; can be dropped from the plugin but retained in TargetPlanner until that tool is migrated.
+- **CoordinateSharp** [STATUS] dropped from both Library and TP (TP commit `2249834`, Library `e602bdb`). `Astronomy.Core` is pure-managed Meeus. Reference left here for archaeology only.
 
 ### Caveats on the landscape description
 
@@ -726,36 +764,34 @@ Core analytics layer should be pure functions — no shared mutable state, no ca
 
 ## Suggested next steps
 
+[STATUS] **Library-side steps (originally 2, 3, 5) are done.** What's left is the scheduler / plugin work:
+
 In rough priority order:
 
-1. **Pin the objective function default.** Start with `q(alt) = sin(alt)`. Verify it produces plans that match intuition on a handful of test scenarios (M31 / M42 / NGC 7000 mix over a winter night). If not, try `√sin(alt)` or extinction-based.
+1. **Pin the objective function default.** Start with `q(alt) = sin(alt)`. Verify it produces plans that match intuition on a handful of test scenarios (M31 / M42 / NGC 7000 mix over a winter night). If not, try `√sin(alt)` or extinction-based. The library accepts an arbitrary `Func<double, double>` so substitution is a constructor argument, not a refactor.
 
-2. **Prototype `BestSessionFor` standalone.** Pull the transit-centered-vs-wall-pushed logic from the current `BuildOptimalSeries` into a standalone function that returns `(start, end, quality)`. Wire it against the existing `NightCacheEntry` and validate against the charts.
+2. **Write a greedy interval scheduler prototype.** Standalone C# library project (sibling to `Astronomy.Core`, or a sub-namespace inside `Astronomy.Core.Session`). No UI. Consumes existing `QualitySamples.OverNight(...)` outputs. Produces a `Plan` output. Test on three scenarios (meridian chase, narrow windows, keep busy) with hand-constructed target inputs. Mock `QualitySamples` first, then wire to the real ones.
 
-3. **Design the `IHorizonProfile` interface.** Build `ScalarHorizon`, `PolylineHorizon` (wrapping NINA's `CustomHorizon`), `ObstructionTableHorizon` implementations. Convert all horizon-related primitives to take `IHorizonProfile`. Verify the existing TargetPlanner chart still works with a `ScalarHorizon` wrapper.
+3. **IS desktop app scaffolding** (`E:\Projects\VisualStudio\Astronomy\IntervalScheduler` or similar). .NET 10 desktop app per memory `framework_stance.md`. Owns the authoritative `scheduler.db`. Editing UI for projects / targets / exposure plans / templates; 5-minute precompute; "Replan" action. Memory: `project_intervalscheduler.md` for the four-phase pipeline.
 
-4. **Write a greedy interval scheduler prototype.** Standalone C# library, no UI. Consumes mocked `QualitySamples`. Produces a `Plan` output. Test it on three scenarios (meridian chase, narrow windows, keep busy) with hand-constructed target inputs.
+4. **ISP NINA plugin scaffolding** — the runtime executor. Empty plugin that loads, shows a dockable panel, exports a single `ConditionalContainer`-based scheduler container. Net Framework 4.8.1 (NINA constraint). Tests the deployment + load cycle. Memory: `project_isp_conditional_container.md` for the design hook.
 
-5. **Extract the core analytics layer.** Pure-C# library project with no dependencies. Primitives: transit solver, visibility windows, integrated-quality, best-session. Unit tests against textbook ground truth. Neither NINA nor CoordinateSharp needed.
+5. **ISP scheduler container.** Reads the deployed plan from `scheduler.db`. Generates a sequence subtree of `ConditionalContainer`-wrapped exposure blocks. Registers custom expression functions (`MoonClear`, `SkyBrightnessAt`, `TargetAltitude`, `PlanMatchesNow`) that the predicates reference. Subscribes to `ISequenceRootContainer.FailureEvent` / `SequenceFinished` for replanning hooks.
 
-6. **Build the NINA adapter layer.** Wraps NINA.Astrometry inputs and delegates to the core analytics layer. Depends on NINA assemblies.
+6. **SQLite schema + EF context.** Projects, Targets, ExposurePlans, ExposureTemplates, AcquiredImages. Lives on the IS desktop side; ISP reads it through the SMB UNC path on `\\BIRDWATCHER\`. Migrations versioned with numbered SQL files à la TS.
 
-7. **Build the NINA plugin scaffolding.** Empty plugin that loads, shows a dockable panel, exports an empty container. Tests the deployment + load cycle.
+7. **ISS simulator** (per memory). May evolve from TP's existing standalone app.
 
-8. **Wire up the plugin's scheduler container.** The `TargetSchedulerContainer`-equivalent that calls into the scheduler's planner and constructs the instruction subtree dynamically.
+8. **XisfManager grading hook.** Post-night, XisfManager updates `exposure_plan.accepted_count` via the shared `scheduler.db`. Already on the radar per memory.
 
-9. **SQLite schema + EF context.** Projects, Targets, ExposurePlans, AcquiredImages. Migrations versioned with numbered SQL files.
+9. **Constraint composition (`IObservabilityConstraint`)** if the ConditionalContainer expression layer turns out to be insufficient for IS-side plan-time decisions. Defer until that becomes clear.
 
-10. **Moon separation primitives and constraint composition.** First enhancement beyond the minimum viable scheduler.
+10. **Meridian flip handling** for GEM users — both planner-side (avoid splitting a session across the flip when possible) and ISP-side (NINA already emits flip events; subscribe).
 
-11. **Meridian flip handling** for GEM users.
-
-12. **UI polish.** Plan-preview timeline (TS's `PlanPreviewerViewVM` as visual reference), target database management, policy configuration, runtime monitoring.
-
-Each step is independently valuable. Even if only steps 1–3 land, the existing TargetPlanner tool gets meaningfully cleaner. The plugin is a later deliverable that compounds on top.
+11. **UI polish.** Plan-preview timeline (TS's `PlanPreviewerViewVM` as visual reference), target database management, policy configuration, runtime monitoring.
 
 ---
 
 ## One-sentence summary
 
-**A deterministic, replay-safe interval scheduler whose objective is `Σ ∫quality(altitude(t)) dt` over non-overlapping assigned sessions, implemented as a pure-C# core analytics library plus a thin NINA.Astrometry-backed adapter, packaged as a NINA plugin whose user-facing form is one sequence container, and whose conceptual contribution over Tommy Oldham's Target Scheduler is the move from score-at-decision-time to interval scheduling.** Architecturally cleaner than every amateur tool the author is aware of; scoped-down version of what LSST does.
+**A deterministic, replay-safe interval scheduler whose objective is `Σ ∫quality(altitude(t)) dt` over non-overlapping assigned sessions, implemented as a pure-managed `Astronomy.Core` analytics library (shipped) plus an unbuilt scheduler family — IS desktop authoring tool, ISP NINA-plugin executor, ISS simulator — whose conceptual contribution over Tommy Oldham's Target Scheduler is the move from score-at-decision-time to interval scheduling.** Architecturally cleaner than every amateur tool the author is aware of; scoped-down version of what LSST does.

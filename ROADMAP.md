@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Captured 2026-04-19 for follow-up later.
+Last updated 2026-05-04 (Phase 4 LC2 chart migration shipped). Originally captured 2026-04-19.
 
 ## Recently shipped
 
@@ -71,56 +71,17 @@ Thin WPF shell over `Astronomy.Core` plus a TS SQLite access layer. NINA is .NET
 
 Reference sources already present locally (see memory for paths): full NINA codebase on `develop` at `E:\Projects\VisualStudio\Astronomy\NINA`, Target Scheduler clone at `E:\Projects\VisualStudio\Astronomy\TargetScheduler_Clone\nina.plugin.targetscheduler`. The dossier's delta pass against NINA 3.2.x `develop` is still current as of the Step 2 commit — plugin API shifts (Ninject → MS.DI, new `IMessageBroker`, `StartAdvancedSequence(skipValidation)`) are captured there.
 
-## Open decisions
+## Open code-quality items (CODE_REVIEW.md residual)
 
-### Astrometry math: hand-rolled vs external library?
+The 2026-04-21 whole-repo audit (archived at `docs/archive/CODE_REVIEW-2026-04-21.md`) flagged 14 P1 / 43 P2 / 18 P3 findings. ~75% closed by the work since: Phase 4 LC2 chart migration (deletes legacy `AltitudeChart` / `AltitudeSeries`, the bulk of the threading + null-safety + chart-rebuild findings); the SoC refactors (Phases 1-3 in TP — selection VM, cache store, render decoupling); the Library extraction with immutable `Target` / `Location` POCOs + `NightWindow.IsValid` + `AltAz` struct + `RiseSet.RiseSetState` enum; `CoordinateInput` helper for triple-bound RA/Dec/lat/lon; `Log.Error` plumbing through every former-bare catch site; `<GenerateDocumentationFile>true</GenerateDocumentationFile>`; `System.TimeZone` → `TimeZoneInfo` migration; typo sweep.
 
-`Support/Astrometry.cs` is currently author-written from white papers. Candidates for replacement, rough order of fit:
+Residual still-open items (verified 2026-05-04):
 
-- **Keep using `CoordinateSharp`** (already a dependency). It handles sun / moon events end-to-end. Question: does its API cover arbitrary RA/Dec → Alt/Az for stellar targets, or only the named solar-system bodies? A quick spike against its docs / source would settle this. If yes, the hand-rolled `GetAltitudeAzimuth` can go entirely.
-- **Astronomy Engine (CosineKitty)** — MIT, active, ~0.1 arcmin accuracy, clean API, NuGet available. Covers RA/Dec → Alt/Az, rise/set/transit, moon phase, planetary positions. Well-matched to amateur astrophotography needs without being overkill.
-- **AASharp** — C# port of Jean Meeus's "Astronomical Algorithms". Broader but chattier API.
-- **Keep hand-rolled, audited.** Lowest external risk; highest maintenance. After Step 1 we'll know if the math is actually solid.
+- **P2-2.5 — `Location.DateTime` defaults to `DateTime.Now` in the immutable POCO ctor** (`Astronomy.Core/Locations/Location.cs:189`). Nondeterministic for unit tests / library consumers. Either drop the default (require caller to supply) or use `DateTime.MinValue` as a sentinel and document the contract.
+- **P2-3.4 — `SettingsStore.Version` is written but never read.** No schema migration when `AppSettings` fields are added/removed in a future release. Read on `Load`, compare to current `Version`, apply transforms or reset to defaults.
+- **P2-9.5 — `BestSession.For` boundary semantics undocumented.** Transit-at-dusk-exactly is included in the visibility window; transit-at-dawn-exactly is excluded (per the survey). XML doc on `For` / `PlaceBest` / `ResolveCandidates` should call this out so consumers don't write off-by-one logic.
+- **P2-10.2 — Signed-degree convention is in CLAUDE.md but not at the API XML doc level.** `<GenerateDocumentationFile>` is on, but per-method `///` comments on `TargetGeometry.MeridianAltitude` / `HourAngleAtAltitude` / etc. don't restate the "caller resolves the hemisphere flag" expectation. A NINA plugin author reading IntelliSense cold won't see the convention.
+- **P2-5.3 — `IntegratedQuality.OverSession` doesn't document NaN behaviour.** If the caller's `altitudeQuality` lambda returns NaN/∞ on a boundary altitude, the integral silently corrupts. Add a `///` remarks note + optional `Debug.Assert`.
+- **🔄 P2-5.4 — INVERTED.** Original audit flagged `BestSession.For` for not throwing on `minDuration <= 0`. We deliberately reversed that (Library `6fce6b0`): non-positive duration now returns null (the user-reachable degenerate case), making consumers' "no fit" handling uniform. The audit finding is moot; documenting here so future spelunkers don't try to re-add the throw.
 
-Recommendation: spike CoordinateSharp first (we already depend on it). If it covers the case, we shrink our footprint. If not, pick Astronomy Engine.
-
-### TS SQLite access — where does it live?
-
-XisfManager already has a working layer for reading/mutating the TS SQLite database. Decide whether to:
-
-- Move it *into* `Astronomy.Core` (widens the library beyond pure astronomy — mild scope creep), or
-- Keep it in a separate `NINA.TS.Access` library the plugin and XisfManager both reference.
-
-Second option feels cleaner; the first is tempting only if the coupling between astronomy and TS data is tight enough to warrant it.
-
-## Current state of the code (post commit `24bb4e7`)
-
-Step 1 (correctness audit) fixes already in:
-
-- Julian Day offset corrected (`+ 2415018.0` → `+ 2415018.5`).
-- GMST replaced with the USNO one-liner (fixes the incomplete single-subtract mod).
-- Latitude sign flip applied in `Astrometry.Location(...)` (was longitude-only).
-- Polar `null` safety on astronomical dawn/dusk.
-- RA standardised on hours `[0, 24)` project-wide; Target / UI / Parser / Astrometry all agree.
-- Latitude / longitude setters coerce only on negative input, so unsigned UI magnitudes don't clobber the hemisphere checkbox.
-- `AltAz2RaDec`, `AngularDistance`, and the unused `JulianDay` helper deleted (all broken or dead).
-
-Chart behaviour landed since:
-
-- Year and Optimal series merged into a single pass, then refactored to a fully analytic (non-minute-scan) transit-math implementation (`f07e608`).
-- `OptimalFloor` and `OptimalFloorCentered` curves added alongside the peak-altitude `Optimal` (best-placement floor + strict transit-centered floor).
-- Cache-backed rebuild (`mYearCache`) makes Horizon/Duration spinner scrubbing effectively instant (`0cc9b57`).
-- Per-target AltitudeSeries ownership moved from `Target.mAltitudeSeries` to `Dictionary<Target, AltitudeSeries>` on `AltitudeChart` (`df7731e`), which fixed the multi-target race and was later reinforced by Step 2's extraction.
-- `mTargetSeries` instance field eliminated in favour of a `MakeSeries(...)` factory; each build method uses a local `Series`.
-- "Now" red vertical line on Day / Year / Optimal, updating on the 5 s timer (timer is now enabled at launch based on `CheckBox_HoldTime`).
-
-Step 2 landed Astronomy.Core with the 10-primitive library surface — see the Step 2 section above.
-
-Known open (heading into Step 3):
-
-- RA text-box range check consistency (spinner path doesn't enforce `[0, 24)`).
-- Dusk/dawn hour-rounding duplication between `BuildDaySeries` and `BuildMoonSeries`.
-- Chart code duplicates Core's `Session.BestSession.For` math inline in `BuildOptimalSeries` — migrate or annotate.
-- `Location` / `Target` still settable properties on `AltitudeSeries` (shared-mutable-state smell).
-- `Support/Astrometry.cs` still named `Astrometry` despite being UI-state-only after Step 2; consider renaming to `AstrometryUi`.
-- WinForms control `CheckedListBox_SelectedSgpTargets` retains the "Sgp" prefix despite the NINA target loader swap (`ccab2c0`); cosmetic rename due.
+Each item is small. None are crash-class. P2-2.5 + P2-3.4 are the most user-visible; the rest are documentation polish on Library public surface.
