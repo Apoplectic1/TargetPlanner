@@ -90,6 +90,7 @@ namespace TargetPlanner
         // inside Panel_AltitudeChart; ShowOnlyAltitudeChart flips Visible so only
         // the active chart paints.
         private Charts.AltitudeSubChart_Day mLC2Day;
+        private Charts.AltitudeSubChart_Sky mLC2Sky;
 
         private ToolTip mToolTip;
         private int mToolTipIndex;
@@ -329,6 +330,7 @@ Right-click anywhere on the chart to clear all overlays.";
             mSessionsRadioTooltip?.Dispose();
             mAltitudeChart?.Dispose();
             mLC2Day?.Dispose();
+            mLC2Sky?.Dispose();
             mLatitudeInput?.Dispose();
             mLongitudeInput?.Dispose();
             mRaInput?.Dispose();
@@ -435,17 +437,24 @@ Right-click anywhere on the chart to clear all overlays.";
 
             Panel_AltitudeChart.Controls.Add(mAltitudeChart.mChart);
 
-            // PR4a: LC2 Day sub-chart sits sibling to the legacy chart in the same
+            // PR4a..d: LC2 sub-charts sit sibling to the legacy chart in the same
             // Panel. Both Dock.Fill; ShowOnlyAltitudeChart flips Visible so only one
-            // paints at a time. Day radio + Day-area Graph clicks route to LC2;
-            // Year / Sky / Sessions radios still route to the legacy MS Charts.
+            // paints at a time. Each radio routes to its LC2 sub-chart if instantiated,
+            // else falls back to the legacy MS Charts area.
             mLC2Day = new Charts.AltitudeSubChart_Day();
             mLC2Day.Control.Visible = false;
             mLC2Day.IdealHeightChanged += OnLC2DayIdealHeightChanged;
             Panel_AltitudeChart.Controls.Add(mLC2Day.Control);
 
-            // Initial form sizing so the empty Day chart's plot area is at the
+            mLC2Sky = new Charts.AltitudeSubChart_Sky();
+            mLC2Sky.Control.Visible = false;
+            mLC2Sky.IdealHeightChanged += OnLC2SkyIdealHeightChanged;
+            Panel_AltitudeChart.Controls.Add(mLC2Sky.Control);
+
+            // Initial form sizing so an empty LC2 chart's plot area sits at the
             // ChartLayout.FixedPlotAreaHeight position even before any Graph click.
+            // Day's IdealHeight matches Sky's at boot (same ChartFixedHeight + empty
+            // legend), so seeding from either is equivalent.
             ResizeAltitudeChartArea(mLC2Day.IdealHeight);
 
             // Establish a default sort mode authoritatively from code. The VS Designer has a
@@ -660,6 +669,14 @@ Right-click anywhere on the chart to clear all overlays.";
             mLC2Day?.RefreshDayWindowsAndVisibility(
                 mCache, mAltitudeChart.MoonAvoidanceProfile, mLocation,
                 mLocation.Horizon, mLocation.Duration);
+            // PR4b: LC2 Sky -- push the latest filter wavelength then re-walk the
+            // existing minute grid through K-S with the new Bortle / ExtinctionK
+            // values. Cheap path; doesn't rebuild night bounds or series identity.
+            if (mLC2Sky != null)
+            {
+                mLC2Sky.ActiveFilterCenterNm = mAltitudeChart.ActiveFilterCenterNm;
+                mLC2Sky.RefreshSkyBrightness(mCache, mLocation);
+            }
         }
 
         // Compare the two locations on the fields that key the chart cache: Lat / Lon /
@@ -1092,8 +1109,9 @@ Right-click anywhere on the chart to clear all overlays.";
             // sky-brightness minute-loop scales extinction k via Rayleigh λ⁻⁴ at the
             // band. Setter propagates to every AltitudeSeries; Sky rebuild fires
             // via the existing SessionsRebuildDebounce tick (extended to also call
-            // RebuildSkyData).
+            // RebuildSkyData / mLC2Sky.RefreshSkyBrightness).
             mAltitudeChart.ActiveFilterCenterNm = filter.CenterNm;
+            if (mLC2Sky != null) mLC2Sky.ActiveFilterCenterNm = filter.CenterNm;
             RestartSessionsRebuildDebounce();
         }
 
@@ -1314,6 +1332,7 @@ Right-click anywhere on the chart to clear all overlays.";
             UpdateLocalDateTimeEvents();
             if (mAltitudeChart != null) mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
             mLC2Day?.UpdateNowLine(mLocalDateTime.When);
+            mLC2Sky?.UpdateNowLine(mLocalDateTime.When);
             // Transit / Rise sort keys are time-dependent; Name is not. Skip the re-sort on
             // Name to avoid a pointless Items.Clear+re-add round-trip on every scrub tick.
             if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
@@ -1326,6 +1345,7 @@ Right-click anywhere on the chart to clear all overlays.";
             UpdateLocalDateTimeEvents();
             if (mAltitudeChart != null) mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
             mLC2Day?.UpdateNowLine(mLocalDateTime.When);
+            mLC2Sky?.UpdateNowLine(mLocalDateTime.When);
             if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
                 ResortSelectedTargets();
         }
@@ -1434,6 +1454,16 @@ Right-click anywhere on the chart to clear all overlays.";
                         mLocalDateTime.When, mGraphCts.Token);
                     mAltitudeChart.ChartTitle = FormatChartTitle(area);
                 }
+                else if (area == "Sky" && mLC2Sky != null)
+                {
+                    ShowOnlyAltitudeChart(mLC2Sky.Control);
+                    mLC2Sky.ActiveFilterCenterNm = mAltitudeChart.ActiveFilterCenterNm;
+                    mLC2Sky.Render(targets, mCache, mAltitudeChart.MoonAvoidanceProfile,
+                        mLocation, mLocation.Horizon, mLocation.Duration,
+                        mLocalDateTime.When, mGraphCts.Token);
+                    ResizeAltitudeChartArea(mLC2Sky.IdealHeight);
+                    mAltitudeChart.ChartTitle = FormatChartTitle(area);
+                }
                 else
                 {
                     ShowOnlyAltitudeChart(mAltitudeChart.mChart);
@@ -1473,6 +1503,7 @@ Right-click anywhere on the chart to clear all overlays.";
                 mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
             }
             mLC2Day?.UpdateNowLine(mLocalDateTime.When);
+            mLC2Sky?.UpdateNowLine(mLocalDateTime.When);
         }
 
         // Signal the in-flight chart build to unwind. The Day / Moon phase is synchronous
@@ -2033,9 +2064,25 @@ Right-click anywhere on the chart to clear all overlays.";
             mUIState.SkyChart = RadioButton_Sky.Checked;
             if (RadioButton_Sky.Checked == true)
             {
-                ShowOnlyAltitudeChart(mAltitudeChart.mChart);
-                mAltitudeChart.ShowChartAreaSeries("Sky");
-                mAltitudeChart.ChartTitle = FormatChartTitle("Sky");
+                if (mLC2Sky != null)
+                {
+                    ShowOnlyAltitudeChart(mLC2Sky.Control);
+                    if (mAltitudeChart.Targets.Count > 0)
+                    {
+                        mLC2Sky.ActiveFilterCenterNm = mAltitudeChart.ActiveFilterCenterNm;
+                        mLC2Sky.Render(mAltitudeChart.Targets, mCache,
+                            mAltitudeChart.MoonAvoidanceProfile, mLocation,
+                            mLocation.Horizon, mLocation.Duration, mLocalDateTime.When);
+                    }
+                    ResizeAltitudeChartArea(mLC2Sky.IdealHeight);
+                    mAltitudeChart.ChartTitle = FormatChartTitle("Sky");
+                }
+                else
+                {
+                    ShowOnlyAltitudeChart(mAltitudeChart.mChart);
+                    mAltitudeChart.ShowChartAreaSeries("Sky");
+                    mAltitudeChart.ChartTitle = FormatChartTitle("Sky");
+                }
             }
         }
 
@@ -2052,15 +2099,19 @@ Right-click anywhere on the chart to clear all overlays.";
             }
         }
 
-        // PR4a: keep the chart's plot area at a fixed pixel height. As legend rows
-        // wrap, AltitudeSubChart_Day raises its IdealHeight; this handler grows the
-        // Panel / GroupBox / Form by the delta so the plot area stays put. Sky /
-        // Year / Sessions sub-charts (PR4b..d) will subscribe similarly with the
-        // same template values.
+        // PR4a..d: keep the chart's plot area at a fixed pixel height. As legend rows
+        // wrap, the active LC2 sub-chart raises its IdealHeight; the matching handler
+        // grows the Panel / GroupBox / Form by the delta so the plot area stays put.
         private void OnLC2DayIdealHeightChanged(object sender, EventArgs e)
         {
             if (mLC2Day == null) return;
             ResizeAltitudeChartArea(mLC2Day.IdealHeight);
+        }
+
+        private void OnLC2SkyIdealHeightChanged(object sender, EventArgs e)
+        {
+            if (mLC2Sky == null) return;
+            ResizeAltitudeChartArea(mLC2Sky.IdealHeight);
         }
 
         // Resize Panel_AltitudeChart, GroupBox_Altitude, and the form's ClientSize
