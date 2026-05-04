@@ -13,19 +13,12 @@ using LvcPointD = LiveChartsCore.Drawing.LvcPointD;
 namespace TargetPlanner.Charts
 {
     // Single-tooltip hover controller. Subscribes to the chart's MouseMove
-    // + MouseLeave + a Timer; on tick, dispatches based on cursor data Y:
-    //
-    //  * Y in [0, 90] (plot area): finds the closest visible target curve
-    //    via CurveHitTester and shows a tooltip whose text is built by the
-    //    caller-supplied CurveTooltipFormatter (or a default smooth-curve
-    //    interpolated formatter if null). Per-DataPoint snap formatters
-    //    use segmentStart + cursor X to snap to the nearer endpoint and
-    //    read data[snapped].Y directly.
-    //  * Y < 0 (legend strip below the plot): uses LegendHitTester to find
-    //    the legend item under the cursor, shows a tooltip with whatever
-    //    text the caller-supplied legendTooltipFormatter returns.
-    //
-    // Both modes share a single WinForms ToolTip + Timer.
+    // + MouseLeave + a Timer; on tick, hit-tests the cursor against every
+    // visible target curve via CurveHitTester and shows a tooltip whose
+    // text is built by the caller-supplied CurveTooltipFormatter (or a
+    // default smooth-curve interpolated formatter if null). Per-DataPoint
+    // snap formatters use segmentStart + cursor X to snap to the nearer
+    // endpoint and read data[snapped].Y directly.
     public class HoverTooltipController : IDisposable
     {
         public const double MaxHoverDistanceDeg = 1.5;
@@ -41,28 +34,23 @@ namespace TargetPlanner.Charts
 
         private readonly CartesianChart mChart;
         private readonly Func<IEnumerable<LineSeries<ObservablePoint>>> mTargets;
-        private readonly Func<ISeries, string> mLegendTooltipFormatter;
         private readonly CurveTooltipFormatter mCurveTooltipFormatter;
         private readonly System.Windows.Forms.ToolTip mTooltip = new System.Windows.Forms.ToolTip();
         private readonly System.Windows.Forms.Timer mTimer;
         private Point mLastMouseLoc;
 
-        // Tracks which "thing" the tooltip is currently showing for, so the
-        // tick can decide whether to update or hide. Either a curve series
-        // (plot-area hover) or a legend item index (legend hover) — never
-        // both. null means tooltip is hidden.
-        private object mShownTarget;
+        // Tracks which curve series the tooltip is currently showing for, so
+        // the tick can decide whether to update or hide. null means hidden.
+        private LineSeries<ObservablePoint> mShownSeries;
 
         public HoverTooltipController(
             CartesianChart chart,
             Func<IEnumerable<LineSeries<ObservablePoint>>> targets,
-            Func<ISeries, string> legendTooltipFormatter = null,
             CurveTooltipFormatter curveTooltipFormatter = null,
             int debounceMs = 300)
         {
             mChart = chart;
             mTargets = targets;
-            mLegendTooltipFormatter = legendTooltipFormatter;
             mCurveTooltipFormatter = curveTooltipFormatter;
             // Smooth-curve interpolated tooltips look jittery if updated too
             // frequently as the cursor moves along a curve, so 300 ms is a
@@ -107,22 +95,7 @@ namespace TargetPlanner.Charts
         private void OnTimerTick(object sender, EventArgs e)
         {
             mTimer.Stop();
-
             var hover = mChart.ScalePixelsToData(new LvcPointD(mLastMouseLoc.X, mLastMouseLoc.Y));
-
-            // Below the plot area: legend strip.
-            if (hover.Y < 0)
-            {
-                ShowOrHideLegendTooltip();
-                return;
-            }
-            // Above the plot area: title / no interactive content.
-            if (hover.Y > 90)
-            {
-                HideTooltip();
-                return;
-            }
-            // Inside the plot area: curve hit-test.
             ShowOrHideCurveTooltip(hover.X, hover.Y);
         }
 
@@ -161,7 +134,7 @@ namespace TargetPlanner.Charts
                 : DefaultInterpolatedTooltip(best, hoverX, bestInterpY);
 
             mTooltip.Show(text, mChart, mLastMouseLoc.X + 14, mLastMouseLoc.Y + 14, 4000);
-            mShownTarget = best;
+            mShownSeries = best;
         }
 
         private static string DefaultInterpolatedTooltip(
@@ -171,35 +144,12 @@ namespace TargetPlanner.Charts
             return $"{series.Name}\n{time}\nAltitude: {interpY:F1}°";
         }
 
-        private void ShowOrHideLegendTooltip()
-        {
-            if (mLegendTooltipFormatter is null)
-            {
-                HideTooltip();
-                return;
-            }
-            var hit = LegendHitTester.At(mChart, mLastMouseLoc.X);
-            if (hit is null)
-            {
-                HideTooltip();
-                return;
-            }
-            var text = mLegendTooltipFormatter(hit.Value.Series);
-            if (string.IsNullOrEmpty(text))
-            {
-                HideTooltip();
-                return;
-            }
-            mTooltip.Show(text, mChart, mLastMouseLoc.X + 14, mLastMouseLoc.Y + 14, 4000);
-            mShownTarget = hit.Value.Index;
-        }
-
         private void HideTooltip()
         {
-            if (mShownTarget != null)
+            if (mShownSeries != null)
             {
                 mTooltip.Hide(mChart);
-                mShownTarget = null;
+                mShownSeries = null;
             }
         }
     }

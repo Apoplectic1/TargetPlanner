@@ -1,3 +1,4 @@
+using System;
 using System.Drawing;
 using SkiaSharp;
 
@@ -81,5 +82,27 @@ namespace TargetPlanner.Charts
             Color.FromArgb(255, 150, 200),  // pink
             Color.FromArgb(150, 220, 150),  // sage
         };
+
+        // Night-grid bounds for the single-night charts (Day, Sky). Both pad
+        // outward from dusk/dawn to the nearest enclosing integer hour so dusk
+        // and dawn never coincide with an X-axis edge label.
+        //
+        // Start = the integer hour mark strictly before duskLocal.
+        // Stop  = the integer hour mark strictly past dawnLocal.
+        // If dusk/dawn lands exactly on an hour the bound steps one full hour
+        // outward.
+        public static DateTime DayChartStart(DateTime duskLocal)
+        {
+            DateTime start = duskLocal.Date.AddHours(duskLocal.Hour);
+            if (start >= duskLocal) start = start.AddHours(-1);
+            return start;
+        }
+
+        public static DateTime DayChartStop(DateTime dawnLocal)
+        {
+            DateTime stop = dawnLocal.Date.AddHours(dawnLocal.Hour);
+            if (stop <= dawnLocal) stop = stop.AddHours(1);
+            return stop;
+        }
     }
 }

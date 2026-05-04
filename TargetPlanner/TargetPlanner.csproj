@@ -42,13 +42,11 @@
     <PackageReference Include="Velopack" Version="0.0.1298" />
   </ItemGroup>
 
-  <!-- Non-NuGet references. LocalLib is a private sibling assembly; DataVisualization is a
-       .NET Framework GAC assembly not rolled into UseWindowsForms. -->
+  <!-- Non-NuGet references. LocalLib is a private sibling assembly. -->
   <ItemGroup>
     <Reference Include="LocalLib">
       <HintPath>..\..\..\Libraries\LocalLib\LocalLib\bin\Release\LocalLib.dll</HintPath>
     </Reference>
-    <Reference Include="System.Windows.Forms.DataVisualization" />
   </ItemGroup>
 
   <ItemGroup>

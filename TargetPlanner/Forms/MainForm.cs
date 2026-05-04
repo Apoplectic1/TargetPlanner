@@ -39,7 +39,24 @@ namespace TargetPlanner
 
         private const string NinaTargetsRootPath = @"E:\Photography\Astro Photography\Captures\Nina\Targets";
 
-        private Charts.AltitudeChart mAltitudeChart;
+        // Active chart-area state (post-PR4e: legacy AltitudeChart deleted; this state
+        // used to live on it). MainForm owns:
+        //   - mSubCharts: keyed by area ("Day"/"Sky"/"Year"/"Sessions"), each value
+        //     implements IAltitudeSubChart so picker/spinner/debounce/Graph-click
+        //     traffic dispatches via foreach + dict lookup instead of explicit fields.
+        //   - mLC2Sky: typed reference for the Sky-specific quirks not in the
+        //     interface (ActiveFilterCenterNm setter + RefreshSkyBrightness).
+        //   - mLastRenderedTargets: snapshot of the most recent Graph-click target
+        //     list. Sort callbacks read this for the Reorder fast path; radio
+        //     handlers read it to re-Render when toggling between areas.
+        //   - mMoonAvoidanceProfile / mActiveFilterCenterNm: state pushed into each
+        //     sub-chart's Render / RefreshVisibility call. Set by SetActiveFilter
+        //     and the Lorentzian / avoidance-checkbox handlers.
+        private System.Collections.Generic.Dictionary<string, Charts.IAltitudeSubChart> mSubCharts;
+        private System.Collections.Generic.List<Astronomy.Core.Targets.Target> mLastRenderedTargets =
+            new System.Collections.Generic.List<Astronomy.Core.Targets.Target>();
+        private Astronomy.Core.Moon.MoonAvoidanceProfile mMoonAvoidanceProfile;
+        private double mActiveFilterCenterNm = 550.0;
 
         // Phase 3 of the SoC refactor: ChartCacheStore owns the per-(Location, Target)
         // year cache + per-Location NightCache. After GetNinaTargets completes we kick
@@ -85,14 +102,10 @@ namespace TargetPlanner
         private List<RadioButton> mFilterRadios;
         private Button mFilterDefaultsButton;
 
-        // Phase 4 LC2 sub-charts. One per chart area; populated incrementally as
-        // each PR4a..d ports its area to LiveCharts2. Lives sibling to mAltitudeChart
-        // inside Panel_AltitudeChart; ShowOnlyAltitudeChart flips Visible so only
-        // the active chart paints.
-        private Charts.AltitudeSubChart_Day mLC2Day;
+        // Sky needs a typed reference for K-S/filter-specific calls that aren't on
+        // IAltitudeSubChart: ActiveFilterCenterNm property (Rayleigh λ⁻⁴ scaling) and
+        // RefreshSkyBrightness(cache, location) (Bortle / ExtinctionK / Filter scrub).
         private Charts.AltitudeSubChart_Sky mLC2Sky;
-        private Charts.AltitudeSubChart_Year mLC2Year;
-        private Charts.AltitudeSubChart_Sessions mLC2Sessions;
 
         private ToolTip mToolTip;
         private int mToolTipIndex;
@@ -278,8 +291,9 @@ Right-click anywhere on the chart to clear all overlays.";
             // Filters menu: load the per-filter library (or ship-defaults on first launch)
             // and build a mutually-exclusive radio group of menu items. Disabled is the
             // first-launch default; a click on any preset writes its values into
-            // mAltitudeChart.MoonAvoidanceProfile and triggers a RebuildSessionsData so the
-            // Day chart's HD Overlay reflects the new avoidance regime immediately.
+            // mMoonAvoidanceProfile and triggers RestartSessionsRebuildDebounce so the
+            // universal hide-on-no-fit refresh propagates the new avoidance regime
+            // to every sub-chart.
             BuildFiltersMenu();
 
             // BuildFiltersMenu's preselect-first-filter call already wrote starting
@@ -330,11 +344,10 @@ Right-click anywhere on the chart to clear all overlays.";
             // a native handle.
             mToolTip?.Dispose();
             mSessionsRadioTooltip?.Dispose();
-            mAltitudeChart?.Dispose();
-            mLC2Day?.Dispose();
-            mLC2Sky?.Dispose();
-            mLC2Year?.Dispose();
-            mLC2Sessions?.Dispose();
+            if (mSubCharts != null)
+            {
+                foreach (var sc in mSubCharts.Values) sc.Dispose();
+            }
             mLatitudeInput?.Dispose();
             mLongitudeInput?.Dispose();
             mRaInput?.Dispose();
@@ -424,60 +437,32 @@ Right-click anywhere on the chart to clear all overlays.";
             // Phase 3: instantiate the cache store first; the chart takes a reference so
             // every AltitudeSeries it spawns reads from the shared store.
             mCache = new TargetPlanner.Caches.ChartCacheStore(mLocation, SynchronizationContext.Current);
-            mAltitudeChart = new Charts.AltitudeChart(mLocation, mCache);
-            mAltitudeChart.mChart.Dock = DockStyle.Fill;
-            mAltitudeChart.mChart.BackColor = Color.FromArgb(255, 239, 235, 233);
 
-            mAltitudeChart.AddChartAreaToList("Day");
-            mAltitudeChart.AddChartAreaToList("Year");
-            mAltitudeChart.AddChartAreaToList("Sessions");
-            mAltitudeChart.AddChartAreaToList("Sky");
-
-            // Phase 1: no startup chart. The chart control / chart areas / legend are
-            // wired up here so the empty chart panel renders cleanly, but no targets
-            // are added and no series are built. The user clicks Button_Graph to
-            // populate the chart; Button_Graph_Click owns the full ReloadWithTargets
-            // path (including UpdateHorizonLines + UpdateNowLine) for the populated
-            // chart. RegisterChartAreas eagerly registers all three chart areas with
-            // mChart.ChartAreas (each Visible = false until ShowChartAreaSeries flips
-            // one) so ReloadWithTargets' early UpdateHorizonLines call can index the
-            // chart areas before any series exist.
-            mAltitudeChart.RegisterChartAreas();
-            mAltitudeChart.UIState(mUIState);
-            mAltitudeChart.AddLegend();
-            mAltitudeChart.Legend = true;
-
-            Panel_AltitudeChart.Controls.Add(mAltitudeChart.mChart);
-
-            // PR4a..d: LC2 sub-charts sit sibling to the legacy chart in the same
-            // Panel. Both Dock.Fill; ShowOnlyAltitudeChart flips Visible so only one
-            // paints at a time. Each radio routes to its LC2 sub-chart if instantiated,
-            // else falls back to the legacy MS Charts area.
-            mLC2Day = new Charts.AltitudeSubChart_Day();
-            mLC2Day.Control.Visible = false;
-            mLC2Day.IdealHeightChanged += OnLC2DayIdealHeightChanged;
-            Panel_AltitudeChart.Controls.Add(mLC2Day.Control);
-
+            // Phase 4 LC2 sub-charts. Indexed by area name so MainForm dispatches
+            // picker / spinner / debounce / Graph-click traffic via foreach + dict
+            // lookup. Sky also keeps a typed reference (mLC2Sky) for K-S quirks
+            // (ActiveFilterCenterNm property + RefreshSkyBrightness) that aren't
+            // on the IAltitudeSubChart interface.
             mLC2Sky = new Charts.AltitudeSubChart_Sky();
-            mLC2Sky.Control.Visible = false;
-            mLC2Sky.IdealHeightChanged += OnLC2SkyIdealHeightChanged;
-            Panel_AltitudeChart.Controls.Add(mLC2Sky.Control);
-
-            mLC2Year = new Charts.AltitudeSubChart_Year();
-            mLC2Year.Control.Visible = false;
-            mLC2Year.IdealHeightChanged += OnLC2YearIdealHeightChanged;
-            Panel_AltitudeChart.Controls.Add(mLC2Year.Control);
-
-            mLC2Sessions = new Charts.AltitudeSubChart_Sessions();
-            mLC2Sessions.Control.Visible = false;
-            mLC2Sessions.IdealHeightChanged += OnLC2SessionsIdealHeightChanged;
-            Panel_AltitudeChart.Controls.Add(mLC2Sessions.Control);
+            mSubCharts = new System.Collections.Generic.Dictionary<string, Charts.IAltitudeSubChart>(System.StringComparer.Ordinal)
+            {
+                ["Day"]      = new Charts.AltitudeSubChart_Day(),
+                ["Sky"]      = mLC2Sky,
+                ["Year"]     = new Charts.AltitudeSubChart_Year(),
+                ["Sessions"] = new Charts.AltitudeSubChart_Sessions(),
+            };
+            foreach (var sc in mSubCharts.Values)
+            {
+                sc.Control.Visible = false;
+                sc.IdealHeightChanged += OnSubChartIdealHeightChanged;
+                Panel_AltitudeChart.Controls.Add(sc.Control);
+            }
 
             // Initial form sizing so an empty LC2 chart's plot area sits at the
             // ChartLayout.FixedPlotAreaHeight position even before any Graph click.
-            // All LC2 sub-charts share the same ChartFixedHeight + empty legend
-            // at boot, so seeding from any of them is equivalent.
-            ResizeAltitudeChartArea(mLC2Day.IdealHeight);
+            // All sub-charts share the same ChartFixedHeight + empty legend at boot,
+            // so seeding from any of them is equivalent.
+            ResizeAltitudeChartArea(mSubCharts["Day"].IdealHeight);
 
             // Establish a default sort mode authoritatively from code. The VS Designer has a
             // recurring habit of silently dropping ComboBox_SortTargets.SelectedIndex = 0 from
@@ -496,7 +481,7 @@ Right-click anywhere on the chart to clear all overlays.";
             // Fire-and-forget; GetNinaTargets owns its own try/catch for diagnostics.
             _ = GetNinaTargets(folderSelectedPaths);
 
-            // Wire VM bindings after the CoordinateInput helpers and mAltitudeChart exist.
+            // Wire VM bindings after the CoordinateInput helpers and the sub-chart dict exist.
             // The ComboBox starts blank; OnVmKnownTargetsChanged populates it after NINA
             // load completes (~100 ms) and auto-selects the first sorted target.
             WireSelectionVm();
@@ -629,9 +614,10 @@ Right-click anywhere on the chart to clear all overlays.";
         {
             TimeSpan newDuration = TimeSpan.FromMinutes((double)NumericUpDown_TargetDuration.Value * 60.0);
             mLocation = mLocation.With(duration: newDuration);
-            if (mAltitudeChart == null) return;
-            // RebuildSessionsData iterates every target's RebuildSessionsSeries; on large
-            // target sets that adds up quickly during live scrubbing. Debounce.
+            if (mSubCharts == null) return;
+            // RefreshVisibility iterates every target -- on large target sets the
+            // moon-aware path that's heavy on the bg task on Year / Sessions adds
+            // up quickly during live scrubbing. Debounce.
             RestartSessionsRebuildDebounce();
         }
 
@@ -639,14 +625,11 @@ Right-click anywhere on the chart to clear all overlays.";
         {
             double newHorizon = (double)NumericUpDown_TargetFloor.Value;
             mLocation = mLocation.With(horizon: newHorizon);
-            if (mAltitudeChart == null) return;
-            // Horizon-line repositioning stays immediate -- it's one strip line per chart
-            // area and the user wants instant feedback as they scrub. The per-target
-            // Sessions recompute is what's expensive; debounce that.
-            mAltitudeChart.UpdateHorizonLines(newHorizon);
-            mLC2Day?.UpdateHorizonLine(newHorizon);
-            mLC2Year?.UpdateHorizonLine(newHorizon);
-            mLC2Sessions?.UpdateHorizonLine(newHorizon);
+            if (mSubCharts == null) return;
+            // Horizon-line repositioning stays immediate -- it's one strip per chart
+            // and the user wants instant feedback as they scrub. The per-target
+            // visibility recompute is what's expensive; debounce that.
+            foreach (var sc in mSubCharts.Values) sc.UpdateHorizonLine(newHorizon);
             RestartSessionsRebuildDebounce();
         }
 
@@ -669,9 +652,8 @@ Right-click anywhere on the chart to clear all overlays.";
         // 1. Cache invalidation -- if the location-keying fields drifted from what the cache
         //    is built against, fire SetLocationAsync. Coalescing here avoids 3 invalidations
         //    per Lat-D/M/S-spinner scrub. Cache rebuild itself is lazy (next Graph click).
-        // 2. Chart rebuild -- always call RebuildSessionsData, which walks the (possibly
-        //    just-cleared) cache and updates Sessions series. Cleared cache short-circuits
-        //    each AltitudeSeries.RenderSessionsSeries to a no-op without errors.
+        // 2. Universal hide-on-no-fit refresh on every sub-chart, plus the Sky-
+        //    specific K-S brightness re-walk for Bortle / ExtinctionK / Filter scrubs.
         private void SessionsRebuildDebounce_Tick(object sender, EventArgs e)
         {
             mSessionsRebuildDebounce.Stop();
@@ -681,48 +663,25 @@ Right-click anywhere on the chart to clear all overlays.";
                 _ = mCache.SetLocationAsync(mLocation);
             }
 
-            if (mAltitudeChart == null) return;
-            mAltitudeChart.RebuildSessionsData(mLocation.Horizon, mLocation.Duration);
-            // Bortle / Extinction / ActiveFilter changes feed the K-S sky-brightness
-            // minute-loop; rebuild the per-target Sky curves alongside the Sessions
-            // tick so a single 150 ms debounce coalesces both refreshes.
-            mAltitudeChart.RebuildSkyData();
-            // PR4a: LC2 Day curves don't change shape on Horizon / Duration / Moon
-            // scrub but their visibility does (hide-on-no-fit) and any active HD
-            // overlay rectangle needs to track the new best D-hour window.
-            mLC2Day?.RefreshDayWindowsAndVisibility(
-                mCache, mAltitudeChart.MoonAvoidanceProfile, mLocation,
-                mLocation.Horizon, mLocation.Duration);
-            // PR4b: LC2 Sky -- push the latest filter wavelength then re-walk the
-            // existing minute grid through K-S with the new Bortle / ExtinctionK
-            // values. Cheap path; doesn't rebuild night bounds or series identity.
-            // RefreshSkyVisibility runs the same BestSession.For probe Day uses
-            // so unfit targets hide on Sky in lockstep with Day (legacy paired
-            // -Day and -Sky in one Color toggle for the same reason).
-            if (mLC2Sky != null)
+            if (mSubCharts == null) return;
+            // Universal hide-on-no-fit pass (CLAUDE.md "Universal chart behavior
+            // contract"): each sub-chart re-runs BestSession.For per relevant unit
+            // (per target tonight for Day / Sky; per (target, night) on a bg task
+            // for Year / Sessions) and toggles visibility / line breaks as needed.
+            foreach (var sc in mSubCharts.Values)
             {
-                mLC2Sky.ActiveFilterCenterNm = mAltitudeChart.ActiveFilterCenterNm;
-                mLC2Sky.RefreshSkyBrightness(mCache, mLocation);
-                mLC2Sky.RefreshSkyVisibility(
-                    mCache, mAltitudeChart.MoonAvoidanceProfile, mLocation,
+                sc.RefreshVisibility(mCache, mMoonAvoidanceProfile, mLocation,
                     mLocation.Horizon, mLocation.Duration);
             }
-            // PR4c: LC2 Year -- per-night line breaks on H/D/M scrubs. Runs the
-            // BestSession.For fit probe per (target, night) on a background
-            // thread; UI thread updates the affected ObservablePoint Y values
-            // when the task completes (replaces any in-flight task on rapid
-            // scrub via the chart's internal CTS).
-            mLC2Year?.RefreshYearVisibility(
-                mAltitudeChart.MoonAvoidanceProfile, mLocation,
-                mLocation.Horizon, mLocation.Duration);
-            // PR4d: LC2 Sessions -- per-night Ceiling / Floor / Symmetric
-            // altitudes (or null Y line breaks for unfit nights) under the
-            // current Horizon / Duration / Moon profile. Same background-task
-            // pattern as Year but with the heavier ResolveCandidates +
-            // PlaceBest + PlaceCentered probe per (target, night).
-            mLC2Sessions?.RefreshSessionsVisibility(
-                mAltitudeChart.MoonAvoidanceProfile, mLocation,
-                mLocation.Horizon, mLocation.Duration);
+            // Sky-specific: Bortle / ExtinctionK / ActiveFilter changes feed the
+            // K-S brightness minute loop. Re-walk the existing minute grid through
+            // K-S with the new inputs (no series identity churn). RefreshVisibility
+            // above already re-ran the visibility probe for Sky.
+            if (mLC2Sky != null)
+            {
+                mLC2Sky.ActiveFilterCenterNm = mActiveFilterCenterNm;
+                mLC2Sky.RefreshSkyBrightness(mCache, mLocation);
+            }
         }
 
         // Compare the two locations on the fields that key the chart cache: Lat / Lon /
@@ -826,19 +785,14 @@ Right-click anywhere on the chart to clear all overlays.";
                 MoonAvoidanceProfile firstProfile = firstFilter.ToProfile();
                 WriteProfileToControls(firstProfile);
                 mActiveFilter = firstFilter;
-                if (mAltitudeChart != null)
-                {
-                    mAltitudeChart.MoonAvoidanceProfile = avoidanceOn ? firstProfile : null;
-                }
+                mMoonAvoidanceProfile = avoidanceOn ? firstProfile : null;
+                mActiveFilterCenterNm = firstFilter.CenterNm;
             }
             else
             {
                 // Empty library: nothing checked, no profile.
                 mActiveFilter = null;
-                if (mAltitudeChart != null)
-                {
-                    mAltitudeChart.MoonAvoidanceProfile = null;
-                }
+                mMoonAvoidanceProfile = null;
             }
             SetLorentzianControlsEnabled(avoidanceOn);
 
@@ -1059,14 +1013,17 @@ Right-click anywhere on the chart to clear all overlays.";
             BuildFiltersMenu();
             RefreshActiveFilterAfterDialogSave(priorActiveName);
 
-            // Trigger the chart redraw explicitly. BuildFiltersMenu deliberately skips
-            // RebuildSessionsData (the construction-time caller can't safely run it --
-            // see the comment block in BuildFiltersMenu); by the time
-            // OpenEditFiltersDialog runs, year caches are populated and the call is
-            // cheap.
-            if (mAltitudeChart != null)
+            // Trigger the visibility refresh explicitly. BuildFiltersMenu deliberately
+            // skips this (the construction-time caller can't safely run it -- see the
+            // comment block in BuildFiltersMenu); by the time OpenEditFiltersDialog runs,
+            // year caches are populated and the call is cheap.
+            if (mSubCharts != null)
             {
-                mAltitudeChart.RebuildSessionsData(mLocation.Horizon, mLocation.Duration);
+                foreach (var sc in mSubCharts.Values)
+                {
+                    sc.RefreshVisibility(mCache, mMoonAvoidanceProfile, mLocation,
+                        mLocation.Horizon, mLocation.Duration);
+                }
             }
         }
 
@@ -1149,14 +1106,12 @@ Right-click anywhere on the chart to clear all overlays.";
                             && CheckBox_Moon_AvoidanceEnable.Checked;
             SetLorentzianControlsEnabled(avoidanceOn);
 
-            if (mAltitudeChart == null) return;
-            mAltitudeChart.MoonAvoidanceProfile = avoidanceOn ? profile : null;
-            // Push the active filter's center wavelength to the chart so the K-S
-            // sky-brightness minute-loop scales extinction k via Rayleigh λ⁻⁴ at the
-            // band. Setter propagates to every AltitudeSeries; Sky rebuild fires
-            // via the existing SessionsRebuildDebounce tick (extended to also call
-            // RebuildSkyData / mLC2Sky.RefreshSkyBrightness).
-            mAltitudeChart.ActiveFilterCenterNm = filter.CenterNm;
+            mMoonAvoidanceProfile = avoidanceOn ? profile : null;
+            // Push the active filter's center wavelength so the K-S sky-brightness
+            // minute-loop scales extinction k via Rayleigh λ⁻⁴ at the band. Sky
+            // re-walks the K-S grid via SessionsRebuildDebounce_Tick (which calls
+            // mLC2Sky.RefreshSkyBrightness after pushing this value).
+            mActiveFilterCenterNm = filter.CenterNm;
             if (mLC2Sky != null) mLC2Sky.ActiveFilterCenterNm = filter.CenterNm;
             RestartSessionsRebuildDebounce();
         }
@@ -1210,7 +1165,7 @@ Right-click anywhere on the chart to clear all overlays.";
         // unchecked, the chart sees null and skips moon-aware work entirely.
         private void OnAvoidanceEnableChanged(object sender, EventArgs e)
         {
-            if (mAltitudeChart == null) return;
+            if (mSubCharts == null) return;
 
             bool enabled = CheckBox_Moon_AvoidanceEnable.Checked;
             MoonAvoidanceProfile profile = null;
@@ -1226,7 +1181,7 @@ Right-click anywhere on the chart to clear all overlays.";
             }
 
             SetLorentzianControlsEnabled(enabled);
-            mAltitudeChart.MoonAvoidanceProfile = profile;
+            mMoonAvoidanceProfile = profile;
             // Debounce so a fast Enable-Disable-Enable click sequence collapses to one
             // rebuild and the master toggle shares the Lorentzian-scrub debounce path.
             RestartSessionsRebuildDebounce();
@@ -1242,12 +1197,9 @@ Right-click anywhere on the chart to clear all overlays.";
             if (mSuppressFilterEvents) return;
             if (NumericUpDown_Moon_Separation == null) return;
 
-            if (mAltitudeChart != null)
-            {
-                bool avoidanceOn = CheckBox_Moon_AvoidanceEnable != null
-                                && CheckBox_Moon_AvoidanceEnable.Checked;
-                mAltitudeChart.MoonAvoidanceProfile = avoidanceOn ? BuildProfileFromControls() : null;
-            }
+            bool avoidanceOn = CheckBox_Moon_AvoidanceEnable != null
+                            && CheckBox_Moon_AvoidanceEnable.Checked;
+            mMoonAvoidanceProfile = avoidanceOn ? BuildProfileFromControls() : null;
             RestartFilterAutoSaveDebounce();
             RestartSessionsRebuildDebounce();
         }
@@ -1376,11 +1328,10 @@ Right-click anywhere on the chart to clear all overlays.";
         {
             mLocalDateTime = (DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZoneInfo.Local);
             UpdateLocalDateTimeEvents();
-            if (mAltitudeChart != null) mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
-            mLC2Day?.UpdateNowLine(mLocalDateTime.When);
-            mLC2Sky?.UpdateNowLine(mLocalDateTime.When);
-            mLC2Year?.UpdateNowLine(mLocalDateTime.When);
-            mLC2Sessions?.UpdateNowLine(mLocalDateTime.When);
+            if (mSubCharts != null)
+            {
+                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mLocalDateTime.When);
+            }
             // Transit / Rise sort keys are time-dependent; Name is not. Skip the re-sort on
             // Name to avoid a pointless Items.Clear+re-add round-trip on every scrub tick.
             if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
@@ -1391,11 +1342,10 @@ Right-click anywhere on the chart to clear all overlays.";
         {
             mLocalDateTime = (DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZoneInfo.Local);
             UpdateLocalDateTimeEvents();
-            if (mAltitudeChart != null) mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
-            mLC2Day?.UpdateNowLine(mLocalDateTime.When);
-            mLC2Sky?.UpdateNowLine(mLocalDateTime.When);
-            mLC2Year?.UpdateNowLine(mLocalDateTime.When);
-            mLC2Sessions?.UpdateNowLine(mLocalDateTime.When);
+            if (mSubCharts != null)
+            {
+                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mLocalDateTime.When);
+            }
             if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
                 ResortSelectedTargets();
         }
@@ -1424,7 +1374,7 @@ Right-click anywhere on the chart to clear all overlays.";
 
             if (mSelection.Mode == GraphMode.Multi)
             {
-                // Walk CheckedItems in display order so mAltitudeChart's target list -- and
+                // Walk CheckedItems in display order so the rendered target list -- and
                 // therefore the chart legend -- inherits the CheckedListBox's NaturalStringComparer
                 // sort (see GetNinaTargets). Iterating mSelection.KnownTargets here would have
                 // used folder-load order, which is effectively arbitrary.
@@ -1480,65 +1430,21 @@ Right-click anywhere on the chart to clear all overlays.";
 
             try
             {
-                // ReloadWithTargets now pre-computes a shared NightCache behind its first
-                // await; mSeriesByTarget isn't populated (and per-target sync preambles
-                // aren't run) until after that await returns. That means the "Day series
-                // in TargetSeriesList" precondition ShowChartAreaSeries relies on isn't
-                // met until the full build completes -- so we await first, THEN paint.
-                await mAltitudeChart.ReloadWithTargets(
-                    mLocation, targets, phaseProgress, mGraphCts.Token);
+                // Cache pre-population was previously hidden inside
+                // mAltitudeChart.ReloadWithTargets; with the legacy chart deleted it's
+                // a direct PrepareManyAsync await here. Sub-chart Render calls assume
+                // the cache is ready, so we await first, then dispatch.
+                if (mCache != null)
+                {
+                    await mCache.PrepareManyAsync(targets, mGraphCts.Token);
+                }
+                mLastRenderedTargets = new List<Target>(targets);
 
-                // Paint the finished chart on whichever area the user has already
-                // selected via the view radios. Day is the default at form construction
-                // (Designer sets RadioButton_Day.Checked = true) so a fresh launch lands
-                // on Day; subsequent Graph clicks preserve the user's last view choice.
-                string area = RadioButton_Sky.Checked      ? "Sky"
-                            : RadioButton_Sessions.Checked ? "Sessions"
-                            : RadioButton_Year.Checked     ? "Year"
-                            :                                "Day";
-                if (area == "Day" && mLC2Day != null)
-                {
-                    ShowOnlyAltitudeChart(mLC2Day.Control);
-                    mLC2Day.Render(targets, mCache, mAltitudeChart.MoonAvoidanceProfile,
-                        mLocation, mLocation.Horizon, mLocation.Duration,
-                        mLocalDateTime.When, mGraphCts.Token);
-                    mAltitudeChart.ChartTitle = FormatChartTitle(area);
-                }
-                else if (area == "Sky" && mLC2Sky != null)
-                {
-                    ShowOnlyAltitudeChart(mLC2Sky.Control);
-                    mLC2Sky.ActiveFilterCenterNm = mAltitudeChart.ActiveFilterCenterNm;
-                    mLC2Sky.Render(targets, mCache, mAltitudeChart.MoonAvoidanceProfile,
-                        mLocation, mLocation.Horizon, mLocation.Duration,
-                        mLocalDateTime.When, mGraphCts.Token);
-                    ResizeAltitudeChartArea(mLC2Sky.IdealHeight);
-                    mAltitudeChart.ChartTitle = FormatChartTitle(area);
-                }
-                else if (area == "Year" && mLC2Year != null)
-                {
-                    ShowOnlyAltitudeChart(mLC2Year.Control);
-                    mLC2Year.Render(targets, mCache, mAltitudeChart.MoonAvoidanceProfile,
-                        mLocation, mLocation.Horizon, mLocation.Duration,
-                        mLocalDateTime.When, mGraphCts.Token);
-                    ResizeAltitudeChartArea(mLC2Year.IdealHeight);
-                    mAltitudeChart.ChartTitle = FormatChartTitle(area);
-                }
-                else if (area == "Sessions" && mLC2Sessions != null)
-                {
-                    ShowOnlyAltitudeChart(mLC2Sessions.Control);
-                    mLC2Sessions.Render(targets, mCache, mAltitudeChart.MoonAvoidanceProfile,
-                        mLocation, mLocation.Horizon, mLocation.Duration,
-                        mLocalDateTime.When, mGraphCts.Token);
-                    ResizeAltitudeChartArea(mLC2Sessions.IdealHeight);
-                    mAltitudeChart.ChartTitle = FormatChartTitle(area);
-                }
-                else
-                {
-                    ShowOnlyAltitudeChart(mAltitudeChart.mChart);
-                    mAltitudeChart.ShowChartAreaSeries(area);
-                    mAltitudeChart.ChartTitle = FormatChartTitle(area);
-                    mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
-                }
+                // Paint on whichever area the user has selected via the view radios.
+                // Day is the default at form construction (Designer sets
+                // RadioButton_Day.Checked = true) so a fresh launch lands on Day;
+                // subsequent Graph clicks preserve the user's last view choice.
+                RenderArea(SelectedArea(), mLastRenderedTargets, mGraphCts.Token);
             }
             finally
             {
@@ -1546,6 +1452,34 @@ Right-click anywhere on the chart to clear all overlays.";
                 Button_Graph.Enabled = true;
                 Button_Cancel.Enabled = true;
             }
+        }
+
+        // Returns the currently-checked view radio's area name. Day is the default
+        // since the Designer sets RadioButton_Day.Checked = true; the radio cluster
+        // ensures exactly one is checked at any time.
+        private string SelectedArea()
+        {
+            if (RadioButton_Sky.Checked)      return "Sky";
+            if (RadioButton_Sessions.Checked) return "Sessions";
+            if (RadioButton_Year.Checked)     return "Year";
+            return "Day";
+        }
+
+        // Dispatch a synchronous Render to the named area's sub-chart. Pushes
+        // the active filter's CenterNm into mLC2Sky as part of the call so K-S
+        // brightness uses the current Rayleigh λ⁻⁴ scaling. Resizes the panel
+        // to match the newly-active sub-chart's IdealHeight.
+        private void RenderArea(string area, IReadOnlyList<Target> targets,
+                                CancellationToken ct = default)
+        {
+            if (mSubCharts == null) return;
+            if (!mSubCharts.TryGetValue(area, out var sc)) return;
+            ShowOnlyAltitudeChart(sc.Control);
+            if (sc is Charts.AltitudeSubChart_Sky sky)
+                sky.ActiveFilterCenterNm = mActiveFilterCenterNm;
+            sc.Render(targets, mCache, mMoonAvoidanceProfile, mLocation,
+                mLocation.Horizon, mLocation.Duration, mLocalDateTime.When, ct);
+            ResizeAltitudeChartArea(sc.IdealHeight);
         }
 
         // Snap the observation moment back to the current wall-clock time. Replaces the
@@ -1566,14 +1500,10 @@ Right-click anywhere on the chart to clear all overlays.";
 
             UpdateLocalDateTimeEvents();
 
-            if (mAltitudeChart != null)
+            if (mSubCharts != null)
             {
-                mAltitudeChart.UpdateNowLine(mLocalDateTime.When);
+                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mLocalDateTime.When);
             }
-            mLC2Day?.UpdateNowLine(mLocalDateTime.When);
-            mLC2Sky?.UpdateNowLine(mLocalDateTime.When);
-            mLC2Year?.UpdateNowLine(mLocalDateTime.When);
-            mLC2Sessions?.UpdateNowLine(mLocalDateTime.When);
         }
 
         // Signal the in-flight chart build to unwind. The Day / Moon phase is synchronous
@@ -1968,12 +1898,14 @@ Right-click anywhere on the chart to clear all overlays.";
             PopulateTargetComboFromTargets(preserveSelection: !autoSelectFirstInCombo);
             PopulateCheckedListBoxFromTargets(defaultChecked: false);
 
-            // Reorder the chart legend to match, in place -- no replot, no recompute. Series
-            // objects (Points, Color, Tag, ToolTip) are preserved; only their index in
-            // mChart.Series changes, which drives the legend row order.
-            if (mAltitudeChart != null && mAltitudeChart.Targets.Count > 0)
+            // Reorder every sub-chart's series + legend to match, in place -- no
+            // replot, no recompute, no visibility refresh. The cached fit data
+            // stays valid because the target SET is unchanged.
+            if (mSubCharts != null && mLastRenderedTargets != null && mLastRenderedTargets.Count > 0)
             {
-                mAltitudeChart.ReorderTargets(SortedTargets(mAltitudeChart.Targets));
+                var sorted = SortedTargets(mLastRenderedTargets).Where(t => t != null).ToList();
+                mLastRenderedTargets = sorted;
+                foreach (var sc in mSubCharts.Values) sc.Reorder(sorted);
             }
 
             // Belt-and-suspenders for autoSelectFirstInCombo: re-apply the first item's text
@@ -2081,109 +2013,38 @@ Right-click anywhere on the chart to clear all overlays.";
             mToolTip.ReshowDelay = 2000;
         }
 
+        // The four view radio handlers all share the same shape: persist UI state,
+        // and if the radio is now checked, dispatch a Render to the corresponding
+        // sub-chart with the most recent target list. Day's handler also refreshes
+        // the static AstrometryUi cache (legacy quirk -- kept for parity with the
+        // dawn/dusk/moon labels).
         private void RadioButton_Day_CheckedChanged(object sender, EventArgs e)
         {
             mUIState.DayChart = RadioButton_Day.Checked;
-            if (RadioButton_Day.Checked == true)
-            {
-                AstrometryUi.Location(mLocation);
-                if (mLC2Day != null)
-                {
-                    ShowOnlyAltitudeChart(mLC2Day.Control);
-                    if (mAltitudeChart.Targets.Count > 0)
-                    {
-                        mLC2Day.Render(mAltitudeChart.Targets, mCache,
-                            mAltitudeChart.MoonAvoidanceProfile, mLocation,
-                            mLocation.Horizon, mLocation.Duration, mLocalDateTime.When);
-                    }
-                    mAltitudeChart.ChartTitle = FormatChartTitle("Day");
-                }
-                else
-                {
-                    ShowOnlyAltitudeChart(mAltitudeChart.mChart);
-                    mAltitudeChart.ShowChartAreaSeries("Day");
-                    mAltitudeChart.ChartTitle = FormatChartTitle("Day");
-                }
-            }
+            if (!RadioButton_Day.Checked) return;
+            AstrometryUi.Location(mLocation);
+            RenderArea("Day", mLastRenderedTargets);
         }
 
         private void RadioButton_Year_CheckedChanged(object sender, EventArgs e)
         {
             mUIState.YearChart = RadioButton_Year.Checked;
-            if (RadioButton_Year.Checked == true)
-            {
-                if (mLC2Year != null)
-                {
-                    ShowOnlyAltitudeChart(mLC2Year.Control);
-                    if (mAltitudeChart.Targets.Count > 0)
-                    {
-                        mLC2Year.Render(mAltitudeChart.Targets, mCache,
-                            mAltitudeChart.MoonAvoidanceProfile, mLocation,
-                            mLocation.Horizon, mLocation.Duration, mLocalDateTime.When);
-                    }
-                    ResizeAltitudeChartArea(mLC2Year.IdealHeight);
-                    mAltitudeChart.ChartTitle = FormatChartTitle("Year");
-                }
-                else
-                {
-                    ShowOnlyAltitudeChart(mAltitudeChart.mChart);
-                    mAltitudeChart.ShowChartAreaSeries("Year");
-                    mAltitudeChart.ChartTitle = FormatChartTitle("Year");
-                }
-            }
+            if (!RadioButton_Year.Checked) return;
+            RenderArea("Year", mLastRenderedTargets);
         }
 
         private void RadioButton_Sessions_CheckedChanged(object sender, EventArgs e)
         {
             mUIState.SessionsChart = RadioButton_Sessions.Checked;
-            if (RadioButton_Sessions.Checked == true)
-            {
-                if (mLC2Sessions != null)
-                {
-                    ShowOnlyAltitudeChart(mLC2Sessions.Control);
-                    if (mAltitudeChart.Targets.Count > 0)
-                    {
-                        mLC2Sessions.Render(mAltitudeChart.Targets, mCache,
-                            mAltitudeChart.MoonAvoidanceProfile, mLocation,
-                            mLocation.Horizon, mLocation.Duration, mLocalDateTime.When);
-                    }
-                    ResizeAltitudeChartArea(mLC2Sessions.IdealHeight);
-                    mAltitudeChart.ChartTitle = FormatChartTitle("Sessions");
-                }
-                else
-                {
-                    ShowOnlyAltitudeChart(mAltitudeChart.mChart);
-                    mAltitudeChart.ShowChartAreaSeries("Sessions");
-                    mAltitudeChart.ChartTitle = FormatChartTitle("Sessions");
-                }
-            }
+            if (!RadioButton_Sessions.Checked) return;
+            RenderArea("Sessions", mLastRenderedTargets);
         }
 
         private void RadioButton_Sky_CheckedChanged(object sender, EventArgs e)
         {
             mUIState.SkyChart = RadioButton_Sky.Checked;
-            if (RadioButton_Sky.Checked == true)
-            {
-                if (mLC2Sky != null)
-                {
-                    ShowOnlyAltitudeChart(mLC2Sky.Control);
-                    if (mAltitudeChart.Targets.Count > 0)
-                    {
-                        mLC2Sky.ActiveFilterCenterNm = mAltitudeChart.ActiveFilterCenterNm;
-                        mLC2Sky.Render(mAltitudeChart.Targets, mCache,
-                            mAltitudeChart.MoonAvoidanceProfile, mLocation,
-                            mLocation.Horizon, mLocation.Duration, mLocalDateTime.When);
-                    }
-                    ResizeAltitudeChartArea(mLC2Sky.IdealHeight);
-                    mAltitudeChart.ChartTitle = FormatChartTitle("Sky");
-                }
-                else
-                {
-                    ShowOnlyAltitudeChart(mAltitudeChart.mChart);
-                    mAltitudeChart.ShowChartAreaSeries("Sky");
-                    mAltitudeChart.ChartTitle = FormatChartTitle("Sky");
-                }
-            }
+            if (!RadioButton_Sky.Checked) return;
+            RenderArea("Sky", mLastRenderedTargets);
         }
 
         // Hide every control in Panel_AltitudeChart except `target`. Used to
@@ -2199,31 +2060,15 @@ Right-click anywhere on the chart to clear all overlays.";
             }
         }
 
-        // PR4a..d: keep the chart's plot area at a fixed pixel height. As legend rows
-        // wrap, the active LC2 sub-chart raises its IdealHeight; the matching handler
-        // grows the Panel / GroupBox / Form by the delta so the plot area stays put.
-        private void OnLC2DayIdealHeightChanged(object sender, EventArgs e)
+        // Keep the chart's plot area at a fixed pixel height. As legend rows wrap,
+        // the firing sub-chart's IdealHeight grows; this handler grows the Panel /
+        // GroupBox / Form by the delta so the plot area stays put.
+        private void OnSubChartIdealHeightChanged(object sender, EventArgs e)
         {
-            if (mLC2Day == null) return;
-            ResizeAltitudeChartArea(mLC2Day.IdealHeight);
-        }
-
-        private void OnLC2SkyIdealHeightChanged(object sender, EventArgs e)
-        {
-            if (mLC2Sky == null) return;
-            ResizeAltitudeChartArea(mLC2Sky.IdealHeight);
-        }
-
-        private void OnLC2YearIdealHeightChanged(object sender, EventArgs e)
-        {
-            if (mLC2Year == null) return;
-            ResizeAltitudeChartArea(mLC2Year.IdealHeight);
-        }
-
-        private void OnLC2SessionsIdealHeightChanged(object sender, EventArgs e)
-        {
-            if (mLC2Sessions == null) return;
-            ResizeAltitudeChartArea(mLC2Sessions.IdealHeight);
+            if (sender is Charts.IAltitudeSubChart sc)
+            {
+                ResizeAltitudeChartArea(sc.IdealHeight);
+            }
         }
 
         // Resize Panel_AltitudeChart, GroupBox_Altitude, and the form's ClientSize
@@ -2240,25 +2085,6 @@ Right-click anywhere on the chart to clear all overlays.";
             ClientSize = new Size(ClientSize.Width, ClientSize.Height + delta);
         }
 
-        // Day and Sky both render one night, so their titles include the calendar date
-        // of the evening. Year and Sessions both render a 365-day sweep starting from the
-        // current month; their title uses the month name instead of a specific day so the
-        // axis label and the title agree.
-        private string FormatChartTitle(string areaName)
-        {
-            if (areaName == "Day")
-            {
-                return "Altitude at " + mLocation.Name
-                     + " for evening beginning " + mLocation.DateTime.Date.ToShortDateString();
-            }
-            if (areaName == "Sky")
-            {
-                return "Sky brightness at " + mLocation.Name
-                     + " for evening beginning " + mLocation.DateTime.Date.ToShortDateString();
-            }
-            return "Altitude at " + mLocation.Name
-                 + " for Year beginning " + mLocation.DateTime.ToString("MMMM yyyy");
-        }
 
         // Reset ProgressBar_MultiTargetProcessing and return an IProgress<string> that ticks
         // it once per phase ("Day" / "Year" / "Sessions") for each of targetCount targets.

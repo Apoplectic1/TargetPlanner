@@ -52,10 +52,7 @@ namespace TargetPlanner.Charts
     // (the moon's contribution is baked into the K-S brightness, so a separate
     // moon curve adds clutter without information).
     //
-    // Phase 4 incremental migration: this class replaces the legacy MS Charts
-    // Sky chart area path. PR4b hosts both side-by-side; the radio handler
-    // routes to whichever owns the selected area.
-    public class AltitudeSubChart_Sky : IDisposable
+    public class AltitudeSubChart_Sky : IAltitudeSubChart
     {
         // K-S magnitude bounds in mag/arcsec². Brighter sky = lower mag = top of
         // plot (after inversion); darker sky = higher mag = bottom. Matches the
@@ -231,7 +228,6 @@ namespace TargetPlanner.Charts
             mHover = new HoverTooltipController(
                 mChart,
                 () => mSeriesByTarget.Values,
-                legendTooltipFormatter: null,
                 curveTooltipFormatter: SkyTooltipFormatter,
                 debounceMs: 30);
 
@@ -245,6 +241,10 @@ namespace TargetPlanner.Charts
             mNowLine.Xi = oa;
             mNowLine.Xj = oa;
         }
+
+        // Sky has no horizon line (its Y axis is K-S magnitude, not altitude).
+        // The interface contract still requires the method; it's a no-op here.
+        public void UpdateHorizonLine(double horizon) { }
 
         // Custom formatter: per-DataPoint snap. segmentStart is the i in the
         // bracketing segment [data[i], data[i+1]]; we surface the left-edge's
@@ -284,8 +284,8 @@ namespace TargetPlanner.Charts
 
             DateTime duskLocal = night.AstronomicalDusk.ToLocalTime();
             DateTime dawnLocal = night.AstronomicalDawn.ToLocalTime();
-            DateTime chartStart = AltitudeSeries.DayChartStart(duskLocal);
-            DateTime chartStop  = AltitudeSeries.DayChartStop(dawnLocal);
+            DateTime chartStart = ChartLayout.DayChartStart(duskLocal);
+            DateTime chartStop  = ChartLayout.DayChartStop(dawnLocal);
             int totalMins = Convert.ToInt32(Math.Round((chartStop - chartStart).TotalMinutes));
             int count = totalMins + 1;
             DateTime startUtc = DateTime.SpecifyKind(chartStart, DateTimeKind.Local).ToUniversalTime();
@@ -348,7 +348,7 @@ namespace TargetPlanner.Charts
             // window tonight). Same probe as Day so the two charts agree on
             // which targets are hidden -- the legacy AltitudeSeries paired the
             // -Day and -Sky series in one Color toggle for exactly this reason.
-            RefreshSkyVisibility(cache, profile, location, horizon, duration);
+            RefreshVisibility(cache, profile, location, horizon, duration);
 
             RecomputeLayout();
         }
@@ -365,7 +365,7 @@ namespace TargetPlanner.Charts
         // "The Sky brightness companion curve mirrors the hide-on-no-fit
         //  (consistency: a target hidden by the Lorentzian fit-check shouldn't
         //  have its sky-brightness curve still visible on the Sky area)."
-        public void RefreshSkyVisibility(
+        public void RefreshVisibility(
             IChartCacheStore cache,
             MoonAvoidanceProfile profile,
             Location location,
@@ -422,6 +422,29 @@ namespace TargetPlanner.Charts
             mLastCount = 0;
             mChart.Series = Array.Empty<ISeries>();
             mLegendPanel.Controls.Clear();
+        }
+
+        // Cheap path for Sort changes -- rebuild mSeriesByTarget order +
+        // mChart.Series + legend without recomputing K-S magnitudes or
+        // toggling visibility. Targets not in the chart's current state
+        // are silently skipped.
+        public void Reorder(IReadOnlyList<Target> newOrder)
+        {
+            if (newOrder == null || mSeriesByTarget.Count == 0) return;
+            var reordered = new Dictionary<Target, LineSeries<ObservablePoint>>();
+            foreach (var target in newOrder)
+            {
+                if (target == null) continue;
+                if (mSeriesByTarget.TryGetValue(target, out var s))
+                    reordered[target] = s;
+            }
+            mSeriesByTarget.Clear();
+            foreach (var kv in reordered) mSeriesByTarget[kv.Key] = kv.Value;
+
+            var seriesList = new List<ISeries>();
+            foreach (var s in mSeriesByTarget.Values) seriesList.Add(s);
+            mChart.Series = seriesList;
+            BuildLegendItems();
         }
 
         // True when BestSession.For would place a session for this target on

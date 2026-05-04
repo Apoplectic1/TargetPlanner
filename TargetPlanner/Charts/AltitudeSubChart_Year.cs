@@ -53,7 +53,7 @@ namespace TargetPlanner.Charts
     //     floor altitude for the hovered night, no interpolation.
     //
     // No OverlayController, no Moon series, no dusk/dawn gradient.
-    public class AltitudeSubChart_Year : IDisposable
+    public class AltitudeSubChart_Year : IAltitudeSubChart
     {
         // Y axis bounds (altitude, degrees). 0-90 to match Day so the plot area
         // template stays uniform across radio swaps.
@@ -91,7 +91,7 @@ namespace TargetPlanner.Charts
             = new Dictionary<Target, IReadOnlyList<NightCacheEntry>>();
 
         // Cancellation for the in-flight visibility task. Replaced (cancelling
-        // the prior) on every RefreshYearVisibility call so a rapid scrub
+        // the prior) on every RefreshVisibility call so a rapid scrub
         // doesn't queue stale work behind in-flight stale work.
         private CancellationTokenSource mVisibilityCts;
 
@@ -188,7 +188,6 @@ namespace TargetPlanner.Charts
             mHover = new HoverTooltipController(
                 mChart,
                 () => mSeriesByTarget.Values,
-                legendTooltipFormatter: null,
                 curveTooltipFormatter: YearTooltipFormatter,
                 debounceMs: 30);
         }
@@ -304,7 +303,7 @@ namespace TargetPlanner.Charts
             // Render shows null-Y curves; the bg task fills in fitted nights'
             // session-floor altitudes and unified tooltip text. Subsequent
             // scrubs cancel + restart this same task path.
-            RefreshYearVisibility(profile, location, horizon, duration);
+            RefreshVisibility(cache, profile, location, horizon, duration);
 
             RecomputeLayout();
         }
@@ -319,12 +318,17 @@ namespace TargetPlanner.Charts
         // Called from Render's tail (first-paint refinement) and from
         // MainForm.SessionsRebuildDebounce_Tick (live scrub refinement). No-op
         // when no targets are rendered.
-        public void RefreshYearVisibility(
+        public void RefreshVisibility(
+            IChartCacheStore cache,
             MoonAvoidanceProfile profile,
             Location location,
             double horizon,
             TimeSpan duration)
         {
+            // cache is part of the IAltitudeSubChart contract for uniform
+            // call sites; Year snapshots YearDays at Render via mYearDaysByTarget
+            // and doesn't need to re-read it here.
+            _ = cache;
             if (location == null || mSeriesByTarget.Count == 0) return;
 
             // Cancel any in-flight task before starting a new one so the UI
@@ -490,6 +494,30 @@ namespace TargetPlanner.Charts
             while (data.Count > count) data.RemoveAt(data.Count - 1);
 
             mTooltipText[series] = tooltips;
+        }
+
+        // Cheap path for Sort changes -- rebuild mSeriesByTarget order +
+        // mChart.Series + legend without recomputing data and without
+        // restarting the background fit task. The cached fit results
+        // (already painted as Y values) stay valid because the target
+        // SET is unchanged.
+        public void Reorder(IReadOnlyList<Target> newOrder)
+        {
+            if (newOrder == null || mSeriesByTarget.Count == 0) return;
+            var reordered = new Dictionary<Target, LineSeries<ObservablePoint>>();
+            foreach (var target in newOrder)
+            {
+                if (target == null) continue;
+                if (mSeriesByTarget.TryGetValue(target, out var s))
+                    reordered[target] = s;
+            }
+            mSeriesByTarget.Clear();
+            foreach (var kv in reordered) mSeriesByTarget[kv.Key] = kv.Value;
+
+            var seriesList = new List<ISeries>();
+            foreach (var s in mSeriesByTarget.Values) seriesList.Add(s);
+            mChart.Series = seriesList;
+            BuildLegendItems();
         }
 
         private LineSeries<ObservablePoint> GetOrCreateTargetSeries(Target target, Color c)

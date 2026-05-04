@@ -31,17 +31,11 @@ namespace TargetPlanner.Charts
     // preserving Series identity across calls (ObservableCollection mutation
     // triggers reactive redraw without rebuilding the series object).
     //
-    // Owns three controllers wired to its CartesianChart instance:
+    // Owns two controllers wired to its CartesianChart instance:
     //   - OverlayController: HD click-to-toggle best-window step rectangle.
     //   - HoverTooltipController: smooth-curve interpolated tooltip
     //     (300 ms debounce — Day altitude is continuous).
-    //   - LegendClickHandler: manual legend toggle (LC2 v2.1.0-dev-365's
-    //     bottom legend doesn't auto-toggle on click).
-    //
-    // Phase 4 incremental migration: this class replaces the legacy MS Charts
-    // Day chart area. PR4a hosts both side-by-side; the radio handler routes
-    // to whichever owns the selected area.
-    public class AltitudeSubChart_Day : IDisposable
+    public class AltitudeSubChart_Day : IAltitudeSubChart
     {
         // Y axis bounds for Day (altitude, degrees). MaxAltitude stays at 90 so
         // hover tests can use the same [0, 90] plot-area gate as the prototype.
@@ -96,7 +90,6 @@ namespace TargetPlanner.Charts
 
         private readonly OverlayController mOverlay;
         private readonly HoverTooltipController mHover;
-        private readonly LegendClickHandler mLegend;
 
         // Cached IdealHeight from the last layout pass; used to detect changes so
         // the IdealHeightChanged event only fires when the form actually needs to
@@ -214,10 +207,8 @@ namespace TargetPlanner.Charts
             mHover = new HoverTooltipController(
                 mChart,
                 () => mSeriesByTarget.Values,
-                legendTooltipFormatter: null,
                 curveTooltipFormatter: null,
                 debounceMs: 300);
-            mLegend = new LegendClickHandler(mChart, _ => { });
 
             mChart.MouseDown += OnChartMouseDown;
             mChart.SizeChanged += OnChartSizeChanged;
@@ -260,8 +251,8 @@ namespace TargetPlanner.Charts
 
             DateTime duskLocal = night.AstronomicalDusk.ToLocalTime();
             DateTime dawnLocal = night.AstronomicalDawn.ToLocalTime();
-            DateTime chartStart = AltitudeSeries.DayChartStart(duskLocal);
-            DateTime chartStop  = AltitudeSeries.DayChartStop(dawnLocal);
+            DateTime chartStart = ChartLayout.DayChartStart(duskLocal);
+            DateTime chartStop  = ChartLayout.DayChartStop(dawnLocal);
             int totalMins = Convert.ToInt32(Math.Round((chartStop - chartStart).TotalMinutes));
             int count = totalMins + 1;
             DateTime startUtc = DateTime.SpecifyKind(chartStart, DateTimeKind.Local).ToUniversalTime();
@@ -397,7 +388,7 @@ namespace TargetPlanner.Charts
         // and any active HD overlay rectangles. Caller must have run Render first;
         // this method assumes mSeriesByTarget is already populated for the current
         // target list.
-        public void RefreshDayWindowsAndVisibility(
+        public void RefreshVisibility(
             IChartCacheStore cache,
             MoonAvoidanceProfile profile,
             Location location,
@@ -458,6 +449,31 @@ namespace TargetPlanner.Charts
             mMoonSeries = null;
             mChart.Series = Array.Empty<ISeries>();
             mLegendPanel.Controls.Clear();
+        }
+
+        // Cheap path for Sort changes: rebuild mSeriesByTarget (and hence
+        // mChart.Series + the legend) in the new target order without
+        // recomputing altitude data and without restarting the visibility
+        // refresh. Targets not in the chart's current state are silently
+        // skipped (caller passes the same set, just permuted).
+        public void Reorder(IReadOnlyList<Target> newOrder)
+        {
+            if (newOrder == null || mSeriesByTarget.Count == 0) return;
+            var reordered = new Dictionary<Target, LineSeries<ObservablePoint>>();
+            foreach (var target in newOrder)
+            {
+                if (target == null) continue;
+                if (mSeriesByTarget.TryGetValue(target, out var s))
+                    reordered[target] = s;
+            }
+            mSeriesByTarget.Clear();
+            foreach (var kv in reordered) mSeriesByTarget[kv.Key] = kv.Value;
+
+            var seriesList = new List<ISeries>();
+            if (mMoonSeries != null) seriesList.Add(mMoonSeries);
+            foreach (var s in mSeriesByTarget.Values) seriesList.Add(s);
+            mChart.Series = seriesList;
+            BuildLegendItems();
         }
 
         // Recreate gradient Fills sized to the actual dusk/dawn widths. LC2 caches

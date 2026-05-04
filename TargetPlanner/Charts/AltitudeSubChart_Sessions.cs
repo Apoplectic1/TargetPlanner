@@ -50,9 +50,7 @@ namespace TargetPlanner.Charts
     // No OverlayController (no HD overlay on Sessions). No moon series, no
     // dusk/dawn gradient (12-month axis has no single twilight context).
     //
-    // Phase 4: this is the last MS Charts area to port. PR4e drops the legacy
-    // AltitudeSeries / AltitudeChart and the MS Charts dependency.
-    public class AltitudeSubChart_Sessions : IDisposable
+    public class AltitudeSubChart_Sessions : IAltitudeSubChart
     {
         // Y axis bounds (altitude, degrees). 0-90 to match Day / Year so the
         // plot template stays uniform across radio swaps. Legacy MS Charts
@@ -103,7 +101,7 @@ namespace TargetPlanner.Charts
             = new Dictionary<Target, IReadOnlyList<NightCacheEntry>>();
 
         // Cancellation for the in-flight visibility task. Replaced (cancelling
-        // the prior) on every RefreshSessionsVisibility call.
+        // the prior) on every RefreshVisibility call.
         private CancellationTokenSource mVisibilityCts;
 
         private readonly HoverTooltipController mHover;
@@ -193,7 +191,6 @@ namespace TargetPlanner.Charts
             mHover = new HoverTooltipController(
                 mChart,
                 () => AllSeries(),
-                legendTooltipFormatter: null,
                 curveTooltipFormatter: SessionsTooltipFormatter,
                 debounceMs: 30);
         }
@@ -351,7 +348,7 @@ namespace TargetPlanner.Charts
             // paint shows empty curves; the bg task fills in fitted nights.
             // For 44 targets × 365 nights × (PlaceBest + PlaceCentered) the
             // moon-aware case takes ~10-60 sec, which is why this is async.
-            RefreshSessionsVisibility(profile, location, horizon, duration);
+            RefreshVisibility(cache, profile, location, horizon, duration);
 
             RecomputeLayout();
         }
@@ -363,12 +360,17 @@ namespace TargetPlanner.Charts
         // thread so the UI stays responsive during a scrub. Replaces any
         // in-flight task (cancellation token) so a rapid spinner scrub doesn't
         // queue stale work behind in-flight stale work.
-        public void RefreshSessionsVisibility(
+        public void RefreshVisibility(
+            IChartCacheStore cache,
             MoonAvoidanceProfile profile,
             Location location,
             double horizon,
             TimeSpan duration)
         {
+            // cache is part of the IAltitudeSubChart contract for uniform
+            // call sites; Sessions snapshots YearDays at Render via
+            // mYearDaysByTarget and doesn't need to re-read it here.
+            _ = cache;
             if (location == null || mCeilingByTarget.Count == 0) return;
 
             mVisibilityCts?.Cancel();
@@ -629,6 +631,43 @@ namespace TargetPlanner.Charts
                 mChart.Invalidate();
             };
             return label;
+        }
+
+        // Cheap path for Sort changes -- rebuild the three dicts' iteration
+        // order + mChart.Series + legend without recomputing data and
+        // without restarting the background fit task. The cached fit results
+        // (already painted as Y values on each series) stay valid because
+        // the target SET is unchanged.
+        public void Reorder(IReadOnlyList<Target> newOrder)
+        {
+            if (newOrder == null || mCeilingByTarget.Count == 0) return;
+            var reCeil  = new Dictionary<Target, LineSeries<ObservablePoint>>();
+            var reFloor = new Dictionary<Target, LineSeries<ObservablePoint>>();
+            var reCen   = new Dictionary<Target, LineSeries<ObservablePoint>>();
+            foreach (var target in newOrder)
+            {
+                if (target == null) continue;
+                if (mCeilingByTarget.TryGetValue(target, out var c))   reCeil[target]  = c;
+                if (mFloorByTarget.TryGetValue(target, out var f))     reFloor[target] = f;
+                if (mCenteredByTarget.TryGetValue(target, out var ce)) reCen[target]   = ce;
+            }
+            mCeilingByTarget.Clear();
+            mFloorByTarget.Clear();
+            mCenteredByTarget.Clear();
+            foreach (var kv in reCeil)  mCeilingByTarget[kv.Key]  = kv.Value;
+            foreach (var kv in reFloor) mFloorByTarget[kv.Key]    = kv.Value;
+            foreach (var kv in reCen)   mCenteredByTarget[kv.Key] = kv.Value;
+
+            var seriesList = new List<ISeries>();
+            foreach (var target in newOrder)
+            {
+                if (target == null) continue;
+                if (mCeilingByTarget.TryGetValue(target, out var c))   seriesList.Add(c);
+                if (mFloorByTarget.TryGetValue(target, out var f))     seriesList.Add(f);
+                if (mCenteredByTarget.TryGetValue(target, out var ce)) seriesList.Add(ce);
+            }
+            mChart.Series = seriesList;
+            BuildLegendItems();
         }
 
         private LineSeries<ObservablePoint> GetOrCreateSeries(
