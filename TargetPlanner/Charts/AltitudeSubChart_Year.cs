@@ -25,23 +25,34 @@ using Target   = Astronomy.Core.Targets.Target;
 
 namespace TargetPlanner.Charts
 {
-    // LiveCharts2 implementation of TP's Year chart area. 12-month per-night max
-    // altitude sweep -- one DataPoint per night sourced from the cache store's
-    // pre-built TargetCacheEntry.YearDays. By the time Render(...) fires,
-    // MainForm has already awaited mAltitudeChart.ReloadWithTargets which awaits
-    // mCache.PrepareManyAsync, so the year cache is guaranteed populated for
-    // every target in the render list (modulo a target whose build raced --
-    // GetOrNull returns null in that case and the target is skipped).
+    // LiveCharts2 implementation of TP's Year chart area. 12-month per-night
+    // session-floor sweep -- one DataPoint per night plotting the worst-case
+    // altitude of the best D-hour session that fits under the current Horizon
+    // / Duration / Moon profile. Null Y for nights where no D-hour window
+    // fits. The bg task is the sole source of truth: Render initializes all
+    // points to null Y and the per-night BestSession.For + SessionAltitude.Floor
+    // pass fills in fitted nights when it lands.
+    //
+    // Floor (vs night-max ceiling) was chosen as the more actionable planning
+    // metric: it tells the user the worst altitude they'll see during their
+    // planned session, which drives airmass / atmospheric extinction / image
+    // quality. The Sessions sub-chart still shows the Ceiling / Floor /
+    // Symmetric triple per night for per-target zoom-in; Year is the
+    // multi-target overview at the conservative-altitude metric.
+    //
+    // By the time Render(...) fires, MainForm has already awaited
+    // mAltitudeChart.ReloadWithTargets which awaits mCache.PrepareManyAsync,
+    // so the year cache is guaranteed populated for every target in the
+    // render list (modulo a target whose build raced -- GetOrNull returns
+    // null in that case and the target is skipped).
     //
     // Owns one controller wired to its CartesianChart instance:
     //   - HoverTooltipController: per-DataPoint snap tooltip (30 ms debounce);
     //     custom formatter reads pre-formatted text from a parallel string[]
-    //     populated during Render -- the user sees the actual max altitude for
-    //     a hovered night, no interpolation.
+    //     populated during the bg fit task. The user sees the actual session
+    //     floor altitude for the hovered night, no interpolation.
     //
-    // No OverlayController (no HD overlay on Year), no Moon series (the Year
-    // sweep is target-vs-time geometry only), no dusk/dawn gradient (a 12-month
-    // axis has no single sun-twilight context).
+    // No OverlayController, no Moon series, no dusk/dawn gradient.
     public class AltitudeSubChart_Year : IDisposable
     {
         // Y axis bounds (altitude, degrees). 0-90 to match Day so the plot area
@@ -110,7 +121,7 @@ namespace TargetPlanner.Charts
             };
             mYAxis = new Axis
             {
-                Name = "Maximum daily altitude (°)",
+                Name = "Session floor altitude (°)",
                 MinLimit = MinAltitude,
                 MaxLimit = MaxAltitude,
                 MinStep = 10,
@@ -261,7 +272,11 @@ namespace TargetPlanner.Charts
                 mYearDaysByTarget[target] = yearDays;
 
                 var series = GetOrCreateTargetSeries(target, c);
-                BuildOrUpdateTargetSeries(series, target, yearDays, ct);
+                // Initialize all points to null Y; the bg fit task is the
+                // sole source of truth and overwrites fitted nights when it
+                // lands. Tooltips reset to a "computing..." placeholder so a
+                // hover during the bg pass shows something rather than empty.
+                InitializeNullSeriesData(series, target, yearDays);
 
                 newSeriesByTarget[target] = series;
                 seriesList.Add(series);
@@ -285,10 +300,9 @@ namespace TargetPlanner.Charts
             mChart.Series = seriesList;
             BuildLegendItems();
 
-            // Kick off the per-night H/D/M fit pass on a background thread.
-            // First paint already shows geometric-fit nights (polar / sub-
-            // horizon nullified inline above); the H/D/M pass refines by
-            // null-ing nights where BestSession.For returns null. Subsequent
+            // Kick off the per-night fit pass on a background thread. First
+            // Render shows null-Y curves; the bg task fills in fitted nights'
+            // session-floor altitudes and unified tooltip text. Subsequent
             // scrubs cancel + restart this same task path.
             RefreshYearVisibility(profile, location, horizon, duration);
 
@@ -337,29 +351,21 @@ namespace TargetPlanner.Charts
 
             Task.Run(() =>
             {
-                // Per-target, per-night bool[] -- true iff BestSession.For
-                // returns non-null. Computed off the UI thread; the only
-                // shared mutation comes via the BeginInvoke below.
-                var perTarget = new List<(LineSeries<ObservablePoint> Series, IReadOnlyList<NightCacheEntry> Days, bool[] Fits)>();
+                // Per-target, per-night double?[] -- session-floor altitude
+                // when BestSession.For places a session, null when no fit.
+                // Computed off the UI thread; the only shared mutation comes
+                // via the BeginInvoke below.
+                var perTarget = new List<(Target Target, LineSeries<ObservablePoint> Series, IReadOnlyList<NightCacheEntry> Days, double?[] Floors)>();
                 foreach (var (target, series, days) in snapshot)
                 {
                     if (ct.IsCancellationRequested) return;
 
-                    bool[] fits = new bool[days.Count];
+                    double?[] floors = new double?[days.Count];
                     for (int i = 0; i < days.Count; i++)
                     {
                         if (ct.IsCancellationRequested) return;
                         NightCacheEntry night = days[i];
-                        if (night.IsPolar || night.YearAlt < 0)
-                        {
-                            fits[i] = false;
-                            continue;
-                        }
-                        if (dur <= TimeSpan.Zero)
-                        {
-                            fits[i] = false;
-                            continue;
-                        }
+                        if (night.IsPolar || dur <= TimeSpan.Zero) continue;
 
                         NightWindow nw = new NightWindow
                         {
@@ -372,9 +378,16 @@ namespace TargetPlanner.Charts
                         var best = BestSession.For(
                             target, locationCapture, nw, horizonProfile,
                             dur, dur, SinAltQuality, profile: profileCapture);
-                        fits[i] = best != null;
+                        if (best == null) continue;
+
+                        // Floor of the placed session = the lowest altitude
+                        // the target reaches during the imaging window. The
+                        // user-actionable planning metric: drives airmass /
+                        // extinction / image quality more than ceiling does.
+                        floors[i] = SessionAltitude.Floor(target, locationCapture,
+                            best.Value.Start, best.Value.End);
                     }
-                    perTarget.Add((series, days, fits));
+                    perTarget.Add((target, series, days, floors));
                 }
 
                 if (ct.IsCancellationRequested) return;
@@ -387,71 +400,72 @@ namespace TargetPlanner.Charts
                     mChart.BeginInvoke(new Action(() =>
                     {
                         if (ct.IsCancellationRequested) return;
-                        foreach (var (series, days, fits) in perTarget)
+                        foreach (var (target, series, days, floors) in perTarget)
                         {
-                            ApplyYearVisibility(series, days, fits);
+                            ApplyYearFloors(target, series, days, floors);
                         }
                     }));
                 }
             }, ct);
         }
 
-        // UI-thread continuation: rewrite each data point's Y and tooltip
-        // text to reflect the (geometric AND H/D/M) fit decision. Mutates
-        // the existing ObservableCollection in place so series identity --
-        // and the user's legend toggle state -- survives the refresh.
-        private void ApplyYearVisibility(
+        // UI-thread continuation: rewrite each data point's Y to the
+        // session-floor altitude (or null for unfit nights) plus the
+        // tooltip text. Mutates the existing ObservableCollection in place
+        // so series identity -- and the user's legend toggle state --
+        // survives the refresh.
+        private void ApplyYearFloors(
+            Target target,
             LineSeries<ObservablePoint> series,
             IReadOnlyList<NightCacheEntry> days,
-            bool[] fits)
+            double?[] floors)
         {
-            if (!mTooltipText.TryGetValue(series, out var tooltips)) return;
+            if (!mTooltipText.TryGetValue(series, out var tooltips))
+            {
+                tooltips = new string[days.Count];
+                mTooltipText[series] = tooltips;
+            }
             if (!(series.Values is ObservableCollection<ObservablePoint> data)) return;
 
-            // Find the target name for tooltip text. Reverse-lookup from
-            // mSeriesByTarget; small dict walk on the UI thread, no contention.
-            string targetName = "";
-            foreach (var kv in mSeriesByTarget)
-            {
-                if (ReferenceEquals(kv.Value, series)) { targetName = kv.Key.Name; break; }
-            }
-
-            int count = Math.Min(Math.Min(data.Count, fits.Length), days.Count);
+            int count = Math.Min(Math.Min(data.Count, floors.Length), days.Count);
             for (int i = 0; i < count; i++)
             {
                 NightCacheEntry night = days[i];
-                bool baseFit = !night.IsPolar && night.YearAlt >= 0;
-                bool effectiveFit = baseFit && fits[i];
-                double? plotY = effectiveFit ? night.YearAlt : (double?)null;
-                data[i] = new ObservablePoint(night.SentinelX.ToOADate(), plotY);
+                data[i] = new ObservablePoint(night.SentinelX.ToOADate(), floors[i]);
 
                 if (i < tooltips.Length)
                 {
-                    if (night.IsPolar)
+                    if (floors[i].HasValue)
+                    {
+                        tooltips[i] = string.Format(CultureInfo.InvariantCulture,
+                            "{0}\n{1:MMM dd, yyyy}\nFloor: {2:0.0}°",
+                            target.Name, night.SentinelX, floors[i].Value);
+                    }
+                    else if (night.IsPolar)
+                    {
                         tooltips[i] = string.Format(CultureInfo.InvariantCulture,
                             "{0}\n{1:MMM dd, yyyy}\n(polar period)",
-                            targetName, night.SentinelX);
-                    else if (night.YearAlt < 0)
-                        tooltips[i] = string.Format(CultureInfo.InvariantCulture,
-                            "{0}\n{1:MMM dd, yyyy}\n(target never above horizon)",
-                            targetName, night.SentinelX);
-                    else if (!fits[i])
+                            target.Name, night.SentinelX);
+                    }
+                    else
+                    {
                         tooltips[i] = string.Format(CultureInfo.InvariantCulture,
                             "{0}\n{1:MMM dd, yyyy}\n(no fit at current Horizon / Duration / Moon)",
-                            targetName, night.SentinelX);
-                    else
-                        tooltips[i] = string.Format(CultureInfo.InvariantCulture,
-                            "{0}\n{1:MMM dd, yyyy}\nMax altitude: {2:0.0}°",
-                            targetName, night.SentinelX, night.YearAlt);
+                            target.Name, night.SentinelX);
+                    }
                 }
             }
         }
 
-        private void BuildOrUpdateTargetSeries(
+        // Initialize a series' Values to all-null-Y points indexed by yearDays.
+        // The bg fit task overwrites specific indices with session-floor
+        // altitudes when it lands; nights that stay null Y render as line
+        // breaks. Tooltips are seeded with a "computing..." placeholder so a
+        // hover during the bg pass shows something rather than empty text.
+        private void InitializeNullSeriesData(
             LineSeries<ObservablePoint> series,
             Target target,
-            IReadOnlyList<NightCacheEntry> yearDays,
-            CancellationToken ct)
+            IReadOnlyList<NightCacheEntry> yearDays)
         {
             var data = series.Values as ObservableCollection<ObservablePoint>;
             if (data == null)
@@ -464,33 +478,14 @@ namespace TargetPlanner.Charts
             string[] tooltips = new string[count];
             for (int i = 0; i < count; i++)
             {
-                ct.ThrowIfCancellationRequested();
                 NightCacheEntry night = yearDays[i];
-
-                // null Y for polar nights and nights where the target never
-                // rises above the mathematical horizon -- LC2 renders nullable
-                // points as line breaks, which is more honest than dropping the
-                // line to 0° (where it would visually merge with the bottom
-                // edge or below the imaging horizon and confuse "this night
-                // has data" with "this night doesn't").
-                double? plotY = (night.IsPolar || night.YearAlt < 0)
-                    ? (double?)null
-                    : night.YearAlt;
-                var p = new ObservablePoint(night.SentinelX.ToOADate(), plotY);
+                var p = new ObservablePoint(night.SentinelX.ToOADate(), null);
                 if (i < data.Count) data[i] = p;
                 else data.Add(p);
 
-                tooltips[i] = night.IsPolar
-                    ? string.Format(CultureInfo.InvariantCulture,
-                        "{0}\n{1:MMM dd, yyyy}\n(polar period)",
-                        target.Name, night.SentinelX)
-                    : night.YearAlt < 0
-                    ? string.Format(CultureInfo.InvariantCulture,
-                        "{0}\n{1:MMM dd, yyyy}\n(target never above horizon)",
-                        target.Name, night.SentinelX)
-                    : string.Format(CultureInfo.InvariantCulture,
-                        "{0}\n{1:MMM dd, yyyy}\nMax altitude: {2:0.0}°",
-                        target.Name, night.SentinelX, night.YearAlt);
+                tooltips[i] = string.Format(CultureInfo.InvariantCulture,
+                    "{0}\n{1:MMM dd, yyyy}\n(computing fit...)",
+                    target.Name, night.SentinelX);
             }
             while (data.Count > count) data.RemoveAt(data.Count - 1);
 
