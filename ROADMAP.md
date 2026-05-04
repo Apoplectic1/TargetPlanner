@@ -79,9 +79,11 @@ Residual still-open items (verified 2026-05-04):
 
 - **P2-2.5 — `Location.DateTime` defaults to `DateTime.Now` in the immutable POCO ctor** (`Astronomy.Core/Locations/Location.cs:189`). Nondeterministic for unit tests / library consumers. Either drop the default (require caller to supply) or use `DateTime.MinValue` as a sentinel and document the contract.
 - **P2-3.4 — `SettingsStore.Version` is written but never read.** No schema migration when `AppSettings` fields are added/removed in a future release. Read on `Load`, compare to current `Version`, apply transforms or reset to defaults.
-- **P2-9.5 — `BestSession.For` boundary semantics undocumented.** Transit-at-dusk-exactly is included in the visibility window; transit-at-dawn-exactly is excluded (per the survey). XML doc on `For` / `PlaceBest` / `ResolveCandidates` should call this out so consumers don't write off-by-one logic.
-- **P2-10.2 — Signed-degree convention is in CLAUDE.md but not at the API XML doc level.** `<GenerateDocumentationFile>` is on, but per-method `///` comments on `TargetGeometry.MeridianAltitude` / `HourAngleAtAltitude` / etc. don't restate the "caller resolves the hemisphere flag" expectation. A NINA plugin author reading IntelliSense cold won't see the convention.
 - **P2-5.3 — `IntegratedQuality.OverSession` doesn't document NaN behaviour.** If the caller's `altitudeQuality` lambda returns NaN/∞ on a boundary altitude, the integral silently corrupts. Add a `///` remarks note + optional `Debug.Assert`.
 - **🔄 P2-5.4 — INVERTED.** Original audit flagged `BestSession.For` for not throwing on `minDuration <= 0`. We deliberately reversed that (Library `6fce6b0`): non-positive duration now returns null (the user-reachable degenerate case), making consumers' "no fit" handling uniform. The audit finding is moot; documenting here so future spelunkers don't try to re-add the throw.
+
+Closed in Library `d38fed9` (2026-05-04, "Astronomy.Core cleanup: 5 small findings from code review"):
+- ~~P2-9.5 — `BestSession.For` boundary semantics now documented in `For` / `PlaceBest` / `ResolveCandidates` `<remarks>`. Both dusk and dawn boundaries are inclusive (verified against `VisibilityWindows.For`'s `Max(lstDusk, riseHA)` / `Min(lstDawn, setHA)` idiom — the original survey claim that dawn was exclusive was incorrect).~~
+- ~~P2-10.2 — Per-method `<remarks>` on `TargetGeometry.MeridianAltitude` / `LowerCulminationAltitude` / `HourAngleAtAltitude` / `AltitudeAtHourAngle` / `AzimuthAtHourAngle` now restate the "caller resolves North/West flag" convention; IntelliSense surfaces it on every callsite.~~
 
 Each item is small. None are crash-class. P2-2.5 + P2-3.4 are the most user-visible; the rest are documentation polish on Library public surface.
