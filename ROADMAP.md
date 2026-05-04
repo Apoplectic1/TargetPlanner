@@ -1,10 +1,12 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-04 (Phase 4 LC2 chart migration shipped). Originally captured 2026-04-19.
+Last updated 2026-05-04 (TP migrated to .NET 10). Originally captured 2026-04-19.
 
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" section so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+- **TP migrated `net481` → `net10.0-windows10.0.19041`.** Single TP commit. csproj: `TargetFramework` bumped, `LangVersion` 10 → `latest`, `AutoGenerateBindingRedirects` removed (irrelevant on modern .NET), `<ServerGarbageCollection>` + `<ConcurrentGarbageCollection>` MSBuild properties added (replaced the deleted App.config `<runtime>` block). The `Win10 2004` Windows API contract version is needed because `SkiaSharp.Views.WindowsForms 3.119.0` (transitive via LiveCharts2) only ships modern-.NET assets at `net8.0-windows10.0.19041` — the default `net10.0-windows7.0` would fall all the way back to the package's `net462` lib, which doesn't load on .NET 10. LocalLib reference dropped: its reflection-based `OpenFolderDialog` multi-select hack relied on `System.Windows.Forms.FileDialogNative+IFileDialog` internals that don't survive into modern WinForms. `MainForm.Button_BrowseTargetList_Click` now uses stock `FolderBrowserDialog` (single-select; multi-select was a nice-to-have). `App.config` deleted (modern .NET ignores `<startup>` and `<runtime>` blocks). Astronomy.Core (`netstandard2.0`) and Astronomy.PCL (`net8.0`) sibling assemblies unchanged — both forward-compat with the new TP. **Velopack 0.0.1298** is forward-compat through netstandard2.0 fallback; bump to 0.0.1589+ is queued as a follow-up below.
 
 - **Phase 4 — Chart migration to LiveCharts2 SHIPPED.** All four chart areas (Day / Sky / Year / Sessions) ported off `System.Windows.Forms.DataVisualization.Charting` to LC2 v2.1.0-dev-365. Each area is a sub-chart class implementing `Charts.IAltitudeSubChart` (common: Control, IdealHeight, IdealHeightChanged, UpdateNowLine, UpdateHorizonLine, Render, Reorder, RefreshVisibility, Dispose). MainForm holds `Dictionary<string, IAltitudeSubChart> mSubCharts` keyed by area; picker / spinner / debounce / Graph-click traffic dispatches via foreach + dict lookup. Sky keeps a typed `mLC2Sky` reference for `ActiveFilterCenterNm` + `RefreshSkyBrightness` (K-S quirks outside the interface). `BestSession.ResolveCandidates(...)` (Library) added to expose visibility ∩ moon-clear so Sessions's PlaceBest + PlaceCentered see identical inputs. Year switched from night-max `YearAlt` to session-floor altitude (more actionable planning metric). The legacy `AltitudeChart.cs` (~1400 lines) + `AltitudeSeries.cs` (~900 lines) + `LegendClickHandler.cs` + `LegendHitTester.cs` (dead after the custom-legend pivot) deleted; DataVisualization package reference dropped. Phase 4 commits: `bebf909` PR4a Day · `582b4fb` PR4a Day plot-area lock · `edc2c9b` PR4b prep (ChartLayout hoist) · `5763bbc` PR4b Sky · `7d5d3b2` PR4c Year + universal hide rule · `99f2fc3` Year → floor metric · `46dcd4f` PR4d Sessions · plus PR4e (this commit). Companion Library commits: `6fce6b0` (BestSession non-positive-duration → null) · `a251524` (BestSession.ResolveCandidates public). Detailed plan / lessons-learned at `~/.claude/plans/i-thought-i-d-take-valiant-neumann.md` and the per-PR plans `pr4c-year-to-lc2.md` / `pr4d-sessions-to-lc2.md` / `pr4e-drop-ms-charts.md`.
 
@@ -26,7 +28,7 @@ The app was originally built around Sequence Generator Pro's `.sgf` sequence fil
 
 1. Make sure the altitude/visibility math is actually correct (the recent Astrometry fixes landed real bugs — there may be more).
 2. Expose the reusable astronomy routines in a form **XisfManager** can consume directly, so the same code isn't hand-ported twice.
-3. Keep this app as a standalone tool, cleaned up in place. .NET Framework 4.8.1 is fine — migration to .NET 10 would be cosmetic, not load-bearing.
+3. Keep this app as a standalone tool, cleaned up in place. (Originally said ".NET Framework 4.8.1 is fine — migration to .NET 10 would be cosmetic, not load-bearing." Migrated anyway 2026-05-04 for portfolio consistency with IS / ISP / ISS / XisfManager and the perf wins on the per-target Meeus + LiveCharts paint loops.)
 4. Eventually wrap the shared library in a **NINA plugin** so planning against the TS database can happen inside NINA itself.
 
 ## Sequencing
@@ -77,6 +79,7 @@ The 2026-04-21 whole-repo audit (archived at `docs/archive/CODE_REVIEW-2026-04-2
 
 Residual still-open items (verified 2026-05-04):
 
+- **Velopack 0.0.1298 → newer prerelease bump.** Current pinned version is from 2025-06; 0.0.1589+ exists (2026-04). Velopack 0.0.1298 forward-compats to .NET 10 via netstandard2.0 fallback (build-time fine; runtime self-update path not explicitly tested at this version on net10). Plan: bump version, dry-run a release cycle (`vpk pack` + `vpk release` + self-update install/upgrade smoke), confirm the auto-update flow works against a Velopack-hosted release feed. Separate commit; not gating any active work.
 - **🔄 P2-5.4 — INVERTED.** Original audit flagged `BestSession.For` for not throwing on `minDuration <= 0`. We deliberately reversed that (Library `6fce6b0`): non-positive duration now returns null (the user-reachable degenerate case), making consumers' "no fit" handling uniform. The audit finding is moot; documenting here so future spelunkers don't try to re-add the throw.
 
 Closed in Library `d38fed9` (2026-05-04, "Astronomy.Core cleanup: 5 small findings from code review"):

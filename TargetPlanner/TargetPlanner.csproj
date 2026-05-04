@@ -2,14 +2,28 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net481</TargetFramework>
+    <!-- net10.0-windows10.0.19041 (Win10 2004 / 20H1, May 2020) is required because
+         SkiaSharp.Views.WindowsForms 3.119.0, pulled transitively via
+         LiveChartsCore.SkiaSharpView.WinForms, only ships modern-.NET assets at the
+         net8.0-windows10.0.19041 TFM. The default net10.0-windows (which resolves to
+         net10.0-windows7.0) would fall all the way back to that package's net462 lib,
+         which doesn't load on .NET 10. Win10 2004 is well past EOL of anything older;
+         safe floor. -->
+    <TargetFramework>net10.0-windows10.0.19041</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>TargetPlanner</RootNamespace>
     <AssemblyName>TargetPlanner</AssemblyName>
-    <LangVersion>10</LangVersion>
+    <LangVersion>latest</LangVersion>
     <StartupObject>TargetPlanner.Program</StartupObject>
     <Deterministic>true</Deterministic>
-    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <!-- GC tuning migrated from App.config <runtime> when TP moved to net10.
+         Modern .NET emits these to runtimeconfig.json automatically and ignores
+         App.config <gcServer>/<gcConcurrent>. Server GC = per-logical-core heaps
+         collected in parallel (decisive for the multi-target prepare path,
+         which allocates heavily); concurrent GC = background Gen 2 collection
+         so full collections don't pause the UI thread. -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
     <!-- The SDK auto-generates AssemblyTitle / Product / Version / etc. from the metadata
          properties below. Properties/AssemblyInfo.cs is kept only for [ComVisible] and [Guid]
          (attributes the SDK does NOT auto-generate); its version attributes were removed when
@@ -40,13 +54,6 @@
     <PackageReference Include="LiveChartsCore.SkiaSharpView.WinForms" Version="2.1.0-dev-365" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="Velopack" Version="0.0.1298" />
-  </ItemGroup>
-
-  <!-- Non-NuGet references. LocalLib is a private sibling assembly. -->
-  <ItemGroup>
-    <Reference Include="LocalLib">
-      <HintPath>..\..\..\Libraries\LocalLib\LocalLib\bin\Release\LocalLib.dll</HintPath>
-    </Reference>
   </ItemGroup>
 
   <ItemGroup>

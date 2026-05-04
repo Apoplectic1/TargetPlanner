@@ -14,7 +14,6 @@ using TargetPlanner.Support;
 using TargetPlanner.Updates;
 using System.Threading;
 using System.Threading.Tasks;
-using LocalLib;
 
 using Location = Astronomy.Core.Locations.Location;
 using Target   = Astronomy.Core.Targets.Target;
@@ -1694,24 +1693,27 @@ Right-click anywhere on the chart to clear all overlays.";
         }
         private void Button_BrowseTargetList_Click(object sender, EventArgs e)
         {
-            var folder = new OpenFolderDialog()
+            // Stock WinForms FolderBrowserDialog already uses the Vista IFileDialog UI
+            // by default on .NET 6+. Single-folder selection only -- the multi-select
+            // hack the legacy LocalLib.OpenFolderDialog provided was a nice-to-have that
+            // didn't survive the .NET-Framework -> .NET 10 migration (relied on
+            // reflection over System.Windows.Forms internal types). GetNinaTargets
+            // accepts a string[] and iterates; passing a single-element array works.
+            using var dialog = new FolderBrowserDialog
             {
-                Title = "NINA Target Folder Browser",
-                AutoUpgradeEnabled = true,
-                CheckPathExists = false,
+                Description = "NINA Target Folder Browser",
+                UseDescriptionForTitle = true,
                 InitialDirectory = NinaTargetsRootPath,
-                Multiselect = true,
-                RestoreDirectory = true
+                ShowNewFolderButton = false,
             };
 
-            if (folder.ShowDialog(IntPtr.Zero) == DialogResult.OK)
+            if (dialog.ShowDialog(this) == DialogResult.OK)
             {
                 // Click-Browse implies "I'm about to graph many of these". Flip Mode to
                 // Multi so the post-load Graph click uses the checked set without an
-                // intermediate explicit user action. Pre-VM this was a WireMultiMode hook
-                // on the button's Click event.
+                // intermediate explicit user action.
                 mSelection.SetMode(GraphMode.Multi);
-                _ = GetNinaTargets(folder.SelectedPaths);
+                _ = GetNinaTargets(new[] { dialog.SelectedPath });
             }
         }
 
