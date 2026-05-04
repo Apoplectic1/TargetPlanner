@@ -92,6 +92,7 @@ namespace TargetPlanner
         private Charts.AltitudeSubChart_Day mLC2Day;
         private Charts.AltitudeSubChart_Sky mLC2Sky;
         private Charts.AltitudeSubChart_Year mLC2Year;
+        private Charts.AltitudeSubChart_Sessions mLC2Sessions;
 
         private ToolTip mToolTip;
         private int mToolTipIndex;
@@ -333,6 +334,7 @@ Right-click anywhere on the chart to clear all overlays.";
             mLC2Day?.Dispose();
             mLC2Sky?.Dispose();
             mLC2Year?.Dispose();
+            mLC2Sessions?.Dispose();
             mLatitudeInput?.Dispose();
             mLongitudeInput?.Dispose();
             mRaInput?.Dispose();
@@ -465,6 +467,11 @@ Right-click anywhere on the chart to clear all overlays.";
             mLC2Year.Control.Visible = false;
             mLC2Year.IdealHeightChanged += OnLC2YearIdealHeightChanged;
             Panel_AltitudeChart.Controls.Add(mLC2Year.Control);
+
+            mLC2Sessions = new Charts.AltitudeSubChart_Sessions();
+            mLC2Sessions.Control.Visible = false;
+            mLC2Sessions.IdealHeightChanged += OnLC2SessionsIdealHeightChanged;
+            Panel_AltitudeChart.Controls.Add(mLC2Sessions.Control);
 
             // Initial form sizing so an empty LC2 chart's plot area sits at the
             // ChartLayout.FixedPlotAreaHeight position even before any Graph click.
@@ -639,6 +646,7 @@ Right-click anywhere on the chart to clear all overlays.";
             mAltitudeChart.UpdateHorizonLines(newHorizon);
             mLC2Day?.UpdateHorizonLine(newHorizon);
             mLC2Year?.UpdateHorizonLine(newHorizon);
+            mLC2Sessions?.UpdateHorizonLine(newHorizon);
             RestartSessionsRebuildDebounce();
         }
 
@@ -705,6 +713,14 @@ Right-click anywhere on the chart to clear all overlays.";
             // when the task completes (replaces any in-flight task on rapid
             // scrub via the chart's internal CTS).
             mLC2Year?.RefreshYearVisibility(
+                mAltitudeChart.MoonAvoidanceProfile, mLocation,
+                mLocation.Horizon, mLocation.Duration);
+            // PR4d: LC2 Sessions -- per-night Ceiling / Floor / Symmetric
+            // altitudes (or null Y line breaks for unfit nights) under the
+            // current Horizon / Duration / Moon profile. Same background-task
+            // pattern as Year but with the heavier ResolveCandidates +
+            // PlaceBest + PlaceCentered probe per (target, night).
+            mLC2Sessions?.RefreshSessionsVisibility(
                 mAltitudeChart.MoonAvoidanceProfile, mLocation,
                 mLocation.Horizon, mLocation.Duration);
         }
@@ -1364,6 +1380,7 @@ Right-click anywhere on the chart to clear all overlays.";
             mLC2Day?.UpdateNowLine(mLocalDateTime.When);
             mLC2Sky?.UpdateNowLine(mLocalDateTime.When);
             mLC2Year?.UpdateNowLine(mLocalDateTime.When);
+            mLC2Sessions?.UpdateNowLine(mLocalDateTime.When);
             // Transit / Rise sort keys are time-dependent; Name is not. Skip the re-sort on
             // Name to avoid a pointless Items.Clear+re-add round-trip on every scrub tick.
             if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
@@ -1378,6 +1395,7 @@ Right-click anywhere on the chart to clear all overlays.";
             mLC2Day?.UpdateNowLine(mLocalDateTime.When);
             mLC2Sky?.UpdateNowLine(mLocalDateTime.When);
             mLC2Year?.UpdateNowLine(mLocalDateTime.When);
+            mLC2Sessions?.UpdateNowLine(mLocalDateTime.When);
             if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
                 ResortSelectedTargets();
         }
@@ -1505,6 +1523,15 @@ Right-click anywhere on the chart to clear all overlays.";
                     ResizeAltitudeChartArea(mLC2Year.IdealHeight);
                     mAltitudeChart.ChartTitle = FormatChartTitle(area);
                 }
+                else if (area == "Sessions" && mLC2Sessions != null)
+                {
+                    ShowOnlyAltitudeChart(mLC2Sessions.Control);
+                    mLC2Sessions.Render(targets, mCache, mAltitudeChart.MoonAvoidanceProfile,
+                        mLocation, mLocation.Horizon, mLocation.Duration,
+                        mLocalDateTime.When, mGraphCts.Token);
+                    ResizeAltitudeChartArea(mLC2Sessions.IdealHeight);
+                    mAltitudeChart.ChartTitle = FormatChartTitle(area);
+                }
                 else
                 {
                     ShowOnlyAltitudeChart(mAltitudeChart.mChart);
@@ -1546,6 +1573,7 @@ Right-click anywhere on the chart to clear all overlays.";
             mLC2Day?.UpdateNowLine(mLocalDateTime.When);
             mLC2Sky?.UpdateNowLine(mLocalDateTime.When);
             mLC2Year?.UpdateNowLine(mLocalDateTime.When);
+            mLC2Sessions?.UpdateNowLine(mLocalDateTime.When);
         }
 
         // Signal the in-flight chart build to unwind. The Day / Moon phase is synchronous
@@ -2110,9 +2138,24 @@ Right-click anywhere on the chart to clear all overlays.";
             mUIState.SessionsChart = RadioButton_Sessions.Checked;
             if (RadioButton_Sessions.Checked == true)
             {
-                ShowOnlyAltitudeChart(mAltitudeChart.mChart);
-                mAltitudeChart.ShowChartAreaSeries("Sessions");
-                mAltitudeChart.ChartTitle = FormatChartTitle("Sessions");
+                if (mLC2Sessions != null)
+                {
+                    ShowOnlyAltitudeChart(mLC2Sessions.Control);
+                    if (mAltitudeChart.Targets.Count > 0)
+                    {
+                        mLC2Sessions.Render(mAltitudeChart.Targets, mCache,
+                            mAltitudeChart.MoonAvoidanceProfile, mLocation,
+                            mLocation.Horizon, mLocation.Duration, mLocalDateTime.When);
+                    }
+                    ResizeAltitudeChartArea(mLC2Sessions.IdealHeight);
+                    mAltitudeChart.ChartTitle = FormatChartTitle("Sessions");
+                }
+                else
+                {
+                    ShowOnlyAltitudeChart(mAltitudeChart.mChart);
+                    mAltitudeChart.ShowChartAreaSeries("Sessions");
+                    mAltitudeChart.ChartTitle = FormatChartTitle("Sessions");
+                }
             }
         }
 
@@ -2175,6 +2218,12 @@ Right-click anywhere on the chart to clear all overlays.";
         {
             if (mLC2Year == null) return;
             ResizeAltitudeChartArea(mLC2Year.IdealHeight);
+        }
+
+        private void OnLC2SessionsIdealHeightChanged(object sender, EventArgs e)
+        {
+            if (mLC2Sessions == null) return;
+            ResizeAltitudeChartArea(mLC2Sessions.IdealHeight);
         }
 
         // Resize Panel_AltitudeChart, GroupBox_Altitude, and the form's ClientSize
