@@ -445,7 +445,7 @@ Right-click anywhere on the chart to clear all overlays.";
             Panel_AltitudeChart.Controls.Add(mLC2Day.Control);
 
             // Initial form sizing so the empty Day chart's plot area is at the
-            // FixedPlotAreaHeight position even before any Graph click.
+            // ChartLayout.FixedPlotAreaHeight position even before any Graph click.
             ResizeAltitudeChartArea(mLC2Day.IdealHeight);
 
             // Establish a default sort mode authoritatively from code. The VS Designer has a
@@ -2064,7 +2064,7 @@ Right-click anywhere on the chart to clear all overlays.";
         }
 
         // Resize Panel_AltitudeChart, GroupBox_Altitude, and the form's ClientSize
-        // so the chart's plot area sits at AltitudeSubChart_Day.FixedPlotAreaHeight.
+        // so the chart's plot area sits at ChartLayout.FixedPlotAreaHeight.
         // Width is unchanged. Idempotent: a no-delta call is a cheap no-op.
         private void ResizeAltitudeChartArea(int targetPanelHeight)
         {

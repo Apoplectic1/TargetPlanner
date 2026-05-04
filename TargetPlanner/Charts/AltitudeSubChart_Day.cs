@@ -48,57 +48,9 @@ namespace TargetPlanner.Charts
         public const double MinAltitude = 0.0;
         public const double MaxAltitude = 90.0;
 
-        // Plot-area template. The Day chart's plot area is locked to these
-        // dimensions; Sky / Year / Sessions sub-charts (PR4b..d) inherit the same
-        // values so toggling radios doesn't shift the plot's pixel position.
-        // Chart total height grows as the legend wraps to additional rows; Panel +
-        // GroupBox + Form follow the chart's IdealHeight (raised via event).
-        public const int FixedPlotAreaHeight = 420;
-        // Left chrome holds the rotated Y-axis Name + tick labels + breathing room.
-        // Bottom chrome holds the X-axis tick labels only (no legend — that lives in
-        // a sibling FlowLayoutPanel below the chart, not inside the chart's surface).
-        private const int LeftChromePx = 96;          // Y-axis: Name (rotated) + ticks + pad
-        private const int RightChromePx = 24;         // right padding
-        private const int TopChromePx = 20;           // padding above plot
-        private const int XAxisLabelHeightPx = 44;    // X-axis tick labels + pad
-
-        // Total chart height that keeps the plot area at FixedPlotAreaHeight, with
-        // axis chrome top and bottom. Constant — the legend lives outside the chart
-        // so chart total height never changes.
-        private const int ChartFixedHeight =
-            TopChromePx + FixedPlotAreaHeight + XAxisLabelHeightPx;
-
-        // Legend (external, below chart in a FlowLayoutPanel) styling.
-        private const int LegendRowHeightPx = 22;     // single-line legend item height
-        private const int LegendTopPaddingPx = 6;
-        private const int LegendBottomPaddingPx = 6;
-
-        // Same palette as legacy AltitudeChart so per-target colors stay stable
-        // across the migration. Phase 4e drops the legacy file; this becomes the
-        // single source.
-        private static readonly Color[] TargetColorPalette = new[]
-        {
-            Color.FromArgb( 65, 140, 240),  // blue
-            Color.FromArgb(252, 180,  65),  // gold
-            Color.FromArgb(220, 100, 220),  // magenta
-            Color.FromArgb(100, 220, 180),  // teal
-            Color.FromArgb(255, 138, 128),  // salmon
-            Color.FromArgb(180, 220, 100),  // lime
-            Color.FromArgb(180, 150, 255),  // lavender
-            Color.FromArgb(100, 200, 255),  // sky blue
-            Color.FromArgb(255, 200, 100),  // peach
-            Color.FromArgb(220, 220, 120),  // pale yellow-green
-            Color.FromArgb(255, 150, 200),  // pink
-            Color.FromArgb(150, 220, 150),  // sage
-        };
-
         // Yellow gradient endpoints for dusk/dawn sections (matches MS Charts side).
         private static readonly SKColor YellowOpaque = new SKColor(255, 238, 88, 145);
         private static readonly SKColor YellowFaded  = new SKColor(255, 238, 88,   0);
-
-        // Light grid lines that read against the dark grey (70,70,70) chart background
-        // without competing with the per-target curves.
-        private static readonly SKColor GridLineColor = new SKColor(180, 180, 180, 90);
 
         // Quality metric for BestSession.For — sin(altitude) is the standard
         // airmass-weighted proxy. Same as AltitudeSeries.SinAltQuality.
@@ -163,7 +115,7 @@ namespace TargetPlanner.Charts
         // With FlowLayoutPanel.Dock=Top + AutoSize=true, the panel's Height
         // auto-tracks its content after each layout pass. Container.IdealHeight
         // is just chart fixed height + that current Height.
-        public int IdealHeight => ChartFixedHeight + mLegendPanel.Height;
+        public int IdealHeight => ChartLayout.ChartFixedHeight + mLegendPanel.Height;
 
         public AltitudeSubChart_Day()
         {
@@ -173,7 +125,7 @@ namespace TargetPlanner.Charts
                 UnitWidth = TimeSpan.FromHours(1).TotalDays,
                 MinStep = TimeSpan.FromHours(1).TotalDays,
                 LabelsPaint = new SolidColorPaint(SKColors.LightGray),
-                SeparatorsPaint = new SolidColorPaint(GridLineColor),
+                SeparatorsPaint = new SolidColorPaint(ChartLayout.GridLineColor),
             };
             mYAxis = new Axis
             {
@@ -183,7 +135,7 @@ namespace TargetPlanner.Charts
                 MinStep = 10,
                 ForceStepToMin = true,
                 LabelsPaint = new SolidColorPaint(SKColors.LightGray),
-                SeparatorsPaint = new SolidColorPaint(GridLineColor),
+                SeparatorsPaint = new SolidColorPaint(ChartLayout.GridLineColor),
                 NamePaint = new SolidColorPaint(SKColors.LightGray),
             };
 
@@ -211,9 +163,9 @@ namespace TargetPlanner.Charts
                 LegendPosition = LegendPosition.Hidden,
                 FindingStrategy = FindingStrategy.ExactMatch,
                 TooltipPosition = TooltipPosition.Hidden,
-                BackColor = Color.FromArgb(70, 70, 70),
+                BackColor = ChartLayout.ChartBackground,
                 Dock = DockStyle.Top,
-                Height = ChartFixedHeight,
+                Height = ChartLayout.ChartFixedHeight,
             };
 
             // Lock the plot area to a fixed pixel rectangle. Bottom margin is just
@@ -221,7 +173,8 @@ namespace TargetPlanner.Charts
             // FlowLayoutPanel, so chart height is constant and X-axis labels sit at
             // a fixed pixel position relative to the plot area.
             mChart.DrawMargin = new LiveChartsCore.Measure.Margin(
-                LeftChromePx, TopChromePx, RightChromePx, XAxisLabelHeightPx);
+                ChartLayout.LeftChromePx, ChartLayout.TopChromePx,
+                ChartLayout.RightChromePx, ChartLayout.XAxisLabelHeightPx);
 
             mLegendPanel = new FlowLayoutPanel
             {
@@ -230,13 +183,15 @@ namespace TargetPlanner.Charts
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 Dock = DockStyle.Top,
-                BackColor = Color.FromArgb(70, 70, 70),
-                Padding = new Padding(LeftChromePx, LegendTopPaddingPx, RightChromePx, LegendBottomPaddingPx),
+                BackColor = ChartLayout.ChartBackground,
+                Padding = new Padding(
+                    ChartLayout.LeftChromePx, ChartLayout.LegendTopPaddingPx,
+                    ChartLayout.RightChromePx, ChartLayout.LegendBottomPaddingPx),
             };
 
             mContainer = new Panel
             {
-                BackColor = Color.FromArgb(70, 70, 70),
+                BackColor = ChartLayout.ChartBackground,
                 Dock = DockStyle.Fill,
             };
             // Order matters for Dock=Top stacking: the LAST control added docks
@@ -339,7 +294,7 @@ namespace TargetPlanner.Charts
                 Target target = targets[t];
                 if (target == null) continue;
 
-                Color c = TargetColorPalette[t % TargetColorPalette.Length];
+                Color c = ChartLayout.TargetColorPalette[t % ChartLayout.TargetColorPalette.Length];
                 mTargetColors[target] = c;
 
                 IReadOnlyList<double> altitudes = AltitudeCurve.Sample(
@@ -399,7 +354,7 @@ namespace TargetPlanner.Charts
             {
                 AutoSize = true,
                 ForeColor = Color.LightGray,
-                BackColor = Color.FromArgb(70, 70, 70),
+                BackColor = ChartLayout.ChartBackground,
                 Padding = new Padding(markerWidth + markerLabelGap, 2, 12, 2),
                 Margin = new Padding(0, 0, 4, 2),
                 Text = target.Name,

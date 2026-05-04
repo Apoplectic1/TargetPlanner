@@ -132,39 +132,15 @@ namespace TargetPlanner.Charts
         // on Graph-Target click starts empty, same as the old Target.mAltitudeSeries pattern.
         private Dictionary<Target, AltitudeSeries> mSeriesByTarget;
 
-        // Explicit per-target color, assigned once by ReloadWithTargets from TargetColorPalette
-        // by the target's index in mTargetList. Every Series the target produces (Day / Year /
-        // Sessions / SessionsFloor / SessionsFloorCentered) picks up this color at construction.
-        // See TargetColorPalette for the rationale on explicit vs auto-palette.
+        // Explicit per-target color, assigned once by ReloadWithTargets from
+        // ChartLayout.TargetColorPalette by the target's index in mTargetList. Every Series
+        // the target produces (Day / Year / Sessions / SessionsFloor / SessionsFloorCentered)
+        // picks up this color at construction. Explicit colors opt out of the framework's
+        // implicit auto-palette, which assigns a color to every Color.Empty series in the
+        // order they appear in mChart.Series and skips series with explicit colors -- toggling
+        // one series to Transparent (the hide-via-legend-click behavior) would otherwise shift
+        // every remaining Empty series one slot down the palette, visibly reshuffling colors.
         private Dictionary<Target, Color> mTargetColors;
-
-        // Stable color palette for target series. Picked for readability against the dark gray
-        // chart background (70,70,70) and distinctness from the red now-line, green horizon
-        // line, and yellow dusk/dawn gradient. Assignment is by target index in mTargetList
-        // (so positions 0..N-1 map to palette[i % N]); with 12 entries, wrap-around only hits
-        // on very large target sets.
-        //
-        // Explicit colors here replace the framework's implicit auto-palette, which assigns a
-        // color to every Color.Empty series in the order they appear in mChart.Series and
-        // skips series with explicit colors. That meant toggling one series to Transparent
-        // (the hide-via-legend-click behavior) shifted every remaining Empty series one slot
-        // down the palette, visibly reshuffling colors on the chart. Concrete per-target
-        // colors opt out of that auto-assignment entirely.
-        private static readonly Color[] TargetColorPalette = new[]
-        {
-            Color.FromArgb( 65, 140, 240),  // blue
-            Color.FromArgb(252, 180,  65),  // gold
-            Color.FromArgb(220, 100, 220),  // magenta
-            Color.FromArgb(100, 220, 180),  // teal
-            Color.FromArgb(255, 138, 128),  // salmon
-            Color.FromArgb(180, 220, 100),  // lime
-            Color.FromArgb(180, 150, 255),  // lavender
-            Color.FromArgb(100, 200, 255),  // sky blue
-            Color.FromArgb(255, 200, 100),  // peach
-            Color.FromArgb(220, 220, 120),  // pale yellow-green
-            Color.FromArgb(255, 150, 200),  // pink
-            Color.FromArgb(150, 220, 150),  // sage
-        };
 
         private Dictionary<string, StripLine> mNowLines;
         private Dictionary<string, StripLine> mHorizonLines;
@@ -238,7 +214,7 @@ namespace TargetPlanner.Charts
                 // palette reshuffle we're explicitly avoiding).
                 if (!mTargetColors.TryGetValue(target, out Color color))
                 {
-                    color = TargetColorPalette[mTargetColors.Count % TargetColorPalette.Length];
+                    color = ChartLayout.TargetColorPalette[mTargetColors.Count % ChartLayout.TargetColorPalette.Length];
                     mTargetColors[target] = color;
                 }
                 series = new AltitudeSeries(Location, target, color, mCache);
@@ -760,7 +736,7 @@ namespace TargetPlanner.Charts
             foreach (Target t in targets)
             {
                 if (t == null) continue;
-                mTargetColors[t] = TargetColorPalette[mTargetList.Count % TargetColorPalette.Length];
+                mTargetColors[t] = ChartLayout.TargetColorPalette[mTargetList.Count % ChartLayout.TargetColorPalette.Length];
                 mTargetList.Add(t);
             }
 
@@ -887,9 +863,9 @@ namespace TargetPlanner.Charts
 
         // Re-order mTargetList and mChart.Series to match newOrder without recomputing any
         // per-target altitude points. The Series objects themselves stay -- their Points,
-        // Color (explicit from TargetColorPalette), Tag (legend toggle stash), and ToolTip
-        // are preserved; only their position in mChart.Series changes, which drives the
-        // legend row order.
+        // Color (explicit from ChartLayout.TargetColorPalette), Tag (legend toggle stash),
+        // and ToolTip are preserved; only their position in mChart.Series changes, which
+        // drives the legend row order.
         //
         // Target-independent series like Moon-Day stay in place: the reorder only touches
         // series whose name starts with "{TargetName}-", so a Series named "Moon-Day" is
