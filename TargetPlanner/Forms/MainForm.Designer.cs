@@ -28,1520 +28,1430 @@
         /// </summary>
         private void InitializeComponent()
         {
-            this.GroupBox_Local = new System.Windows.Forms.GroupBox();
-            this.GroupBox_Location = new System.Windows.Forms.GroupBox();
-            this.Lable_Extinction = new System.Windows.Forms.Label();
-            this.Label_Bortle = new System.Windows.Forms.Label();
-            this.ComboBox_Bortle = new System.Windows.Forms.ComboBox();
-            this.NumericUpDown_Extinction = new System.Windows.Forms.NumericUpDown();
-            this.Label_LocalMeters = new System.Windows.Forms.Label();
-            this.NumericUpDown_LocalElevation = new System.Windows.Forms.NumericUpDown();
-            this.Label_LocalElevation = new System.Windows.Forms.Label();
-            this.CheckBox_LocalNorth = new System.Windows.Forms.CheckBox();
-            this.Label_Location = new System.Windows.Forms.Label();
-            this.ComboBox_Location = new System.Windows.Forms.ComboBox();
-            this.NumericUpDown_LatitudeMinutes = new System.Windows.Forms.NumericUpDown();
-            this.NumericUpDown_LatitudeDegrees = new System.Windows.Forms.NumericUpDown();
-            this.Label_LocalLatitudeText = new System.Windows.Forms.Label();
-            this.Label_LocalLongitudeText = new System.Windows.Forms.Label();
-            this.NumericUpDown_LongitudeDegrees = new System.Windows.Forms.NumericUpDown();
-            this.NumericUpDown_LongitudeMinutes = new System.Windows.Forms.NumericUpDown();
-            this.Label_LocalLatDegreeColon = new System.Windows.Forms.Label();
-            this.CheckBox_LocalWest = new System.Windows.Forms.CheckBox();
-            this.Label_LocalLonDegreeColon = new System.Windows.Forms.Label();
-            this.TextBox_Longitude = new System.Windows.Forms.TextBox();
-            this.Label_LocalLatMinuteColon = new System.Windows.Forms.Label();
-            this.TextBox_Latitude = new System.Windows.Forms.TextBox();
-            this.Label_LocalLonMinuteColon = new System.Windows.Forms.Label();
-            this.NumericUpDown_LongitudeSeconds = new System.Windows.Forms.NumericUpDown();
-            this.NumericUpDown_LatitudeSeconds = new System.Windows.Forms.NumericUpDown();
-            this.GroupBox_LocalDateTime = new System.Windows.Forms.GroupBox();
-            this.Label_Phase = new System.Windows.Forms.Label();
-            this.TimePicker = new System.Windows.Forms.DateTimePicker();
-            this.DatePicker = new System.Windows.Forms.DateTimePicker();
-            this.Label_LunarPhaseValue = new System.Windows.Forms.Label();
-            this.Button_Now = new System.Windows.Forms.Button();
-            this.Label_SunAltitudeValue = new System.Windows.Forms.Label();
-            this.Label_AstronomicalDusk = new System.Windows.Forms.Label();
-            this.Label_SunAltitude = new System.Windows.Forms.Label();
-            this.Label_AstronomicalDawnValue = new System.Windows.Forms.Label();
-            this.Label_MoonSetValue = new System.Windows.Forms.Label();
-            this.Label_AstronomicalDuskValue = new System.Windows.Forms.Label();
-            this.Label_MoonSetTimeText = new System.Windows.Forms.Label();
-            this.Label_AstronomicalDawn = new System.Windows.Forms.Label();
-            this.Label_MoonRiseValue = new System.Windows.Forms.Label();
-            this.Label_MoonAltitude = new System.Windows.Forms.Label();
-            this.Label_MoonRise = new System.Windows.Forms.Label();
-            this.Label_LunarAltitudeValue = new System.Windows.Forms.Label();
-            this.Label_LunarIlluminationFractionValue = new System.Windows.Forms.Label();
-            this.Label_LunarIlluminationFraction = new System.Windows.Forms.Label();
-            this.Label_TargetHours = new System.Windows.Forms.Label();
-            this.Label_TargetDuration = new System.Windows.Forms.Label();
-            this.Label_TargetFloor = new System.Windows.Forms.Label();
-            this.NumericUpDown_TargetFloor = new System.Windows.Forms.NumericUpDown();
-            this.NumericUpDown_TargetDuration = new System.Windows.Forms.NumericUpDown();
-            this.Label_LocalHorizon = new System.Windows.Forms.Label();
-            this.ComboBox_SelectTarget = new System.Windows.Forms.ComboBox();
-            this.Label_TargetName = new System.Windows.Forms.Label();
-            this.CheckBox_TargetNorth = new System.Windows.Forms.CheckBox();
-            this.TextBox_RightAscension = new System.Windows.Forms.TextBox();
-            this.NumericUpDown_RaMinutes = new System.Windows.Forms.NumericUpDown();
-            this.TextBox_Declination = new System.Windows.Forms.TextBox();
-            this.Label_DecMinuteColon = new System.Windows.Forms.Label();
-            this.Button_Graph = new System.Windows.Forms.Button();
-            this.NumericUpDown_RaHours = new System.Windows.Forms.NumericUpDown();
-            this.NumericUpDown_RaSeconds = new System.Windows.Forms.NumericUpDown();
-            this.NumericUpDown_DecMinutes = new System.Windows.Forms.NumericUpDown();
-            this.Label_TargetDeclinationText = new System.Windows.Forms.Label();
-            this.Label_RaHourColon = new System.Windows.Forms.Label();
-            this.Label_RaMinuteColon = new System.Windows.Forms.Label();
-            this.Label_DecDegreeColon = new System.Windows.Forms.Label();
-            this.Label_TargetRightAscensionText = new System.Windows.Forms.Label();
-            this.NumericUpDown_DecSeconds = new System.Windows.Forms.NumericUpDown();
-            this.NumericUpDown_DecDegrees = new System.Windows.Forms.NumericUpDown();
-            this.RadioButton_Sessions = new System.Windows.Forms.RadioButton();
-            this.RadioButton_Year = new System.Windows.Forms.RadioButton();
-            this.RadioButton_Day = new System.Windows.Forms.RadioButton();
-            this.Button_VisibleTonight = new System.Windows.Forms.Button();
-            this.Button_SelectAllTargets = new System.Windows.Forms.Button();
-            this.Button_ClearAllTargets = new System.Windows.Forms.Button();
-            this.ProgressBar_ProcessObject = new System.Windows.Forms.ProgressBar();
-            this.Label_SortBy = new System.Windows.Forms.Label();
-            this.ComboBox_SortTargets = new System.Windows.Forms.ComboBox();
-            this.CheckedListBox_SelectedTargets = new System.Windows.Forms.CheckedListBox();
-            this.Button_BrowseTargetList = new System.Windows.Forms.Button();
-            this.GroupBox_Target = new System.Windows.Forms.GroupBox();
-            this.GroupBox_Moon_Filters = new System.Windows.Forms.GroupBox();
-            this.GroupBox_MoonAvoidance = new System.Windows.Forms.GroupBox();
-            this.CheckBox_Moon_AvoidanceEnable = new System.Windows.Forms.CheckBox();
-            this.Label_Moon_Seperation = new System.Windows.Forms.Label();
-            this.NumericUpDown_Moon_Separation = new System.Windows.Forms.NumericUpDown();
-            this.Label_Moon_Width = new System.Windows.Forms.Label();
-            this.NumericUpDown_Moon_Width = new System.Windows.Forms.NumericUpDown();
-            this.CheckBox_Moon_RelaxEnabled = new System.Windows.Forms.CheckBox();
-            this.Label_Moon_RelaxMin = new System.Windows.Forms.Label();
-            this.NumericUpDown_Moon_RelaxMin = new System.Windows.Forms.NumericUpDown();
-            this.Label_Moon_RelaxMax = new System.Windows.Forms.Label();
-            this.NumericUpDown_Moon_RelaxMax = new System.Windows.Forms.NumericUpDown();
-            this.Label_Moon_RelaxScale = new System.Windows.Forms.Label();
-            this.NumericUpDown_Moon_RelaxScale = new System.Windows.Forms.NumericUpDown();
-            this.Button_Cancel = new System.Windows.Forms.Button();
-            this.MenuStrip_MainForm = new System.Windows.Forms.MenuStrip();
-            this.FileToolStripMenuItem_MainForm = new System.Windows.Forms.ToolStripMenuItem();
-            this.GroupBox_Altitude = new System.Windows.Forms.GroupBox();
-            this.RadioButton_Sky = new System.Windows.Forms.RadioButton();
-            this.ProgressBar_MultiTargetProcessing = new System.Windows.Forms.ProgressBar();
-            this.GroupBox_Local.SuspendLayout();
-            this.GroupBox_Location.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Extinction)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LocalElevation)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeMinutes)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeDegrees)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LongitudeDegrees)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LongitudeMinutes)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LongitudeSeconds)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeSeconds)).BeginInit();
-            this.GroupBox_LocalDateTime.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_TargetFloor)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_TargetDuration)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_RaMinutes)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_RaHours)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_RaSeconds)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_DecMinutes)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_DecSeconds)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_DecDegrees)).BeginInit();
-            this.GroupBox_Target.SuspendLayout();
-            this.GroupBox_MoonAvoidance.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Moon_Separation)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Moon_Width)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Moon_RelaxMin)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Moon_RelaxMax)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Moon_RelaxScale)).BeginInit();
-            this.MenuStrip_MainForm.SuspendLayout();
-            this.GroupBox_Altitude.SuspendLayout();
-            this.SuspendLayout();
+            GroupBox_Local = new System.Windows.Forms.GroupBox();
+            GroupBox_Location = new System.Windows.Forms.GroupBox();
+            Lable_Extinction = new System.Windows.Forms.Label();
+            Label_Bortle = new System.Windows.Forms.Label();
+            ComboBox_Bortle = new System.Windows.Forms.ComboBox();
+            NumericUpDown_Extinction = new System.Windows.Forms.NumericUpDown();
+            Label_LocalMeters = new System.Windows.Forms.Label();
+            NumericUpDown_LocalElevation = new System.Windows.Forms.NumericUpDown();
+            Label_LocalElevation = new System.Windows.Forms.Label();
+            CheckBox_LocalNorth = new System.Windows.Forms.CheckBox();
+            Label_Location = new System.Windows.Forms.Label();
+            ComboBox_Location = new System.Windows.Forms.ComboBox();
+            NumericUpDown_LatitudeMinutes = new System.Windows.Forms.NumericUpDown();
+            NumericUpDown_LatitudeDegrees = new System.Windows.Forms.NumericUpDown();
+            Label_LocalLatitudeText = new System.Windows.Forms.Label();
+            Label_LocalLongitudeText = new System.Windows.Forms.Label();
+            NumericUpDown_LongitudeDegrees = new System.Windows.Forms.NumericUpDown();
+            NumericUpDown_LongitudeMinutes = new System.Windows.Forms.NumericUpDown();
+            Label_LocalLatDegreeColon = new System.Windows.Forms.Label();
+            CheckBox_LocalWest = new System.Windows.Forms.CheckBox();
+            Label_LocalLonDegreeColon = new System.Windows.Forms.Label();
+            TextBox_Longitude = new System.Windows.Forms.TextBox();
+            Label_LocalLatMinuteColon = new System.Windows.Forms.Label();
+            TextBox_Latitude = new System.Windows.Forms.TextBox();
+            Label_LocalLonMinuteColon = new System.Windows.Forms.Label();
+            NumericUpDown_LongitudeSeconds = new System.Windows.Forms.NumericUpDown();
+            NumericUpDown_LatitudeSeconds = new System.Windows.Forms.NumericUpDown();
+            GroupBox_LocalDateTime = new System.Windows.Forms.GroupBox();
+            Label_Phase = new System.Windows.Forms.Label();
+            TimePicker = new System.Windows.Forms.DateTimePicker();
+            DatePicker = new System.Windows.Forms.DateTimePicker();
+            Label_LunarPhaseValue = new System.Windows.Forms.Label();
+            Button_Now = new System.Windows.Forms.Button();
+            Label_SunAltitudeValue = new System.Windows.Forms.Label();
+            Label_AstronomicalDusk = new System.Windows.Forms.Label();
+            Label_SunAltitude = new System.Windows.Forms.Label();
+            Label_AstronomicalDawnValue = new System.Windows.Forms.Label();
+            Label_MoonSetValue = new System.Windows.Forms.Label();
+            Label_AstronomicalDuskValue = new System.Windows.Forms.Label();
+            Label_MoonSetTimeText = new System.Windows.Forms.Label();
+            Label_AstronomicalDawn = new System.Windows.Forms.Label();
+            Label_MoonRiseValue = new System.Windows.Forms.Label();
+            Label_MoonAltitude = new System.Windows.Forms.Label();
+            Label_MoonRise = new System.Windows.Forms.Label();
+            Label_LunarAltitudeValue = new System.Windows.Forms.Label();
+            Label_LunarIlluminationFractionValue = new System.Windows.Forms.Label();
+            Label_LunarIlluminationFraction = new System.Windows.Forms.Label();
+            Label_TargetHours = new System.Windows.Forms.Label();
+            Label_TargetDuration = new System.Windows.Forms.Label();
+            Label_TargetFloor = new System.Windows.Forms.Label();
+            NumericUpDown_TargetFloor = new System.Windows.Forms.NumericUpDown();
+            NumericUpDown_TargetDuration = new System.Windows.Forms.NumericUpDown();
+            Label_LocalHorizon = new System.Windows.Forms.Label();
+            ComboBox_SelectTarget = new System.Windows.Forms.ComboBox();
+            Label_TargetName = new System.Windows.Forms.Label();
+            CheckBox_TargetNorth = new System.Windows.Forms.CheckBox();
+            TextBox_RightAscension = new System.Windows.Forms.TextBox();
+            NumericUpDown_RaMinutes = new System.Windows.Forms.NumericUpDown();
+            TextBox_Declination = new System.Windows.Forms.TextBox();
+            Label_DecMinuteColon = new System.Windows.Forms.Label();
+            Button_Graph = new System.Windows.Forms.Button();
+            NumericUpDown_RaHours = new System.Windows.Forms.NumericUpDown();
+            NumericUpDown_RaSeconds = new System.Windows.Forms.NumericUpDown();
+            NumericUpDown_DecMinutes = new System.Windows.Forms.NumericUpDown();
+            Label_TargetDeclinationText = new System.Windows.Forms.Label();
+            Label_RaHourColon = new System.Windows.Forms.Label();
+            Label_RaMinuteColon = new System.Windows.Forms.Label();
+            Label_DecDegreeColon = new System.Windows.Forms.Label();
+            Label_TargetRightAscensionText = new System.Windows.Forms.Label();
+            NumericUpDown_DecSeconds = new System.Windows.Forms.NumericUpDown();
+            NumericUpDown_DecDegrees = new System.Windows.Forms.NumericUpDown();
+            RadioButton_Sessions = new System.Windows.Forms.RadioButton();
+            RadioButton_Year = new System.Windows.Forms.RadioButton();
+            RadioButton_Day = new System.Windows.Forms.RadioButton();
+            Button_VisibleTonight = new System.Windows.Forms.Button();
+            Button_SelectAllTargets = new System.Windows.Forms.Button();
+            Button_ClearAllTargets = new System.Windows.Forms.Button();
+            ProgressBar_ProcessObject = new System.Windows.Forms.ProgressBar();
+            Label_SortBy = new System.Windows.Forms.Label();
+            ComboBox_SortTargets = new System.Windows.Forms.ComboBox();
+            CheckedListBox_SelectedTargets = new System.Windows.Forms.CheckedListBox();
+            Button_BrowseTargetList = new System.Windows.Forms.Button();
+            GroupBox_Target = new System.Windows.Forms.GroupBox();
+            GroupBox_Moon_Filters = new System.Windows.Forms.GroupBox();
+            GroupBox_MoonAvoidance = new System.Windows.Forms.GroupBox();
+            CheckBox_Moon_AvoidanceEnable = new System.Windows.Forms.CheckBox();
+            Label_Moon_Seperation = new System.Windows.Forms.Label();
+            NumericUpDown_Moon_Separation = new System.Windows.Forms.NumericUpDown();
+            Label_Moon_Width = new System.Windows.Forms.Label();
+            NumericUpDown_Moon_Width = new System.Windows.Forms.NumericUpDown();
+            CheckBox_Moon_RelaxEnabled = new System.Windows.Forms.CheckBox();
+            Label_Moon_RelaxMin = new System.Windows.Forms.Label();
+            NumericUpDown_Moon_RelaxMin = new System.Windows.Forms.NumericUpDown();
+            Label_Moon_RelaxMax = new System.Windows.Forms.Label();
+            NumericUpDown_Moon_RelaxMax = new System.Windows.Forms.NumericUpDown();
+            Label_Moon_RelaxScale = new System.Windows.Forms.Label();
+            NumericUpDown_Moon_RelaxScale = new System.Windows.Forms.NumericUpDown();
+            Button_Cancel = new System.Windows.Forms.Button();
+            MenuStrip_MainForm = new System.Windows.Forms.MenuStrip();
+            FileToolStripMenuItem_MainForm = new System.Windows.Forms.ToolStripMenuItem();
+            GroupBox_Altitude = new System.Windows.Forms.GroupBox();
+            RadioButton_Sky = new System.Windows.Forms.RadioButton();
+            ProgressBar_MultiTargetProcessing = new System.Windows.Forms.ProgressBar();
+            GroupBox_Local.SuspendLayout();
+            GroupBox_Location.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Extinction).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_LocalElevation).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_LatitudeMinutes).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_LatitudeDegrees).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_LongitudeDegrees).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_LongitudeMinutes).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_LongitudeSeconds).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_LatitudeSeconds).BeginInit();
+            GroupBox_LocalDateTime.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_TargetFloor).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_TargetDuration).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_RaMinutes).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_RaHours).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_RaSeconds).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_DecMinutes).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_DecSeconds).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_DecDegrees).BeginInit();
+            GroupBox_Target.SuspendLayout();
+            GroupBox_MoonAvoidance.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_Separation).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_Width).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_RelaxMin).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_RelaxMax).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_RelaxScale).BeginInit();
+            MenuStrip_MainForm.SuspendLayout();
+            GroupBox_Altitude.SuspendLayout();
+            SuspendLayout();
             // 
             // GroupBox_Local
             // 
-            this.GroupBox_Local.Controls.Add(this.GroupBox_Location);
-            this.GroupBox_Local.Controls.Add(this.GroupBox_LocalDateTime);
-            this.GroupBox_Local.Location = new System.Drawing.Point(13, 30);
-            this.GroupBox_Local.Name = "GroupBox_Local";
-            this.GroupBox_Local.Size = new System.Drawing.Size(504, 322);
-            this.GroupBox_Local.TabIndex = 0;
-            this.GroupBox_Local.TabStop = false;
-            this.GroupBox_Local.Text = "Local";
+            GroupBox_Local.Controls.Add(GroupBox_Location);
+            GroupBox_Local.Controls.Add(GroupBox_LocalDateTime);
+            GroupBox_Local.Location = new System.Drawing.Point(15, 35);
+            GroupBox_Local.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            GroupBox_Local.Name = "GroupBox_Local";
+            GroupBox_Local.Padding = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            GroupBox_Local.Size = new System.Drawing.Size(588, 372);
+            GroupBox_Local.TabIndex = 0;
+            GroupBox_Local.TabStop = false;
+            GroupBox_Local.Text = "Local";
             // 
             // GroupBox_Location
             // 
-            this.GroupBox_Location.Controls.Add(this.Lable_Extinction);
-            this.GroupBox_Location.Controls.Add(this.Label_Bortle);
-            this.GroupBox_Location.Controls.Add(this.ComboBox_Bortle);
-            this.GroupBox_Location.Controls.Add(this.NumericUpDown_Extinction);
-            this.GroupBox_Location.Controls.Add(this.Label_LocalMeters);
-            this.GroupBox_Location.Controls.Add(this.NumericUpDown_LocalElevation);
-            this.GroupBox_Location.Controls.Add(this.Label_LocalElevation);
-            this.GroupBox_Location.Controls.Add(this.CheckBox_LocalNorth);
-            this.GroupBox_Location.Controls.Add(this.Label_Location);
-            this.GroupBox_Location.Controls.Add(this.ComboBox_Location);
-            this.GroupBox_Location.Controls.Add(this.NumericUpDown_LatitudeMinutes);
-            this.GroupBox_Location.Controls.Add(this.NumericUpDown_LatitudeDegrees);
-            this.GroupBox_Location.Controls.Add(this.Label_LocalLatitudeText);
-            this.GroupBox_Location.Controls.Add(this.Label_LocalLongitudeText);
-            this.GroupBox_Location.Controls.Add(this.NumericUpDown_LongitudeDegrees);
-            this.GroupBox_Location.Controls.Add(this.NumericUpDown_LongitudeMinutes);
-            this.GroupBox_Location.Controls.Add(this.Label_LocalLatDegreeColon);
-            this.GroupBox_Location.Controls.Add(this.CheckBox_LocalWest);
-            this.GroupBox_Location.Controls.Add(this.Label_LocalLonDegreeColon);
-            this.GroupBox_Location.Controls.Add(this.TextBox_Longitude);
-            this.GroupBox_Location.Controls.Add(this.Label_LocalLatMinuteColon);
-            this.GroupBox_Location.Controls.Add(this.TextBox_Latitude);
-            this.GroupBox_Location.Controls.Add(this.Label_LocalLonMinuteColon);
-            this.GroupBox_Location.Controls.Add(this.NumericUpDown_LongitudeSeconds);
-            this.GroupBox_Location.Controls.Add(this.NumericUpDown_LatitudeSeconds);
-            this.GroupBox_Location.Location = new System.Drawing.Point(18, 19);
-            this.GroupBox_Location.Name = "GroupBox_Location";
-            this.GroupBox_Location.Size = new System.Drawing.Size(470, 132);
-            this.GroupBox_Location.TabIndex = 30;
-            this.GroupBox_Location.TabStop = false;
-            this.GroupBox_Location.Text = "Location";
+            GroupBox_Location.Controls.Add(Lable_Extinction);
+            GroupBox_Location.Controls.Add(Label_Bortle);
+            GroupBox_Location.Controls.Add(ComboBox_Bortle);
+            GroupBox_Location.Controls.Add(NumericUpDown_Extinction);
+            GroupBox_Location.Controls.Add(Label_LocalMeters);
+            GroupBox_Location.Controls.Add(NumericUpDown_LocalElevation);
+            GroupBox_Location.Controls.Add(Label_LocalElevation);
+            GroupBox_Location.Controls.Add(CheckBox_LocalNorth);
+            GroupBox_Location.Controls.Add(Label_Location);
+            GroupBox_Location.Controls.Add(ComboBox_Location);
+            GroupBox_Location.Controls.Add(NumericUpDown_LatitudeMinutes);
+            GroupBox_Location.Controls.Add(NumericUpDown_LatitudeDegrees);
+            GroupBox_Location.Controls.Add(Label_LocalLatitudeText);
+            GroupBox_Location.Controls.Add(Label_LocalLongitudeText);
+            GroupBox_Location.Controls.Add(NumericUpDown_LongitudeDegrees);
+            GroupBox_Location.Controls.Add(NumericUpDown_LongitudeMinutes);
+            GroupBox_Location.Controls.Add(Label_LocalLatDegreeColon);
+            GroupBox_Location.Controls.Add(CheckBox_LocalWest);
+            GroupBox_Location.Controls.Add(Label_LocalLonDegreeColon);
+            GroupBox_Location.Controls.Add(TextBox_Longitude);
+            GroupBox_Location.Controls.Add(Label_LocalLatMinuteColon);
+            GroupBox_Location.Controls.Add(TextBox_Latitude);
+            GroupBox_Location.Controls.Add(Label_LocalLonMinuteColon);
+            GroupBox_Location.Controls.Add(NumericUpDown_LongitudeSeconds);
+            GroupBox_Location.Controls.Add(NumericUpDown_LatitudeSeconds);
+            GroupBox_Location.Location = new System.Drawing.Point(21, 22);
+            GroupBox_Location.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            GroupBox_Location.Name = "GroupBox_Location";
+            GroupBox_Location.Padding = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            GroupBox_Location.Size = new System.Drawing.Size(548, 152);
+            GroupBox_Location.TabIndex = 30;
+            GroupBox_Location.TabStop = false;
+            GroupBox_Location.Text = "Location";
             // 
             // Lable_Extinction
             // 
-            this.Lable_Extinction.AutoSize = true;
-            this.Lable_Extinction.Location = new System.Drawing.Point(374, 100);
-            this.Lable_Extinction.Name = "Lable_Extinction";
-            this.Lable_Extinction.Size = new System.Drawing.Size(74, 13);
-            this.Lable_Extinction.TabIndex = 43;
-            this.Lable_Extinction.Text = "Sky Extinction";
+            Lable_Extinction.AutoSize = true;
+            Lable_Extinction.Location = new System.Drawing.Point(436, 115);
+            Lable_Extinction.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Lable_Extinction.Name = "Lable_Extinction";
+            Lable_Extinction.Size = new System.Drawing.Size(80, 15);
+            Lable_Extinction.TabIndex = 43;
+            Lable_Extinction.Text = "Sky Extinction";
             // 
             // Label_Bortle
             // 
-            this.Label_Bortle.AutoSize = true;
-            this.Label_Bortle.Location = new System.Drawing.Point(221, 100);
-            this.Label_Bortle.Name = "Label_Bortle";
-            this.Label_Bortle.Size = new System.Drawing.Size(34, 13);
-            this.Label_Bortle.TabIndex = 42;
-            this.Label_Bortle.Text = "Bortle";
+            Label_Bortle.AutoSize = true;
+            Label_Bortle.Location = new System.Drawing.Point(258, 115);
+            Label_Bortle.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_Bortle.Name = "Label_Bortle";
+            Label_Bortle.Size = new System.Drawing.Size(38, 15);
+            Label_Bortle.TabIndex = 42;
+            Label_Bortle.Text = "Bortle";
             // 
             // ComboBox_Bortle
             // 
-            this.ComboBox_Bortle.FormattingEnabled = true;
-            this.ComboBox_Bortle.Location = new System.Drawing.Point(258, 96);
-            this.ComboBox_Bortle.Name = "ComboBox_Bortle";
-            this.ComboBox_Bortle.Size = new System.Drawing.Size(42, 21);
-            this.ComboBox_Bortle.TabIndex = 41;
+            ComboBox_Bortle.FormattingEnabled = true;
+            ComboBox_Bortle.Location = new System.Drawing.Point(301, 111);
+            ComboBox_Bortle.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            ComboBox_Bortle.Name = "ComboBox_Bortle";
+            ComboBox_Bortle.Size = new System.Drawing.Size(48, 23);
+            ComboBox_Bortle.TabIndex = 41;
             // 
             // NumericUpDown_Extinction
             // 
-            this.NumericUpDown_Extinction.DecimalPlaces = 2;
-            this.NumericUpDown_Extinction.Increment = new decimal(new int[] {
-            1,
-            0,
-            0,
-            131072});
-            this.NumericUpDown_Extinction.Location = new System.Drawing.Point(306, 96);
-            this.NumericUpDown_Extinction.Maximum = new decimal(new int[] {
-            1,
-            0,
-            0,
-            0});
-            this.NumericUpDown_Extinction.Name = "NumericUpDown_Extinction";
-            this.NumericUpDown_Extinction.Size = new System.Drawing.Size(65, 20);
-            this.NumericUpDown_Extinction.TabIndex = 29;
-            this.NumericUpDown_Extinction.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_Extinction.DecimalPlaces = 2;
+            NumericUpDown_Extinction.Increment = new decimal(new int[] { 1, 0, 0, 131072 });
+            NumericUpDown_Extinction.Location = new System.Drawing.Point(357, 111);
+            NumericUpDown_Extinction.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_Extinction.Maximum = new decimal(new int[] { 1, 0, 0, 0 });
+            NumericUpDown_Extinction.Name = "NumericUpDown_Extinction";
+            NumericUpDown_Extinction.Size = new System.Drawing.Size(76, 23);
+            NumericUpDown_Extinction.TabIndex = 29;
+            NumericUpDown_Extinction.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // Label_LocalMeters
             // 
-            this.Label_LocalMeters.AutoSize = true;
-            this.Label_LocalMeters.Location = new System.Drawing.Point(143, 100);
-            this.Label_LocalMeters.Name = "Label_LocalMeters";
-            this.Label_LocalMeters.Size = new System.Drawing.Size(39, 13);
-            this.Label_LocalMeters.TabIndex = 28;
-            this.Label_LocalMeters.Text = "Meters";
+            Label_LocalMeters.AutoSize = true;
+            Label_LocalMeters.Location = new System.Drawing.Point(167, 115);
+            Label_LocalMeters.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_LocalMeters.Name = "Label_LocalMeters";
+            Label_LocalMeters.Size = new System.Drawing.Size(43, 15);
+            Label_LocalMeters.TabIndex = 28;
+            Label_LocalMeters.Text = "Meters";
             // 
             // NumericUpDown_LocalElevation
             // 
-            this.NumericUpDown_LocalElevation.Increment = new decimal(new int[] {
-            10,
-            0,
-            0,
-            0});
-            this.NumericUpDown_LocalElevation.Location = new System.Drawing.Point(85, 96);
-            this.NumericUpDown_LocalElevation.Maximum = new decimal(new int[] {
-            10000,
-            0,
-            0,
-            0});
-            this.NumericUpDown_LocalElevation.Minimum = new decimal(new int[] {
-            100,
-            0,
-            0,
-            -2147483648});
-            this.NumericUpDown_LocalElevation.Name = "NumericUpDown_LocalElevation";
-            this.NumericUpDown_LocalElevation.Size = new System.Drawing.Size(55, 20);
-            this.NumericUpDown_LocalElevation.TabIndex = 27;
-            this.NumericUpDown_LocalElevation.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_LocalElevation.ValueChanged += new System.EventHandler(this.NumericUpDown_LocalElevation_ValueChanged);
+            NumericUpDown_LocalElevation.Increment = new decimal(new int[] { 10, 0, 0, 0 });
+            NumericUpDown_LocalElevation.Location = new System.Drawing.Point(99, 111);
+            NumericUpDown_LocalElevation.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_LocalElevation.Maximum = new decimal(new int[] { 10000, 0, 0, 0 });
+            NumericUpDown_LocalElevation.Minimum = new decimal(new int[] { 100, 0, 0, int.MinValue });
+            NumericUpDown_LocalElevation.Name = "NumericUpDown_LocalElevation";
+            NumericUpDown_LocalElevation.Size = new System.Drawing.Size(64, 23);
+            NumericUpDown_LocalElevation.TabIndex = 27;
+            NumericUpDown_LocalElevation.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_LocalElevation.ValueChanged += NumericUpDown_LocalElevation_ValueChanged;
             // 
             // Label_LocalElevation
             // 
-            this.Label_LocalElevation.AutoSize = true;
-            this.Label_LocalElevation.Location = new System.Drawing.Point(32, 100);
-            this.Label_LocalElevation.Name = "Label_LocalElevation";
-            this.Label_LocalElevation.Size = new System.Drawing.Size(51, 13);
-            this.Label_LocalElevation.TabIndex = 26;
-            this.Label_LocalElevation.Text = "Elevation";
+            Label_LocalElevation.AutoSize = true;
+            Label_LocalElevation.Location = new System.Drawing.Point(37, 115);
+            Label_LocalElevation.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_LocalElevation.Name = "Label_LocalElevation";
+            Label_LocalElevation.Size = new System.Drawing.Size(55, 15);
+            Label_LocalElevation.TabIndex = 26;
+            Label_LocalElevation.Text = "Elevation";
             // 
             // CheckBox_LocalNorth
             // 
-            this.CheckBox_LocalNorth.AutoSize = true;
-            this.CheckBox_LocalNorth.Checked = true;
-            this.CheckBox_LocalNorth.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.CheckBox_LocalNorth.Location = new System.Drawing.Point(387, 52);
-            this.CheckBox_LocalNorth.Name = "CheckBox_LocalNorth";
-            this.CheckBox_LocalNorth.Size = new System.Drawing.Size(52, 17);
-            this.CheckBox_LocalNorth.TabIndex = 25;
-            this.CheckBox_LocalNorth.Text = "North";
-            this.CheckBox_LocalNorth.UseVisualStyleBackColor = true;
+            CheckBox_LocalNorth.AutoSize = true;
+            CheckBox_LocalNorth.Checked = true;
+            CheckBox_LocalNorth.CheckState = System.Windows.Forms.CheckState.Checked;
+            CheckBox_LocalNorth.Location = new System.Drawing.Point(451, 60);
+            CheckBox_LocalNorth.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            CheckBox_LocalNorth.Name = "CheckBox_LocalNorth";
+            CheckBox_LocalNorth.Size = new System.Drawing.Size(57, 19);
+            CheckBox_LocalNorth.TabIndex = 25;
+            CheckBox_LocalNorth.Text = "North";
+            CheckBox_LocalNorth.UseVisualStyleBackColor = true;
             // 
             // Label_Location
             // 
-            this.Label_Location.AutoSize = true;
-            this.Label_Location.Location = new System.Drawing.Point(47, 20);
-            this.Label_Location.Name = "Label_Location";
-            this.Label_Location.Size = new System.Drawing.Size(51, 13);
-            this.Label_Location.TabIndex = 20;
-            this.Label_Location.Text = "Location:";
+            Label_Location.AutoSize = true;
+            Label_Location.Location = new System.Drawing.Point(55, 23);
+            Label_Location.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_Location.Name = "Label_Location";
+            Label_Location.Size = new System.Drawing.Size(56, 15);
+            Label_Location.TabIndex = 20;
+            Label_Location.Text = "Location:";
             // 
             // ComboBox_Location
             // 
-            this.ComboBox_Location.FormattingEnabled = true;
-            this.ComboBox_Location.Location = new System.Drawing.Point(108, 16);
-            this.ComboBox_Location.Name = "ComboBox_Location";
-            this.ComboBox_Location.Size = new System.Drawing.Size(121, 21);
-            this.ComboBox_Location.TabIndex = 1;
-            this.ComboBox_Location.Text = "Penns Park";
-            this.ComboBox_Location.DropDown += new System.EventHandler(this.ComboBox_Location_DropDown);
-            this.ComboBox_Location.SelectedIndexChanged += new System.EventHandler(this.ComboBox_Location_SelectionIndexChanged);
+            ComboBox_Location.FormattingEnabled = true;
+            ComboBox_Location.Location = new System.Drawing.Point(126, 18);
+            ComboBox_Location.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            ComboBox_Location.Name = "ComboBox_Location";
+            ComboBox_Location.Size = new System.Drawing.Size(140, 23);
+            ComboBox_Location.TabIndex = 1;
+            ComboBox_Location.Text = "Penns Park";
+            ComboBox_Location.DropDown += ComboBox_Location_DropDown;
+            ComboBox_Location.SelectedIndexChanged += ComboBox_Location_SelectionIndexChanged;
             // 
             // NumericUpDown_LatitudeMinutes
             // 
-            this.NumericUpDown_LatitudeMinutes.AllowDrop = true;
-            this.NumericUpDown_LatitudeMinutes.Location = new System.Drawing.Point(160, 50);
-            this.NumericUpDown_LatitudeMinutes.Maximum = new decimal(new int[] {
-            60,
-            0,
-            0,
-            0});
-            this.NumericUpDown_LatitudeMinutes.Minimum = new decimal(new int[] {
-            1,
-            0,
-            0,
-            -2147483648});
-            this.NumericUpDown_LatitudeMinutes.Name = "NumericUpDown_LatitudeMinutes";
-            this.NumericUpDown_LatitudeMinutes.Size = new System.Drawing.Size(55, 20);
-            this.NumericUpDown_LatitudeMinutes.TabIndex = 3;
-            this.NumericUpDown_LatitudeMinutes.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_LatitudeMinutes.AllowDrop = true;
+            NumericUpDown_LatitudeMinutes.Location = new System.Drawing.Point(187, 58);
+            NumericUpDown_LatitudeMinutes.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_LatitudeMinutes.Maximum = new decimal(new int[] { 60, 0, 0, 0 });
+            NumericUpDown_LatitudeMinutes.Minimum = new decimal(new int[] { 1, 0, 0, int.MinValue });
+            NumericUpDown_LatitudeMinutes.Name = "NumericUpDown_LatitudeMinutes";
+            NumericUpDown_LatitudeMinutes.Size = new System.Drawing.Size(64, 23);
+            NumericUpDown_LatitudeMinutes.TabIndex = 3;
+            NumericUpDown_LatitudeMinutes.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // NumericUpDown_LatitudeDegrees
             // 
-            this.NumericUpDown_LatitudeDegrees.AllowDrop = true;
-            this.NumericUpDown_LatitudeDegrees.Location = new System.Drawing.Point(85, 50);
-            this.NumericUpDown_LatitudeDegrees.Maximum = new decimal(new int[] {
-            90,
-            0,
-            0,
-            0});
-            this.NumericUpDown_LatitudeDegrees.Minimum = new decimal(new int[] {
-            90,
-            0,
-            0,
-            -2147483648});
-            this.NumericUpDown_LatitudeDegrees.Name = "NumericUpDown_LatitudeDegrees";
-            this.NumericUpDown_LatitudeDegrees.Size = new System.Drawing.Size(55, 20);
-            this.NumericUpDown_LatitudeDegrees.TabIndex = 2;
-            this.NumericUpDown_LatitudeDegrees.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_LatitudeDegrees.AllowDrop = true;
+            NumericUpDown_LatitudeDegrees.Location = new System.Drawing.Point(99, 58);
+            NumericUpDown_LatitudeDegrees.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_LatitudeDegrees.Maximum = new decimal(new int[] { 90, 0, 0, 0 });
+            NumericUpDown_LatitudeDegrees.Minimum = new decimal(new int[] { 90, 0, 0, int.MinValue });
+            NumericUpDown_LatitudeDegrees.Name = "NumericUpDown_LatitudeDegrees";
+            NumericUpDown_LatitudeDegrees.Size = new System.Drawing.Size(64, 23);
+            NumericUpDown_LatitudeDegrees.TabIndex = 2;
+            NumericUpDown_LatitudeDegrees.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // Label_LocalLatitudeText
             // 
-            this.Label_LocalLatitudeText.AutoSize = true;
-            this.Label_LocalLatitudeText.Location = new System.Drawing.Point(38, 54);
-            this.Label_LocalLatitudeText.Name = "Label_LocalLatitudeText";
-            this.Label_LocalLatitudeText.Size = new System.Drawing.Size(45, 13);
-            this.Label_LocalLatitudeText.TabIndex = 3;
-            this.Label_LocalLatitudeText.Text = "Latitude";
+            Label_LocalLatitudeText.AutoSize = true;
+            Label_LocalLatitudeText.Location = new System.Drawing.Point(44, 62);
+            Label_LocalLatitudeText.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_LocalLatitudeText.Name = "Label_LocalLatitudeText";
+            Label_LocalLatitudeText.Size = new System.Drawing.Size(50, 15);
+            Label_LocalLatitudeText.TabIndex = 3;
+            Label_LocalLatitudeText.Text = "Latitude";
             // 
             // Label_LocalLongitudeText
             // 
-            this.Label_LocalLongitudeText.AutoSize = true;
-            this.Label_LocalLongitudeText.Location = new System.Drawing.Point(29, 77);
-            this.Label_LocalLongitudeText.Name = "Label_LocalLongitudeText";
-            this.Label_LocalLongitudeText.Size = new System.Drawing.Size(54, 13);
-            this.Label_LocalLongitudeText.TabIndex = 4;
-            this.Label_LocalLongitudeText.Text = "Longitude";
+            Label_LocalLongitudeText.AutoSize = true;
+            Label_LocalLongitudeText.Location = new System.Drawing.Point(34, 89);
+            Label_LocalLongitudeText.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_LocalLongitudeText.Name = "Label_LocalLongitudeText";
+            Label_LocalLongitudeText.Size = new System.Drawing.Size(61, 15);
+            Label_LocalLongitudeText.TabIndex = 4;
+            Label_LocalLongitudeText.Text = "Longitude";
             // 
             // NumericUpDown_LongitudeDegrees
             // 
-            this.NumericUpDown_LongitudeDegrees.AllowDrop = true;
-            this.NumericUpDown_LongitudeDegrees.Location = new System.Drawing.Point(85, 73);
-            this.NumericUpDown_LongitudeDegrees.Maximum = new decimal(new int[] {
-            180,
-            0,
-            0,
-            0});
-            this.NumericUpDown_LongitudeDegrees.Name = "NumericUpDown_LongitudeDegrees";
-            this.NumericUpDown_LongitudeDegrees.Size = new System.Drawing.Size(55, 20);
-            this.NumericUpDown_LongitudeDegrees.TabIndex = 6;
-            this.NumericUpDown_LongitudeDegrees.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_LongitudeDegrees.AllowDrop = true;
+            NumericUpDown_LongitudeDegrees.Location = new System.Drawing.Point(99, 84);
+            NumericUpDown_LongitudeDegrees.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_LongitudeDegrees.Maximum = new decimal(new int[] { 180, 0, 0, 0 });
+            NumericUpDown_LongitudeDegrees.Name = "NumericUpDown_LongitudeDegrees";
+            NumericUpDown_LongitudeDegrees.Size = new System.Drawing.Size(64, 23);
+            NumericUpDown_LongitudeDegrees.TabIndex = 6;
+            NumericUpDown_LongitudeDegrees.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // NumericUpDown_LongitudeMinutes
             // 
-            this.NumericUpDown_LongitudeMinutes.AllowDrop = true;
-            this.NumericUpDown_LongitudeMinutes.Location = new System.Drawing.Point(160, 73);
-            this.NumericUpDown_LongitudeMinutes.Maximum = new decimal(new int[] {
-            60,
-            0,
-            0,
-            0});
-            this.NumericUpDown_LongitudeMinutes.Minimum = new decimal(new int[] {
-            1,
-            0,
-            0,
-            -2147483648});
-            this.NumericUpDown_LongitudeMinutes.Name = "NumericUpDown_LongitudeMinutes";
-            this.NumericUpDown_LongitudeMinutes.Size = new System.Drawing.Size(55, 20);
-            this.NumericUpDown_LongitudeMinutes.TabIndex = 7;
-            this.NumericUpDown_LongitudeMinutes.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_LongitudeMinutes.AllowDrop = true;
+            NumericUpDown_LongitudeMinutes.Location = new System.Drawing.Point(187, 84);
+            NumericUpDown_LongitudeMinutes.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_LongitudeMinutes.Maximum = new decimal(new int[] { 60, 0, 0, 0 });
+            NumericUpDown_LongitudeMinutes.Minimum = new decimal(new int[] { 1, 0, 0, int.MinValue });
+            NumericUpDown_LongitudeMinutes.Name = "NumericUpDown_LongitudeMinutes";
+            NumericUpDown_LongitudeMinutes.Size = new System.Drawing.Size(64, 23);
+            NumericUpDown_LongitudeMinutes.TabIndex = 7;
+            NumericUpDown_LongitudeMinutes.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // Label_LocalLatDegreeColon
             // 
-            this.Label_LocalLatDegreeColon.AutoSize = true;
-            this.Label_LocalLatDegreeColon.Location = new System.Drawing.Point(145, 54);
-            this.Label_LocalLatDegreeColon.Name = "Label_LocalLatDegreeColon";
-            this.Label_LocalLatDegreeColon.Size = new System.Drawing.Size(10, 13);
-            this.Label_LocalLatDegreeColon.TabIndex = 8;
-            this.Label_LocalLatDegreeColon.Text = ":";
+            Label_LocalLatDegreeColon.AutoSize = true;
+            Label_LocalLatDegreeColon.Location = new System.Drawing.Point(169, 62);
+            Label_LocalLatDegreeColon.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_LocalLatDegreeColon.Name = "Label_LocalLatDegreeColon";
+            Label_LocalLatDegreeColon.Size = new System.Drawing.Size(10, 15);
+            Label_LocalLatDegreeColon.TabIndex = 8;
+            Label_LocalLatDegreeColon.Text = ":";
             // 
             // CheckBox_LocalWest
             // 
-            this.CheckBox_LocalWest.AutoSize = true;
-            this.CheckBox_LocalWest.Checked = true;
-            this.CheckBox_LocalWest.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.CheckBox_LocalWest.Location = new System.Drawing.Point(387, 75);
-            this.CheckBox_LocalWest.Name = "CheckBox_LocalWest";
-            this.CheckBox_LocalWest.Size = new System.Drawing.Size(51, 17);
-            this.CheckBox_LocalWest.TabIndex = 10;
-            this.CheckBox_LocalWest.Text = "West";
-            this.CheckBox_LocalWest.UseVisualStyleBackColor = true;
+            CheckBox_LocalWest.AutoSize = true;
+            CheckBox_LocalWest.Checked = true;
+            CheckBox_LocalWest.CheckState = System.Windows.Forms.CheckState.Checked;
+            CheckBox_LocalWest.Location = new System.Drawing.Point(451, 87);
+            CheckBox_LocalWest.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            CheckBox_LocalWest.Name = "CheckBox_LocalWest";
+            CheckBox_LocalWest.Size = new System.Drawing.Size(52, 19);
+            CheckBox_LocalWest.TabIndex = 10;
+            CheckBox_LocalWest.Text = "West";
+            CheckBox_LocalWest.UseVisualStyleBackColor = true;
             // 
             // Label_LocalLonDegreeColon
             // 
-            this.Label_LocalLonDegreeColon.AutoSize = true;
-            this.Label_LocalLonDegreeColon.Location = new System.Drawing.Point(145, 77);
-            this.Label_LocalLonDegreeColon.Name = "Label_LocalLonDegreeColon";
-            this.Label_LocalLonDegreeColon.Size = new System.Drawing.Size(10, 13);
-            this.Label_LocalLonDegreeColon.TabIndex = 9;
-            this.Label_LocalLonDegreeColon.Text = ":";
+            Label_LocalLonDegreeColon.AutoSize = true;
+            Label_LocalLonDegreeColon.Location = new System.Drawing.Point(169, 89);
+            Label_LocalLonDegreeColon.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_LocalLonDegreeColon.Name = "Label_LocalLonDegreeColon";
+            Label_LocalLonDegreeColon.Size = new System.Drawing.Size(10, 15);
+            Label_LocalLonDegreeColon.TabIndex = 9;
+            Label_LocalLonDegreeColon.Text = ":";
             // 
             // TextBox_Longitude
             // 
-            this.TextBox_Longitude.Location = new System.Drawing.Point(306, 73);
-            this.TextBox_Longitude.Name = "TextBox_Longitude";
-            this.TextBox_Longitude.Size = new System.Drawing.Size(74, 20);
-            this.TextBox_Longitude.TabIndex = 9;
-            this.TextBox_Longitude.Text = " ";
-            this.TextBox_Longitude.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            TextBox_Longitude.Location = new System.Drawing.Point(357, 84);
+            TextBox_Longitude.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            TextBox_Longitude.Name = "TextBox_Longitude";
+            TextBox_Longitude.Size = new System.Drawing.Size(86, 23);
+            TextBox_Longitude.TabIndex = 9;
+            TextBox_Longitude.Text = " ";
+            TextBox_Longitude.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // Label_LocalLatMinuteColon
             // 
-            this.Label_LocalLatMinuteColon.AutoSize = true;
-            this.Label_LocalLatMinuteColon.Location = new System.Drawing.Point(220, 54);
-            this.Label_LocalLatMinuteColon.Name = "Label_LocalLatMinuteColon";
-            this.Label_LocalLatMinuteColon.Size = new System.Drawing.Size(10, 13);
-            this.Label_LocalLatMinuteColon.TabIndex = 10;
-            this.Label_LocalLatMinuteColon.Text = ":";
+            Label_LocalLatMinuteColon.AutoSize = true;
+            Label_LocalLatMinuteColon.Location = new System.Drawing.Point(257, 62);
+            Label_LocalLatMinuteColon.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_LocalLatMinuteColon.Name = "Label_LocalLatMinuteColon";
+            Label_LocalLatMinuteColon.Size = new System.Drawing.Size(10, 15);
+            Label_LocalLatMinuteColon.TabIndex = 10;
+            Label_LocalLatMinuteColon.Text = ":";
             // 
             // TextBox_Latitude
             // 
-            this.TextBox_Latitude.AcceptsReturn = true;
-            this.TextBox_Latitude.AllowDrop = true;
-            this.TextBox_Latitude.Location = new System.Drawing.Point(306, 50);
-            this.TextBox_Latitude.MaxLength = 20;
-            this.TextBox_Latitude.Name = "TextBox_Latitude";
-            this.TextBox_Latitude.Size = new System.Drawing.Size(74, 20);
-            this.TextBox_Latitude.TabIndex = 5;
-            this.TextBox_Latitude.Text = " ";
-            this.TextBox_Latitude.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            TextBox_Latitude.AcceptsReturn = true;
+            TextBox_Latitude.AllowDrop = true;
+            TextBox_Latitude.Location = new System.Drawing.Point(357, 58);
+            TextBox_Latitude.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            TextBox_Latitude.MaxLength = 20;
+            TextBox_Latitude.Name = "TextBox_Latitude";
+            TextBox_Latitude.Size = new System.Drawing.Size(86, 23);
+            TextBox_Latitude.TabIndex = 5;
+            TextBox_Latitude.Text = " ";
+            TextBox_Latitude.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // Label_LocalLonMinuteColon
             // 
-            this.Label_LocalLonMinuteColon.AutoSize = true;
-            this.Label_LocalLonMinuteColon.Location = new System.Drawing.Point(220, 77);
-            this.Label_LocalLonMinuteColon.Name = "Label_LocalLonMinuteColon";
-            this.Label_LocalLonMinuteColon.Size = new System.Drawing.Size(10, 13);
-            this.Label_LocalLonMinuteColon.TabIndex = 11;
-            this.Label_LocalLonMinuteColon.Text = ":";
+            Label_LocalLonMinuteColon.AutoSize = true;
+            Label_LocalLonMinuteColon.Location = new System.Drawing.Point(257, 89);
+            Label_LocalLonMinuteColon.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_LocalLonMinuteColon.Name = "Label_LocalLonMinuteColon";
+            Label_LocalLonMinuteColon.Size = new System.Drawing.Size(10, 15);
+            Label_LocalLonMinuteColon.TabIndex = 11;
+            Label_LocalLonMinuteColon.Text = ":";
             // 
             // NumericUpDown_LongitudeSeconds
             // 
-            this.NumericUpDown_LongitudeSeconds.AllowDrop = true;
-            this.NumericUpDown_LongitudeSeconds.DecimalPlaces = 2;
-            this.NumericUpDown_LongitudeSeconds.Increment = new decimal(new int[] {
-            1,
-            0,
-            0,
-            131072});
-            this.NumericUpDown_LongitudeSeconds.Location = new System.Drawing.Point(235, 73);
-            this.NumericUpDown_LongitudeSeconds.Maximum = new decimal(new int[] {
-            60,
-            0,
-            0,
-            0});
-            this.NumericUpDown_LongitudeSeconds.Minimum = new decimal(new int[] {
-            1,
-            0,
-            0,
-            -2147352576});
-            this.NumericUpDown_LongitudeSeconds.Name = "NumericUpDown_LongitudeSeconds";
-            this.NumericUpDown_LongitudeSeconds.Size = new System.Drawing.Size(65, 20);
-            this.NumericUpDown_LongitudeSeconds.TabIndex = 8;
-            this.NumericUpDown_LongitudeSeconds.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_LongitudeSeconds.AllowDrop = true;
+            NumericUpDown_LongitudeSeconds.DecimalPlaces = 2;
+            NumericUpDown_LongitudeSeconds.Increment = new decimal(new int[] { 1, 0, 0, 131072 });
+            NumericUpDown_LongitudeSeconds.Location = new System.Drawing.Point(274, 84);
+            NumericUpDown_LongitudeSeconds.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_LongitudeSeconds.Maximum = new decimal(new int[] { 60, 0, 0, 0 });
+            NumericUpDown_LongitudeSeconds.Minimum = new decimal(new int[] { 1, 0, 0, -2147352576 });
+            NumericUpDown_LongitudeSeconds.Name = "NumericUpDown_LongitudeSeconds";
+            NumericUpDown_LongitudeSeconds.Size = new System.Drawing.Size(76, 23);
+            NumericUpDown_LongitudeSeconds.TabIndex = 8;
+            NumericUpDown_LongitudeSeconds.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // NumericUpDown_LatitudeSeconds
             // 
-            this.NumericUpDown_LatitudeSeconds.AllowDrop = true;
-            this.NumericUpDown_LatitudeSeconds.DecimalPlaces = 2;
-            this.NumericUpDown_LatitudeSeconds.Increment = new decimal(new int[] {
-            1,
-            0,
-            0,
-            131072});
-            this.NumericUpDown_LatitudeSeconds.Location = new System.Drawing.Point(235, 50);
-            this.NumericUpDown_LatitudeSeconds.Maximum = new decimal(new int[] {
-            60,
-            0,
-            0,
-            0});
-            this.NumericUpDown_LatitudeSeconds.Minimum = new decimal(new int[] {
-            1,
-            0,
-            0,
-            -2147352576});
-            this.NumericUpDown_LatitudeSeconds.Name = "NumericUpDown_LatitudeSeconds";
-            this.NumericUpDown_LatitudeSeconds.Size = new System.Drawing.Size(65, 20);
-            this.NumericUpDown_LatitudeSeconds.TabIndex = 4;
-            this.NumericUpDown_LatitudeSeconds.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_LatitudeSeconds.AllowDrop = true;
+            NumericUpDown_LatitudeSeconds.DecimalPlaces = 2;
+            NumericUpDown_LatitudeSeconds.Increment = new decimal(new int[] { 1, 0, 0, 131072 });
+            NumericUpDown_LatitudeSeconds.Location = new System.Drawing.Point(274, 58);
+            NumericUpDown_LatitudeSeconds.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_LatitudeSeconds.Maximum = new decimal(new int[] { 60, 0, 0, 0 });
+            NumericUpDown_LatitudeSeconds.Minimum = new decimal(new int[] { 1, 0, 0, -2147352576 });
+            NumericUpDown_LatitudeSeconds.Name = "NumericUpDown_LatitudeSeconds";
+            NumericUpDown_LatitudeSeconds.Size = new System.Drawing.Size(76, 23);
+            NumericUpDown_LatitudeSeconds.TabIndex = 4;
+            NumericUpDown_LatitudeSeconds.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // GroupBox_LocalDateTime
             // 
-            this.GroupBox_LocalDateTime.Controls.Add(this.Label_Phase);
-            this.GroupBox_LocalDateTime.Controls.Add(this.TimePicker);
-            this.GroupBox_LocalDateTime.Controls.Add(this.DatePicker);
-            this.GroupBox_LocalDateTime.Controls.Add(this.Label_LunarPhaseValue);
-            this.GroupBox_LocalDateTime.Controls.Add(this.Button_Now);
-            this.GroupBox_LocalDateTime.Controls.Add(this.Label_SunAltitudeValue);
-            this.GroupBox_LocalDateTime.Controls.Add(this.Label_AstronomicalDusk);
-            this.GroupBox_LocalDateTime.Controls.Add(this.Label_SunAltitude);
-            this.GroupBox_LocalDateTime.Controls.Add(this.Label_AstronomicalDawnValue);
-            this.GroupBox_LocalDateTime.Controls.Add(this.Label_MoonSetValue);
-            this.GroupBox_LocalDateTime.Controls.Add(this.Label_AstronomicalDuskValue);
-            this.GroupBox_LocalDateTime.Controls.Add(this.Label_MoonSetTimeText);
-            this.GroupBox_LocalDateTime.Controls.Add(this.Label_AstronomicalDawn);
-            this.GroupBox_LocalDateTime.Controls.Add(this.Label_MoonRiseValue);
-            this.GroupBox_LocalDateTime.Controls.Add(this.Label_MoonAltitude);
-            this.GroupBox_LocalDateTime.Controls.Add(this.Label_MoonRise);
-            this.GroupBox_LocalDateTime.Controls.Add(this.Label_LunarAltitudeValue);
-            this.GroupBox_LocalDateTime.Controls.Add(this.Label_LunarIlluminationFractionValue);
-            this.GroupBox_LocalDateTime.Controls.Add(this.Label_LunarIlluminationFraction);
-            this.GroupBox_LocalDateTime.Location = new System.Drawing.Point(18, 157);
-            this.GroupBox_LocalDateTime.Name = "GroupBox_LocalDateTime";
-            this.GroupBox_LocalDateTime.Size = new System.Drawing.Size(469, 151);
-            this.GroupBox_LocalDateTime.TabIndex = 29;
-            this.GroupBox_LocalDateTime.TabStop = false;
-            this.GroupBox_LocalDateTime.Text = "Date and Time";
+            GroupBox_LocalDateTime.Controls.Add(Label_Phase);
+            GroupBox_LocalDateTime.Controls.Add(TimePicker);
+            GroupBox_LocalDateTime.Controls.Add(DatePicker);
+            GroupBox_LocalDateTime.Controls.Add(Label_LunarPhaseValue);
+            GroupBox_LocalDateTime.Controls.Add(Button_Now);
+            GroupBox_LocalDateTime.Controls.Add(Label_SunAltitudeValue);
+            GroupBox_LocalDateTime.Controls.Add(Label_AstronomicalDusk);
+            GroupBox_LocalDateTime.Controls.Add(Label_SunAltitude);
+            GroupBox_LocalDateTime.Controls.Add(Label_AstronomicalDawnValue);
+            GroupBox_LocalDateTime.Controls.Add(Label_MoonSetValue);
+            GroupBox_LocalDateTime.Controls.Add(Label_AstronomicalDuskValue);
+            GroupBox_LocalDateTime.Controls.Add(Label_MoonSetTimeText);
+            GroupBox_LocalDateTime.Controls.Add(Label_AstronomicalDawn);
+            GroupBox_LocalDateTime.Controls.Add(Label_MoonRiseValue);
+            GroupBox_LocalDateTime.Controls.Add(Label_MoonAltitude);
+            GroupBox_LocalDateTime.Controls.Add(Label_MoonRise);
+            GroupBox_LocalDateTime.Controls.Add(Label_LunarAltitudeValue);
+            GroupBox_LocalDateTime.Controls.Add(Label_LunarIlluminationFractionValue);
+            GroupBox_LocalDateTime.Controls.Add(Label_LunarIlluminationFraction);
+            GroupBox_LocalDateTime.Location = new System.Drawing.Point(21, 181);
+            GroupBox_LocalDateTime.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            GroupBox_LocalDateTime.Name = "GroupBox_LocalDateTime";
+            GroupBox_LocalDateTime.Padding = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            GroupBox_LocalDateTime.Size = new System.Drawing.Size(547, 174);
+            GroupBox_LocalDateTime.TabIndex = 29;
+            GroupBox_LocalDateTime.TabStop = false;
+            GroupBox_LocalDateTime.Text = "Date and Time";
             // 
             // Label_Phase
             // 
-            this.Label_Phase.AutoSize = true;
-            this.Label_Phase.Location = new System.Drawing.Point(252, 112);
-            this.Label_Phase.Name = "Label_Phase";
-            this.Label_Phase.Size = new System.Drawing.Size(70, 13);
-            this.Label_Phase.TabIndex = 41;
-            this.Label_Phase.Text = "Lunar Phase:";
+            Label_Phase.AutoSize = true;
+            Label_Phase.Location = new System.Drawing.Point(294, 129);
+            Label_Phase.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_Phase.Name = "Label_Phase";
+            Label_Phase.Size = new System.Drawing.Size(74, 15);
+            Label_Phase.TabIndex = 41;
+            Label_Phase.Text = "Lunar Phase:";
             // 
             // TimePicker
             // 
-            this.TimePicker.CustomFormat = "";
-            this.TimePicker.Location = new System.Drawing.Point(346, 27);
-            this.TimePicker.Name = "TimePicker";
-            this.TimePicker.Size = new System.Drawing.Size(83, 20);
-            this.TimePicker.TabIndex = 1;
-            this.TimePicker.ValueChanged += new System.EventHandler(this.TimePicker_ValueChanged);
+            TimePicker.CustomFormat = "";
+            TimePicker.Location = new System.Drawing.Point(404, 31);
+            TimePicker.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            TimePicker.Name = "TimePicker";
+            TimePicker.Size = new System.Drawing.Size(96, 23);
+            TimePicker.TabIndex = 1;
+            TimePicker.ValueChanged += TimePicker_ValueChanged;
             // 
             // DatePicker
             // 
-            this.DatePicker.Location = new System.Drawing.Point(131, 27);
-            this.DatePicker.Name = "DatePicker";
-            this.DatePicker.Size = new System.Drawing.Size(209, 20);
-            this.DatePicker.TabIndex = 0;
-            this.DatePicker.ValueChanged += new System.EventHandler(this.DatePicker_ValueChanged);
+            DatePicker.Location = new System.Drawing.Point(153, 31);
+            DatePicker.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            DatePicker.Name = "DatePicker";
+            DatePicker.Size = new System.Drawing.Size(243, 23);
+            DatePicker.TabIndex = 0;
+            DatePicker.ValueChanged += DatePicker_ValueChanged;
             // 
             // Label_LunarPhaseValue
             // 
-            this.Label_LunarPhaseValue.AutoSize = true;
-            this.Label_LunarPhaseValue.Location = new System.Drawing.Point(319, 112);
-            this.Label_LunarPhaseValue.Name = "Label_LunarPhaseValue";
-            this.Label_LunarPhaseValue.Size = new System.Drawing.Size(14, 13);
-            this.Label_LunarPhaseValue.TabIndex = 39;
-            this.Label_LunarPhaseValue.Text = "V";
+            Label_LunarPhaseValue.AutoSize = true;
+            Label_LunarPhaseValue.Location = new System.Drawing.Point(372, 129);
+            Label_LunarPhaseValue.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_LunarPhaseValue.Name = "Label_LunarPhaseValue";
+            Label_LunarPhaseValue.Size = new System.Drawing.Size(14, 15);
+            Label_LunarPhaseValue.TabIndex = 39;
+            Label_LunarPhaseValue.Text = "V";
             // 
             // Button_Now
             // 
-            this.Button_Now.Location = new System.Drawing.Point(43, 26);
-            this.Button_Now.Name = "Button_Now";
-            this.Button_Now.Size = new System.Drawing.Size(66, 23);
-            this.Button_Now.TabIndex = 0;
-            this.Button_Now.Text = "Now";
-            this.Button_Now.UseVisualStyleBackColor = true;
-            this.Button_Now.Click += new System.EventHandler(this.Button_Now_Click);
+            Button_Now.Location = new System.Drawing.Point(50, 30);
+            Button_Now.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            Button_Now.Name = "Button_Now";
+            Button_Now.Size = new System.Drawing.Size(77, 27);
+            Button_Now.TabIndex = 0;
+            Button_Now.Text = "Now";
+            Button_Now.UseVisualStyleBackColor = true;
+            Button_Now.Click += Button_Now_Click;
             // 
             // Label_SunAltitudeValue
             // 
-            this.Label_SunAltitudeValue.AutoSize = true;
-            this.Label_SunAltitudeValue.Location = new System.Drawing.Point(427, 69);
-            this.Label_SunAltitudeValue.Name = "Label_SunAltitudeValue";
-            this.Label_SunAltitudeValue.Size = new System.Drawing.Size(14, 13);
-            this.Label_SunAltitudeValue.TabIndex = 38;
-            this.Label_SunAltitudeValue.Text = "V";
-            this.Label_SunAltitudeValue.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            Label_SunAltitudeValue.AutoSize = true;
+            Label_SunAltitudeValue.Location = new System.Drawing.Point(498, 80);
+            Label_SunAltitudeValue.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_SunAltitudeValue.Name = "Label_SunAltitudeValue";
+            Label_SunAltitudeValue.Size = new System.Drawing.Size(14, 15);
+            Label_SunAltitudeValue.TabIndex = 38;
+            Label_SunAltitudeValue.Text = "V";
+            Label_SunAltitudeValue.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
             // Label_AstronomicalDusk
             // 
-            this.Label_AstronomicalDusk.AutoSize = true;
-            this.Label_AstronomicalDusk.Location = new System.Drawing.Point(23, 69);
-            this.Label_AstronomicalDusk.Name = "Label_AstronomicalDusk";
-            this.Label_AstronomicalDusk.Size = new System.Drawing.Size(98, 13);
-            this.Label_AstronomicalDusk.TabIndex = 24;
-            this.Label_AstronomicalDusk.Text = "Astronomical Dusk:";
+            Label_AstronomicalDusk.AutoSize = true;
+            Label_AstronomicalDusk.Location = new System.Drawing.Point(27, 80);
+            Label_AstronomicalDusk.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_AstronomicalDusk.Name = "Label_AstronomicalDusk";
+            Label_AstronomicalDusk.Size = new System.Drawing.Size(110, 15);
+            Label_AstronomicalDusk.TabIndex = 24;
+            Label_AstronomicalDusk.Text = "Astronomical Dusk:";
             // 
             // Label_SunAltitude
             // 
-            this.Label_SunAltitude.AutoSize = true;
-            this.Label_SunAltitude.Location = new System.Drawing.Point(350, 69);
-            this.Label_SunAltitude.Name = "Label_SunAltitude";
-            this.Label_SunAltitude.Size = new System.Drawing.Size(67, 13);
-            this.Label_SunAltitude.TabIndex = 37;
-            this.Label_SunAltitude.Text = "Sun Altitude:";
+            Label_SunAltitude.AutoSize = true;
+            Label_SunAltitude.Location = new System.Drawing.Point(408, 80);
+            Label_SunAltitude.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_SunAltitude.Name = "Label_SunAltitude";
+            Label_SunAltitude.Size = new System.Drawing.Size(75, 15);
+            Label_SunAltitude.TabIndex = 37;
+            Label_SunAltitude.Text = "Sun Altitude:";
             // 
             // Label_AstronomicalDawnValue
             // 
-            this.Label_AstronomicalDawnValue.AutoSize = true;
-            this.Label_AstronomicalDawnValue.Location = new System.Drawing.Point(293, 69);
-            this.Label_AstronomicalDawnValue.Name = "Label_AstronomicalDawnValue";
-            this.Label_AstronomicalDawnValue.Size = new System.Drawing.Size(14, 13);
-            this.Label_AstronomicalDawnValue.TabIndex = 27;
-            this.Label_AstronomicalDawnValue.Text = "V";
-            this.Label_AstronomicalDawnValue.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            Label_AstronomicalDawnValue.AutoSize = true;
+            Label_AstronomicalDawnValue.Location = new System.Drawing.Point(342, 80);
+            Label_AstronomicalDawnValue.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_AstronomicalDawnValue.Name = "Label_AstronomicalDawnValue";
+            Label_AstronomicalDawnValue.Size = new System.Drawing.Size(14, 15);
+            Label_AstronomicalDawnValue.TabIndex = 27;
+            Label_AstronomicalDawnValue.Text = "V";
+            Label_AstronomicalDawnValue.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
             // Label_MoonSetValue
             // 
-            this.Label_MoonSetValue.AutoSize = true;
-            this.Label_MoonSetValue.Location = new System.Drawing.Point(293, 89);
-            this.Label_MoonSetValue.Name = "Label_MoonSetValue";
-            this.Label_MoonSetValue.Size = new System.Drawing.Size(14, 13);
-            this.Label_MoonSetValue.TabIndex = 36;
-            this.Label_MoonSetValue.Text = "V";
-            this.Label_MoonSetValue.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            Label_MoonSetValue.AutoSize = true;
+            Label_MoonSetValue.Location = new System.Drawing.Point(342, 103);
+            Label_MoonSetValue.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_MoonSetValue.Name = "Label_MoonSetValue";
+            Label_MoonSetValue.Size = new System.Drawing.Size(14, 15);
+            Label_MoonSetValue.TabIndex = 36;
+            Label_MoonSetValue.Text = "V";
+            Label_MoonSetValue.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
             // Label_AstronomicalDuskValue
             // 
-            this.Label_AstronomicalDuskValue.AutoSize = true;
-            this.Label_AstronomicalDuskValue.Location = new System.Drawing.Point(124, 69);
-            this.Label_AstronomicalDuskValue.Name = "Label_AstronomicalDuskValue";
-            this.Label_AstronomicalDuskValue.Size = new System.Drawing.Size(14, 13);
-            this.Label_AstronomicalDuskValue.TabIndex = 25;
-            this.Label_AstronomicalDuskValue.Text = "V";
-            this.Label_AstronomicalDuskValue.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            Label_AstronomicalDuskValue.AutoSize = true;
+            Label_AstronomicalDuskValue.Location = new System.Drawing.Point(145, 80);
+            Label_AstronomicalDuskValue.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_AstronomicalDuskValue.Name = "Label_AstronomicalDuskValue";
+            Label_AstronomicalDuskValue.Size = new System.Drawing.Size(14, 15);
+            Label_AstronomicalDuskValue.TabIndex = 25;
+            Label_AstronomicalDuskValue.Text = "V";
+            Label_AstronomicalDuskValue.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
             // Label_MoonSetTimeText
             // 
-            this.Label_MoonSetTimeText.AutoSize = true;
-            this.Label_MoonSetTimeText.Location = new System.Drawing.Point(188, 89);
-            this.Label_MoonSetTimeText.Name = "Label_MoonSetTimeText";
-            this.Label_MoonSetTimeText.Size = new System.Drawing.Size(56, 13);
-            this.Label_MoonSetTimeText.TabIndex = 35;
-            this.Label_MoonSetTimeText.Text = "Moon Set:";
+            Label_MoonSetTimeText.AutoSize = true;
+            Label_MoonSetTimeText.Location = new System.Drawing.Point(219, 103);
+            Label_MoonSetTimeText.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_MoonSetTimeText.Name = "Label_MoonSetTimeText";
+            Label_MoonSetTimeText.Size = new System.Drawing.Size(61, 15);
+            Label_MoonSetTimeText.TabIndex = 35;
+            Label_MoonSetTimeText.Text = "Moon Set:";
             // 
             // Label_AstronomicalDawn
             // 
-            this.Label_AstronomicalDawn.AutoSize = true;
-            this.Label_AstronomicalDawn.Location = new System.Drawing.Point(188, 69);
-            this.Label_AstronomicalDawn.Name = "Label_AstronomicalDawn";
-            this.Label_AstronomicalDawn.Size = new System.Drawing.Size(101, 13);
-            this.Label_AstronomicalDawn.TabIndex = 26;
-            this.Label_AstronomicalDawn.Text = "Astronomical Dawn:";
+            Label_AstronomicalDawn.AutoSize = true;
+            Label_AstronomicalDawn.Location = new System.Drawing.Point(219, 80);
+            Label_AstronomicalDawn.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_AstronomicalDawn.Name = "Label_AstronomicalDawn";
+            Label_AstronomicalDawn.Size = new System.Drawing.Size(114, 15);
+            Label_AstronomicalDawn.TabIndex = 26;
+            Label_AstronomicalDawn.Text = "Astronomical Dawn:";
             // 
             // Label_MoonRiseValue
             // 
-            this.Label_MoonRiseValue.AutoSize = true;
-            this.Label_MoonRiseValue.Location = new System.Drawing.Point(124, 89);
-            this.Label_MoonRiseValue.Name = "Label_MoonRiseValue";
-            this.Label_MoonRiseValue.Size = new System.Drawing.Size(14, 13);
-            this.Label_MoonRiseValue.TabIndex = 34;
-            this.Label_MoonRiseValue.Text = "V";
-            this.Label_MoonRiseValue.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            Label_MoonRiseValue.AutoSize = true;
+            Label_MoonRiseValue.Location = new System.Drawing.Point(145, 103);
+            Label_MoonRiseValue.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_MoonRiseValue.Name = "Label_MoonRiseValue";
+            Label_MoonRiseValue.Size = new System.Drawing.Size(14, 15);
+            Label_MoonRiseValue.TabIndex = 34;
+            Label_MoonRiseValue.Text = "V";
+            Label_MoonRiseValue.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
             // Label_MoonAltitude
             // 
-            this.Label_MoonAltitude.AutoSize = true;
-            this.Label_MoonAltitude.Location = new System.Drawing.Point(350, 89);
-            this.Label_MoonAltitude.Name = "Label_MoonAltitude";
-            this.Label_MoonAltitude.Size = new System.Drawing.Size(75, 13);
-            this.Label_MoonAltitude.TabIndex = 29;
-            this.Label_MoonAltitude.Text = "Moon Altitude:";
+            Label_MoonAltitude.AutoSize = true;
+            Label_MoonAltitude.Location = new System.Drawing.Point(408, 103);
+            Label_MoonAltitude.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_MoonAltitude.Name = "Label_MoonAltitude";
+            Label_MoonAltitude.Size = new System.Drawing.Size(87, 15);
+            Label_MoonAltitude.TabIndex = 29;
+            Label_MoonAltitude.Text = "Moon Altitude:";
             // 
             // Label_MoonRise
             // 
-            this.Label_MoonRise.AutoSize = true;
-            this.Label_MoonRise.Location = new System.Drawing.Point(23, 89);
-            this.Label_MoonRise.Name = "Label_MoonRise";
-            this.Label_MoonRise.Size = new System.Drawing.Size(61, 13);
-            this.Label_MoonRise.TabIndex = 33;
-            this.Label_MoonRise.Text = "Moon Rise:";
+            Label_MoonRise.AutoSize = true;
+            Label_MoonRise.Location = new System.Drawing.Point(27, 103);
+            Label_MoonRise.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_MoonRise.Name = "Label_MoonRise";
+            Label_MoonRise.Size = new System.Drawing.Size(66, 15);
+            Label_MoonRise.TabIndex = 33;
+            Label_MoonRise.Text = "Moon Rise:";
             // 
             // Label_LunarAltitudeValue
             // 
-            this.Label_LunarAltitudeValue.AutoSize = true;
-            this.Label_LunarAltitudeValue.Location = new System.Drawing.Point(427, 89);
-            this.Label_LunarAltitudeValue.Name = "Label_LunarAltitudeValue";
-            this.Label_LunarAltitudeValue.Size = new System.Drawing.Size(14, 13);
-            this.Label_LunarAltitudeValue.TabIndex = 30;
-            this.Label_LunarAltitudeValue.Text = "V";
-            this.Label_LunarAltitudeValue.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            Label_LunarAltitudeValue.AutoSize = true;
+            Label_LunarAltitudeValue.Location = new System.Drawing.Point(498, 103);
+            Label_LunarAltitudeValue.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_LunarAltitudeValue.Name = "Label_LunarAltitudeValue";
+            Label_LunarAltitudeValue.Size = new System.Drawing.Size(14, 15);
+            Label_LunarAltitudeValue.TabIndex = 30;
+            Label_LunarAltitudeValue.Text = "V";
+            Label_LunarAltitudeValue.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
             // Label_LunarIlluminationFractionValue
             // 
-            this.Label_LunarIlluminationFractionValue.AutoSize = true;
-            this.Label_LunarIlluminationFractionValue.Location = new System.Drawing.Point(168, 112);
-            this.Label_LunarIlluminationFractionValue.Name = "Label_LunarIlluminationFractionValue";
-            this.Label_LunarIlluminationFractionValue.Size = new System.Drawing.Size(14, 13);
-            this.Label_LunarIlluminationFractionValue.TabIndex = 32;
-            this.Label_LunarIlluminationFractionValue.Text = "V";
-            this.Label_LunarIlluminationFractionValue.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            Label_LunarIlluminationFractionValue.AutoSize = true;
+            Label_LunarIlluminationFractionValue.Location = new System.Drawing.Point(196, 129);
+            Label_LunarIlluminationFractionValue.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_LunarIlluminationFractionValue.Name = "Label_LunarIlluminationFractionValue";
+            Label_LunarIlluminationFractionValue.Size = new System.Drawing.Size(14, 15);
+            Label_LunarIlluminationFractionValue.TabIndex = 32;
+            Label_LunarIlluminationFractionValue.Text = "V";
+            Label_LunarIlluminationFractionValue.TextAlign = System.Drawing.ContentAlignment.TopRight;
             // 
             // Label_LunarIlluminationFraction
             // 
-            this.Label_LunarIlluminationFraction.AutoSize = true;
-            this.Label_LunarIlluminationFraction.Location = new System.Drawing.Point(76, 112);
-            this.Label_LunarIlluminationFraction.Name = "Label_LunarIlluminationFraction";
-            this.Label_LunarIlluminationFraction.Size = new System.Drawing.Size(92, 13);
-            this.Label_LunarIlluminationFraction.TabIndex = 31;
-            this.Label_LunarIlluminationFraction.Text = "Lunar Illumination:";
+            Label_LunarIlluminationFraction.AutoSize = true;
+            Label_LunarIlluminationFraction.Location = new System.Drawing.Point(89, 129);
+            Label_LunarIlluminationFraction.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_LunarIlluminationFraction.Name = "Label_LunarIlluminationFraction";
+            Label_LunarIlluminationFraction.Size = new System.Drawing.Size(107, 15);
+            Label_LunarIlluminationFraction.TabIndex = 31;
+            Label_LunarIlluminationFraction.Text = "Lunar Illumination:";
             // 
             // Label_TargetHours
             // 
-            this.Label_TargetHours.AutoSize = true;
-            this.Label_TargetHours.Location = new System.Drawing.Point(429, 185);
-            this.Label_TargetHours.Name = "Label_TargetHours";
-            this.Label_TargetHours.Size = new System.Drawing.Size(35, 13);
-            this.Label_TargetHours.TabIndex = 24;
-            this.Label_TargetHours.Text = "Hours";
+            Label_TargetHours.AutoSize = true;
+            Label_TargetHours.Location = new System.Drawing.Point(500, 213);
+            Label_TargetHours.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_TargetHours.Name = "Label_TargetHours";
+            Label_TargetHours.Size = new System.Drawing.Size(39, 15);
+            Label_TargetHours.TabIndex = 24;
+            Label_TargetHours.Text = "Hours";
             // 
             // Label_TargetDuration
             // 
-            this.Label_TargetDuration.AutoSize = true;
-            this.Label_TargetDuration.Location = new System.Drawing.Point(277, 185);
-            this.Label_TargetDuration.Name = "Label_TargetDuration";
-            this.Label_TargetDuration.Size = new System.Drawing.Size(84, 13);
-            this.Label_TargetDuration.TabIndex = 23;
-            this.Label_TargetDuration.Text = "Target Duration:";
-            this.Label_TargetDuration.UseWaitCursor = true;
+            Label_TargetDuration.AutoSize = true;
+            Label_TargetDuration.Location = new System.Drawing.Point(323, 213);
+            Label_TargetDuration.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_TargetDuration.Name = "Label_TargetDuration";
+            Label_TargetDuration.Size = new System.Drawing.Size(92, 15);
+            Label_TargetDuration.TabIndex = 23;
+            Label_TargetDuration.Text = "Target Duration:";
+            Label_TargetDuration.UseWaitCursor = true;
             // 
             // Label_TargetFloor
             // 
-            this.Label_TargetFloor.AutoSize = true;
-            this.Label_TargetFloor.Location = new System.Drawing.Point(210, 185);
-            this.Label_TargetFloor.Name = "Label_TargetFloor";
-            this.Label_TargetFloor.Size = new System.Drawing.Size(47, 13);
-            this.Label_TargetFloor.TabIndex = 22;
-            this.Label_TargetFloor.Text = "Degrees";
+            Label_TargetFloor.AutoSize = true;
+            Label_TargetFloor.Location = new System.Drawing.Point(245, 213);
+            Label_TargetFloor.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_TargetFloor.Name = "Label_TargetFloor";
+            Label_TargetFloor.Size = new System.Drawing.Size(49, 15);
+            Label_TargetFloor.TabIndex = 22;
+            Label_TargetFloor.Text = "Degrees";
             // 
             // NumericUpDown_TargetFloor
             // 
-            this.NumericUpDown_TargetFloor.AllowDrop = true;
-            this.NumericUpDown_TargetFloor.Location = new System.Drawing.Point(153, 181);
-            this.NumericUpDown_TargetFloor.Maximum = new decimal(new int[] {
-            89,
-            0,
-            0,
-            0});
-            this.NumericUpDown_TargetFloor.Name = "NumericUpDown_TargetFloor";
-            this.NumericUpDown_TargetFloor.Size = new System.Drawing.Size(55, 20);
-            this.NumericUpDown_TargetFloor.TabIndex = 11;
-            this.NumericUpDown_TargetFloor.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_TargetFloor.Value = new decimal(new int[] {
-            30,
-            0,
-            0,
-            0});
-            this.NumericUpDown_TargetFloor.ValueChanged += new System.EventHandler(this.NumericUpDown_TargetFloor_ValueChanged);
+            NumericUpDown_TargetFloor.AllowDrop = true;
+            NumericUpDown_TargetFloor.Location = new System.Drawing.Point(178, 209);
+            NumericUpDown_TargetFloor.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_TargetFloor.Maximum = new decimal(new int[] { 89, 0, 0, 0 });
+            NumericUpDown_TargetFloor.Name = "NumericUpDown_TargetFloor";
+            NumericUpDown_TargetFloor.Size = new System.Drawing.Size(64, 23);
+            NumericUpDown_TargetFloor.TabIndex = 11;
+            NumericUpDown_TargetFloor.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_TargetFloor.Value = new decimal(new int[] { 30, 0, 0, 0 });
+            NumericUpDown_TargetFloor.ValueChanged += NumericUpDown_TargetFloor_ValueChanged;
             // 
             // NumericUpDown_TargetDuration
             // 
-            this.NumericUpDown_TargetDuration.AllowDrop = true;
-            this.NumericUpDown_TargetDuration.DecimalPlaces = 2;
-            this.NumericUpDown_TargetDuration.Increment = new decimal(new int[] {
-            25,
-            0,
-            0,
-            131072});
-            this.NumericUpDown_TargetDuration.Location = new System.Drawing.Point(372, 181);
-            this.NumericUpDown_TargetDuration.Maximum = new decimal(new int[] {
-            24,
-            0,
-            0,
-            0});
-            this.NumericUpDown_TargetDuration.Name = "NumericUpDown_TargetDuration";
-            this.NumericUpDown_TargetDuration.Size = new System.Drawing.Size(55, 20);
-            this.NumericUpDown_TargetDuration.TabIndex = 12;
-            this.NumericUpDown_TargetDuration.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_TargetDuration.Value = new decimal(new int[] {
-            4,
-            0,
-            0,
-            0});
-            this.NumericUpDown_TargetDuration.ValueChanged += new System.EventHandler(this.NumericUpDown_TargetDuration_ValueChanged);
+            NumericUpDown_TargetDuration.AllowDrop = true;
+            NumericUpDown_TargetDuration.DecimalPlaces = 2;
+            NumericUpDown_TargetDuration.Increment = new decimal(new int[] { 25, 0, 0, 131072 });
+            NumericUpDown_TargetDuration.Location = new System.Drawing.Point(434, 209);
+            NumericUpDown_TargetDuration.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_TargetDuration.Maximum = new decimal(new int[] { 24, 0, 0, 0 });
+            NumericUpDown_TargetDuration.Name = "NumericUpDown_TargetDuration";
+            NumericUpDown_TargetDuration.Size = new System.Drawing.Size(64, 23);
+            NumericUpDown_TargetDuration.TabIndex = 12;
+            NumericUpDown_TargetDuration.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_TargetDuration.Value = new decimal(new int[] { 4, 0, 0, 0 });
+            NumericUpDown_TargetDuration.ValueChanged += NumericUpDown_TargetDuration_ValueChanged;
             // 
             // Label_LocalHorizon
             // 
-            this.Label_LocalHorizon.AutoSize = true;
-            this.Label_LocalHorizon.Location = new System.Drawing.Point(75, 185);
-            this.Label_LocalHorizon.Name = "Label_LocalHorizon";
-            this.Label_LocalHorizon.Size = new System.Drawing.Size(67, 13);
-            this.Label_LocalHorizon.TabIndex = 21;
-            this.Label_LocalHorizon.Text = "Target Floor:";
+            Label_LocalHorizon.AutoSize = true;
+            Label_LocalHorizon.Location = new System.Drawing.Point(88, 213);
+            Label_LocalHorizon.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_LocalHorizon.Name = "Label_LocalHorizon";
+            Label_LocalHorizon.Size = new System.Drawing.Size(73, 15);
+            Label_LocalHorizon.TabIndex = 21;
+            Label_LocalHorizon.Text = "Target Floor:";
             // 
             // ComboBox_SelectTarget
             // 
-            this.ComboBox_SelectTarget.FormattingEnabled = true;
-            this.ComboBox_SelectTarget.Location = new System.Drawing.Point(149, 92);
-            this.ComboBox_SelectTarget.Name = "ComboBox_SelectTarget";
-            this.ComboBox_SelectTarget.Size = new System.Drawing.Size(274, 21);
-            this.ComboBox_SelectTarget.TabIndex = 40;
-            this.ComboBox_SelectTarget.SelectedIndexChanged += new System.EventHandler(this.ComboBox_SelectTarget_SelectedIndexChanged);
-            this.ComboBox_SelectTarget.MouseLeave += new System.EventHandler(this.ComboBox_SelectTarget_SelectedIndexChanged);
+            ComboBox_SelectTarget.FormattingEnabled = true;
+            ComboBox_SelectTarget.Location = new System.Drawing.Point(174, 106);
+            ComboBox_SelectTarget.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            ComboBox_SelectTarget.Name = "ComboBox_SelectTarget";
+            ComboBox_SelectTarget.Size = new System.Drawing.Size(319, 23);
+            ComboBox_SelectTarget.TabIndex = 40;
+            ComboBox_SelectTarget.SelectedIndexChanged += ComboBox_SelectTarget_SelectedIndexChanged;
+            ComboBox_SelectTarget.MouseLeave += ComboBox_SelectTarget_SelectedIndexChanged;
             // 
             // Label_TargetName
             // 
-            this.Label_TargetName.AutoSize = true;
-            this.Label_TargetName.Location = new System.Drawing.Point(71, 96);
-            this.Label_TargetName.Name = "Label_TargetName";
-            this.Label_TargetName.Size = new System.Drawing.Size(72, 13);
-            this.Label_TargetName.TabIndex = 39;
-            this.Label_TargetName.Text = "Target Name:";
+            Label_TargetName.AutoSize = true;
+            Label_TargetName.Location = new System.Drawing.Point(83, 111);
+            Label_TargetName.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_TargetName.Name = "Label_TargetName";
+            Label_TargetName.Size = new System.Drawing.Size(78, 15);
+            Label_TargetName.TabIndex = 39;
+            Label_TargetName.Text = "Target Name:";
             // 
             // CheckBox_TargetNorth
             // 
-            this.CheckBox_TargetNorth.AutoSize = true;
-            this.CheckBox_TargetNorth.Checked = true;
-            this.CheckBox_TargetNorth.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.CheckBox_TargetNorth.Location = new System.Drawing.Point(431, 147);
-            this.CheckBox_TargetNorth.Name = "CheckBox_TargetNorth";
-            this.CheckBox_TargetNorth.Size = new System.Drawing.Size(52, 17);
-            this.CheckBox_TargetNorth.TabIndex = 26;
-            this.CheckBox_TargetNorth.Text = "North";
-            this.CheckBox_TargetNorth.UseVisualStyleBackColor = true;
+            CheckBox_TargetNorth.AutoSize = true;
+            CheckBox_TargetNorth.Checked = true;
+            CheckBox_TargetNorth.CheckState = System.Windows.Forms.CheckState.Checked;
+            CheckBox_TargetNorth.Location = new System.Drawing.Point(503, 170);
+            CheckBox_TargetNorth.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            CheckBox_TargetNorth.Name = "CheckBox_TargetNorth";
+            CheckBox_TargetNorth.Size = new System.Drawing.Size(57, 19);
+            CheckBox_TargetNorth.TabIndex = 26;
+            CheckBox_TargetNorth.Text = "North";
+            CheckBox_TargetNorth.UseVisualStyleBackColor = true;
             // 
             // TextBox_RightAscension
             // 
-            this.TextBox_RightAscension.AllowDrop = true;
-            this.TextBox_RightAscension.Location = new System.Drawing.Point(349, 122);
-            this.TextBox_RightAscension.MaxLength = 20;
-            this.TextBox_RightAscension.Name = "TextBox_RightAscension";
-            this.TextBox_RightAscension.Size = new System.Drawing.Size(74, 20);
-            this.TextBox_RightAscension.TabIndex = 16;
-            this.TextBox_RightAscension.Text = " ";
-            this.TextBox_RightAscension.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.TextBox_RightAscension.WordWrap = false;
+            TextBox_RightAscension.AllowDrop = true;
+            TextBox_RightAscension.Location = new System.Drawing.Point(407, 141);
+            TextBox_RightAscension.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            TextBox_RightAscension.MaxLength = 20;
+            TextBox_RightAscension.Name = "TextBox_RightAscension";
+            TextBox_RightAscension.Size = new System.Drawing.Size(86, 23);
+            TextBox_RightAscension.TabIndex = 16;
+            TextBox_RightAscension.Text = " ";
+            TextBox_RightAscension.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            TextBox_RightAscension.WordWrap = false;
             // 
             // NumericUpDown_RaMinutes
             // 
-            this.NumericUpDown_RaMinutes.AllowDrop = true;
-            this.NumericUpDown_RaMinutes.Location = new System.Drawing.Point(203, 122);
-            this.NumericUpDown_RaMinutes.Maximum = new decimal(new int[] {
-            60,
-            0,
-            0,
-            0});
-            this.NumericUpDown_RaMinutes.Minimum = new decimal(new int[] {
-            1,
-            0,
-            0,
-            -2147483648});
-            this.NumericUpDown_RaMinutes.Name = "NumericUpDown_RaMinutes";
-            this.NumericUpDown_RaMinutes.Size = new System.Drawing.Size(55, 20);
-            this.NumericUpDown_RaMinutes.TabIndex = 14;
-            this.NumericUpDown_RaMinutes.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_RaMinutes.AllowDrop = true;
+            NumericUpDown_RaMinutes.Location = new System.Drawing.Point(237, 141);
+            NumericUpDown_RaMinutes.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_RaMinutes.Maximum = new decimal(new int[] { 60, 0, 0, 0 });
+            NumericUpDown_RaMinutes.Minimum = new decimal(new int[] { 1, 0, 0, int.MinValue });
+            NumericUpDown_RaMinutes.Name = "NumericUpDown_RaMinutes";
+            NumericUpDown_RaMinutes.Size = new System.Drawing.Size(64, 23);
+            NumericUpDown_RaMinutes.TabIndex = 14;
+            NumericUpDown_RaMinutes.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // TextBox_Declination
             // 
-            this.TextBox_Declination.Location = new System.Drawing.Point(349, 145);
-            this.TextBox_Declination.Name = "TextBox_Declination";
-            this.TextBox_Declination.Size = new System.Drawing.Size(74, 20);
-            this.TextBox_Declination.TabIndex = 20;
-            this.TextBox_Declination.Text = " ";
-            this.TextBox_Declination.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            TextBox_Declination.Location = new System.Drawing.Point(407, 167);
+            TextBox_Declination.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            TextBox_Declination.Name = "TextBox_Declination";
+            TextBox_Declination.Size = new System.Drawing.Size(86, 23);
+            TextBox_Declination.TabIndex = 20;
+            TextBox_Declination.Text = " ";
+            TextBox_Declination.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // Label_DecMinuteColon
             // 
-            this.Label_DecMinuteColon.AutoSize = true;
-            this.Label_DecMinuteColon.Location = new System.Drawing.Point(263, 149);
-            this.Label_DecMinuteColon.Name = "Label_DecMinuteColon";
-            this.Label_DecMinuteColon.Size = new System.Drawing.Size(10, 13);
-            this.Label_DecMinuteColon.TabIndex = 38;
-            this.Label_DecMinuteColon.Text = ":";
+            Label_DecMinuteColon.AutoSize = true;
+            Label_DecMinuteColon.Location = new System.Drawing.Point(307, 172);
+            Label_DecMinuteColon.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_DecMinuteColon.Name = "Label_DecMinuteColon";
+            Label_DecMinuteColon.Size = new System.Drawing.Size(10, 15);
+            Label_DecMinuteColon.TabIndex = 38;
+            Label_DecMinuteColon.Text = ":";
             // 
             // Button_Graph
             // 
-            this.Button_Graph.Location = new System.Drawing.Point(448, 73);
-            this.Button_Graph.Name = "Button_Graph";
-            this.Button_Graph.Size = new System.Drawing.Size(66, 23);
-            this.Button_Graph.TabIndex = 34;
-            this.Button_Graph.Text = "Graph";
-            this.Button_Graph.UseVisualStyleBackColor = true;
-            this.Button_Graph.Click += new System.EventHandler(this.Button_Graph_Click);
+            Button_Graph.Location = new System.Drawing.Point(523, 84);
+            Button_Graph.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            Button_Graph.Name = "Button_Graph";
+            Button_Graph.Size = new System.Drawing.Size(77, 27);
+            Button_Graph.TabIndex = 34;
+            Button_Graph.Text = "Graph";
+            Button_Graph.UseVisualStyleBackColor = true;
+            Button_Graph.Click += Button_Graph_Click;
             // 
             // NumericUpDown_RaHours
             // 
-            this.NumericUpDown_RaHours.AllowDrop = true;
-            this.NumericUpDown_RaHours.Location = new System.Drawing.Point(128, 122);
-            this.NumericUpDown_RaHours.Maximum = new decimal(new int[] {
-            23,
-            0,
-            0,
-            0});
-            this.NumericUpDown_RaHours.Name = "NumericUpDown_RaHours";
-            this.NumericUpDown_RaHours.Size = new System.Drawing.Size(55, 20);
-            this.NumericUpDown_RaHours.TabIndex = 13;
-            this.NumericUpDown_RaHours.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_RaHours.AllowDrop = true;
+            NumericUpDown_RaHours.Location = new System.Drawing.Point(149, 141);
+            NumericUpDown_RaHours.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_RaHours.Maximum = new decimal(new int[] { 23, 0, 0, 0 });
+            NumericUpDown_RaHours.Name = "NumericUpDown_RaHours";
+            NumericUpDown_RaHours.Size = new System.Drawing.Size(64, 23);
+            NumericUpDown_RaHours.TabIndex = 13;
+            NumericUpDown_RaHours.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // NumericUpDown_RaSeconds
             // 
-            this.NumericUpDown_RaSeconds.AllowDrop = true;
-            this.NumericUpDown_RaSeconds.DecimalPlaces = 2;
-            this.NumericUpDown_RaSeconds.Increment = new decimal(new int[] {
-            1,
-            0,
-            0,
-            131072});
-            this.NumericUpDown_RaSeconds.Location = new System.Drawing.Point(278, 122);
-            this.NumericUpDown_RaSeconds.Maximum = new decimal(new int[] {
-            60,
-            0,
-            0,
-            0});
-            this.NumericUpDown_RaSeconds.Minimum = new decimal(new int[] {
-            1,
-            0,
-            0,
-            -2147352576});
-            this.NumericUpDown_RaSeconds.Name = "NumericUpDown_RaSeconds";
-            this.NumericUpDown_RaSeconds.Size = new System.Drawing.Size(65, 20);
-            this.NumericUpDown_RaSeconds.TabIndex = 15;
-            this.NumericUpDown_RaSeconds.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_RaSeconds.AllowDrop = true;
+            NumericUpDown_RaSeconds.DecimalPlaces = 2;
+            NumericUpDown_RaSeconds.Increment = new decimal(new int[] { 1, 0, 0, 131072 });
+            NumericUpDown_RaSeconds.Location = new System.Drawing.Point(324, 141);
+            NumericUpDown_RaSeconds.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_RaSeconds.Maximum = new decimal(new int[] { 60, 0, 0, 0 });
+            NumericUpDown_RaSeconds.Minimum = new decimal(new int[] { 1, 0, 0, -2147352576 });
+            NumericUpDown_RaSeconds.Name = "NumericUpDown_RaSeconds";
+            NumericUpDown_RaSeconds.Size = new System.Drawing.Size(76, 23);
+            NumericUpDown_RaSeconds.TabIndex = 15;
+            NumericUpDown_RaSeconds.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // NumericUpDown_DecMinutes
             // 
-            this.NumericUpDown_DecMinutes.AllowDrop = true;
-            this.NumericUpDown_DecMinutes.Location = new System.Drawing.Point(203, 145);
-            this.NumericUpDown_DecMinutes.Maximum = new decimal(new int[] {
-            60,
-            0,
-            0,
-            0});
-            this.NumericUpDown_DecMinutes.Minimum = new decimal(new int[] {
-            1,
-            0,
-            0,
-            -2147483648});
-            this.NumericUpDown_DecMinutes.Name = "NumericUpDown_DecMinutes";
-            this.NumericUpDown_DecMinutes.Size = new System.Drawing.Size(55, 20);
-            this.NumericUpDown_DecMinutes.TabIndex = 18;
-            this.NumericUpDown_DecMinutes.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_DecMinutes.AllowDrop = true;
+            NumericUpDown_DecMinutes.Location = new System.Drawing.Point(237, 167);
+            NumericUpDown_DecMinutes.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_DecMinutes.Maximum = new decimal(new int[] { 60, 0, 0, 0 });
+            NumericUpDown_DecMinutes.Minimum = new decimal(new int[] { 1, 0, 0, int.MinValue });
+            NumericUpDown_DecMinutes.Name = "NumericUpDown_DecMinutes";
+            NumericUpDown_DecMinutes.Size = new System.Drawing.Size(64, 23);
+            NumericUpDown_DecMinutes.TabIndex = 18;
+            NumericUpDown_DecMinutes.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // Label_TargetDeclinationText
             // 
-            this.Label_TargetDeclinationText.AutoSize = true;
-            this.Label_TargetDeclinationText.Location = new System.Drawing.Point(98, 149);
-            this.Label_TargetDeclinationText.Name = "Label_TargetDeclinationText";
-            this.Label_TargetDeclinationText.Size = new System.Drawing.Size(29, 13);
-            this.Label_TargetDeclinationText.TabIndex = 26;
-            this.Label_TargetDeclinationText.Text = "DEC";
+            Label_TargetDeclinationText.AutoSize = true;
+            Label_TargetDeclinationText.Location = new System.Drawing.Point(114, 172);
+            Label_TargetDeclinationText.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_TargetDeclinationText.Name = "Label_TargetDeclinationText";
+            Label_TargetDeclinationText.Size = new System.Drawing.Size(29, 15);
+            Label_TargetDeclinationText.TabIndex = 26;
+            Label_TargetDeclinationText.Text = "DEC";
             // 
             // Label_RaHourColon
             // 
-            this.Label_RaHourColon.AutoSize = true;
-            this.Label_RaHourColon.Location = new System.Drawing.Point(188, 126);
-            this.Label_RaHourColon.Name = "Label_RaHourColon";
-            this.Label_RaHourColon.Size = new System.Drawing.Size(10, 13);
-            this.Label_RaHourColon.TabIndex = 25;
-            this.Label_RaHourColon.Text = ":";
+            Label_RaHourColon.AutoSize = true;
+            Label_RaHourColon.Location = new System.Drawing.Point(219, 145);
+            Label_RaHourColon.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_RaHourColon.Name = "Label_RaHourColon";
+            Label_RaHourColon.Size = new System.Drawing.Size(10, 15);
+            Label_RaHourColon.TabIndex = 25;
+            Label_RaHourColon.Text = ":";
             // 
             // Label_RaMinuteColon
             // 
-            this.Label_RaMinuteColon.AutoSize = true;
-            this.Label_RaMinuteColon.Location = new System.Drawing.Point(263, 126);
-            this.Label_RaMinuteColon.Name = "Label_RaMinuteColon";
-            this.Label_RaMinuteColon.Size = new System.Drawing.Size(10, 13);
-            this.Label_RaMinuteColon.TabIndex = 37;
-            this.Label_RaMinuteColon.Text = ":";
+            Label_RaMinuteColon.AutoSize = true;
+            Label_RaMinuteColon.Location = new System.Drawing.Point(307, 145);
+            Label_RaMinuteColon.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_RaMinuteColon.Name = "Label_RaMinuteColon";
+            Label_RaMinuteColon.Size = new System.Drawing.Size(10, 15);
+            Label_RaMinuteColon.TabIndex = 37;
+            Label_RaMinuteColon.Text = ":";
             // 
             // Label_DecDegreeColon
             // 
-            this.Label_DecDegreeColon.AutoSize = true;
-            this.Label_DecDegreeColon.Location = new System.Drawing.Point(188, 149);
-            this.Label_DecDegreeColon.Name = "Label_DecDegreeColon";
-            this.Label_DecDegreeColon.Size = new System.Drawing.Size(10, 13);
-            this.Label_DecDegreeColon.TabIndex = 36;
-            this.Label_DecDegreeColon.Text = ":";
+            Label_DecDegreeColon.AutoSize = true;
+            Label_DecDegreeColon.Location = new System.Drawing.Point(219, 172);
+            Label_DecDegreeColon.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_DecDegreeColon.Name = "Label_DecDegreeColon";
+            Label_DecDegreeColon.Size = new System.Drawing.Size(10, 15);
+            Label_DecDegreeColon.TabIndex = 36;
+            Label_DecDegreeColon.Text = ":";
             // 
             // Label_TargetRightAscensionText
             // 
-            this.Label_TargetRightAscensionText.AutoSize = true;
-            this.Label_TargetRightAscensionText.Location = new System.Drawing.Point(105, 126);
-            this.Label_TargetRightAscensionText.Name = "Label_TargetRightAscensionText";
-            this.Label_TargetRightAscensionText.Size = new System.Drawing.Size(22, 13);
-            this.Label_TargetRightAscensionText.TabIndex = 25;
-            this.Label_TargetRightAscensionText.Text = "RA";
+            Label_TargetRightAscensionText.AutoSize = true;
+            Label_TargetRightAscensionText.Location = new System.Drawing.Point(122, 145);
+            Label_TargetRightAscensionText.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_TargetRightAscensionText.Name = "Label_TargetRightAscensionText";
+            Label_TargetRightAscensionText.Size = new System.Drawing.Size(22, 15);
+            Label_TargetRightAscensionText.TabIndex = 25;
+            Label_TargetRightAscensionText.Text = "RA";
             // 
             // NumericUpDown_DecSeconds
             // 
-            this.NumericUpDown_DecSeconds.AllowDrop = true;
-            this.NumericUpDown_DecSeconds.DecimalPlaces = 2;
-            this.NumericUpDown_DecSeconds.Increment = new decimal(new int[] {
-            1,
-            0,
-            0,
-            131072});
-            this.NumericUpDown_DecSeconds.Location = new System.Drawing.Point(278, 145);
-            this.NumericUpDown_DecSeconds.Maximum = new decimal(new int[] {
-            60,
-            0,
-            0,
-            0});
-            this.NumericUpDown_DecSeconds.Minimum = new decimal(new int[] {
-            1,
-            0,
-            0,
-            -2147352576});
-            this.NumericUpDown_DecSeconds.Name = "NumericUpDown_DecSeconds";
-            this.NumericUpDown_DecSeconds.Size = new System.Drawing.Size(65, 20);
-            this.NumericUpDown_DecSeconds.TabIndex = 19;
-            this.NumericUpDown_DecSeconds.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_DecSeconds.AllowDrop = true;
+            NumericUpDown_DecSeconds.DecimalPlaces = 2;
+            NumericUpDown_DecSeconds.Increment = new decimal(new int[] { 1, 0, 0, 131072 });
+            NumericUpDown_DecSeconds.Location = new System.Drawing.Point(324, 167);
+            NumericUpDown_DecSeconds.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_DecSeconds.Maximum = new decimal(new int[] { 60, 0, 0, 0 });
+            NumericUpDown_DecSeconds.Minimum = new decimal(new int[] { 1, 0, 0, -2147352576 });
+            NumericUpDown_DecSeconds.Name = "NumericUpDown_DecSeconds";
+            NumericUpDown_DecSeconds.Size = new System.Drawing.Size(76, 23);
+            NumericUpDown_DecSeconds.TabIndex = 19;
+            NumericUpDown_DecSeconds.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // NumericUpDown_DecDegrees
             // 
-            this.NumericUpDown_DecDegrees.AllowDrop = true;
-            this.NumericUpDown_DecDegrees.Location = new System.Drawing.Point(128, 145);
-            this.NumericUpDown_DecDegrees.Maximum = new decimal(new int[] {
-            90,
-            0,
-            0,
-            0});
-            this.NumericUpDown_DecDegrees.Minimum = new decimal(new int[] {
-            90,
-            0,
-            0,
-            -2147483648});
-            this.NumericUpDown_DecDegrees.Name = "NumericUpDown_DecDegrees";
-            this.NumericUpDown_DecDegrees.Size = new System.Drawing.Size(55, 20);
-            this.NumericUpDown_DecDegrees.TabIndex = 17;
-            this.NumericUpDown_DecDegrees.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_DecDegrees.AllowDrop = true;
+            NumericUpDown_DecDegrees.Location = new System.Drawing.Point(149, 167);
+            NumericUpDown_DecDegrees.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_DecDegrees.Maximum = new decimal(new int[] { 90, 0, 0, 0 });
+            NumericUpDown_DecDegrees.Minimum = new decimal(new int[] { 90, 0, 0, int.MinValue });
+            NumericUpDown_DecDegrees.Name = "NumericUpDown_DecDegrees";
+            NumericUpDown_DecDegrees.Size = new System.Drawing.Size(64, 23);
+            NumericUpDown_DecDegrees.TabIndex = 17;
+            NumericUpDown_DecDegrees.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // RadioButton_Sessions
             // 
-            this.RadioButton_Sessions.AutoSize = true;
-            this.RadioButton_Sessions.Location = new System.Drawing.Point(100, 19);
-            this.RadioButton_Sessions.Name = "RadioButton_Sessions";
-            this.RadioButton_Sessions.Size = new System.Drawing.Size(67, 17);
-            this.RadioButton_Sessions.TabIndex = 38;
-            this.RadioButton_Sessions.Text = "Sessions";
-            this.RadioButton_Sessions.UseVisualStyleBackColor = true;
-            this.RadioButton_Sessions.CheckedChanged += new System.EventHandler(this.RadioButton_Sessions_CheckedChanged);
+            RadioButton_Sessions.AutoSize = true;
+            RadioButton_Sessions.Location = new System.Drawing.Point(117, 20);
+            RadioButton_Sessions.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            RadioButton_Sessions.Name = "RadioButton_Sessions";
+            RadioButton_Sessions.Size = new System.Drawing.Size(69, 19);
+            RadioButton_Sessions.TabIndex = 38;
+            RadioButton_Sessions.Text = "Sessions";
+            RadioButton_Sessions.UseVisualStyleBackColor = true;
+            RadioButton_Sessions.CheckedChanged += RadioButton_Sessions_CheckedChanged;
             // 
             // RadioButton_Year
             // 
-            this.RadioButton_Year.AutoSize = true;
-            this.RadioButton_Year.Location = new System.Drawing.Point(168, 19);
-            this.RadioButton_Year.Name = "RadioButton_Year";
-            this.RadioButton_Year.Size = new System.Drawing.Size(47, 17);
-            this.RadioButton_Year.TabIndex = 37;
-            this.RadioButton_Year.TabStop = true;
-            this.RadioButton_Year.Text = "Year";
-            this.RadioButton_Year.UseVisualStyleBackColor = true;
-            this.RadioButton_Year.CheckedChanged += new System.EventHandler(this.RadioButton_Year_CheckedChanged);
+            RadioButton_Year.AutoSize = true;
+            RadioButton_Year.Location = new System.Drawing.Point(196, 20);
+            RadioButton_Year.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            RadioButton_Year.Name = "RadioButton_Year";
+            RadioButton_Year.Size = new System.Drawing.Size(47, 19);
+            RadioButton_Year.TabIndex = 37;
+            RadioButton_Year.TabStop = true;
+            RadioButton_Year.Text = "Year";
+            RadioButton_Year.UseVisualStyleBackColor = true;
+            RadioButton_Year.CheckedChanged += RadioButton_Year_CheckedChanged;
             // 
             // RadioButton_Day
             // 
-            this.RadioButton_Day.AutoSize = true;
-            this.RadioButton_Day.Checked = true;
-            this.RadioButton_Day.Location = new System.Drawing.Point(11, 19);
-            this.RadioButton_Day.Name = "RadioButton_Day";
-            this.RadioButton_Day.Size = new System.Drawing.Size(44, 17);
-            this.RadioButton_Day.TabIndex = 36;
-            this.RadioButton_Day.TabStop = true;
-            this.RadioButton_Day.Text = "Day";
-            this.RadioButton_Day.UseVisualStyleBackColor = true;
-            this.RadioButton_Day.CheckedChanged += new System.EventHandler(this.RadioButton_Day_CheckedChanged);
+            RadioButton_Day.AutoSize = true;
+            RadioButton_Day.Checked = true;
+            RadioButton_Day.Location = new System.Drawing.Point(13, 20);
+            RadioButton_Day.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            RadioButton_Day.Name = "RadioButton_Day";
+            RadioButton_Day.Size = new System.Drawing.Size(45, 19);
+            RadioButton_Day.TabIndex = 36;
+            RadioButton_Day.TabStop = true;
+            RadioButton_Day.Text = "Day";
+            RadioButton_Day.UseVisualStyleBackColor = true;
+            RadioButton_Day.CheckedChanged += RadioButton_Day_CheckedChanged;
             // 
             // Button_VisibleTonight
             // 
-            this.Button_VisibleTonight.Location = new System.Drawing.Point(952, 19);
-            this.Button_VisibleTonight.Name = "Button_VisibleTonight";
-            this.Button_VisibleTonight.Size = new System.Drawing.Size(100, 23);
-            this.Button_VisibleTonight.TabIndex = 7;
-            this.Button_VisibleTonight.Text = "Visible Tonight";
-            this.Button_VisibleTonight.UseVisualStyleBackColor = true;
-            this.Button_VisibleTonight.Click += new System.EventHandler(this.Button_VisibleTonight_Click);
+            Button_VisibleTonight.Location = new System.Drawing.Point(1111, 22);
+            Button_VisibleTonight.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            Button_VisibleTonight.Name = "Button_VisibleTonight";
+            Button_VisibleTonight.Size = new System.Drawing.Size(117, 27);
+            Button_VisibleTonight.TabIndex = 7;
+            Button_VisibleTonight.Text = "Visible Tonight";
+            Button_VisibleTonight.UseVisualStyleBackColor = true;
+            Button_VisibleTonight.Click += Button_VisibleTonight_Click;
             // 
             // Button_SelectAllTargets
             // 
-            this.Button_SelectAllTargets.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
-            this.Button_SelectAllTargets.Location = new System.Drawing.Point(812, 19);
-            this.Button_SelectAllTargets.Name = "Button_SelectAllTargets";
-            this.Button_SelectAllTargets.Size = new System.Drawing.Size(64, 23);
-            this.Button_SelectAllTargets.TabIndex = 9;
-            this.Button_SelectAllTargets.Text = "Select All";
-            this.Button_SelectAllTargets.UseVisualStyleBackColor = true;
-            this.Button_SelectAllTargets.Click += new System.EventHandler(this.Button_SelectAllTargets_Click);
+            Button_SelectAllTargets.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
+            Button_SelectAllTargets.Location = new System.Drawing.Point(947, 22);
+            Button_SelectAllTargets.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            Button_SelectAllTargets.Name = "Button_SelectAllTargets";
+            Button_SelectAllTargets.Size = new System.Drawing.Size(75, 27);
+            Button_SelectAllTargets.TabIndex = 9;
+            Button_SelectAllTargets.Text = "Select All";
+            Button_SelectAllTargets.UseVisualStyleBackColor = true;
+            Button_SelectAllTargets.Click += Button_SelectAllTargets_Click;
             // 
             // Button_ClearAllTargets
             // 
-            this.Button_ClearAllTargets.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
-            this.Button_ClearAllTargets.Location = new System.Drawing.Point(882, 19);
-            this.Button_ClearAllTargets.Name = "Button_ClearAllTargets";
-            this.Button_ClearAllTargets.Size = new System.Drawing.Size(64, 23);
-            this.Button_ClearAllTargets.TabIndex = 8;
-            this.Button_ClearAllTargets.Text = "Clear All";
-            this.Button_ClearAllTargets.UseVisualStyleBackColor = true;
-            this.Button_ClearAllTargets.Click += new System.EventHandler(this.Button_ClearAllTargets_Click);
+            Button_ClearAllTargets.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
+            Button_ClearAllTargets.Location = new System.Drawing.Point(1029, 22);
+            Button_ClearAllTargets.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            Button_ClearAllTargets.Name = "Button_ClearAllTargets";
+            Button_ClearAllTargets.Size = new System.Drawing.Size(75, 27);
+            Button_ClearAllTargets.TabIndex = 8;
+            Button_ClearAllTargets.Text = "Clear All";
+            Button_ClearAllTargets.UseVisualStyleBackColor = true;
+            Button_ClearAllTargets.Click += Button_ClearAllTargets_Click;
             // 
             // ProgressBar_ProcessObject
             // 
-            this.ProgressBar_ProcessObject.Location = new System.Drawing.Point(112, 41);
-            this.ProgressBar_ProcessObject.Name = "ProgressBar_ProcessObject";
-            this.ProgressBar_ProcessObject.Size = new System.Drawing.Size(407, 18);
-            this.ProgressBar_ProcessObject.TabIndex = 7;
+            ProgressBar_ProcessObject.Location = new System.Drawing.Point(131, 47);
+            ProgressBar_ProcessObject.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            ProgressBar_ProcessObject.Name = "ProgressBar_ProcessObject";
+            ProgressBar_ProcessObject.Size = new System.Drawing.Size(475, 21);
+            ProgressBar_ProcessObject.TabIndex = 7;
             // 
             // Label_SortBy
             // 
-            this.Label_SortBy.AutoSize = true;
-            this.Label_SortBy.Location = new System.Drawing.Point(539, 24);
-            this.Label_SortBy.Name = "Label_SortBy";
-            this.Label_SortBy.Size = new System.Drawing.Size(43, 13);
-            this.Label_SortBy.TabIndex = 10;
-            this.Label_SortBy.Text = "Sort by:";
+            Label_SortBy.AutoSize = true;
+            Label_SortBy.Location = new System.Drawing.Point(629, 28);
+            Label_SortBy.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_SortBy.Name = "Label_SortBy";
+            Label_SortBy.Size = new System.Drawing.Size(47, 15);
+            Label_SortBy.TabIndex = 10;
+            Label_SortBy.Text = "Sort by:";
             // 
             // ComboBox_SortTargets
             // 
-            this.ComboBox_SortTargets.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.ComboBox_SortTargets.FormattingEnabled = true;
-            this.ComboBox_SortTargets.Items.AddRange(new object[] {
-            "Name",
-            "Transit",
-            "Rise"});
-            this.ComboBox_SortTargets.Location = new System.Drawing.Point(587, 20);
-            this.ComboBox_SortTargets.Name = "ComboBox_SortTargets";
-            this.ComboBox_SortTargets.Size = new System.Drawing.Size(120, 21);
-            this.ComboBox_SortTargets.TabIndex = 11;
-            this.ComboBox_SortTargets.SelectedIndexChanged += new System.EventHandler(this.ComboBox_SortTargets_SelectedIndexChanged);
+            ComboBox_SortTargets.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            ComboBox_SortTargets.FormattingEnabled = true;
+            ComboBox_SortTargets.Items.AddRange(new object[] { "Name", "Transit", "Rise" });
+            ComboBox_SortTargets.Location = new System.Drawing.Point(685, 23);
+            ComboBox_SortTargets.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            ComboBox_SortTargets.Name = "ComboBox_SortTargets";
+            ComboBox_SortTargets.Size = new System.Drawing.Size(139, 23);
+            ComboBox_SortTargets.TabIndex = 11;
+            ComboBox_SortTargets.SelectedIndexChanged += ComboBox_SortTargets_SelectedIndexChanged;
             // 
             // CheckedListBox_SelectedTargets
             // 
-            this.CheckedListBox_SelectedTargets.FormattingEnabled = true;
-            this.CheckedListBox_SelectedTargets.Location = new System.Drawing.Point(539, 47);
-            this.CheckedListBox_SelectedTargets.MultiColumn = true;
-            this.CheckedListBox_SelectedTargets.Name = "CheckedListBox_SelectedTargets";
-            this.CheckedListBox_SelectedTargets.ScrollAlwaysVisible = true;
-            this.CheckedListBox_SelectedTargets.Size = new System.Drawing.Size(513, 274);
-            this.CheckedListBox_SelectedTargets.TabIndex = 4;
-            this.CheckedListBox_SelectedTargets.ThreeDCheckBoxes = true;
-            this.CheckedListBox_SelectedTargets.MouseDoubleClick += new System.Windows.Forms.MouseEventHandler(this.CheckedListBox_SelectedTargets_MouseDoubleClick);
-            this.CheckedListBox_SelectedTargets.MouseMove += new System.Windows.Forms.MouseEventHandler(this.ShowCheckBoxObjectToolTip);
+            CheckedListBox_SelectedTargets.FormattingEnabled = true;
+            CheckedListBox_SelectedTargets.Location = new System.Drawing.Point(629, 54);
+            CheckedListBox_SelectedTargets.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            CheckedListBox_SelectedTargets.MultiColumn = true;
+            CheckedListBox_SelectedTargets.Name = "CheckedListBox_SelectedTargets";
+            CheckedListBox_SelectedTargets.ScrollAlwaysVisible = true;
+            CheckedListBox_SelectedTargets.Size = new System.Drawing.Size(598, 310);
+            CheckedListBox_SelectedTargets.TabIndex = 4;
+            CheckedListBox_SelectedTargets.ThreeDCheckBoxes = true;
+            CheckedListBox_SelectedTargets.MouseDoubleClick += CheckedListBox_SelectedTargets_MouseDoubleClick;
+            CheckedListBox_SelectedTargets.MouseMove += ShowCheckBoxObjectToolTip;
             // 
             // Button_BrowseTargetList
             // 
-            this.Button_BrowseTargetList.Location = new System.Drawing.Point(22, 39);
-            this.Button_BrowseTargetList.Name = "Button_BrowseTargetList";
-            this.Button_BrowseTargetList.Size = new System.Drawing.Size(84, 23);
-            this.Button_BrowseTargetList.TabIndex = 0;
-            this.Button_BrowseTargetList.Text = "Browse";
-            this.Button_BrowseTargetList.UseVisualStyleBackColor = true;
-            this.Button_BrowseTargetList.Click += new System.EventHandler(this.Button_BrowseTargetList_Click);
+            Button_BrowseTargetList.Location = new System.Drawing.Point(26, 45);
+            Button_BrowseTargetList.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            Button_BrowseTargetList.Name = "Button_BrowseTargetList";
+            Button_BrowseTargetList.Size = new System.Drawing.Size(98, 27);
+            Button_BrowseTargetList.TabIndex = 0;
+            Button_BrowseTargetList.Text = "Browse";
+            Button_BrowseTargetList.UseVisualStyleBackColor = true;
+            Button_BrowseTargetList.Click += Button_BrowseTargetList_Click;
             // 
             // GroupBox_Target
             // 
-            this.GroupBox_Target.Controls.Add(this.GroupBox_Moon_Filters);
-            this.GroupBox_Target.Controls.Add(this.GroupBox_MoonAvoidance);
-            this.GroupBox_Target.Controls.Add(this.Button_Cancel);
-            this.GroupBox_Target.Controls.Add(this.Button_VisibleTonight);
-            this.GroupBox_Target.Controls.Add(this.Label_TargetHours);
-            this.GroupBox_Target.Controls.Add(this.Label_RaMinuteColon);
-            this.GroupBox_Target.Controls.Add(this.Button_Graph);
-            this.GroupBox_Target.Controls.Add(this.Label_DecDegreeColon);
-            this.GroupBox_Target.Controls.Add(this.ComboBox_SelectTarget);
-            this.GroupBox_Target.Controls.Add(this.Label_RaHourColon);
-            this.GroupBox_Target.Controls.Add(this.Label_TargetName);
-            this.GroupBox_Target.Controls.Add(this.Label_TargetRightAscensionText);
-            this.GroupBox_Target.Controls.Add(this.Label_TargetDuration);
-            this.GroupBox_Target.Controls.Add(this.Label_TargetDeclinationText);
-            this.GroupBox_Target.Controls.Add(this.NumericUpDown_DecSeconds);
-            this.GroupBox_Target.Controls.Add(this.CheckBox_TargetNorth);
-            this.GroupBox_Target.Controls.Add(this.NumericUpDown_DecMinutes);
-            this.GroupBox_Target.Controls.Add(this.Label_TargetFloor);
-            this.GroupBox_Target.Controls.Add(this.NumericUpDown_DecDegrees);
-            this.GroupBox_Target.Controls.Add(this.NumericUpDown_RaSeconds);
-            this.GroupBox_Target.Controls.Add(this.TextBox_RightAscension);
-            this.GroupBox_Target.Controls.Add(this.Button_BrowseTargetList);
-            this.GroupBox_Target.Controls.Add(this.Label_LocalHorizon);
-            this.GroupBox_Target.Controls.Add(this.NumericUpDown_RaHours);
-            this.GroupBox_Target.Controls.Add(this.Button_SelectAllTargets);
-            this.GroupBox_Target.Controls.Add(this.CheckedListBox_SelectedTargets);
-            this.GroupBox_Target.Controls.Add(this.NumericUpDown_TargetFloor);
-            this.GroupBox_Target.Controls.Add(this.ComboBox_SortTargets);
-            this.GroupBox_Target.Controls.Add(this.NumericUpDown_RaMinutes);
-            this.GroupBox_Target.Controls.Add(this.Label_DecMinuteColon);
-            this.GroupBox_Target.Controls.Add(this.Button_ClearAllTargets);
-            this.GroupBox_Target.Controls.Add(this.Label_SortBy);
-            this.GroupBox_Target.Controls.Add(this.NumericUpDown_TargetDuration);
-            this.GroupBox_Target.Controls.Add(this.ProgressBar_ProcessObject);
-            this.GroupBox_Target.Controls.Add(this.TextBox_Declination);
-            this.GroupBox_Target.Location = new System.Drawing.Point(534, 30);
-            this.GroupBox_Target.Name = "GroupBox_Target";
-            this.GroupBox_Target.Size = new System.Drawing.Size(1075, 337);
-            this.GroupBox_Target.TabIndex = 3;
-            this.GroupBox_Target.TabStop = false;
-            this.GroupBox_Target.Text = "Target";
+            GroupBox_Target.Controls.Add(GroupBox_Moon_Filters);
+            GroupBox_Target.Controls.Add(GroupBox_MoonAvoidance);
+            GroupBox_Target.Controls.Add(Button_Cancel);
+            GroupBox_Target.Controls.Add(Button_VisibleTonight);
+            GroupBox_Target.Controls.Add(Label_TargetHours);
+            GroupBox_Target.Controls.Add(Label_RaMinuteColon);
+            GroupBox_Target.Controls.Add(Button_Graph);
+            GroupBox_Target.Controls.Add(Label_DecDegreeColon);
+            GroupBox_Target.Controls.Add(ComboBox_SelectTarget);
+            GroupBox_Target.Controls.Add(Label_RaHourColon);
+            GroupBox_Target.Controls.Add(Label_TargetName);
+            GroupBox_Target.Controls.Add(Label_TargetRightAscensionText);
+            GroupBox_Target.Controls.Add(Label_TargetDuration);
+            GroupBox_Target.Controls.Add(Label_TargetDeclinationText);
+            GroupBox_Target.Controls.Add(NumericUpDown_DecSeconds);
+            GroupBox_Target.Controls.Add(CheckBox_TargetNorth);
+            GroupBox_Target.Controls.Add(NumericUpDown_DecMinutes);
+            GroupBox_Target.Controls.Add(Label_TargetFloor);
+            GroupBox_Target.Controls.Add(NumericUpDown_DecDegrees);
+            GroupBox_Target.Controls.Add(NumericUpDown_RaSeconds);
+            GroupBox_Target.Controls.Add(TextBox_RightAscension);
+            GroupBox_Target.Controls.Add(Button_BrowseTargetList);
+            GroupBox_Target.Controls.Add(Label_LocalHorizon);
+            GroupBox_Target.Controls.Add(NumericUpDown_RaHours);
+            GroupBox_Target.Controls.Add(Button_SelectAllTargets);
+            GroupBox_Target.Controls.Add(CheckedListBox_SelectedTargets);
+            GroupBox_Target.Controls.Add(NumericUpDown_TargetFloor);
+            GroupBox_Target.Controls.Add(ComboBox_SortTargets);
+            GroupBox_Target.Controls.Add(NumericUpDown_RaMinutes);
+            GroupBox_Target.Controls.Add(Label_DecMinuteColon);
+            GroupBox_Target.Controls.Add(Button_ClearAllTargets);
+            GroupBox_Target.Controls.Add(Label_SortBy);
+            GroupBox_Target.Controls.Add(NumericUpDown_TargetDuration);
+            GroupBox_Target.Controls.Add(ProgressBar_ProcessObject);
+            GroupBox_Target.Controls.Add(TextBox_Declination);
+            GroupBox_Target.Location = new System.Drawing.Point(623, 35);
+            GroupBox_Target.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            GroupBox_Target.Name = "GroupBox_Target";
+            GroupBox_Target.Padding = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            GroupBox_Target.Size = new System.Drawing.Size(1254, 389);
+            GroupBox_Target.TabIndex = 3;
+            GroupBox_Target.TabStop = false;
+            GroupBox_Target.Text = "Target";
             // 
             // GroupBox_Moon_Filters
             // 
-            this.GroupBox_Moon_Filters.Location = new System.Drawing.Point(74, 207);
-            this.GroupBox_Moon_Filters.Name = "GroupBox_Moon_Filters";
-            this.GroupBox_Moon_Filters.Size = new System.Drawing.Size(394, 43);
-            this.GroupBox_Moon_Filters.TabIndex = 12;
-            this.GroupBox_Moon_Filters.TabStop = false;
-            this.GroupBox_Moon_Filters.Text = "Filters";
+            GroupBox_Moon_Filters.Location = new System.Drawing.Point(86, 239);
+            GroupBox_Moon_Filters.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            GroupBox_Moon_Filters.Name = "GroupBox_Moon_Filters";
+            GroupBox_Moon_Filters.Padding = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            GroupBox_Moon_Filters.Size = new System.Drawing.Size(460, 50);
+            GroupBox_Moon_Filters.TabIndex = 12;
+            GroupBox_Moon_Filters.TabStop = false;
+            GroupBox_Moon_Filters.Text = "Filters";
             // 
             // GroupBox_MoonAvoidance
             // 
-            this.GroupBox_MoonAvoidance.Controls.Add(this.CheckBox_Moon_AvoidanceEnable);
-            this.GroupBox_MoonAvoidance.Controls.Add(this.Label_Moon_Seperation);
-            this.GroupBox_MoonAvoidance.Controls.Add(this.NumericUpDown_Moon_Separation);
-            this.GroupBox_MoonAvoidance.Controls.Add(this.Label_Moon_Width);
-            this.GroupBox_MoonAvoidance.Controls.Add(this.NumericUpDown_Moon_Width);
-            this.GroupBox_MoonAvoidance.Controls.Add(this.CheckBox_Moon_RelaxEnabled);
-            this.GroupBox_MoonAvoidance.Controls.Add(this.Label_Moon_RelaxMin);
-            this.GroupBox_MoonAvoidance.Controls.Add(this.NumericUpDown_Moon_RelaxMin);
-            this.GroupBox_MoonAvoidance.Controls.Add(this.Label_Moon_RelaxMax);
-            this.GroupBox_MoonAvoidance.Controls.Add(this.NumericUpDown_Moon_RelaxMax);
-            this.GroupBox_MoonAvoidance.Controls.Add(this.Label_Moon_RelaxScale);
-            this.GroupBox_MoonAvoidance.Controls.Add(this.NumericUpDown_Moon_RelaxScale);
-            this.GroupBox_MoonAvoidance.Location = new System.Drawing.Point(22, 251);
-            this.GroupBox_MoonAvoidance.Name = "GroupBox_MoonAvoidance";
-            this.GroupBox_MoonAvoidance.Size = new System.Drawing.Size(497, 75);
-            this.GroupBox_MoonAvoidance.TabIndex = 42;
-            this.GroupBox_MoonAvoidance.TabStop = false;
-            this.GroupBox_MoonAvoidance.Text = "Moon Avoidance";
+            GroupBox_MoonAvoidance.Controls.Add(CheckBox_Moon_AvoidanceEnable);
+            GroupBox_MoonAvoidance.Controls.Add(Label_Moon_Seperation);
+            GroupBox_MoonAvoidance.Controls.Add(NumericUpDown_Moon_Separation);
+            GroupBox_MoonAvoidance.Controls.Add(Label_Moon_Width);
+            GroupBox_MoonAvoidance.Controls.Add(NumericUpDown_Moon_Width);
+            GroupBox_MoonAvoidance.Controls.Add(CheckBox_Moon_RelaxEnabled);
+            GroupBox_MoonAvoidance.Controls.Add(Label_Moon_RelaxMin);
+            GroupBox_MoonAvoidance.Controls.Add(NumericUpDown_Moon_RelaxMin);
+            GroupBox_MoonAvoidance.Controls.Add(Label_Moon_RelaxMax);
+            GroupBox_MoonAvoidance.Controls.Add(NumericUpDown_Moon_RelaxMax);
+            GroupBox_MoonAvoidance.Controls.Add(Label_Moon_RelaxScale);
+            GroupBox_MoonAvoidance.Controls.Add(NumericUpDown_Moon_RelaxScale);
+            GroupBox_MoonAvoidance.Location = new System.Drawing.Point(26, 290);
+            GroupBox_MoonAvoidance.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            GroupBox_MoonAvoidance.Name = "GroupBox_MoonAvoidance";
+            GroupBox_MoonAvoidance.Padding = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            GroupBox_MoonAvoidance.Size = new System.Drawing.Size(580, 87);
+            GroupBox_MoonAvoidance.TabIndex = 42;
+            GroupBox_MoonAvoidance.TabStop = false;
+            GroupBox_MoonAvoidance.Text = "Moon Avoidance";
             // 
             // CheckBox_Moon_AvoidanceEnable
             // 
-            this.CheckBox_Moon_AvoidanceEnable.AutoSize = true;
-            this.CheckBox_Moon_AvoidanceEnable.Location = new System.Drawing.Point(9, 24);
-            this.CheckBox_Moon_AvoidanceEnable.Name = "CheckBox_Moon_AvoidanceEnable";
-            this.CheckBox_Moon_AvoidanceEnable.Size = new System.Drawing.Size(59, 17);
-            this.CheckBox_Moon_AvoidanceEnable.TabIndex = 11;
-            this.CheckBox_Moon_AvoidanceEnable.Text = "Enable";
-            this.CheckBox_Moon_AvoidanceEnable.UseVisualStyleBackColor = true;
-            this.CheckBox_Moon_AvoidanceEnable.CheckedChanged += new System.EventHandler(this.OnAvoidanceEnableChanged);
+            CheckBox_Moon_AvoidanceEnable.AutoSize = true;
+            CheckBox_Moon_AvoidanceEnable.Location = new System.Drawing.Point(10, 28);
+            CheckBox_Moon_AvoidanceEnable.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            CheckBox_Moon_AvoidanceEnable.Name = "CheckBox_Moon_AvoidanceEnable";
+            CheckBox_Moon_AvoidanceEnable.Size = new System.Drawing.Size(61, 19);
+            CheckBox_Moon_AvoidanceEnable.TabIndex = 11;
+            CheckBox_Moon_AvoidanceEnable.Text = "Enable";
+            CheckBox_Moon_AvoidanceEnable.UseVisualStyleBackColor = true;
+            CheckBox_Moon_AvoidanceEnable.CheckedChanged += OnAvoidanceEnableChanged;
             // 
             // Label_Moon_Seperation
             // 
-            this.Label_Moon_Seperation.AutoSize = true;
-            this.Label_Moon_Seperation.Location = new System.Drawing.Point(85, 23);
-            this.Label_Moon_Seperation.Name = "Label_Moon_Seperation";
-            this.Label_Moon_Seperation.Size = new System.Drawing.Size(64, 13);
-            this.Label_Moon_Seperation.TabIndex = 6;
-            this.Label_Moon_Seperation.Text = "Separation: ";
+            Label_Moon_Seperation.AutoSize = true;
+            Label_Moon_Seperation.Location = new System.Drawing.Point(99, 27);
+            Label_Moon_Seperation.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_Moon_Seperation.Name = "Label_Moon_Seperation";
+            Label_Moon_Seperation.Size = new System.Drawing.Size(69, 15);
+            Label_Moon_Seperation.TabIndex = 6;
+            Label_Moon_Seperation.Text = "Separation: ";
             // 
             // NumericUpDown_Moon_Separation
             // 
-            this.NumericUpDown_Moon_Separation.Increment = new decimal(new int[] {
-            5,
-            0,
-            0,
-            0});
-            this.NumericUpDown_Moon_Separation.Location = new System.Drawing.Point(153, 19);
-            this.NumericUpDown_Moon_Separation.Maximum = new decimal(new int[] {
-            180,
-            0,
-            0,
-            0});
-            this.NumericUpDown_Moon_Separation.Name = "NumericUpDown_Moon_Separation";
-            this.NumericUpDown_Moon_Separation.Size = new System.Drawing.Size(50, 20);
-            this.NumericUpDown_Moon_Separation.TabIndex = 0;
-            this.NumericUpDown_Moon_Separation.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_Moon_Separation.Value = new decimal(new int[] {
-            60,
-            0,
-            0,
-            0});
-            this.NumericUpDown_Moon_Separation.ValueChanged += new System.EventHandler(this.OnLorentzianControlChanged);
+            NumericUpDown_Moon_Separation.Increment = new decimal(new int[] { 5, 0, 0, 0 });
+            NumericUpDown_Moon_Separation.Location = new System.Drawing.Point(178, 22);
+            NumericUpDown_Moon_Separation.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_Moon_Separation.Maximum = new decimal(new int[] { 180, 0, 0, 0 });
+            NumericUpDown_Moon_Separation.Name = "NumericUpDown_Moon_Separation";
+            NumericUpDown_Moon_Separation.Size = new System.Drawing.Size(58, 23);
+            NumericUpDown_Moon_Separation.TabIndex = 0;
+            NumericUpDown_Moon_Separation.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_Moon_Separation.Value = new decimal(new int[] { 60, 0, 0, 0 });
+            NumericUpDown_Moon_Separation.ValueChanged += OnLorentzianControlChanged;
             // 
             // Label_Moon_Width
             // 
-            this.Label_Moon_Width.AutoSize = true;
-            this.Label_Moon_Width.Location = new System.Drawing.Point(207, 23);
-            this.Label_Moon_Width.Name = "Label_Moon_Width";
-            this.Label_Moon_Width.Size = new System.Drawing.Size(38, 13);
-            this.Label_Moon_Width.TabIndex = 7;
-            this.Label_Moon_Width.Text = "Width:";
+            Label_Moon_Width.AutoSize = true;
+            Label_Moon_Width.Location = new System.Drawing.Point(241, 27);
+            Label_Moon_Width.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_Moon_Width.Name = "Label_Moon_Width";
+            Label_Moon_Width.Size = new System.Drawing.Size(42, 15);
+            Label_Moon_Width.TabIndex = 7;
+            Label_Moon_Width.Text = "Width:";
             // 
             // NumericUpDown_Moon_Width
             // 
-            this.NumericUpDown_Moon_Width.Location = new System.Drawing.Point(249, 19);
-            this.NumericUpDown_Moon_Width.Maximum = new decimal(new int[] {
-            30,
-            0,
-            0,
-            0});
-            this.NumericUpDown_Moon_Width.Name = "NumericUpDown_Moon_Width";
-            this.NumericUpDown_Moon_Width.Size = new System.Drawing.Size(40, 20);
-            this.NumericUpDown_Moon_Width.TabIndex = 1;
-            this.NumericUpDown_Moon_Width.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_Moon_Width.Value = new decimal(new int[] {
-            7,
-            0,
-            0,
-            0});
-            this.NumericUpDown_Moon_Width.ValueChanged += new System.EventHandler(this.OnLorentzianControlChanged);
+            NumericUpDown_Moon_Width.Location = new System.Drawing.Point(290, 22);
+            NumericUpDown_Moon_Width.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_Moon_Width.Maximum = new decimal(new int[] { 30, 0, 0, 0 });
+            NumericUpDown_Moon_Width.Name = "NumericUpDown_Moon_Width";
+            NumericUpDown_Moon_Width.Size = new System.Drawing.Size(47, 23);
+            NumericUpDown_Moon_Width.TabIndex = 1;
+            NumericUpDown_Moon_Width.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_Moon_Width.Value = new decimal(new int[] { 7, 0, 0, 0 });
+            NumericUpDown_Moon_Width.ValueChanged += OnLorentzianControlChanged;
             // 
             // CheckBox_Moon_RelaxEnabled
             // 
-            this.CheckBox_Moon_RelaxEnabled.AutoSize = true;
-            this.CheckBox_Moon_RelaxEnabled.Location = new System.Drawing.Point(86, 47);
-            this.CheckBox_Moon_RelaxEnabled.Name = "CheckBox_Moon_RelaxEnabled";
-            this.CheckBox_Moon_RelaxEnabled.Size = new System.Drawing.Size(112, 17);
-            this.CheckBox_Moon_RelaxEnabled.TabIndex = 2;
-            this.CheckBox_Moon_RelaxEnabled.Text = "Relaxation Enable";
-            this.CheckBox_Moon_RelaxEnabled.UseVisualStyleBackColor = true;
-            this.CheckBox_Moon_RelaxEnabled.CheckedChanged += new System.EventHandler(this.OnLorentzianControlChanged);
+            CheckBox_Moon_RelaxEnabled.AutoSize = true;
+            CheckBox_Moon_RelaxEnabled.Location = new System.Drawing.Point(100, 54);
+            CheckBox_Moon_RelaxEnabled.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            CheckBox_Moon_RelaxEnabled.Name = "CheckBox_Moon_RelaxEnabled";
+            CheckBox_Moon_RelaxEnabled.Size = new System.Drawing.Size(118, 19);
+            CheckBox_Moon_RelaxEnabled.TabIndex = 2;
+            CheckBox_Moon_RelaxEnabled.Text = "Relaxation Enable";
+            CheckBox_Moon_RelaxEnabled.UseVisualStyleBackColor = true;
+            CheckBox_Moon_RelaxEnabled.CheckedChanged += OnLorentzianControlChanged;
             // 
             // Label_Moon_RelaxMin
             // 
-            this.Label_Moon_RelaxMin.AutoSize = true;
-            this.Label_Moon_RelaxMin.Location = new System.Drawing.Point(202, 48);
-            this.Label_Moon_RelaxMin.Name = "Label_Moon_RelaxMin";
-            this.Label_Moon_RelaxMin.Size = new System.Drawing.Size(27, 13);
-            this.Label_Moon_RelaxMin.TabIndex = 8;
-            this.Label_Moon_RelaxMin.Text = "Min:";
+            Label_Moon_RelaxMin.AutoSize = true;
+            Label_Moon_RelaxMin.Location = new System.Drawing.Point(236, 55);
+            Label_Moon_RelaxMin.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_Moon_RelaxMin.Name = "Label_Moon_RelaxMin";
+            Label_Moon_RelaxMin.Size = new System.Drawing.Size(31, 15);
+            Label_Moon_RelaxMin.TabIndex = 8;
+            Label_Moon_RelaxMin.Text = "Min:";
             // 
             // NumericUpDown_Moon_RelaxMin
             // 
-            this.NumericUpDown_Moon_RelaxMin.Location = new System.Drawing.Point(235, 44);
-            this.NumericUpDown_Moon_RelaxMin.Maximum = new decimal(new int[] {
-            45,
-            0,
-            0,
-            0});
-            this.NumericUpDown_Moon_RelaxMin.Minimum = new decimal(new int[] {
-            45,
-            0,
-            0,
-            -2147483648});
-            this.NumericUpDown_Moon_RelaxMin.Name = "NumericUpDown_Moon_RelaxMin";
-            this.NumericUpDown_Moon_RelaxMin.Size = new System.Drawing.Size(50, 20);
-            this.NumericUpDown_Moon_RelaxMin.TabIndex = 3;
-            this.NumericUpDown_Moon_RelaxMin.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_Moon_RelaxMin.Value = new decimal(new int[] {
-            15,
-            0,
-            0,
-            -2147483648});
-            this.NumericUpDown_Moon_RelaxMin.ValueChanged += new System.EventHandler(this.OnLorentzianControlChanged);
+            NumericUpDown_Moon_RelaxMin.Location = new System.Drawing.Point(274, 51);
+            NumericUpDown_Moon_RelaxMin.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_Moon_RelaxMin.Maximum = new decimal(new int[] { 45, 0, 0, 0 });
+            NumericUpDown_Moon_RelaxMin.Minimum = new decimal(new int[] { 45, 0, 0, int.MinValue });
+            NumericUpDown_Moon_RelaxMin.Name = "NumericUpDown_Moon_RelaxMin";
+            NumericUpDown_Moon_RelaxMin.Size = new System.Drawing.Size(58, 23);
+            NumericUpDown_Moon_RelaxMin.TabIndex = 3;
+            NumericUpDown_Moon_RelaxMin.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_Moon_RelaxMin.Value = new decimal(new int[] { 15, 0, 0, int.MinValue });
+            NumericUpDown_Moon_RelaxMin.ValueChanged += OnLorentzianControlChanged;
             // 
             // Label_Moon_RelaxMax
             // 
-            this.Label_Moon_RelaxMax.AutoSize = true;
-            this.Label_Moon_RelaxMax.Location = new System.Drawing.Point(291, 48);
-            this.Label_Moon_RelaxMax.Name = "Label_Moon_RelaxMax";
-            this.Label_Moon_RelaxMax.Size = new System.Drawing.Size(30, 13);
-            this.Label_Moon_RelaxMax.TabIndex = 9;
-            this.Label_Moon_RelaxMax.Text = "Max:";
+            Label_Moon_RelaxMax.AutoSize = true;
+            Label_Moon_RelaxMax.Location = new System.Drawing.Point(340, 55);
+            Label_Moon_RelaxMax.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_Moon_RelaxMax.Name = "Label_Moon_RelaxMax";
+            Label_Moon_RelaxMax.Size = new System.Drawing.Size(32, 15);
+            Label_Moon_RelaxMax.TabIndex = 9;
+            Label_Moon_RelaxMax.Text = "Max:";
             // 
             // NumericUpDown_Moon_RelaxMax
             // 
-            this.NumericUpDown_Moon_RelaxMax.Location = new System.Drawing.Point(327, 44);
-            this.NumericUpDown_Moon_RelaxMax.Maximum = new decimal(new int[] {
-            45,
-            0,
-            0,
-            0});
-            this.NumericUpDown_Moon_RelaxMax.Minimum = new decimal(new int[] {
-            45,
-            0,
-            0,
-            -2147483648});
-            this.NumericUpDown_Moon_RelaxMax.Name = "NumericUpDown_Moon_RelaxMax";
-            this.NumericUpDown_Moon_RelaxMax.Size = new System.Drawing.Size(50, 20);
-            this.NumericUpDown_Moon_RelaxMax.TabIndex = 4;
-            this.NumericUpDown_Moon_RelaxMax.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_Moon_RelaxMax.Value = new decimal(new int[] {
-            5,
-            0,
-            0,
-            0});
-            this.NumericUpDown_Moon_RelaxMax.ValueChanged += new System.EventHandler(this.OnLorentzianControlChanged);
+            NumericUpDown_Moon_RelaxMax.Location = new System.Drawing.Point(382, 51);
+            NumericUpDown_Moon_RelaxMax.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_Moon_RelaxMax.Maximum = new decimal(new int[] { 45, 0, 0, 0 });
+            NumericUpDown_Moon_RelaxMax.Minimum = new decimal(new int[] { 45, 0, 0, int.MinValue });
+            NumericUpDown_Moon_RelaxMax.Name = "NumericUpDown_Moon_RelaxMax";
+            NumericUpDown_Moon_RelaxMax.Size = new System.Drawing.Size(58, 23);
+            NumericUpDown_Moon_RelaxMax.TabIndex = 4;
+            NumericUpDown_Moon_RelaxMax.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_Moon_RelaxMax.Value = new decimal(new int[] { 5, 0, 0, 0 });
+            NumericUpDown_Moon_RelaxMax.ValueChanged += OnLorentzianControlChanged;
             // 
             // Label_Moon_RelaxScale
             // 
-            this.Label_Moon_RelaxScale.AutoSize = true;
-            this.Label_Moon_RelaxScale.Location = new System.Drawing.Point(383, 48);
-            this.Label_Moon_RelaxScale.Name = "Label_Moon_RelaxScale";
-            this.Label_Moon_RelaxScale.Size = new System.Drawing.Size(37, 13);
-            this.Label_Moon_RelaxScale.TabIndex = 10;
-            this.Label_Moon_RelaxScale.Text = "Scale:";
+            Label_Moon_RelaxScale.AutoSize = true;
+            Label_Moon_RelaxScale.Location = new System.Drawing.Point(447, 55);
+            Label_Moon_RelaxScale.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_Moon_RelaxScale.Name = "Label_Moon_RelaxScale";
+            Label_Moon_RelaxScale.Size = new System.Drawing.Size(37, 15);
+            Label_Moon_RelaxScale.TabIndex = 10;
+            Label_Moon_RelaxScale.Text = "Scale:";
             // 
             // NumericUpDown_Moon_RelaxScale
             // 
-            this.NumericUpDown_Moon_RelaxScale.DecimalPlaces = 2;
-            this.NumericUpDown_Moon_RelaxScale.Increment = new decimal(new int[] {
-            25,
-            0,
-            0,
-            131072});
-            this.NumericUpDown_Moon_RelaxScale.Location = new System.Drawing.Point(426, 44);
-            this.NumericUpDown_Moon_RelaxScale.Maximum = new decimal(new int[] {
-            10,
-            0,
-            0,
-            0});
-            this.NumericUpDown_Moon_RelaxScale.Name = "NumericUpDown_Moon_RelaxScale";
-            this.NumericUpDown_Moon_RelaxScale.Size = new System.Drawing.Size(60, 20);
-            this.NumericUpDown_Moon_RelaxScale.TabIndex = 5;
-            this.NumericUpDown_Moon_RelaxScale.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.NumericUpDown_Moon_RelaxScale.ValueChanged += new System.EventHandler(this.OnLorentzianControlChanged);
+            NumericUpDown_Moon_RelaxScale.DecimalPlaces = 2;
+            NumericUpDown_Moon_RelaxScale.Increment = new decimal(new int[] { 25, 0, 0, 131072 });
+            NumericUpDown_Moon_RelaxScale.Location = new System.Drawing.Point(497, 51);
+            NumericUpDown_Moon_RelaxScale.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_Moon_RelaxScale.Maximum = new decimal(new int[] { 10, 0, 0, 0 });
+            NumericUpDown_Moon_RelaxScale.Name = "NumericUpDown_Moon_RelaxScale";
+            NumericUpDown_Moon_RelaxScale.Size = new System.Drawing.Size(70, 23);
+            NumericUpDown_Moon_RelaxScale.TabIndex = 5;
+            NumericUpDown_Moon_RelaxScale.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_Moon_RelaxScale.ValueChanged += OnLorentzianControlChanged;
             // 
             // Button_Cancel
             // 
-            this.Button_Cancel.Location = new System.Drawing.Point(448, 102);
-            this.Button_Cancel.Name = "Button_Cancel";
-            this.Button_Cancel.Size = new System.Drawing.Size(66, 23);
-            this.Button_Cancel.TabIndex = 41;
-            this.Button_Cancel.Text = "Cancel";
-            this.Button_Cancel.UseVisualStyleBackColor = true;
-            this.Button_Cancel.Click += new System.EventHandler(this.Button_Cancel_Click);
+            Button_Cancel.Location = new System.Drawing.Point(523, 118);
+            Button_Cancel.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            Button_Cancel.Name = "Button_Cancel";
+            Button_Cancel.Size = new System.Drawing.Size(77, 27);
+            Button_Cancel.TabIndex = 41;
+            Button_Cancel.Text = "Cancel";
+            Button_Cancel.UseVisualStyleBackColor = true;
+            Button_Cancel.Click += Button_Cancel_Click;
             // 
             // MenuStrip_MainForm
             // 
-            this.MenuStrip_MainForm.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.FileToolStripMenuItem_MainForm});
-            this.MenuStrip_MainForm.Location = new System.Drawing.Point(0, 0);
-            this.MenuStrip_MainForm.Name = "MenuStrip_MainForm";
-            this.MenuStrip_MainForm.Size = new System.Drawing.Size(1628, 24);
-            this.MenuStrip_MainForm.TabIndex = 5;
-            this.MenuStrip_MainForm.Text = "menuStrip1";
+            MenuStrip_MainForm.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { FileToolStripMenuItem_MainForm });
+            MenuStrip_MainForm.Location = new System.Drawing.Point(0, 0);
+            MenuStrip_MainForm.Name = "MenuStrip_MainForm";
+            MenuStrip_MainForm.Padding = new System.Windows.Forms.Padding(7, 2, 0, 2);
+            MenuStrip_MainForm.Size = new System.Drawing.Size(1899, 24);
+            MenuStrip_MainForm.TabIndex = 5;
+            MenuStrip_MainForm.Text = "menuStrip1";
             // 
             // FileToolStripMenuItem_MainForm
             // 
-            this.FileToolStripMenuItem_MainForm.Name = "FileToolStripMenuItem_MainForm";
-            this.FileToolStripMenuItem_MainForm.Size = new System.Drawing.Size(37, 20);
-            this.FileToolStripMenuItem_MainForm.Text = "File";
+            FileToolStripMenuItem_MainForm.Name = "FileToolStripMenuItem_MainForm";
+            FileToolStripMenuItem_MainForm.Size = new System.Drawing.Size(37, 20);
+            FileToolStripMenuItem_MainForm.Text = "File";
             // 
             // GroupBox_Altitude
             // 
-            this.GroupBox_Altitude.Controls.Add(this.RadioButton_Sky);
-            this.GroupBox_Altitude.Controls.Add(this.ProgressBar_MultiTargetProcessing);
-            this.GroupBox_Altitude.Controls.Add(this.RadioButton_Year);
-            this.GroupBox_Altitude.Controls.Add(this.RadioButton_Sessions);
-            this.GroupBox_Altitude.Controls.Add(this.RadioButton_Day);
-            this.GroupBox_Altitude.Location = new System.Drawing.Point(13, 373);
-            this.GroupBox_Altitude.Name = "GroupBox_Altitude";
-            this.GroupBox_Altitude.Size = new System.Drawing.Size(1594, 555);
-            this.GroupBox_Altitude.TabIndex = 6;
-            this.GroupBox_Altitude.TabStop = false;
-            this.GroupBox_Altitude.Text = "Altitude";
+            GroupBox_Altitude.Controls.Add(RadioButton_Sky);
+            GroupBox_Altitude.Controls.Add(ProgressBar_MultiTargetProcessing);
+            GroupBox_Altitude.Controls.Add(RadioButton_Year);
+            GroupBox_Altitude.Controls.Add(RadioButton_Sessions);
+            GroupBox_Altitude.Controls.Add(RadioButton_Day);
+            GroupBox_Altitude.Location = new System.Drawing.Point(15, 430);
+            GroupBox_Altitude.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            GroupBox_Altitude.Name = "GroupBox_Altitude";
+            GroupBox_Altitude.Padding = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            GroupBox_Altitude.Size = new System.Drawing.Size(1860, 640);
+            GroupBox_Altitude.TabIndex = 6;
+            GroupBox_Altitude.TabStop = false;
+            GroupBox_Altitude.Text = "Altitude";
             // 
             // RadioButton_Sky
             // 
-            this.RadioButton_Sky.AutoSize = true;
-            this.RadioButton_Sky.Location = new System.Drawing.Point(56, 19);
-            this.RadioButton_Sky.Name = "RadioButton_Sky";
-            this.RadioButton_Sky.Size = new System.Drawing.Size(43, 17);
-            this.RadioButton_Sky.TabIndex = 41;
-            this.RadioButton_Sky.TabStop = true;
-            this.RadioButton_Sky.Text = "Sky";
-            this.RadioButton_Sky.UseVisualStyleBackColor = true;
-            this.RadioButton_Sky.CheckedChanged += new System.EventHandler(this.RadioButton_Sky_CheckedChanged);
+            RadioButton_Sky.AutoSize = true;
+            RadioButton_Sky.Location = new System.Drawing.Point(65, 20);
+            RadioButton_Sky.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            RadioButton_Sky.Name = "RadioButton_Sky";
+            RadioButton_Sky.Size = new System.Drawing.Size(43, 19);
+            RadioButton_Sky.TabIndex = 41;
+            RadioButton_Sky.TabStop = true;
+            RadioButton_Sky.Text = "Sky";
+            RadioButton_Sky.UseVisualStyleBackColor = true;
+            RadioButton_Sky.CheckedChanged += RadioButton_Sky_CheckedChanged;
             // 
             // ProgressBar_MultiTargetProcessing
             // 
-            this.ProgressBar_MultiTargetProcessing.Location = new System.Drawing.Point(242, 18);
-            this.ProgressBar_MultiTargetProcessing.Name = "ProgressBar_MultiTargetProcessing";
-            this.ProgressBar_MultiTargetProcessing.Size = new System.Drawing.Size(1331, 18);
-            this.ProgressBar_MultiTargetProcessing.TabIndex = 40;
+            ProgressBar_MultiTargetProcessing.Location = new System.Drawing.Point(280, 19);
+            ProgressBar_MultiTargetProcessing.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            ProgressBar_MultiTargetProcessing.Name = "ProgressBar_MultiTargetProcessing";
+            ProgressBar_MultiTargetProcessing.Size = new System.Drawing.Size(1570, 21);
+            ProgressBar_MultiTargetProcessing.TabIndex = 40;
             // 
             // MainForm
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
-            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1628, 951);
-            this.Controls.Add(this.GroupBox_Altitude);
-            this.Controls.Add(this.GroupBox_Target);
-            this.Controls.Add(this.GroupBox_Local);
-            this.Controls.Add(this.MenuStrip_MainForm);
-            this.MainMenuStrip = this.MenuStrip_MainForm;
-            this.MaximizeBox = false;
-            this.Name = "MainForm";
-            this.Text = "TargetPlanner";
-            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.MainForm_FormClosing);
-            this.Load += new System.EventHandler(this.MainForm_Load);
-            this.GroupBox_Local.ResumeLayout(false);
-            this.GroupBox_Location.ResumeLayout(false);
-            this.GroupBox_Location.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Extinction)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LocalElevation)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeMinutes)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeDegrees)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LongitudeDegrees)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LongitudeMinutes)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LongitudeSeconds)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_LatitudeSeconds)).EndInit();
-            this.GroupBox_LocalDateTime.ResumeLayout(false);
-            this.GroupBox_LocalDateTime.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_TargetFloor)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_TargetDuration)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_RaMinutes)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_RaHours)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_RaSeconds)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_DecMinutes)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_DecSeconds)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_DecDegrees)).EndInit();
-            this.GroupBox_Target.ResumeLayout(false);
-            this.GroupBox_Target.PerformLayout();
-            this.GroupBox_MoonAvoidance.ResumeLayout(false);
-            this.GroupBox_MoonAvoidance.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Moon_Separation)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Moon_Width)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Moon_RelaxMin)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Moon_RelaxMax)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.NumericUpDown_Moon_RelaxScale)).EndInit();
-            this.MenuStrip_MainForm.ResumeLayout(false);
-            this.MenuStrip_MainForm.PerformLayout();
-            this.GroupBox_Altitude.ResumeLayout(false);
-            this.GroupBox_Altitude.PerformLayout();
-            this.ResumeLayout(false);
-            this.PerformLayout();
+            AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
+            AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            ClientSize = new System.Drawing.Size(1899, 1097);
+            Controls.Add(GroupBox_Altitude);
+            Controls.Add(GroupBox_Target);
+            Controls.Add(GroupBox_Local);
+            Controls.Add(MenuStrip_MainForm);
+            MainMenuStrip = MenuStrip_MainForm;
+            Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            MaximizeBox = false;
+            Name = "MainForm";
+            Text = "TargetPlanner";
+            FormClosing += MainForm_FormClosing;
+            Load += MainForm_Load;
+            GroupBox_Local.ResumeLayout(false);
+            GroupBox_Location.ResumeLayout(false);
+            GroupBox_Location.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Extinction).EndInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_LocalElevation).EndInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_LatitudeMinutes).EndInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_LatitudeDegrees).EndInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_LongitudeDegrees).EndInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_LongitudeMinutes).EndInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_LongitudeSeconds).EndInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_LatitudeSeconds).EndInit();
+            GroupBox_LocalDateTime.ResumeLayout(false);
+            GroupBox_LocalDateTime.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_TargetFloor).EndInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_TargetDuration).EndInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_RaMinutes).EndInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_RaHours).EndInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_RaSeconds).EndInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_DecMinutes).EndInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_DecSeconds).EndInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_DecDegrees).EndInit();
+            GroupBox_Target.ResumeLayout(false);
+            GroupBox_Target.PerformLayout();
+            GroupBox_MoonAvoidance.ResumeLayout(false);
+            GroupBox_MoonAvoidance.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_Separation).EndInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_Width).EndInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_RelaxMin).EndInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_RelaxMax).EndInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_RelaxScale).EndInit();
+            MenuStrip_MainForm.ResumeLayout(false);
+            MenuStrip_MainForm.PerformLayout();
+            GroupBox_Altitude.ResumeLayout(false);
+            GroupBox_Altitude.PerformLayout();
+            ResumeLayout(false);
+            PerformLayout();
 
         }
 
