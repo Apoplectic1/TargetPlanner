@@ -25,9 +25,12 @@ namespace TargetPlanner.Charts
 
         // Left chrome holds the rotated Y-axis Name + tick labels + breathing
         // room. Bottom chrome holds the X-axis tick labels only -- the legend
-        // is external.
+        // is external. Right chrome is sized so half of the rightmost X-axis
+        // label fits past the last tick without clipping at the chart edge --
+        // most visible on Day / Sky where the rightmost time label (e.g.
+        // "5:00 AM") would otherwise truncate.
         public const int LeftChromePx = 96;
-        public const int RightChromePx = 24;
+        public const int RightChromePx = 40;
         public const int TopChromePx = 20;
         public const int XAxisLabelHeightPx = 44;
 
