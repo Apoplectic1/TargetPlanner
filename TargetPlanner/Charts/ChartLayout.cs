@@ -104,5 +104,23 @@ namespace TargetPlanner.Charts
             if (stop <= dawnLocal) stop = stop.AddHours(1);
             return stop;
         }
+
+        // Year / Sessions x-axis tick positions: one per first-of-month boundary
+        // covering monthCount months starting at startMonth (which must already be a
+        // first-of-month at midnight; NightCache.ComputeYearStartDay returns that
+        // shape today). Returns monthCount + 1 OADate values so the axis can show
+        // both the leading and trailing month boundary (Jan 1 ... Jan 1 next year
+        // for monthCount = 12). LiveCharts2 consumes these directly via
+        // Axis.CustomSeparators -- exact 1st-of-month placement, no drift over the
+        // year regardless of variable month length.
+        public static double[] MonthBoundaryOADates(DateTime startMonth, int monthCount)
+        {
+            if (monthCount < 0)
+                throw new ArgumentOutOfRangeException(nameof(monthCount));
+            double[] separators = new double[monthCount + 1];
+            for (int i = 0; i <= monthCount; i++)
+                separators[i] = startMonth.AddMonths(i).ToOADate();
+            return separators;
+        }
     }
 }

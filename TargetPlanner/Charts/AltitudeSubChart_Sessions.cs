@@ -107,11 +107,14 @@ namespace TargetPlanner.Charts
 
         public AltitudeSubChart_Sessions()
         {
+            // Tick positions are driven by Axis.CustomSeparators (set in Render once
+            // the year-grid start is known) so labels sit on real month boundaries
+            // and the 12 ticks span exactly 12 calendar months. UnitWidth = 1 day
+            // matches the per-night data spacing.
             mXAxis = new Axis
             {
                 Labeler = v => DateTime.FromOADate(v).ToString("MMM", CultureInfo.InvariantCulture),
-                UnitWidth = TimeSpan.FromDays(30).TotalDays,
-                MinStep = TimeSpan.FromDays(30).TotalDays,
+                UnitWidth = TimeSpan.FromDays(1).TotalDays,
                 LabelsPaint = new SolidColorPaint(SKColors.LightGray),
                 SeparatorsPaint = new SolidColorPaint(ChartLayout.GridLineColor),
             };
@@ -318,8 +321,16 @@ namespace TargetPlanner.Charts
 
             if (gridStart.HasValue && gridEnd.HasValue)
             {
-                mXAxis.MinLimit = gridStart.Value.ToOADate();
-                mXAxis.MaxLimit = gridEnd.Value.ToOADate();
+                // Snap chart bounds to the start-of-month midnights so columns
+                // align with the CustomSeparators ticks. gridStart's SentinelX is
+                // mid-day on the first cached night; back it up to midnight for
+                // the visible left edge. Right edge = first-of-(start+12 months)
+                // so 12 full month columns fit exactly between the 13 ticks.
+                DateTime startMonth = gridStart.Value.Date.AddDays(1 - gridStart.Value.Day);
+                DateTime endMonth = startMonth.AddYears(1);
+                mXAxis.MinLimit = startMonth.ToOADate();
+                mXAxis.MaxLimit = endMonth.ToOADate();
+                mXAxis.CustomSeparators = ChartLayout.MonthBoundaryOADates(startMonth, 12);
             }
 
             // Drop tooltip arrays for targets dropped from the render list.
