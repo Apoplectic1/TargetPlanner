@@ -103,14 +103,32 @@ namespace TargetPlanner.Caches
             return WithExternalCancel(task, ct);
         }
 
-        public async Task PrepareManyAsync(IEnumerable<Target> targets, CancellationToken ct)
+        public async Task PrepareManyAsync(IEnumerable<Target> targets, CancellationToken ct,
+            IProgress<int> targetCompleteProgress = null)
         {
             if (targets == null) return;
             List<Task> tasks = new List<Task>();
+            int completed = 0;
             foreach (Target t in targets)
             {
                 if (t == null) continue;
-                tasks.Add(GetOrBuildAsync(t, ct));
+                Task<TargetCacheEntry> build = GetOrBuildAsync(t, ct);
+                if (targetCompleteProgress == null)
+                {
+                    tasks.Add(build);
+                }
+                else
+                {
+                    // ContinueWith on RanToCompletion only -- cancelled / faulted tasks
+                    // skip the tick (they propagate via Task.WhenAll below). Synchronous
+                    // continuation keeps the increment cheap; Progress<T>.Report internally
+                    // marshals the callback to the captured SyncContext (UI thread).
+                    tasks.Add(build.ContinueWith(
+                        _ => targetCompleteProgress.Report(Interlocked.Increment(ref completed)),
+                        CancellationToken.None,
+                        TaskContinuationOptions.OnlyOnRanToCompletion | TaskContinuationOptions.ExecuteSynchronously,
+                        TaskScheduler.Default));
+                }
             }
             try { await Task.WhenAll(tasks); }
             catch (OperationCanceledException) { /* expected on cancel; surface only one */ throw; }

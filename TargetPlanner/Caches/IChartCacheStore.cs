@@ -55,8 +55,12 @@ namespace TargetPlanner.Caches
 
         /// <summary>Pre-build entries for many targets in parallel (gated by the store's
         /// internal concurrency semaphore). Returns when all builds have completed
-        /// (or one has cancelled / faulted).</summary>
-        Task PrepareManyAsync(IEnumerable<Target> targets, CancellationToken ct);
+        /// (or one has cancelled / faulted). Optional <paramref name="targetCompleteProgress"/>
+        /// receives a 1-based completion count as each target finishes (order matches
+        /// completion order, not input order); pass <see langword="null"/> to skip
+        /// progress reporting.</summary>
+        Task PrepareManyAsync(IEnumerable<Target> targets, CancellationToken ct,
+            IProgress<int> targetCompleteProgress = null);
 
         /// <summary>Cancel all in-flight builds, drop every cached entry, switch to
         /// <paramref name="newLocation"/>. Subsequent <see cref="GetOrBuildAsync"/> /

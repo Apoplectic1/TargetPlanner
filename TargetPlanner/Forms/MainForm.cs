@@ -195,10 +195,10 @@ Right-click anywhere on the chart to clear all overlays.";
         private CoordinateInput mRaInput;
         private CoordinateInput mDecInput;
 
-        // Incremented on every Graph click so stale Progress<string> callbacks from a prior
-        // (still in-flight) AltitudeSeries.BuildSeriesList don't tick ProgressBar_MultiTarget-
-        // Processing after the user has already launched a new chart build. Captured by value
-        // in the Progress<string> closure, so each click's callbacks are stamped and can be
+        // Incremented on every Graph click so stale Progress<int> callbacks from a prior
+        // (still in-flight) PrepareManyAsync don't tick ProgressBar_MultiTargetProcessing
+        // after the user has already launched a new chart build. Captured by value in the
+        // Progress<int> closure, so each click's callbacks are stamped and can be
         // identified as stale later.
         private int mChartBuildGeneration;
 
@@ -1420,7 +1420,8 @@ Right-click anywhere on the chart to clear all overlays.";
                 targets.Add(current);
             }
 
-            IProgress<string> phaseProgress = BeginChartBuildProgress(targetCount: targets.Count);
+            (int progressGeneration, IProgress<int> targetProgress) =
+                BeginChartBuildProgress(targetCount: targets.Count);
 
             mGraphCts?.Cancel();
             mGraphCts = new CancellationTokenSource();
@@ -1446,7 +1447,7 @@ Right-click anywhere on the chart to clear all overlays.";
                 // the cache is ready, so we await first, then dispatch.
                 if (mCache != null)
                 {
-                    await mCache.PrepareManyAsync(targets, mGraphCts.Token);
+                    await mCache.PrepareManyAsync(targets, mGraphCts.Token, targetProgress);
                 }
                 mLastRenderedTargets = new List<Target>(targets);
 
@@ -1461,6 +1462,12 @@ Right-click anywhere on the chart to clear all overlays.";
                 mGraphBuildInProgress = false;
                 Button_Graph.Enabled = true;
                 Button_Cancel.Enabled = true;
+
+                // Tick the bar to its Maximum, hold 1 s, reset to 0. Generation-
+                // guarded so the success path is observed cleanly while a cancel
+                // (which bumped mChartBuildGeneration in Button_Cancel_Click)
+                // no-ops here -- Cancel_Click already reset the bar to 0.
+                FinishChartBuildProgress(progressGeneration);
             }
         }
 
@@ -2307,40 +2314,52 @@ Right-click anywhere on the chart to clear all overlays.";
             mTransientTimer.Start();
         }
 
-        private IProgress<string> BeginChartBuildProgress(int targetCount)
+        // Sets up ProgressBar_MultiTargetProcessing for a fresh chart build. Returns:
+        //   * generation: stamp captured in the Progress<int> closure + the post-build
+        //     finishing path, so a stale callback / hold-then-reset from a prior build
+        //     no-ops instead of clobbering the new build's bar.
+        //   * progress: per-target-completion handler from PrepareManyAsync. Each
+        //     report increments the bar by 1 (counter is the 1-based completion count
+        //     so we just assign Value directly).
+        // The bar's Maximum is `targetCount + 1` -- one tick per target completion plus
+        // one final tick for the post-cache Render. Synchronous Value=0 reset paints
+        // before the first await, so a fresh click clears any stale fill before the
+        // build starts.
+        private (int generation, IProgress<int> progress) BeginChartBuildProgress(int targetCount)
         {
             int thisGeneration = ++mChartBuildGeneration;
 
-            // Tick budget: 1 (Click) + 1 (SharedCache) + 4 per target (Moon/Day/Year/Sessions).
             ProgressBar_MultiTargetProcessing.Minimum = 0;
-            ProgressBar_MultiTargetProcessing.Maximum = Math.Max(1, 2 + targetCount * 4);
-            // Synchronous Click tick: paints before the first await so the user sees immediate
-            // feedback. Routing through the Progress<string> callback would queue a SyncContext
-            // post that may not paint until after the next await yields.
-            ProgressBar_MultiTargetProcessing.Value   = 1;
+            ProgressBar_MultiTargetProcessing.Maximum = Math.Max(1, targetCount + 1);
+            ProgressBar_MultiTargetProcessing.Value   = 0;
 
-            return new Progress<string>(_ =>
+            // Progress<T> captures SynchronizationContext.Current; constructed on the UI
+            // thread, so Report() callbacks marshal back to the UI thread automatically.
+            var progress = new Progress<int>(completed =>
             {
-                if (thisGeneration != mChartBuildGeneration) return;  // stale -- a newer click superseded us
-                if (ProgressBar_MultiTargetProcessing.Value < ProgressBar_MultiTargetProcessing.Maximum)
-                {
-                    ProgressBar_MultiTargetProcessing.Value += 1;
-                    // Final tick completes the chart build. Hold the filled bar for 1 s so
-                    // the "done" state is visible, then clear to zero. Generation-guarded so
-                    // if the user clicks Graph again during the hold, the stale reset no-ops
-                    // and the new build's bar isn't clobbered.
-                    if (ProgressBar_MultiTargetProcessing.Value >= ProgressBar_MultiTargetProcessing.Maximum)
-                    {
-                        Task.Delay(1000).ContinueWith(
-                            _2 =>
-                            {
-                                if (thisGeneration != mChartBuildGeneration) return;
-                                ProgressBar_MultiTargetProcessing.Value = 0;
-                            },
-                            TaskScheduler.FromCurrentSynchronizationContext());
-                    }
-                }
+                if (thisGeneration != mChartBuildGeneration) return;  // stale
+                int clamped = Math.Min(completed, ProgressBar_MultiTargetProcessing.Maximum);
+                if (clamped > ProgressBar_MultiTargetProcessing.Value)
+                    ProgressBar_MultiTargetProcessing.Value = clamped;
             });
+
+            return (thisGeneration, progress);
+        }
+
+        // Final tick + 1-second hold + reset, executed after PrepareManyAsync + Render
+        // complete. Generation-guarded so a Cancel or new Graph click during the hold
+        // no-ops the reset. Marshalled to the UI thread via FromCurrentSynchronizationContext.
+        private void FinishChartBuildProgress(int generation)
+        {
+            if (generation != mChartBuildGeneration) return;
+            ProgressBar_MultiTargetProcessing.Value = ProgressBar_MultiTargetProcessing.Maximum;
+            Task.Delay(1000).ContinueWith(
+                _ =>
+                {
+                    if (generation != mChartBuildGeneration) return;
+                    ProgressBar_MultiTargetProcessing.Value = 0;
+                },
+                TaskScheduler.FromCurrentSynchronizationContext());
         }
 
         private void ComboBox_SelectTarget_SelectedIndexChanged(object sender, EventArgs e)
