@@ -6,24 +6,22 @@ Windows Forms desktop tool for astrophotography target planning. Plots a deep-sk
 
 ## What it does
 
-- **Three altitude views** — *Day* (minute-by-minute altitude across the coming night, with twilight shading and a live "now" line), *Year* (peak altitude per night across 365 days), *Sessions* (best continuous window per night that meets your Horizon + Duration filter).
+- **Four chart areas** — *Day* (minute-by-minute altitude across the coming night, with twilight shading and a live "now" line), *Sky* (Krisciunas–Schaefer sky brightness in mag/arcsec² across the same night), *Year* (per-night altitude across 12 months), *Sessions* (Ceiling / Floor / Symmetric placement curves per night).
 - **Multi-target overlay** — graph many targets at once. Filter via *Visible Tonight* / *Select All* / *Clear All*; sort by name, RA, declination, or transit time.
 - **NINA sequence ingestion** — auto-loads every `DeepSkyObjectContainer` `.json` under your NINA Targets root and turns them into selectable targets. Skips `Calibration` and `Mosaics` folders.
 - **Picker-driven moment** — Date / Time pickers drive the observation moment; *Now* snaps back to the current instant and moves the red now-line on the chart.
-- **Sky-brightness overlay** — toggle the Day chart between altitude and Krisciunas–Schaefer sky brightness in mag/arcsec², with per-Bortle baseline, atmospheric extinction, and per-filter wavelength scaling.
+- **Sky brightness** — its own chart area (peer of Day / Year / Sessions). Krisciunas–Schaefer sky brightness in mag/arcsec², with per-Bortle baseline, atmospheric extinction, and per-filter wavelength scaling.
 - **Moon avoidance** — per-filter Lorentzian moon-avoidance gates the Sessions-chart curves and Day-chart best-window overlay.
 
 ## Charts
 
-Three chart areas swap behind the **Day / Year / Sessions** radios beside the chart.
+Four chart areas swap behind the **Day / Sky / Year / Sessions** radios beside the chart.
 
-**Day chart.** Minute-by-minute altitude through the coming night. Left edge is the hour boundary before astronomical dusk; right edge is the hour boundary after astronomical dawn. Yellow→gray gradient at left marks dusk twilight; gray→yellow gradient at right marks dawn. A red vertical line shows the current moment, refreshed by the **Now** button. A shared gray filled area shows moon altitude across the night.
+**Day chart.** Minute-by-minute altitude through the coming night. Left edge is the hour boundary before astronomical dusk; right edge is the hour boundary after astronomical dawn. Yellow→gray gradient at left marks dusk twilight; gray→yellow gradient at right marks dawn. A red vertical line shows the current moment, refreshed by the **Now** button. A shared gray filled area shows moon altitude across the night. Click a curve to overlay its best window for tonight (see *HD Overlay* below).
 
-The Day chart has two sub-modes selected by the **Sky** checkbox next to the Day/Year/Sessions radios:
-- **Altitude** (default) — per-target altitude curves; click a curve to overlay its best window for tonight (see *HD Overlay* below).
-- **Sky** — per-target sky-brightness curves in mag/arcsec² on a reversed Y axis (brighter sky reads higher).
+**Sky chart.** Per-target sky-brightness curves in mag/arcsec² on a reversed Y axis (brighter sky reads higher). Same time axis as Day. Y range is 16–22 mag/arcsec². See [Sky brightness](#sky-brightness) below for the K-S model details.
 
-**Year chart.** Peak altitude per night across 365 days, one curve per target. Hover any point: tooltip shows `{Target}\n{date}\nMax altitude: {alt}°`.
+**Year chart.** Per-night session-floor altitude across 12 months, one curve per target. X axis runs from the 1st of the current month to the 1st of the same month next year, with month-boundary tick labels. Hover any point: tooltip shows `{Target}\n{date}\nFloor: {alt}°` (or `(no fit)` for nights where no D-hour window meets the active Horizon / Duration / Moon filter).
 
 **Sessions chart.** Three per-target curves describe how well a Duration-long imaging window fits inside each night's visibility arc, given your Horizon floor:
 - **Ceiling** — peak altitude reached inside any qualifying window.
@@ -88,9 +86,9 @@ Two parallel filter-selection surfaces stay in sync: a **Filters** dropdown in t
 
 Lorentzian-control edits on the main form auto-save the active filter on a 500 ms debounce; the Edit Filters dialog uses a transactional Save against a shadow copy.
 
-## Sky brightness (Day Sky sub-mode)
+## Sky brightness
 
-Tick the **Sky** checkbox next to the Day/Year/Sessions radios to swap the Day chart's per-target altitude curves for sky-brightness curves in mag/arcsec². The Y axis range is 16–22 mag/arcsec² with brighter sky reading higher.
+Click the **Sky** radio (peer of Day / Year / Sessions) to switch to the per-target sky-brightness chart in mag/arcsec². The Y axis range is 16–22 mag/arcsec² with brighter sky reading higher.
 
 Sky brightness composes three contributions in linear (nanolambert) space:
 - **Dark-sky baseline** V₀ — driven by the location's Bortle class, scaled by target airmass and extinction.
@@ -115,12 +113,9 @@ The app checks for updates on startup and prompts before downloading. You can al
 
 ## Build from source
 
-Requires Visual Studio 2022 (or the .NET Framework 4.8.1 targeting pack + MSBuild) plus two sibling dependencies that aren't on NuGet:
+Requires Visual Studio 2022+ (or the .NET 10 SDK + MSBuild) plus the **Astronomy.Core** library at `..\..\Library\Astronomy.Core\` relative to this repo, referenced via `ProjectReference`. The Library is its own git repo; clone it next to this one or the build fails.
 
-- The **Astronomy.Core** library at `..\..\Library\Astronomy.Core\` relative to this repo (referenced via `ProjectReference`).
-- A private **LocalLib.dll** at `..\..\..\Libraries\LocalLib\LocalLib\bin\Release\LocalLib.dll` (supplies `OpenFolderDialog` used by the Browse-Target-List button).
-
-Without either, the build fails. See [`CLAUDE.md`](CLAUDE.md) for architecture and coding-agent guidance.
+The TP project targets `net10.0-windows10.0.19041` (the Win10 2004 contract version is required for SkiaSharp.Views.WindowsForms 3.119.0 — the bare `net10.0-windows` would fall back to a `net462` lib that doesn't load on .NET 10). See [`CLAUDE.md`](CLAUDE.md) for architecture and coding-agent guidance.
 
 ```powershell
 dotnet build TargetPlanner.sln -c Debug
