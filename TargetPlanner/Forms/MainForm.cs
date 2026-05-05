@@ -424,10 +424,14 @@ Right-click anywhere on the chart to clear all overlays.";
             SyncLocationUIFromModel();
             SyncTargetUIFromModel();
 
-            // Add Panel that MSChart will appear in to GroupBox
+            // Add Panel that the chart sub-charts will appear in to GroupBox.
+            // Top = 48 leaves an 8 px gap between the radio cluster above and the
+            // chart panel below, so the chart's dark-grey background does not run
+            // flush against the controls (visible bug pre-2026-05-04). Height
+            // compensates so the bottom edge stays where it was.
             Panel_AltitudeChart = new Panel();
-            Panel_AltitudeChart.Location = new Point(10, 40);
-            Panel_AltitudeChart.Size = new Size(GroupBox_Altitude.Width - 20, GroupBox_Altitude.Height - 50);
+            Panel_AltitudeChart.Location = new Point(10, 48);
+            Panel_AltitudeChart.Size = new Size(GroupBox_Altitude.Width - 20, GroupBox_Altitude.Height - 58);
             Panel_AltitudeChart.Name = "Panel_Mschart";
             Panel_AltitudeChart.BackColor = Color.FromArgb(255, 128, 128, 128);
             GroupBox_Altitude.Controls.Add(Panel_AltitudeChart);
