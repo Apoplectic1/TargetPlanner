@@ -19,6 +19,7 @@ Acronyms used throughout this file and adjacent plans / memory files.
 - **ISP** — IntervalScheduler Plugin. User's new NINA plugin (`net10.0-windows`, NINA-hosted; NINA itself migrated to net10 as of 2026-05). Runtime executor + in-night editing UI. Reads the deployed plan from `scheduler.db`.
 - **ISS** — ISSimulator. User's new .NET 10 ISP simulator. May evolve from the existing TP standalone app.
 - **XisfManager** — User's existing .NET 10 image-management app. Performs post-night grading; updates `exposure_plan.accepted_count` via the shared `scheduler.db`.
+- **AL** — Astronomy Library. Sibling repo at `..\..\Library\` (own git, default branch `main`); contains `Astronomy.Core` (pure-managed Meeus, the math backend), `Astronomy.PCL` + `Astronomy.PCL.Native` (PixInsight Class Library wrapper for XISF / image math), and `Astronomy.Core.Tests`. Consumed by TP via `ProjectReference`; future consumers: XisfManager, IS, ISP, ISS. Has its own `CLAUDE.md` and `ROADMAP.md`.
 
 **Architecture / refactor terms:**
 - **VM** — view-model. Specifically `TargetSelection` (`State/TargetSelection.cs`) post-Phase-2.
