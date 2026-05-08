@@ -42,3 +42,9 @@ Desktop.ini
 .\#*
 TAGS
 *.elc
+
+# Personal-default overrides — author-specific values that the runtime layer reads
+# from %LocalAppData%\TargetPlanner\personal-defaults.json. The committed source
+# only ships ship-safe placeholders; this defensive gate stops a stray copy from
+# ever ending up in the repo.
+personal-defaults.json

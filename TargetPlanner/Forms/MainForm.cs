@@ -36,7 +36,11 @@ namespace TargetPlanner
         private TargetSelection mSelection;
         private bool mUpdatingUiFromVm;
 
-        private const string NinaTargetsRootPath = @"E:\Photography\Astro Photography\Captures\Nina\Targets";
+        // Root folder the NINA target loader walks at startup and the Browse-Target-List
+        // dialog opens to. Sourced from PersonalDefaults so the public binary ships with
+        // a neutral fallback (%PUBLIC%\Documents\NINA\Targets) and the developer's actual
+        // imaging-PC path lives in their gitignored personal-defaults.json.
+        private static string NinaTargetsRootPath => PersonalDefaults.NinaTargetsRoot;
 
         // Active chart-area state (post-PR4e: legacy AltitudeChart deleted; this state
         // used to live on it). MainForm owns:
@@ -1591,8 +1595,9 @@ Right-click anywhere on the chart to clear all overlays.";
             RefreshAstrometryLabels();
         }
 
-        // DropDown nulls the current selection so re-picking the same item (e.g. "Penns Park"
-        // after a manual edit auto-switched us to "Custom") still fires SelectedIndexChanged.
+        // DropDown nulls the current selection so re-picking the same item (e.g. the
+        // user's home location after a manual edit auto-switched the combo to "Custom")
+        // still fires SelectedIndexChanged.
         private void ComboBox_Location_DropDown(object sender, EventArgs e)
         {
             ComboBox_Location.SelectedItem = null;
@@ -1633,14 +1638,15 @@ Right-click anywhere on the chart to clear all overlays.";
 
         private Location PickStartupLocation()
         {
-            // Boot default: Penns Park when present, regardless of the last in-session
-            // selection. mAppSettings.LastSelectedLocationName still tracks the most
-            // recent combo pick (so we can persist it), but it no longer drives the
-            // start-up state -- a fresh launch always lands on Penns Park unless the
-            // built-in is missing from settings.
-            NamedLocationSetting pennsPark = mAppSettings.NamedLocations.Find(x =>
-                string.Equals(x.Name, "Penns Park", StringComparison.OrdinalIgnoreCase));
-            if (pennsPark != null) return pennsPark.ToLocation();
+            // Boot default: the named location from PersonalDefaults when present in the
+            // saved list, regardless of the last in-session selection.
+            // mAppSettings.LastSelectedLocationName still tracks the most recent combo
+            // pick (so we can persist it), but it no longer drives the start-up state --
+            // a fresh launch always lands on the personal-default location unless it's
+            // missing from settings.
+            NamedLocationSetting personalDefault = mAppSettings.NamedLocations.Find(x =>
+                string.Equals(x.Name, PersonalDefaults.LocationName, StringComparison.OrdinalIgnoreCase));
+            if (personalDefault != null) return personalDefault.ToLocation();
 
             if (mAppSettings.NamedLocations.Count > 0)
                 return mAppSettings.NamedLocations[0].ToLocation();

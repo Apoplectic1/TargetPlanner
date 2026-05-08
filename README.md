@@ -54,19 +54,18 @@ Two selection modes:
 
 ## Locations
 
-A combo of named locations drives lat / lon / elevation and the per-location sky-brightness inputs. Built-in presets:
+A combo of named locations drives lat / lon / elevation and the per-location sky-brightness inputs. A fresh install ships with a single neutral **Custom** preset (40°N, 75°W); add your own sites in-app and they persist to `%AppData%\TargetPlanner\settings.json`.
 
-- **Penns Park** (40.28°N, 74.99°W, 80.67 m).
-- **Hillsborough** (40.459456°N, 74.612921°W, 28.16 m).
+Developers running from source can drop a `personal-defaults.json` into `%LocalAppData%\TargetPlanner\` to seed additional presets at boot — see [`docs/design/personal-defaults-and-settings.md`](docs/design/personal-defaults-and-settings.md). The file is gitignored and never enters the repo.
 
-A **Custom** slot holds in-progress edits when you scrub the lat / lon / elevation / Bortle / extinction controls without saving.
+The **Custom** slot also holds in-progress edits when you scrub the lat / lon / elevation / Bortle / extinction controls without saving.
 
 Per-location fields:
 - **Latitude / Longitude / Elevation** — the observer position.
 - **Bortle class (1–9)** — drives the moonless dark-sky baseline V₀ used by the Sky-brightness overlay. Picking a class also pre-fills a typical extinction value.
 - **Extinction *k*** at 500 nm (mag/airmass) — drives airmass attenuation in the Sky-brightness overlay.
 
-**Penns Park always boots.** The app launches there regardless of which location you used last, so the chart loads in a known state. Pick Hillsborough or any saved location after start-up freely.
+**The personal-default location always boots.** The app launches at the location named by `PersonalDefaults.LocationName` (or the neutral `Custom` preset on a public binary), regardless of which location you used last, so the chart loads in a known state. Pick any other saved location after start-up freely.
 
 ## Filters & moon avoidance
 
@@ -125,12 +124,12 @@ Or open `TargetPlanner.sln` in Visual Studio and F5.
 
 ## Defaults
 
-This is a personal tool — the defaults reflect the author's setup:
+The shipping defaults are intentionally neutral — public-safe placeholders, with the author's actual values resolved at runtime from a gitignored `personal-defaults.json` (see [Locations](#locations) and [`docs/design/personal-defaults-and-settings.md`](docs/design/personal-defaults-and-settings.md)):
 
 - Default target: **M31**.
-- Default location: **Penns Park** (boots here regardless of last-selected location).
+- Default location: resolved from `PersonalDefaults.LocationName`; ships as a neutral **Custom** preset (40°N, 75°W). Boots here regardless of last-selected location.
 - Default selection in Multi mode: **none checked** after a NINA load.
-- NINA targets root: `E:\Photography\Astro Photography\Captures\Nina\Targets` (constant at `MainForm.NinaTargetsRootPath`).
+- NINA targets root: resolved from `PersonalDefaults.NinaTargetsRoot`; ships as `%PUBLIC%\Documents\NINA\Targets` (`MainForm.NinaTargetsRootPath` is the single read-site).
 
 ## More documentation
 

@@ -449,7 +449,7 @@ The scheduler knows nothing about:
 
 ### Why this matters
 
-- **The library is unit-testable with astronomy-textbook ground truth.** M31 transits at 89° from Penns Park on Oct 15 — known answer.
+- **The library is unit-testable with astronomy-textbook ground truth.** M31 transits at ~89° from a 40°N observer on Oct 15 — known answer.
 - **The scheduler is unit-testable with mocked library outputs.** Give it a fake `VisibilityWindows` for three targets with specified shapes; verify it produces the expected assignment.
 - **Either side can be rewritten.** Swap the solver; library doesn't care. Swap the astrometry backend; scheduler doesn't care.
 - **The library is reusable** for the UI chart, for XisfManager, for scripting, for the NINA plugin — anything that wants astrometry without the scheduler's opinions.

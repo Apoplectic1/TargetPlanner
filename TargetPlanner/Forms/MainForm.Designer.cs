@@ -315,7 +315,6 @@
             ComboBox_Location.Name = "ComboBox_Location";
             ComboBox_Location.Size = new System.Drawing.Size(140, 23);
             ComboBox_Location.TabIndex = 1;
-            ComboBox_Location.Text = "Penns Park";
             ComboBox_Location.DropDown += ComboBox_Location_DropDown;
             ComboBox_Location.SelectedIndexChanged += ComboBox_Location_SelectionIndexChanged;
             // 

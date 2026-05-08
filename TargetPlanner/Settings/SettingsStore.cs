@@ -63,7 +63,7 @@ namespace TargetPlanner.Settings
             {
                 Version = AppSettings.CurrentVersion,
                 NamedLocations = BuildDefaultNamedLocations(),
-                LastSelectedLocationName = "Penns Park",
+                LastSelectedLocationName = PersonalDefaults.LocationName,
             };
         }
 
@@ -71,7 +71,8 @@ namespace TargetPlanner.Settings
         // matched by Name (case-insensitive). Three responsibilities:
         //
         // 1. Append: a built-in not present in the existing list is appended so adding a
-        //    new preset in a release ("Hillsborough") doesn't require deleting settings.json.
+        //    new preset in a release (or in the developer's personal-defaults.json)
+        //    doesn't require deleting settings.json.
         //
         // 2. Auto-fill Elevation: when a built-in name MATCHES an existing entry whose
         //    Elevation is 0 (the back-compat default for settings written before the field
@@ -120,24 +121,38 @@ namespace TargetPlanner.Settings
             }
         }
 
+        // Seeds the named-locations list a fresh install (or a settings.json reset) starts
+        // with. PersonalDefaults.NamedLocations -- loaded from the developer's gitignored
+        // %LocalAppData%\TargetPlanner\personal-defaults.json -- supplies the presets when
+        // present; otherwise we fall back to a single neutral Location.Default entry so the
+        // public-binary case still has something selectable in the location dropdown.
         private static List<NamedLocationSetting> BuildDefaultNamedLocations()
         {
-            return new List<NamedLocationSetting>
+            var list = new List<NamedLocationSetting>();
+            foreach (NamedLocationSetting preset in PersonalDefaults.NamedLocations)
+                list.Add(Clone(preset));
+            if (list.Count == 0)
+                list.Add(NamedLocationSetting.FromLocation(Location.Default));
+            return list;
+        }
+
+        // PersonalDefaults exposes its presets as IReadOnlyList<NamedLocationSetting>; we
+        // copy each entry so the settings.json round-trip can mutate freely without
+        // bleeding back into the static personal-defaults snapshot.
+        private static NamedLocationSetting Clone(NamedLocationSetting src)
+        {
+            return new NamedLocationSetting
             {
-                NamedLocationSetting.FromLocation(Location.Default),
-                new NamedLocationSetting
-                {
-                    Name = "Hillsborough",
-                    Latitude = 40.459456,
-                    North = true,
-                    Longitude = 74.612921,
-                    West = true,
-                    Horizon = 30.0,
-                    DurationMinutes = 240.0,
-                    Elevation = 28.16,
-                    BortleClass = 5,
-                    ExtinctionK = 0.28,
-                },
+                Name            = src.Name,
+                Latitude        = src.Latitude,
+                Longitude       = src.Longitude,
+                North           = src.North,
+                West            = src.West,
+                Horizon         = src.Horizon,
+                DurationMinutes = src.DurationMinutes,
+                Elevation       = src.Elevation,
+                BortleClass     = src.BortleClass,
+                ExtinctionK     = src.ExtinctionK,
             };
         }
     }

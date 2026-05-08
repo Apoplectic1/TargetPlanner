@@ -23,7 +23,8 @@ namespace TargetPlanner.Settings
 
         // Bortle dark-sky class for this site (1 = excellent dark, 9 = inner-city).
         // Default 0 is the C# default for missing JSON; the SettingsStore.MergeBuiltins
-        // step auto-fills name-matched builtins on load (5 for Penns Park / Hillsborough).
+        // step auto-fills 5 (suburban) on any name-matched builtin whose persisted value
+        // is still 0 (typical when upgrading from a settings.json predating the field).
         public int BortleClass { get; set; }
 
         // Atmospheric extinction coefficient k at 500 nm (mag/airmass), sea level.
