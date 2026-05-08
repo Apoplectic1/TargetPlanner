@@ -2,9 +2,30 @@
 
 Last updated 2026-05-04 (TP migrated to .NET 10). Originally captured 2026-04-19.
 
+## Currently open (priority order)
+
+Migrated from CLAUDE.md so the agent-facing reference stays lean. Order is rough recommendation, not a commitment.
+
+1. **TP UI surfaces for `SessionSolvers`** — Library API fully shipped: `LongestDuration` / `LongestDurationIn` / `LowestHorizon` for transit-centered-or-wall-pushed placement, plus `LongestDurationCentered` / `LongestDurationCenteredIn` / `LowestHorizonCentered` for strict-centered (Symmetric-curve) placement. TP needs to surface them somewhere user-visible — tooltips, right-click menu, info panel? Needs UX design before implementation.
+2. **IS / ISP work** — current major thrust per memory; the four-phase IntervalScheduler pipeline is the strategic next axis.
+3. **Velopack version bump** — `0.0.1298` → `0.0.1589+`. Dry-run a release cycle (`vpk pack` + `vpk release` + self-update install) on net10 before shipping; the auto-update flow hasn't been smoke-tested at the current pinned version on net10.
+4. **Lower-priority perf chasing** if anyone wants to push further — `GetSunAltitude` / `GetMoonAltitude` per-call allocations (144 B / 56 B; root cause not obvious without an allocation profiler), and `Math.FusedMultiplyAdd` in the `MoonPosition` periodic-term loops (~1-5%, hardware-FMA-dependent). The big wins from the 2026-05-04 session (`MoonSeparation.ObserveAt` -54%, `BestSession_For_Narrowband` -53%) already exhausted the easy lifts; remaining items are diminishing returns.
+
+**Future-flagged for Core API shape:** **partial-moon-impact tolerance** — allowing a session to span moon-blocked time at a quality penalty rather than rejecting outright. Deferred until much later, but the placement primitives are designed so they don't preclude it (moon profile is optional everywhere; mask computation is behind an internal helper).
+
 ## Recently shipped
 
-Archived from CLAUDE.md's "Open follow-ups" section so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+### 2026-05-04 — .NET 10 migration + Library perf wave
+
+Long session covering, in commit order:
+
+- **Astronomy.Core review** — closed all 5 small findings + 6 missing test files + profile-aware `VisibilityWindows.For` refinement + 4 ROADMAP residuals (Library `d38fed9` `629e37b` `d11a6dc` `319e4df`; TP `a98a45e`).
+- **Portfolio framework bump to .NET 10** — TP `net481` → `net10.0-windows10.0.19041` (TP `85bc590`); Astronomy.Core → `net10.0` (Library `b834f52`); Astronomy.PCL → `net10.0` (Library `c7eeff9`); Astronomy.Core.Tests pinned `LangVersion latest` (Library `6d66881`); Astronomy.Core nullable + LangVersion latest (Library `2bd3c20`); LocalLib reference dropped (`OpenFolderDialog` → stock `FolderBrowserDialog`, single-select).
+- **Library perf opts** — BDN baseline (Library `6d9f402`); `MoonSeparation.ObserveAt` single-pass alt+az dedup (Library `adfdd5f`, −49% time, −100% alloc); `ObserverInfo` class → readonly struct (Library `8ca5b37`); `MoonPosition` periodic tables `int[,]` → `int[]` flat (Library `383c38c`, −10% on `GetMoonAltitude`); `BestSession` + `SessionSolvers` accept null altitudeQuality → closed-form `SinAltitudeOverSession` fast path (Library `e83a110`); TP charts drop their `SinAltQuality` lambdas (TP `14a87ea`). Cumulative `BestSession_For_Narrowband` 177 µs → 83 µs (-53%, -60% alloc).
+- **TP UX fixes** — progress-bar wired (TP `0cec432`); 8 px gap above `Panel_AltitudeChart` (TP `4fdd479`); `NightCache.ComputeYearStartDay` off-by-one fix (Library `0d4ef83`); Year + Sessions exact 1st-of-month CustomSeparators (TP `bcd148a`); `RightChromePx` 24 → 40 (TP `a5d6171`); MainForm Designer VS-regen cleanup (TP `7b81158`).
+- **Memory + framework_stance memory** — rewritten 2026-05-04 to reflect uniformly-net10 portfolio (NINA migrated upstream too, verified at `E:\Projects\VisualStudio\Astronomy\NINA\NINA\NINA.csproj:462`).
 
 - **TP migrated `net481` → `net10.0-windows10.0.19041`.** Single TP commit. csproj: `TargetFramework` bumped, `LangVersion` 10 → `latest`, `AutoGenerateBindingRedirects` removed (irrelevant on modern .NET), `<ServerGarbageCollection>` + `<ConcurrentGarbageCollection>` MSBuild properties added (replaced the deleted App.config `<runtime>` block). The `Win10 2004` Windows API contract version is needed because `SkiaSharp.Views.WindowsForms 3.119.0` (transitive via LiveCharts2) only ships modern-.NET assets at `net8.0-windows10.0.19041` — the default `net10.0-windows7.0` would fall all the way back to the package's `net462` lib, which doesn't load on .NET 10. LocalLib reference dropped: its reflection-based `OpenFolderDialog` multi-select hack relied on `System.Windows.Forms.FileDialogNative+IFileDialog` internals that don't survive into modern WinForms. `MainForm.Button_BrowseTargetList_Click` now uses stock `FolderBrowserDialog` (single-select; multi-select was a nice-to-have). `App.config` deleted (modern .NET ignores `<startup>` and `<runtime>` blocks). Astronomy.Core (`netstandard2.0`) and Astronomy.PCL (`net8.0`) sibling assemblies unchanged — both forward-compat with the new TP. **Velopack 0.0.1298** is forward-compat through netstandard2.0 fallback; bump to 0.0.1589+ is queued as a follow-up below.
 

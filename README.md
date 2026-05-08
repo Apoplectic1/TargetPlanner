@@ -134,7 +134,8 @@ This is a personal tool — the defaults reflect the author's setup:
 
 ## More documentation
 
-- [`CLAUDE.md`](CLAUDE.md) — architecture, conventions, and coding-agent guidance.
+- [`CLAUDE.md`](CLAUDE.md) — coding-agent guidance: high-level architecture, conventions, glossary, Core consumer contract.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — deep architecture reference: cache store, sub-chart wiring, universal chart-behaviour contract, moon avoidance, K-S sky brightness, MainForm UI flow.
 - [`RELEASING.md`](RELEASING.md) — how to cut a new release.
-- [`ROADMAP.md`](ROADMAP.md) — planned work.
+- [`ROADMAP.md`](ROADMAP.md) — currently open follow-ups and recently shipped work.
 - [`SCHEDULER_DESIGN.md`](SCHEDULER_DESIGN.md) — design notes for the upcoming interval scheduler.
