@@ -48,3 +48,7 @@ TAGS
 # only ships ship-safe placeholders; this defensive gate stops a stray copy from
 # ever ending up in the repo.
 personal-defaults.json
+
+# Claude Code harness state (per-developer permission allowlist, scheduled-task locks).
+# Recreated by the harness; not project-relevant.
+.claude/
