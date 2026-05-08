@@ -37,7 +37,7 @@ try {
     dotnet build TargetPlanner.sln -c Release -p:Platform=x64 -nologo
     if ($LASTEXITCODE -ne 0) { throw "dotnet build failed" }
 
-    $bin = Join-Path $repoRoot 'TargetPlanner\bin\x64\Release\net481'
+    $bin = Join-Path $repoRoot 'TargetPlanner\bin\x64\Release\net10.0-windows10.0.19041'
     if (-not (Test-Path $bin)) { throw "Build output not found at $bin" }
 
     Write-Host "`n--> vpk pack" -ForegroundColor Cyan
