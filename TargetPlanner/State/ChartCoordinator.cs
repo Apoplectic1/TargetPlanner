@@ -56,6 +56,7 @@ namespace TargetPlanner.State
         private ChartContext mLastApplied;
         private CancellationTokenSource mPipelineCts;
         private ChartContext mPendingContext;
+        private IProgress<int> mPendingProgress;
         private bool mDisposed;
 
         public ChartCoordinator(
@@ -84,23 +85,29 @@ namespace TargetPlanner.State
         /// <summary>Schedule a pipeline run after the debounce settles. Replaces
         /// any previously-pending context — only the most recent snapshot ever
         /// runs. Returns immediately; the actual pipeline runs on the timer
-        /// tick.</summary>
-        public void Apply(ChartContext ctx)
+        /// tick. <paramref name="progress"/> is forwarded to the cache's
+        /// <c>PrepareManyAsync</c> for per-target completion ticks (used by
+        /// graph-build callers that drive a progress bar).</summary>
+        public void Apply(ChartContext ctx, IProgress<int> progress = null)
         {
             if (ctx == null || mDisposed) return;
             mPendingContext = ctx;
+            mPendingProgress = progress;
             mDebounce.Stop();
             mDebounce.Start();
         }
 
         /// <summary>Run the pipeline immediately (no debounce). Cancels any
-        /// in-flight pipeline and any pending debounce. Awaitable.</summary>
-        public Task ApplyImmediateAsync(ChartContext ctx)
+        /// in-flight pipeline and any pending debounce. Awaitable. <paramref
+        /// name="progress"/> is forwarded to the cache's <c>PrepareManyAsync</c>.
+        /// </summary>
+        public Task ApplyImmediateAsync(ChartContext ctx, IProgress<int> progress = null)
         {
             if (ctx == null || mDisposed) return Task.CompletedTask;
             mDebounce.Stop();
             mPendingContext = null;
-            return SupersedeAndRunAsync(ctx);
+            mPendingProgress = null;
+            return SupersedeAndRunAsync(ctx, progress);
         }
 
         /// <summary>Cancel any in-flight pipeline and drop any pending context
@@ -128,13 +135,15 @@ namespace TargetPlanner.State
         {
             mDebounce.Stop();
             ChartContext pending = mPendingContext;
+            IProgress<int> progress = mPendingProgress;
             mPendingContext = null;
+            mPendingProgress = null;
             if (pending == null) return;
-            try { await SupersedeAndRunAsync(pending); }
+            try { await SupersedeAndRunAsync(pending, progress); }
             catch (Exception ex) { Log.Error("ChartCoordinator debounce tick threw", ex); }
         }
 
-        private async Task SupersedeAndRunAsync(ChartContext ctx)
+        private async Task SupersedeAndRunAsync(ChartContext ctx, IProgress<int> progress)
         {
             try { mPipelineCts?.Cancel(); }
             catch (ObjectDisposedException) { }
@@ -143,7 +152,7 @@ namespace TargetPlanner.State
             mPipelineCts = cts;
             CancellationToken ct = cts.Token;
 
-            try { await RunPipelineAsync(ctx, ct); }
+            try { await RunPipelineAsync(ctx, progress, ct); }
             catch (OperationCanceledException) { /* superseded; expected */ }
             catch (Exception ex) { Log.Error("ChartCoordinator pipeline threw", ex); }
             finally
@@ -156,7 +165,7 @@ namespace TargetPlanner.State
             }
         }
 
-        private async Task RunPipelineAsync(ChartContext ctx, CancellationToken ct)
+        private async Task RunPipelineAsync(ChartContext ctx, IProgress<int> progress, CancellationToken ct)
         {
             ChartContext prev = mLastApplied;
 
@@ -184,7 +193,7 @@ namespace TargetPlanner.State
             //    after a SetLocationAsync rebuilds from scratch.
             if (ctx.Targets != null && ctx.Targets.Count > 0)
             {
-                await mCache.PrepareManyAsync(ctx.Targets, ct);
+                await mCache.PrepareManyAsync(ctx.Targets, ct, progress);
                 ct.ThrowIfCancellationRequested();
             }
 

@@ -271,6 +271,11 @@ namespace TargetPlanner.Charts
 
             BuildOrUpdateMoonSeries(location, chartStart, startUtc, count, night.LunarIlluminationFraction, ct);
 
+            // "Fit tonight only" filter for Day: targets without a D-hour window
+            // tonight are excluded from mChart.Series and the legend entirely.
+            // Their altitude data is still sampled into mSeriesByTarget so a
+            // subsequent H/D/M scrub that brings them back into fit can re-add
+            // them via RefreshVisibility without recomputing altitudes.
             var newSeriesByTarget = new Dictionary<Target, LineSeries<ObservablePoint>>();
             var seriesList = new List<ISeries>();
             if (mMoonSeries != null) seriesList.Add(mMoonSeries);
@@ -291,17 +296,17 @@ namespace TargetPlanner.Charts
                 FillTargetSeriesData(series, chartStart, count, altitudes);
 
                 var window = ComputeBestDayWindow(target, location, night, profile, horizon, duration);
-                ApplyTargetVisibility(series, c, window.HasValue);
                 if (window.HasValue)
                 {
+                    ApplyTargetVisibility(series, c, true);
                     mTargetWindows[series] = (
                         window.Value.Start.ToOADate(),
                         window.Value.End.ToOADate(),
                         window.Value.Floor);
+                    seriesList.Add(series);
                 }
 
                 newSeriesByTarget[target] = series;
-                seriesList.Add(series);
             }
 
             mSeriesByTarget.Clear();
@@ -316,6 +321,13 @@ namespace TargetPlanner.Charts
         // series collection. Each item is a small Panel with a color marker +
         // target-name Label; click toggles the corresponding LineSeries.IsVisible.
         // FlowLayoutPanel auto-wraps to multiple rows as the legend grows.
+        //
+        // "Fit tonight only" filter: targets without an entry in mTargetWindows
+        // (no D-hour window fits tonight under current H/D/M) are excluded from
+        // the legend entirely. Mirrors the mChart.Series filtering in Render
+        // and RefreshVisibility -- the chart and the legend agree on what's
+        // visible tonight, independent of which boxes are checked in
+        // CheckedListBox_SelectedTargets.
         private void BuildLegendItems()
         {
             mLegendPanel.SuspendLayout();
@@ -324,6 +336,7 @@ namespace TargetPlanner.Charts
             {
                 Target target = kv.Key;
                 LineSeries<ObservablePoint> series = kv.Value;
+                if (!mTargetWindows.ContainsKey(series)) continue;
                 Color color = mTargetColors.TryGetValue(target, out var c) ? c : Color.LightGray;
                 mLegendPanel.Controls.Add(MakeLegendItem(series, target, color));
             }
@@ -397,6 +410,9 @@ namespace TargetPlanner.Charts
 
             UpdateHorizonLine(horizon);
 
+            // Re-evaluate fit per target. mTargetWindows is the source of truth
+            // for "fits tonight"; the "fit tonight only" filter excludes any
+            // unfit target from mChart.Series and the legend.
             foreach (var kv in mSeriesByTarget)
             {
                 Target target = kv.Key;
@@ -404,9 +420,9 @@ namespace TargetPlanner.Charts
                 if (!mTargetColors.TryGetValue(target, out Color c)) c = Color.White;
 
                 var window = ComputeBestDayWindow(target, location, night, profile, horizon, duration);
-                ApplyTargetVisibility(series, c, window.HasValue);
                 if (window.HasValue)
                 {
+                    ApplyTargetVisibility(series, c, true);
                     mTargetWindows[series] = (
                         window.Value.Start.ToOADate(),
                         window.Value.End.ToOADate(),
@@ -417,6 +433,22 @@ namespace TargetPlanner.Charts
                     mTargetWindows.Remove(series);
                 }
             }
+
+            // Rebuild mChart.Series + legend from mSeriesByTarget filtered on
+            // fit-tonight (i.e., presence in mTargetWindows). A scrub that
+            // changes which targets fit propagates here; previously-fit targets
+            // that now miss disappear from the chart, previously-unfit targets
+            // that now hit reappear (with the altitude data sampled at Render
+            // time still present in their LineSeries).
+            var seriesList = new List<ISeries>();
+            if (mMoonSeries != null) seriesList.Add(mMoonSeries);
+            foreach (var kv in mSeriesByTarget)
+            {
+                if (mTargetWindows.ContainsKey(kv.Value))
+                    seriesList.Add(kv.Value);
+            }
+            mChart.Series = seriesList;
+            BuildLegendItems();
 
             // Re-apply any active HD overlay rectangles against the refreshed windows.
             // For series whose window vanished, the overlay restores from backup and
@@ -465,9 +497,15 @@ namespace TargetPlanner.Charts
             mSeriesByTarget.Clear();
             foreach (var kv in reordered) mSeriesByTarget[kv.Key] = kv.Value;
 
+            // Filter mChart.Series on fit-tonight (presence in mTargetWindows)
+            // so the "fit tonight only" rule survives a sort change. Series that
+            // were excluded from mChart.Series in Render stay excluded.
             var seriesList = new List<ISeries>();
             if (mMoonSeries != null) seriesList.Add(mMoonSeries);
-            foreach (var s in mSeriesByTarget.Values) seriesList.Add(s);
+            foreach (var s in mSeriesByTarget.Values)
+            {
+                if (mTargetWindows.ContainsKey(s)) seriesList.Add(s);
+            }
             mChart.Series = seriesList;
             BuildLegendItems();
         }

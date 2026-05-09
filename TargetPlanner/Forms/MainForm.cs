@@ -222,13 +222,6 @@ Right-click anywhere on the chart to clear all overlays.";
         // the 1-second hold.
         private int mProcessObjectGeneration;
 
-        // Cancellation handle for the current chart build. RunGraphBuildAsync creates
-        // a new CTS per build (cancelling any prior in-flight build for supersedence);
-        // Button_Cancel_Click signals it; the token is observed inside
-        // ChartCacheStore.PrepareManyAsync's per-target Task.WhenAll. Disposed in
-        // MainForm_FormClosing.
-        private CancellationTokenSource mGraphCts;
-
         // Ignore-second-click guard for Button_Graph_Click. A Graph click while a prior
         // build is still awaiting its Task.WhenAll just returns -- the user has to Cancel
         // the in-flight build before a new one can start.
@@ -364,9 +357,6 @@ Right-click anywhere on the chart to clear all overlays.";
             mRaInput?.Dispose();
             mDecInput?.Dispose();
 
-            mGraphCts?.Cancel();
-            mGraphCts?.Dispose();
-
             mCachePrepCts?.Cancel();
             mCachePrepCts?.Dispose();
             mCoordinator?.Dispose();
@@ -481,15 +471,29 @@ Right-click anywhere on the chart to clear all overlays.";
             ResizeAltitudeChartArea(mSubCharts["Day"].IdealHeight);
 
             // Construct the coordinator after both mCache and mSubCharts exist
-            // (it captures references via the resolver delegates). Post-apply
-            // hook keeps location-dependent labels in sync with the just-applied
-            // snapshot. Phase 2 only routes the location-pipe through it; other
-            // handlers migrate in Phase 3.
+            // (it captures references via the resolver delegates). The
+            // post-apply hook is the one place that runs side-effects which
+            // don't fit Render or RefreshVisibility:
+            //   - Astrometry labels (dawn/dusk/sun/moon altitude/phase/illumination).
+            //   - Now-line position on every sub-chart (date/time scrubs that
+            //     don't trigger a Render still need the red line to move).
+            //   - Horizon-line position on every sub-chart (horizon scrubs that
+            //     refresh visibility-only need the green line to move).
+            //   - Sky's K-S brightness re-walk (Bortle/Extinction/Filter scrubs).
             mCoordinator = new TargetPlanner.State.ChartCoordinator(
                 cache: mCache,
                 resolveSubChart: name => mSubCharts.TryGetValue(name, out var sc) ? sc : null,
                 resolveAllSubCharts: () => mSubCharts.Values,
-                postApplyHook: _ => RefreshAstrometryLabels());
+                postApplyHook: ctx =>
+                {
+                    RefreshAstrometryLabels();
+                    foreach (var sc in mSubCharts.Values)
+                    {
+                        sc.UpdateNowLine(ctx.Location.DateTime);
+                        sc.UpdateHorizonLine(ctx.Location.Horizon);
+                    }
+                    PushSkyKSInputs(ctx);
+                });
 
             // Establish a default sort mode authoritatively from code. The VS Designer has a
             // recurring habit of silently dropping ComboBox_SortTargets.SelectedIndex = 0 from
@@ -641,29 +645,37 @@ Right-click anywhere on the chart to clear all overlays.";
         {
             TimeSpan newDuration = TimeSpan.FromMinutes((double)NumericUpDown_TargetDuration.Value * 60.0);
             mLocation = mLocation.With(duration: newDuration);
-            if (mSubCharts == null) return;
-            // RefreshVisibility iterates every target -- on large target sets the
-            // moon-aware path that's heavy on the bg task on Year / Sessions adds
-            // up quickly during live scrubbing. Debounce.
-            RestartSessionsRebuildDebounce();
+            if (mCoordinator == null) return;
+            // Coordinator's internal debounce coalesces rapid scrub ticks into one
+            // pipeline run; pipeline diff catches Duration change as HDM-only and
+            // refreshes visibility on every sub-chart.
+            mCoordinator.Apply(SnapshotCurrent(mLastRenderedTargets));
         }
 
         private void NumericUpDown_TargetFloor_ValueChanged(object sender, EventArgs e)
         {
             double newHorizon = (double)NumericUpDown_TargetFloor.Value;
             mLocation = mLocation.With(horizon: newHorizon);
-            if (mSubCharts == null) return;
+            if (mCoordinator == null) return;
             // Horizon-line repositioning stays immediate -- it's one strip per chart
             // and the user wants instant feedback as they scrub. The per-target
-            // visibility recompute is what's expensive; debounce that.
-            foreach (var sc in mSubCharts.Values) sc.UpdateHorizonLine(newHorizon);
-            RestartSessionsRebuildDebounce();
+            // visibility recompute is what's expensive; the coordinator's debounce
+            // collapses scrub ticks into one trailing-edge pipeline run.
+            if (mSubCharts != null)
+                foreach (var sc in mSubCharts.Values) sc.UpdateHorizonLine(newHorizon);
+            mCoordinator.Apply(SnapshotCurrent(mLastRenderedTargets));
         }
 
-        // Lazily-constructed shared Timer. ValueChanged calls Stop()+Start() to reset the
-        // interval, so rapid fire events collapse to one trailing-edge Tick. Tick reads the
-        // latest mLocation.Horizon / Duration / Lat / Lon (already set by the ValueChanged
-        // handlers) so no per-event state needs to be latched.
+        // Lazily-constructed shared Timer debouncing OnLocationEdited (lat/lon/elev/
+        // N/W/Bortle/Extinction edits). The debounce exists so the keying-change
+        // detection (LocationsCacheEquivalent) runs once per scrub burst rather
+        // than per spinner tick -- a keying change triggers ResetForLocationChange
+        // (clears checked set + blanks chart) which we don't want firing on every
+        // intermediate tick of a multi-step scrub.
+        //
+        // Other handlers (Horizon / Duration / Filter / Moon) don't have a keying-
+        // change semantic and call mCoordinator.Apply directly; the coordinator's
+        // own internal 150 ms debounce coalesces those.
         private void RestartSessionsRebuildDebounce()
         {
             if (mSessionsRebuildDebounce == null)
@@ -675,20 +687,20 @@ Right-click anywhere on the chart to clear all overlays.";
             mSessionsRebuildDebounce.Start();
         }
 
-        // Trailing-edge debounce tick. Branches on whether any cache-keying field
-        // (Lat / Lon / N / W / Elev / year-start) drifted vs the cache:
+        // Trailing-edge tick for the OnLocationEdited debounce. Branches on whether
+        // the just-settled mLocation crossed LocationsCacheEquivalent vs the cache:
         //
-        // 1. Keying drift -> ResetForLocationChange: blank the chart, clear the
-        //    checked set, drop + rebuild the cache against the new location. Per
-        //    spec, scrubs are treated as "I changed sites" the same way an
-        //    explicit combo pick is -- the user re-engages the controls to pick
-        //    fresh targets at the new geometry.
+        // 1. Keying drift -> ResetForLocationChange (clears checked set, blanks
+        //    chart, drops + rebuilds the cache against the new location). Per
+        //    spec, scrubs that cross are treated as "I changed sites."
         //
-        // 2. Non-keying scrub (Horizon / Duration / Bortle / Extinction / Filter):
-        //    rerun the universal hide-on-no-fit visibility pass (CLAUDE.md
-        //    "Universal chart behavior contract") on every sub-chart, then re-walk
-        //    Sky's minute-grid K-S brightness with the new inputs. Cache stays
-        //    intact -- those fields don't key the cache.
+        // 2. Within-equiv scrub (Bortle / ExtinctionK -- the non-keying fields
+        //    that ride OnLocationEdited): hand a snapshot to the coordinator
+        //    immediately. ApplyImmediateAsync (no further internal debounce
+        //    since we've already settled) runs the pipeline; the diff catches
+        //    Bortle / ExtinctionK change as HDM-style and refreshes visibility
+        //    on every sub-chart. Post-apply hook fires PushSkyKSInputs(ctx)
+        //    so Sky's K-S brightness re-walks with the new inputs.
         private async void SessionsRebuildDebounce_Tick(object sender, EventArgs e)
         {
             mSessionsRebuildDebounce.Stop();
@@ -699,13 +711,8 @@ Right-click anywhere on the chart to clear all overlays.";
                 return;
             }
 
-            if (mSubCharts == null) return;
-            ChartContext refreshCtx = SnapshotCurrent(mLastRenderedTargets);
-            foreach (var sc in mSubCharts.Values)
-            {
-                sc.RefreshVisibility(refreshCtx, mCache);
-            }
-            PushSkyKSInputs();
+            if (mCoordinator == null) return;
+            await mCoordinator.ApplyImmediateAsync(SnapshotCurrent(mLastRenderedTargets));
         }
 
         // Symmetric clean-slate response to any user action that re-keys the
@@ -730,7 +737,9 @@ Right-click anywhere on the chart to clear all overlays.";
         // CheckedListBox toggles, etc.) to draw fresh series.
         private async Task ResetForLocationChange()
         {
-            mGraphCts?.Cancel();
+            // Cancel any in-flight pipeline (chart build or scrub-debounce tick)
+            // so its post-await effects can't paint stale geometry.
+            mCoordinator?.Cancel();
 
             mSelection.SetAllChecked(false);
             mCheckedToggleDebounce?.Stop();
@@ -740,13 +749,20 @@ Right-click anywhere on the chart to clear all overlays.";
         }
 
         // Push the active filter's center wavelength + re-walk the K-S minute grid
-        // through the Sky sub-chart's existing series. Called from the debounce
-        // tick where Bortle / ExtinctionK / Filter scrubs need their effect to
-        // reach Sky's brightness curves. NOT called from RenderArea (Render
-        // rebuilds the K-S grid inline) or SetActiveFilter (the debounce tick
-        // 150 ms later runs this; calling here would cause a redundant
-        // K-S re-walk on filter click). Null-safe; no-op when Sky isn't
-        // instantiated yet (early-init paths).
+        // through the Sky sub-chart's existing series. Called from the coordinator's
+        // post-apply hook so Bortle / ExtinctionK / Filter scrubs (and any other
+        // pipeline) keep Sky's brightness curves in sync with the just-applied
+        // snapshot. ctx-based overload reads the snapshot's filter + location
+        // for snapshot-coherence under mid-pipeline drift; the no-arg overload
+        // is kept for legacy callers that still read MainForm fields directly.
+        // Null-safe; no-op when Sky isn't instantiated yet (early-init paths).
+        private void PushSkyKSInputs(ChartContext ctx)
+        {
+            if (mLC2Sky == null || ctx == null || ctx.Location == null) return;
+            mLC2Sky.ActiveFilterCenterNm = ctx.ActiveFilterCenterNm;
+            mLC2Sky.RefreshSkyBrightness(mCache, ctx.Location);
+        }
+
         private void PushSkyKSInputs()
         {
             if (mLC2Sky == null) return;
@@ -1178,12 +1194,13 @@ Right-click anywhere on the chart to clear all overlays.";
 
             mMoonAvoidanceProfile = avoidanceOn ? profile : null;
             // Push the active filter's center wavelength so the K-S sky-brightness
-            // minute-loop scales extinction k via Rayleigh λ⁻⁴ at the band. Sky
-            // re-walks the K-S grid via SessionsRebuildDebounce_Tick (which calls
-            // mLC2Sky.RefreshSkyBrightness after pushing this value).
+            // minute-loop scales extinction k via Rayleigh λ⁻⁴ at the band. The
+            // coordinator's post-apply hook calls PushSkyKSInputs(ctx) to re-walk
+            // the K-S grid; the property is also set immediately here for any
+            // sync read that lands before the pipeline settles.
             mActiveFilterCenterNm = filter.CenterNm;
             if (mLC2Sky != null) mLC2Sky.ActiveFilterCenterNm = filter.CenterNm;
-            RestartSessionsRebuildDebounce();
+            mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
         }
 
         // File -> Clear All Data... handler. Confirms via YesNo MessageBox, deletes the
@@ -1252,9 +1269,9 @@ Right-click anywhere on the chart to clear all overlays.";
 
             SetLorentzianControlsEnabled(enabled);
             mMoonAvoidanceProfile = profile;
-            // Debounce so a fast Enable-Disable-Enable click sequence collapses to one
-            // rebuild and the master toggle shares the Lorentzian-scrub debounce path.
-            RestartSessionsRebuildDebounce();
+            // Coordinator's internal debounce collapses a fast Enable-Disable-
+            // Enable click sequence into one trailing-edge pipeline run.
+            mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
         }
 
         // User scrubbed a Lorentzian control. Push the live values to the chart (gated
@@ -1271,7 +1288,7 @@ Right-click anywhere on the chart to clear all overlays.";
                             && CheckBox_Moon_AvoidanceEnable.Checked;
             mMoonAvoidanceProfile = avoidanceOn ? BuildProfileFromControls() : null;
             RestartFilterAutoSaveDebounce();
-            RestartSessionsRebuildDebounce();
+            mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
         }
 
         // Read the live Lorentzian control values into a MoonAvoidanceProfile. Used by
@@ -1396,28 +1413,30 @@ Right-click anywhere on the chart to clear all overlays.";
 
         private void DatePicker_ValueChanged(object sender, EventArgs e)
         {
-            mLocalDateTime = (DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZoneInfo.Local);
             UpdateLocalDateTimeEvents();
+            // Immediate now-line update for live feedback during scrub. Coordinator's
+            // post-apply hook re-runs UpdateNowLine on settle (cheap; just shifts a
+            // section's X position).
             if (mSubCharts != null)
-            {
                 foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mLocalDateTime.When);
-            }
             // Transit / Rise sort keys are time-dependent; Name is not. Skip the re-sort on
             // Name to avoid a pointless Items.Clear+re-add round-trip on every scrub tick.
             if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
                 ResortSelectedTargets();
+            // Coordinator: post-apply hook handles RefreshAstrometryLabels + final
+            // line sync. DateTime sub-day changes don't trigger any structural diff
+            // (year-start unchanged), so the pipeline is no-op except the hook.
+            mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
         }
 
         private void TimePicker_ValueChanged(object sender, EventArgs e)
         {
-            mLocalDateTime = (DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZoneInfo.Local);
             UpdateLocalDateTimeEvents();
             if (mSubCharts != null)
-            {
                 foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mLocalDateTime.When);
-            }
             if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
                 ResortSelectedTargets();
+            mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
         }
 
         // Button_Graph is single-target only. Always graphs mSelection.SelectedSingle
@@ -1466,20 +1485,17 @@ Right-click anywhere on the chart to clear all overlays.";
             await RunGraphBuildAsync(new[] { current });
         }
 
-        // Shared graph-build pipeline. Cancels any in-flight build + replaces
-        // mGraphCts before starting; both Button_Graph_Click (single-target) and
-        // CheckedToggleDebounce_Tick (multi-target) call this. Whoever triggers a
-        // new build supersedes the prior one -- the stale build's CT trips and the
-        // catch (OperationCanceledException) lets it unwind cleanly without leaving
-        // the form gating flags wedged.
+        // Shared graph-build entry. Both Button_Graph_Click (single-target) and
+        // CheckedToggleDebounce_Tick (multi-target) call this. The coordinator's
+        // pipeline owns supersedence: a new ApplyImmediateAsync cancels the
+        // in-flight one's await chain, the catch (OperationCanceledException)
+        // lets it unwind cleanly, and the finally restores the form gating flags.
         //
-        // Async: PrepareManyAsync warms the per-target year-cache + per-Location
-        // NightCache; sub-chart Render calls assume the cache is ready, so we
-        // await first, then RenderArea dispatches into the active radio's sub-chart.
-        // Empty targets is intentional -- ClearAll / fresh-NINA-load both produce
-        // empty input; PrepareManyAsync no-ops on empty (the cache for previously-
-        // rendered targets stays intact -- only SetLocationAsync ever drops cache),
-        // RenderArea paints a blank chart per each sub-chart's empty-list contract.
+        // Empty targets is intentional -- ClearAll / fresh-NINA-load / location
+        // change all produce empty input; PrepareManyAsync no-ops on empty (the
+        // cache for previously-rendered targets stays intact -- only
+        // SetLocationAsync ever drops cache entries), and the active sub-chart's
+        // Render paints a blank chart per its empty-list contract.
         //
         // Park focus on the form before disabling Button_Graph. Otherwise Win32
         // auto-advances focus from the just-disabled Button_Graph to the next TabStop
@@ -1487,25 +1503,12 @@ Right-click anywhere on the chart to clear all overlays.";
         // cascade into the combo's SelectedIndexChanged path.
         private async Task RunGraphBuildAsync(IReadOnlyList<Target> targets)
         {
-            // Snapshot full ChartContext at build entry. RenderArea is called
-            // against the snapshot, not against live MainForm fields -- if a
-            // SetLocationAsync ran mid-build, the snapshot pins the build to its
-            // original inputs and the post-await drift check abandons the render
-            // so a stale series can't paint against new geometry.
+            // Snapshot full ChartContext at build entry; the coordinator's
+            // pipeline is location-coherent against this snapshot.
             ChartContext ctxSnapshot = SnapshotCurrent(targets);
 
             (int progressGeneration, IProgress<int> targetProgress) =
                 BeginChartBuildProgress(targetCount: targets.Count);
-
-            // Latch the build's CTS into locals immediately after assignment so the
-            // post-await render can't observe a successor build's CTS. Without the
-            // latch, two RRGB calls racing would let the older build's RenderArea
-            // read the newer build's mGraphCts and paint with the wrong token /
-            // miss the cancel.
-            mGraphCts?.Cancel();
-            CancellationTokenSource buildCts = new CancellationTokenSource();
-            mGraphCts = buildCts;
-            CancellationToken buildCt = buildCts.Token;
 
             ActiveControl = null;
             Button_Graph.Enabled = false;
@@ -1513,33 +1516,25 @@ Right-click anywhere on the chart to clear all overlays.";
 
             try
             {
-                if (mCache != null)
+                // Coordinator owns the cache-prep + render pipeline. Its internal
+                // CTS provides supersedence -- a new ApplyImmediateAsync cancels
+                // the in-flight one's await chain. The progress object forwards
+                // to PrepareManyAsync so per-target completion ticks drive
+                // ProgressBar_MultiTargetProcessing through BeginChartBuildProgress.
+                if (mCoordinator != null)
                 {
-                    await mCache.PrepareManyAsync(targets, buildCt, targetProgress);
+                    await mCoordinator.ApplyImmediateAsync(ctxSnapshot, targetProgress);
                 }
 
-                // Drift check: if a location change ran during PrepareManyAsync
-                // (combo pick / scrub debounce), the cache was reset and the build
-                // we just awaited operated against the *new* location's empty
-                // cache -- entries are missing and the snapshot-keyed render
-                // would paint partial data. Abandon and let the location-change
-                // path drive the next render.
-                if (!object.ReferenceEquals(mLocation, ctxSnapshot.Location)) return;
-
+                // Snapshot the rendered target list. Coordinator updates its own
+                // mLastApplied internally; mLastRenderedTargets is the form-side
+                // record used by sort/reorder paths and inactive-radio re-renders.
                 mLastRenderedTargets = new List<Target>(targets);
-
-                // Paint on whichever area the user had selected when the build
-                // started (carried in ctxSnapshot.ActiveArea). Day is the default
-                // at form construction (Designer sets RadioButton_Day.Checked =
-                // true) so a fresh launch lands on Day.
-                RenderArea(ctxSnapshot, buildCt);
             }
             catch (OperationCanceledException)
             {
                 // Superseded by a newer build (single->multi or multi->single) or
-                // explicit Cancel. mLastRenderedTargets is left intact -- the newer
-                // build will overwrite it, or the user cancelled and the prior
-                // mLastRenderedTargets is still the on-screen truth.
+                // explicit Cancel. mLastRenderedTargets is left intact.
             }
             finally
             {
@@ -1657,9 +1652,9 @@ Right-click anywhere on the chart to clear all overlays.";
             UpdateLocalDateTimeEvents();
 
             if (mSubCharts != null)
-            {
                 foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mLocalDateTime.When);
-            }
+
+            mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
         }
 
         // Signal the in-flight chart build to unwind. The Day / Moon phase is synchronous
@@ -1678,9 +1673,12 @@ Right-click anywhere on the chart to clear all overlays.";
 
             Button_Cancel.Enabled = false;
 
-            mGraphCts?.Cancel();
+            // Cancels any in-flight coordinator pipeline. RunGraphBuildAsync's
+            // await throws OCE, the catch swallows it, and the finally cleans
+            // up Button_Graph.Enabled etc.
+            mCoordinator?.Cancel();
 
-            // Bump the build generation so any late Progress<string> callbacks from the
+            // Bump the build generation so any late Progress<int> callbacks from the
             // unwinding tasks no-op instead of re-ticking a zeroed bar.
             mChartBuildGeneration++;
             ProgressBar_MultiTargetProcessing.Value = 0;
@@ -2169,37 +2167,36 @@ Right-click anywhere on the chart to clear all overlays.";
         }
 
         // The four view radio handlers all share the same shape: persist UI state,
-        // and if the radio is now checked, dispatch a Render to the corresponding
-        // sub-chart with the most recent target list. Day's handler also refreshes
-        // the static AstrometryUi cache (legacy quirk -- kept for parity with the
-        // dawn/dusk/moon labels).
+        // and if the radio is now checked, hand a snapshot to the coordinator.
+        // The coordinator's diff sees ActiveArea changed and Renders the new
+        // active sub-chart. Post-apply hook handles label / now-line / horizon-
+        // line / Sky-brightness sync.
         private void RadioButton_Day_CheckedChanged(object sender, EventArgs e)
         {
             mUIState.DayChart = RadioButton_Day.Checked;
             if (!RadioButton_Day.Checked) return;
-            AstrometryUi.Location(mLocation);
-            RenderArea(SnapshotCurrent(mLastRenderedTargets));
+            mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
         }
 
         private void RadioButton_Year_CheckedChanged(object sender, EventArgs e)
         {
             mUIState.YearChart = RadioButton_Year.Checked;
             if (!RadioButton_Year.Checked) return;
-            RenderArea(SnapshotCurrent(mLastRenderedTargets));
+            mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
         }
 
         private void RadioButton_Sessions_CheckedChanged(object sender, EventArgs e)
         {
             mUIState.SessionsChart = RadioButton_Sessions.Checked;
             if (!RadioButton_Sessions.Checked) return;
-            RenderArea(SnapshotCurrent(mLastRenderedTargets));
+            mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
         }
 
         private void RadioButton_Sky_CheckedChanged(object sender, EventArgs e)
         {
             mUIState.SkyChart = RadioButton_Sky.Checked;
             if (!RadioButton_Sky.Checked) return;
-            RenderArea(SnapshotCurrent(mLastRenderedTargets));
+            mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
         }
 
         // Hide every control in Panel_AltitudeChart except `target`. Used to
