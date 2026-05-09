@@ -653,36 +653,72 @@ Right-click anywhere on the chart to clear all overlays.";
             mSessionsRebuildDebounce.Start();
         }
 
-        // Trailing-edge debounce tick. Two responsibilities:
-        // 1. Cache invalidation -- if the location-keying fields drifted from what the cache
-        //    is built against, fire SetLocationAsync. Coalescing here avoids 3 invalidations
-        //    per Lat-D/M/S-spinner scrub. Cache rebuild itself is lazy (next Graph click).
-        // 2. Universal hide-on-no-fit refresh on every sub-chart, plus the Sky-
-        //    specific K-S brightness re-walk for Bortle / ExtinctionK / Filter scrubs.
-        private void SessionsRebuildDebounce_Tick(object sender, EventArgs e)
+        // Trailing-edge debounce tick. Branches on whether any cache-keying field
+        // (Lat / Lon / N / W / Elev / year-start) drifted vs the cache:
+        //
+        // 1. Keying drift -> ResetForLocationChange: blank the chart, clear the
+        //    checked set, drop + rebuild the cache against the new location. Per
+        //    spec, scrubs are treated as "I changed sites" the same way an
+        //    explicit combo pick is -- the user re-engages the controls to pick
+        //    fresh targets at the new geometry.
+        //
+        // 2. Non-keying scrub (Horizon / Duration / Bortle / Extinction / Filter):
+        //    rerun the universal hide-on-no-fit visibility pass (CLAUDE.md
+        //    "Universal chart behavior contract") on every sub-chart, then re-walk
+        //    Sky's minute-grid K-S brightness with the new inputs. Cache stays
+        //    intact -- those fields don't key the cache.
+        private async void SessionsRebuildDebounce_Tick(object sender, EventArgs e)
         {
             mSessionsRebuildDebounce.Stop();
 
             if (mCache != null && !LocationsCacheEquivalent(mLocation, mCache.CurrentLocation))
             {
-                _ = mCache.SetLocationAsync(mLocation);
+                await ResetForLocationChange();
+                return;
             }
 
             if (mSubCharts == null) return;
-            // Universal hide-on-no-fit pass (CLAUDE.md "Universal chart behavior
-            // contract"): each sub-chart re-runs BestSession.For per relevant unit
-            // (per target tonight for Day / Sky; per (target, night) on a bg task
-            // for Year / Sessions) and toggles visibility / line breaks as needed.
             foreach (var sc in mSubCharts.Values)
             {
                 sc.RefreshVisibility(mCache, mMoonAvoidanceProfile, mLocation,
                     mLocation.Horizon, mLocation.Duration);
             }
-            // Sky-specific: Bortle / ExtinctionK / ActiveFilter changes feed the
-            // K-S brightness minute loop. Re-walk the existing minute grid through
-            // K-S with the new inputs (no series identity churn). RefreshVisibility
-            // above already re-ran the visibility probe for Sky.
             PushSkyKSInputs();
+        }
+
+        // Symmetric clean-slate response to any user action that re-keys the
+        // chart cache (combo location pick, lat/lon/elev scrub once it crosses
+        // LocationsCacheEquivalent). Per spec:
+        //   - Cancel any in-flight chart build so its post-await render can't
+        //     paint stale geometry from the old location.
+        //   - Clear the checked set via the VM. CheckedListBox row checks blank
+        //     via the OnVmCheckedSetChanged binding; the multi-graph debounce's
+        //     re-arm on CheckedSetChanged is then explicitly stopped because we
+        //     don't want a 250-ms-late blank-render to fight our explicit one
+        //     (and harmless when the set was already empty -- VM short-circuits,
+        //     no event, Stop() no-ops).
+        //   - Blank the chart explicitly. Covers the single-target case where
+        //     the checked set was already empty so SetAllChecked above didn't
+        //     fire CheckedSetChanged and the chart would otherwise still show
+        //     the prior single-target series painted against the old location.
+        //   - Drop the cache + re-key to mLocation, gated by LocationsCacheEquivalent
+        //     so a re-pick of the currently-keyed location doesn't churn the cache.
+        // No auto re-render: the user re-engages a control (Button_Graph,
+        // CheckedListBox toggles, etc.) to draw fresh series.
+        private async Task ResetForLocationChange()
+        {
+            mGraphCts?.Cancel();
+
+            mSelection.SetAllChecked(false);
+            mCheckedToggleDebounce?.Stop();
+
+            mLastRenderedTargets = new List<Target>();
+            RenderArea(SelectedArea(), mLastRenderedTargets);
+
+            if (mCache != null && !LocationsCacheEquivalent(mLocation, mCache.CurrentLocation))
+            {
+                await mCache.SetLocationAsync(mLocation);
+            }
         }
 
         // Push the active filter's center wavelength + re-walk the K-S minute grid
@@ -1433,11 +1469,25 @@ Right-click anywhere on the chart to clear all overlays.";
         // cascade into the combo's SelectedIndexChanged path.
         private async Task RunGraphBuildAsync(IReadOnlyList<Target> targets)
         {
+            // Snapshot mLocation at build entry. RenderArea is called against the
+            // snapshot, not against the live mLocation -- if a SetLocationAsync ran
+            // mid-build, the snapshot pins the build to its original location and
+            // the post-await drift check abandons the render so a stale series
+            // can't paint against new geometry.
+            Location locationSnapshot = mLocation;
+
             (int progressGeneration, IProgress<int> targetProgress) =
                 BeginChartBuildProgress(targetCount: targets.Count);
 
+            // Latch the build's CTS into locals immediately after assignment so the
+            // post-await render can't observe a successor build's CTS. Without the
+            // latch, two RRGB calls racing would let the older build's RenderArea
+            // read the newer build's mGraphCts and paint with the wrong token /
+            // miss the cancel.
             mGraphCts?.Cancel();
-            mGraphCts = new CancellationTokenSource();
+            CancellationTokenSource buildCts = new CancellationTokenSource();
+            mGraphCts = buildCts;
+            CancellationToken buildCt = buildCts.Token;
 
             ActiveControl = null;
             Button_Graph.Enabled = false;
@@ -1447,15 +1497,24 @@ Right-click anywhere on the chart to clear all overlays.";
             {
                 if (mCache != null)
                 {
-                    await mCache.PrepareManyAsync(targets, mGraphCts.Token, targetProgress);
+                    await mCache.PrepareManyAsync(targets, buildCt, targetProgress);
                 }
+
+                // Drift check: if a location change ran during PrepareManyAsync
+                // (combo pick / scrub debounce), the cache was reset and the build
+                // we just awaited operated against the *new* location's empty
+                // cache -- entries are missing and the snapshot-keyed render
+                // would paint partial data. Abandon and let the location-change
+                // path drive the next render.
+                if (!object.ReferenceEquals(mLocation, locationSnapshot)) return;
+
                 mLastRenderedTargets = new List<Target>(targets);
 
                 // Paint on whichever area the user has selected via the view radios.
                 // Day is the default at form construction (Designer sets
                 // RadioButton_Day.Checked = true) so a fresh launch lands on Day;
                 // subsequent Graph clicks preserve the user's last view choice.
-                RenderArea(SelectedArea(), mLastRenderedTargets, mGraphCts.Token);
+                RenderArea(SelectedArea(), mLastRenderedTargets, locationSnapshot, buildCt);
             }
             catch (OperationCanceledException)
             {
@@ -1531,16 +1590,25 @@ Right-click anywhere on the chart to clear all overlays.";
         // the active filter's CenterNm into mLC2Sky as part of the call so K-S
         // brightness uses the current Rayleigh λ⁻⁴ scaling. Resizes the panel
         // to match the newly-active sub-chart's IdealHeight.
+        //
+        // <paramref name="location"/> is null-defaulted for back-compat call sites
+        // (radio toggles, OpenEditFiltersDialog post-save refresh, etc.) that paint
+        // mLastRenderedTargets against the live mLocation. Callers that snapshot
+        // mLocation at the start of an async build (RunGraphBuildAsync) pass the
+        // snapshot here so the paint is location-coherent even if mLocation has
+        // drifted since the snapshot was taken.
         private void RenderArea(string area, IReadOnlyList<Target> targets,
+                                Location location = null,
                                 CancellationToken ct = default)
         {
             if (mSubCharts == null) return;
             if (!mSubCharts.TryGetValue(area, out var sc)) return;
+            Location loc = location ?? mLocation;
             ShowOnlyAltitudeChart(sc.Control);
             if (sc is Charts.AltitudeSubChart_Sky sky)
                 sky.ActiveFilterCenterNm = mActiveFilterCenterNm;
-            sc.Render(targets, mCache, mMoonAvoidanceProfile, mLocation,
-                mLocation.Horizon, mLocation.Duration, mLocalDateTime.When, ct);
+            sc.Render(targets, mCache, mMoonAvoidanceProfile, loc,
+                loc.Horizon, loc.Duration, mLocalDateTime.When, ct);
             ResizeAltitudeChartArea(sc.IdealHeight);
         }
 
@@ -1593,7 +1661,7 @@ Right-click anywhere on the chart to clear all overlays.";
         }
 
         // ---------- ComboBox_Location ----------
-        private void ComboBox_Location_SelectionIndexChanged(object sender, EventArgs e)
+        private async void ComboBox_Location_SelectionIndexChanged(object sender, EventArgs e)
         {
             if (ComboBox_Location.SelectedItem == null) return;
             string name = ComboBox_Location.SelectedItem.ToString();
@@ -1620,13 +1688,11 @@ Right-click anywhere on the chart to clear all overlays.";
             mAppSettings.LastSelectedLocationName = name;
             SettingsStore.Save(mAppSettings);
 
-            // Single-shot user intent: invalidate the cache immediately rather than going
-            // through the debounce. Lat/lon scrubs go through OnLocationEdited which uses
-            // the debounce; combo-pick is one click that shouldn't feel laggy.
-            if (mCache != null && !LocationsCacheEquivalent(mLocation, mCache.CurrentLocation))
-            {
-                _ = mCache.SetLocationAsync(mLocation);
-            }
+            // Symmetric reset path: clear checked set, blank chart, drop+rekey cache.
+            // Single user click that shouldn't feel laggy -- skip the SessionsRebuild
+            // debounce and re-engage the controls directly. await so RefreshAstrometryLabels
+            // runs on a settled cache.
+            await ResetForLocationChange();
 
             // Refresh the dependent dusk/dawn/altitude/phase labels for the new geo.
             RefreshAstrometryLabels();
