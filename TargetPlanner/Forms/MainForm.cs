@@ -69,6 +69,16 @@ namespace TargetPlanner
         private TargetPlanner.Caches.ChartCacheStore mCache;
         private CancellationTokenSource mCachePrepCts;
 
+        // Phase 2 of the orchestration-layer refactor: ChartCoordinator centralizes
+        // the diff-and-dispatch pipeline. UI handlers in this form build a
+        // ChartContext snapshot via SnapshotCurrent(...) and hand it to the
+        // coordinator's Apply (debounced) or ApplyImmediateAsync (no-debounce);
+        // the coordinator decides cache (re)build vs render vs visibility refresh.
+        // Phase 2 routes only the location-pipe (combo location pick + lat/lon/elev
+        // scrubs that cross LocationsCacheEquivalent) through it; non-keying scrubs
+        // stay on the legacy SessionsRebuildDebounce path until Phase 3.
+        private TargetPlanner.State.ChartCoordinator mCoordinator;
+
         // Filter library + the Filters-menu items. The library persists in
         // %APPDATA%\TargetPlanner\filters.json and ships with H/O/S/L/R/G/B defaults if
         // no file exists yet. mFilterMenuItems is the radio group -- one item per
@@ -359,6 +369,7 @@ Right-click anywhere on the chart to clear all overlays.";
 
             mCachePrepCts?.Cancel();
             mCachePrepCts?.Dispose();
+            mCoordinator?.Dispose();
             mCache?.Dispose();
 
             mSessionsRebuildDebounce?.Stop();
@@ -468,6 +479,17 @@ Right-click anywhere on the chart to clear all overlays.";
             // All sub-charts share the same ChartFixedHeight + empty legend at boot,
             // so seeding from any of them is equivalent.
             ResizeAltitudeChartArea(mSubCharts["Day"].IdealHeight);
+
+            // Construct the coordinator after both mCache and mSubCharts exist
+            // (it captures references via the resolver delegates). Post-apply
+            // hook keeps location-dependent labels in sync with the just-applied
+            // snapshot. Phase 2 only routes the location-pipe through it; other
+            // handlers migrate in Phase 3.
+            mCoordinator = new TargetPlanner.State.ChartCoordinator(
+                cache: mCache,
+                resolveSubChart: name => mSubCharts.TryGetValue(name, out var sc) ? sc : null,
+                resolveAllSubCharts: () => mSubCharts.Values,
+                postApplyHook: _ => RefreshAstrometryLabels());
 
             // Establish a default sort mode authoritatively from code. The VS Designer has a
             // recurring habit of silently dropping ComboBox_SortTargets.SelectedIndex = 0 from
@@ -697,12 +719,13 @@ Right-click anywhere on the chart to clear all overlays.";
         //     don't want a 250-ms-late blank-render to fight our explicit one
         //     (and harmless when the set was already empty -- VM short-circuits,
         //     no event, Stop() no-ops).
-        //   - Blank the chart explicitly. Covers the single-target case where
-        //     the checked set was already empty so SetAllChecked above didn't
-        //     fire CheckedSetChanged and the chart would otherwise still show
-        //     the prior single-target series painted against the old location.
-        //   - Drop the cache + re-key to mLocation, gated by LocationsCacheEquivalent
-        //     so a re-pick of the currently-keyed location doesn't churn the cache.
+        //   - Reset mLastRenderedTargets to empty. The coordinator's pipeline
+        //     drops the cache (gated by LocationCacheEquivalent), runs
+        //     PrepareManyAsync(empty) as a no-op, Renders the active chart
+        //     with the empty target list (-> blank chart), and refreshes
+        //     visibility on inactive charts (no-op on empty mSeriesByTarget).
+        //     Post-apply hook refreshes the dependent dawn/dusk/sun/moon
+        //     labels for the new location.
         // No auto re-render: the user re-engages a control (Button_Graph,
         // CheckedListBox toggles, etc.) to draw fresh series.
         private async Task ResetForLocationChange()
@@ -713,12 +736,7 @@ Right-click anywhere on the chart to clear all overlays.";
             mCheckedToggleDebounce?.Stop();
 
             mLastRenderedTargets = new List<Target>();
-            RenderArea(SnapshotCurrent(mLastRenderedTargets));
-
-            if (mCache != null && !LocationsCacheEquivalent(mLocation, mCache.CurrentLocation))
-            {
-                await mCache.SetLocationAsync(mLocation);
-            }
+            await mCoordinator.ApplyImmediateAsync(SnapshotCurrent(mLastRenderedTargets));
         }
 
         // Push the active filter's center wavelength + re-walk the K-S minute grid
@@ -1697,13 +1715,9 @@ Right-click anywhere on the chart to clear all overlays.";
             SettingsStore.Save(mAppSettings);
 
             // Symmetric reset path: clear checked set, blank chart, drop+rekey cache.
-            // Single user click that shouldn't feel laggy -- skip the SessionsRebuild
-            // debounce and re-engage the controls directly. await so RefreshAstrometryLabels
-            // runs on a settled cache.
+            // The coordinator's post-apply hook (RefreshAstrometryLabels) refreshes
+            // the dependent dusk/dawn/sun/moon labels once the pipeline settles.
             await ResetForLocationChange();
-
-            // Refresh the dependent dusk/dawn/altitude/phase labels for the new geo.
-            RefreshAstrometryLabels();
         }
 
         // DropDown nulls the current selection so re-picking the same item (e.g. the
