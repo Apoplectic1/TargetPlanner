@@ -77,7 +77,14 @@ namespace TargetPlanner.Charts
                 var win = mWindowFor(series);
                 if (!win.HasValue)
                 {
-                    mBackups.Remove(series);
+                    // Target has no D-hour window under the current H/D/M --
+                    // restore the altitude data (above) but KEEP the backup so
+                    // a subsequent scrub that re-admits the target re-applies
+                    // the overlay automatically. Without this, scrubbing across
+                    // a fit/no-fit/fit cycle would silently drop the user's
+                    // overlay intent on the way through "no fit" and they'd
+                    // have to re-click after every such cycle. Right-click
+                    // (RestoreAll) is still the explicit way to clear intent.
                     continue;
                 }
                 // Re-apply step function. ApplyOverlay re-snapshots into mBackups
