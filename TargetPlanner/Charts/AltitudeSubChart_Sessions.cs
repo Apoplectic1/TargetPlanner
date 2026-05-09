@@ -19,6 +19,7 @@ using LiveChartsCore.SkiaSharpView.Painting;
 using LiveChartsCore.SkiaSharpView.WinForms;
 using SkiaSharp;
 using TargetPlanner.Caches;
+using TargetPlanner.State;
 
 using Location = Astronomy.Core.Locations.Location;
 using Target   = Astronomy.Core.Targets.Target;
@@ -243,18 +244,16 @@ namespace TargetPlanner.Charts
             return null;
         }
 
-        public void Render(
-            IReadOnlyList<Target> targets,
-            IChartCacheStore cache,
-            MoonAvoidanceProfile profile,
-            Location location,
-            double horizon,
-            TimeSpan duration,
-            DateTime now,
-            CancellationToken ct = default)
+        public void Render(ChartContext ctx, IChartCacheStore cache, CancellationToken ct = default)
         {
-            if (location == null) throw new ArgumentNullException(nameof(location));
+            if (ctx == null) throw new ArgumentNullException(nameof(ctx));
+            if (ctx.Location == null) throw new ArgumentException("ctx.Location must not be null", nameof(ctx));
             ct.ThrowIfCancellationRequested();
+
+            Location location = ctx.Location;
+            IReadOnlyList<Target> targets = ctx.Targets;
+            double horizon = location.Horizon;
+            DateTime now = location.DateTime;
 
             UpdateHorizonLine(horizon);
             UpdateNowLine(now);
@@ -353,7 +352,7 @@ namespace TargetPlanner.Charts
             // paint shows empty curves; the bg task fills in fitted nights.
             // For 44 targets × 365 nights × (PlaceBest + PlaceCentered) the
             // moon-aware case takes ~10-60 sec, which is why this is async.
-            RefreshVisibility(cache, profile, location, horizon, duration);
+            RefreshVisibility(ctx, cache);
 
             RecomputeLayout();
         }
@@ -365,18 +364,17 @@ namespace TargetPlanner.Charts
         // thread so the UI stays responsive during a scrub. Replaces any
         // in-flight task (cancellation token) so a rapid spinner scrub doesn't
         // queue stale work behind in-flight stale work.
-        public void RefreshVisibility(
-            IChartCacheStore cache,
-            MoonAvoidanceProfile profile,
-            Location location,
-            double horizon,
-            TimeSpan duration)
+        public void RefreshVisibility(ChartContext ctx, IChartCacheStore cache)
         {
             // cache is part of the IAltitudeSubChart contract for uniform
             // call sites; Sessions snapshots YearDays at Render via
             // mYearDaysByTarget and doesn't need to re-read it here.
             _ = cache;
-            if (location == null || mCeilingByTarget.Count == 0) return;
+            if (ctx == null || ctx.Location == null || mCeilingByTarget.Count == 0) return;
+            Location location = ctx.Location;
+            MoonAvoidanceProfile profile = ctx.MoonProfile;
+            double horizon = location.Horizon;
+            TimeSpan duration = location.Duration;
 
             mVisibilityCts?.Cancel();
             mVisibilityCts = new CancellationTokenSource();

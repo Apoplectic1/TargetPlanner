@@ -19,6 +19,7 @@ using LiveChartsCore.SkiaSharpView.Painting;
 using LiveChartsCore.SkiaSharpView.WinForms;
 using SkiaSharp;
 using TargetPlanner.Caches;
+using TargetPlanner.State;
 
 using Location = Astronomy.Core.Locations.Location;
 using Target   = Astronomy.Core.Targets.Target;
@@ -216,18 +217,16 @@ namespace TargetPlanner.Charts
             return arr[segmentStart] ?? string.Empty;
         }
 
-        public void Render(
-            IReadOnlyList<Target> targets,
-            IChartCacheStore cache,
-            MoonAvoidanceProfile profile,
-            Location location,
-            double horizon,
-            TimeSpan duration,
-            DateTime now,
-            CancellationToken ct = default)
+        public void Render(ChartContext ctx, IChartCacheStore cache, CancellationToken ct = default)
         {
-            if (location == null) throw new ArgumentNullException(nameof(location));
+            if (ctx == null) throw new ArgumentNullException(nameof(ctx));
+            if (ctx.Location == null) throw new ArgumentException("ctx.Location must not be null", nameof(ctx));
             ct.ThrowIfCancellationRequested();
+
+            Location location = ctx.Location;
+            IReadOnlyList<Target> targets = ctx.Targets;
+            double horizon = location.Horizon;
+            DateTime now = location.DateTime;
 
             UpdateHorizonLine(horizon);
             UpdateNowLine(now);
@@ -308,7 +307,7 @@ namespace TargetPlanner.Charts
             // Render shows null-Y curves; the bg task fills in fitted nights'
             // session-floor altitudes and unified tooltip text. Subsequent
             // scrubs cancel + restart this same task path.
-            RefreshVisibility(cache, profile, location, horizon, duration);
+            RefreshVisibility(ctx, cache);
 
             RecomputeLayout();
         }
@@ -323,18 +322,17 @@ namespace TargetPlanner.Charts
         // Called from Render's tail (first-paint refinement) and from
         // MainForm.SessionsRebuildDebounce_Tick (live scrub refinement). No-op
         // when no targets are rendered.
-        public void RefreshVisibility(
-            IChartCacheStore cache,
-            MoonAvoidanceProfile profile,
-            Location location,
-            double horizon,
-            TimeSpan duration)
+        public void RefreshVisibility(ChartContext ctx, IChartCacheStore cache)
         {
             // cache is part of the IAltitudeSubChart contract for uniform
             // call sites; Year snapshots YearDays at Render via mYearDaysByTarget
             // and doesn't need to re-read it here.
             _ = cache;
-            if (location == null || mSeriesByTarget.Count == 0) return;
+            if (ctx == null || ctx.Location == null || mSeriesByTarget.Count == 0) return;
+            Location location = ctx.Location;
+            MoonAvoidanceProfile profile = ctx.MoonProfile;
+            double horizon = location.Horizon;
+            TimeSpan duration = location.Duration;
 
             // Cancel any in-flight task before starting a new one so the UI
             // marshalling continuation we attach below sees a fresh CTS state.

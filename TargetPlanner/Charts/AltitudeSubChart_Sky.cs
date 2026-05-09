@@ -22,6 +22,7 @@ using LiveChartsCore.SkiaSharpView.Painting;
 using LiveChartsCore.SkiaSharpView.WinForms;
 using SkiaSharp;
 using TargetPlanner.Caches;
+using TargetPlanner.State;
 using TargetPlanner.Support;
 
 using Location = Astronomy.Core.Locations.Location;
@@ -256,18 +257,21 @@ namespace TargetPlanner.Charts
             return arr[segmentStart] ?? string.Empty;
         }
 
-        public void Render(
-            IReadOnlyList<Target> targets,
-            IChartCacheStore cache,
-            MoonAvoidanceProfile profile,
-            Location location,
-            double horizon,
-            TimeSpan duration,
-            DateTime now,
-            CancellationToken ct = default)
+        public void Render(ChartContext ctx, IChartCacheStore cache, CancellationToken ct = default)
         {
-            if (location == null) throw new ArgumentNullException(nameof(location));
+            if (ctx == null) throw new ArgumentNullException(nameof(ctx));
+            if (ctx.Location == null) throw new ArgumentException("ctx.Location must not be null", nameof(ctx));
             ct.ThrowIfCancellationRequested();
+
+            Location location = ctx.Location;
+            IReadOnlyList<Target> targets = ctx.Targets;
+            DateTime now = location.DateTime;
+
+            // Sync ActiveFilterCenterNm from the snapshot before computing K-S.
+            // ChartContext is the authoritative input; the property setter still
+            // exists for cheap-scrub callers (RefreshSkyBrightness from the
+            // SessionsRebuildDebounce_Tick path) which feed it directly.
+            ActiveFilterCenterNm = ctx.ActiveFilterCenterNm;
 
             NightWindow night = cache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(location);
             if (!night.IsValid)
@@ -342,7 +346,7 @@ namespace TargetPlanner.Charts
             // window tonight). Same probe as Day so the two charts agree on
             // which targets are hidden -- the legacy AltitudeSeries paired the
             // -Day and -Sky series in one Color toggle for exactly this reason.
-            RefreshVisibility(cache, profile, location, horizon, duration);
+            RefreshVisibility(ctx, cache);
 
             RecomputeLayout();
         }
@@ -359,14 +363,14 @@ namespace TargetPlanner.Charts
         // "The Sky brightness companion curve mirrors the hide-on-no-fit
         //  (consistency: a target hidden by the Lorentzian fit-check shouldn't
         //  have its sky-brightness curve still visible on the Sky area)."
-        public void RefreshVisibility(
-            IChartCacheStore cache,
-            MoonAvoidanceProfile profile,
-            Location location,
-            double horizon,
-            TimeSpan duration)
+        public void RefreshVisibility(ChartContext ctx, IChartCacheStore cache)
         {
-            if (location == null || mSeriesByTarget.Count == 0) return;
+            if (ctx == null || ctx.Location == null || mSeriesByTarget.Count == 0) return;
+            Location location = ctx.Location;
+            MoonAvoidanceProfile profile = ctx.MoonProfile;
+            double horizon = location.Horizon;
+            TimeSpan duration = location.Duration;
+
             NightWindow night = cache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(location);
             if (!night.IsValid) return;
 

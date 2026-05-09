@@ -678,10 +678,10 @@ Right-click anywhere on the chart to clear all overlays.";
             }
 
             if (mSubCharts == null) return;
+            ChartContext refreshCtx = SnapshotCurrent(mLastRenderedTargets);
             foreach (var sc in mSubCharts.Values)
             {
-                sc.RefreshVisibility(mCache, mMoonAvoidanceProfile, mLocation,
-                    mLocation.Horizon, mLocation.Duration);
+                sc.RefreshVisibility(refreshCtx, mCache);
             }
             PushSkyKSInputs();
         }
@@ -713,7 +713,7 @@ Right-click anywhere on the chart to clear all overlays.";
             mCheckedToggleDebounce?.Stop();
 
             mLastRenderedTargets = new List<Target>();
-            RenderArea(SelectedArea(), mLastRenderedTargets);
+            RenderArea(SnapshotCurrent(mLastRenderedTargets));
 
             if (mCache != null && !LocationsCacheEquivalent(mLocation, mCache.CurrentLocation))
             {
@@ -1071,10 +1071,10 @@ Right-click anywhere on the chart to clear all overlays.";
             // year caches are populated and the call is cheap.
             if (mSubCharts != null)
             {
+                ChartContext refreshCtx = SnapshotCurrent(mLastRenderedTargets);
                 foreach (var sc in mSubCharts.Values)
                 {
-                    sc.RefreshVisibility(mCache, mMoonAvoidanceProfile, mLocation,
-                        mLocation.Horizon, mLocation.Duration);
+                    sc.RefreshVisibility(refreshCtx, mCache);
                 }
             }
         }
@@ -1469,12 +1469,12 @@ Right-click anywhere on the chart to clear all overlays.";
         // cascade into the combo's SelectedIndexChanged path.
         private async Task RunGraphBuildAsync(IReadOnlyList<Target> targets)
         {
-            // Snapshot mLocation at build entry. RenderArea is called against the
-            // snapshot, not against the live mLocation -- if a SetLocationAsync ran
-            // mid-build, the snapshot pins the build to its original location and
-            // the post-await drift check abandons the render so a stale series
-            // can't paint against new geometry.
-            Location locationSnapshot = mLocation;
+            // Snapshot full ChartContext at build entry. RenderArea is called
+            // against the snapshot, not against live MainForm fields -- if a
+            // SetLocationAsync ran mid-build, the snapshot pins the build to its
+            // original inputs and the post-await drift check abandons the render
+            // so a stale series can't paint against new geometry.
+            ChartContext ctxSnapshot = SnapshotCurrent(targets);
 
             (int progressGeneration, IProgress<int> targetProgress) =
                 BeginChartBuildProgress(targetCount: targets.Count);
@@ -1506,15 +1506,15 @@ Right-click anywhere on the chart to clear all overlays.";
                 // cache -- entries are missing and the snapshot-keyed render
                 // would paint partial data. Abandon and let the location-change
                 // path drive the next render.
-                if (!object.ReferenceEquals(mLocation, locationSnapshot)) return;
+                if (!object.ReferenceEquals(mLocation, ctxSnapshot.Location)) return;
 
                 mLastRenderedTargets = new List<Target>(targets);
 
-                // Paint on whichever area the user has selected via the view radios.
-                // Day is the default at form construction (Designer sets
-                // RadioButton_Day.Checked = true) so a fresh launch lands on Day;
-                // subsequent Graph clicks preserve the user's last view choice.
-                RenderArea(SelectedArea(), mLastRenderedTargets, locationSnapshot, buildCt);
+                // Paint on whichever area the user had selected when the build
+                // started (carried in ctxSnapshot.ActiveArea). Day is the default
+                // at form construction (Designer sets RadioButton_Day.Checked =
+                // true) so a fresh launch lands on Day.
+                RenderArea(ctxSnapshot, buildCt);
             }
             catch (OperationCanceledException)
             {
@@ -1586,30 +1586,38 @@ Right-click anywhere on the chart to clear all overlays.";
             return "Day";
         }
 
-        // Dispatch a synchronous Render to the named area's sub-chart. Pushes
-        // the active filter's CenterNm into mLC2Sky as part of the call so K-S
-        // brightness uses the current Rayleigh λ⁻⁴ scaling. Resizes the panel
-        // to match the newly-active sub-chart's IdealHeight.
+        // Dispatch a synchronous Render to the sub-chart named by <paramref name="ctx.ActiveArea"/>.
+        // Resizes the panel to match the newly-active sub-chart's IdealHeight.
         //
-        // <paramref name="location"/> is null-defaulted for back-compat call sites
-        // (radio toggles, OpenEditFiltersDialog post-save refresh, etc.) that paint
-        // mLastRenderedTargets against the live mLocation. Callers that snapshot
-        // mLocation at the start of an async build (RunGraphBuildAsync) pass the
-        // snapshot here so the paint is location-coherent even if mLocation has
-        // drifted since the snapshot was taken.
-        private void RenderArea(string area, IReadOnlyList<Target> targets,
-                                Location location = null,
-                                CancellationToken ct = default)
+        // <paramref name="ctx"/> is the immutable input snapshot — Phase 1 of the
+        // orchestration-layer refactor. Callers either build a snapshot via
+        // <see cref="SnapshotCurrent(IReadOnlyList{Target})"/> (radio toggles, etc.)
+        // or capture the snapshot at the start of an async build (RunGraphBuildAsync)
+        // so the paint is location-coherent even if mLocation has drifted since.
+        private void RenderArea(ChartContext ctx, CancellationToken ct = default)
         {
             if (mSubCharts == null) return;
-            if (!mSubCharts.TryGetValue(area, out var sc)) return;
-            Location loc = location ?? mLocation;
+            if (ctx == null) return;
+            if (!mSubCharts.TryGetValue(ctx.ActiveArea, out var sc)) return;
             ShowOnlyAltitudeChart(sc.Control);
-            if (sc is Charts.AltitudeSubChart_Sky sky)
-                sky.ActiveFilterCenterNm = mActiveFilterCenterNm;
-            sc.Render(targets, mCache, mMoonAvoidanceProfile, loc,
-                loc.Horizon, loc.Duration, mLocalDateTime.When, ct);
+            sc.Render(ctx, mCache, ct);
             ResizeAltitudeChartArea(sc.IdealHeight);
+        }
+
+        // Build a ChartContext snapshot from current MainForm state. Single point
+        // that reads mLocation / mMoonAvoidanceProfile / mActiveFilterCenterNm /
+        // SelectedArea() — adding a new chart input is one record-field addition
+        // here plus one additional read here, not a signature break across six
+        // files. Caller decides which target list to pass (single-target via
+        // SelectedSingle, multi via the checked set, or empty for blanking).
+        private ChartContext SnapshotCurrent(IReadOnlyList<Target> targets)
+        {
+            return new ChartContext(
+                Location:             mLocation,
+                Targets:              targets ?? Array.Empty<Target>(),
+                MoonProfile:          mMoonAvoidanceProfile,
+                ActiveFilterCenterNm: mActiveFilterCenterNm,
+                ActiveArea:           SelectedArea());
         }
 
         // Snap the observation moment back to the current wall-clock time. Replaces the
@@ -2156,28 +2164,28 @@ Right-click anywhere on the chart to clear all overlays.";
             mUIState.DayChart = RadioButton_Day.Checked;
             if (!RadioButton_Day.Checked) return;
             AstrometryUi.Location(mLocation);
-            RenderArea("Day", mLastRenderedTargets);
+            RenderArea(SnapshotCurrent(mLastRenderedTargets));
         }
 
         private void RadioButton_Year_CheckedChanged(object sender, EventArgs e)
         {
             mUIState.YearChart = RadioButton_Year.Checked;
             if (!RadioButton_Year.Checked) return;
-            RenderArea("Year", mLastRenderedTargets);
+            RenderArea(SnapshotCurrent(mLastRenderedTargets));
         }
 
         private void RadioButton_Sessions_CheckedChanged(object sender, EventArgs e)
         {
             mUIState.SessionsChart = RadioButton_Sessions.Checked;
             if (!RadioButton_Sessions.Checked) return;
-            RenderArea("Sessions", mLastRenderedTargets);
+            RenderArea(SnapshotCurrent(mLastRenderedTargets));
         }
 
         private void RadioButton_Sky_CheckedChanged(object sender, EventArgs e)
         {
             mUIState.SkyChart = RadioButton_Sky.Checked;
             if (!RadioButton_Sky.Checked) return;
-            RenderArea("Sky", mLastRenderedTargets);
+            RenderArea(SnapshotCurrent(mLastRenderedTargets));
         }
 
         // Hide every control in Panel_AltitudeChart except `target`. Used to

@@ -2,11 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Windows.Forms;
-using Astronomy.Core.Moon;
 using TargetPlanner.Caches;
+using TargetPlanner.State;
 
-using Location = Astronomy.Core.Locations.Location;
-using Target   = Astronomy.Core.Targets.Target;
+using Target = Astronomy.Core.Targets.Target;
 
 namespace TargetPlanner.Charts
 {
@@ -52,9 +51,12 @@ namespace TargetPlanner.Charts
         // across calls via internal GetOrCreate paths so legend-toggle state
         // survives a re-render. Render's tail calls RefreshVisibility(...) so
         // the first paint already reflects the H/D/M state.
-        void Render(IReadOnlyList<Target> targets, IChartCacheStore cache,
-            MoonAvoidanceProfile profile, Location location, double horizon,
-            TimeSpan duration, DateTime now, CancellationToken ct = default);
+        //
+        // Phase 1 of the orchestration-layer refactor: consolidates the prior
+        // 8-parameter signature behind a single ChartContext snapshot. The
+        // sub-chart reads ctx.Targets / ctx.MoonProfile / ctx.Location and
+        // derives Horizon / Duration / now from ctx.Location.
+        void Render(ChartContext ctx, IChartCacheStore cache, CancellationToken ct = default);
 
         // Cheap path for Sort changes -- reorders the existing series in
         // mChart.Series without recomputing data and without restarting the
@@ -73,8 +75,6 @@ namespace TargetPlanner.Charts
         // null out unfit nights when the task lands. Cache argument is
         // consumed by Day / Sky for NightCache.Starting; Year / Sessions
         // snapshot YearDays at Render time and ignore it.
-        void RefreshVisibility(IChartCacheStore cache,
-            MoonAvoidanceProfile profile, Location location,
-            double horizon, TimeSpan duration);
+        void RefreshVisibility(ChartContext ctx, IChartCacheStore cache);
     }
 }

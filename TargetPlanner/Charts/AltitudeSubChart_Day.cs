@@ -18,6 +18,7 @@ using LiveChartsCore.SkiaSharpView.Painting;
 using LiveChartsCore.SkiaSharpView.WinForms;
 using SkiaSharp;
 using TargetPlanner.Caches;
+using TargetPlanner.State;
 using TargetPlanner.Support;
 
 using Location = Astronomy.Core.Locations.Location;
@@ -224,18 +225,18 @@ namespace TargetPlanner.Charts
             mNowLine.Xj = oa;
         }
 
-        public void Render(
-            IReadOnlyList<Target> targets,
-            IChartCacheStore cache,
-            MoonAvoidanceProfile profile,
-            Location location,
-            double horizon,
-            TimeSpan duration,
-            DateTime now,
-            CancellationToken ct = default)
+        public void Render(ChartContext ctx, IChartCacheStore cache, CancellationToken ct = default)
         {
-            if (location == null) throw new ArgumentNullException(nameof(location));
+            if (ctx == null) throw new ArgumentNullException(nameof(ctx));
+            if (ctx.Location == null) throw new ArgumentException("ctx.Location must not be null", nameof(ctx));
             ct.ThrowIfCancellationRequested();
+
+            Location location = ctx.Location;
+            IReadOnlyList<Target> targets = ctx.Targets;
+            MoonAvoidanceProfile profile = ctx.MoonProfile;
+            double horizon = location.Horizon;
+            TimeSpan duration = location.Duration;
+            DateTime now = location.DateTime;
 
             NightWindow night = cache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(location);
             if (!night.IsValid)
@@ -383,14 +384,14 @@ namespace TargetPlanner.Charts
         // and any active HD overlay rectangles. Caller must have run Render first;
         // this method assumes mSeriesByTarget is already populated for the current
         // target list.
-        public void RefreshVisibility(
-            IChartCacheStore cache,
-            MoonAvoidanceProfile profile,
-            Location location,
-            double horizon,
-            TimeSpan duration)
+        public void RefreshVisibility(ChartContext ctx, IChartCacheStore cache)
         {
-            if (location == null || mSeriesByTarget.Count == 0) return;
+            if (ctx == null || ctx.Location == null || mSeriesByTarget.Count == 0) return;
+            Location location = ctx.Location;
+            MoonAvoidanceProfile profile = ctx.MoonProfile;
+            double horizon = location.Horizon;
+            TimeSpan duration = location.Duration;
+
             NightWindow night = cache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(location);
             if (!night.IsValid) return;
 
