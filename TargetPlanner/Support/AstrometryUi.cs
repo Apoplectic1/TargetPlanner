@@ -1,5 +1,6 @@
 using Astronomy.Core.Astrometry;
 using Astronomy.Core.Night;
+using Astronomy.Core.Sun;
 using System;
 
 using Location = Astronomy.Core.Locations.Location;
@@ -41,8 +42,9 @@ namespace TargetPlanner.Support
                 ? night.AstronomicalDusk.ToLocalTime() : DateTime.MinValue;
             LunarIlluminationFraction = night.LunarIlluminationFraction;
 
-            // Per-moment sun / moon altitudes at the observer.
-            SunAltitude   = AstroUtil.GetSunAltitude (utc, observer);
+            // Per-moment sun / moon altitudes at the observer. Sun goes through the new
+            // Astronomy.Core.Sun.SunPosition facade; Moon stays on AstroUtil.
+            SunAltitude   = SunPosition.AltAzAt(localLocation, utc).Altitude;
             LunarAltitude = AstroUtil.GetMoonAltitude(utc, observer);
 
             // Lunar phase name from synodic-cycle bucket.

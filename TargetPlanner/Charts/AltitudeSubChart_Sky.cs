@@ -13,6 +13,7 @@ using Astronomy.Core.Horizons;
 using Astronomy.Core.Moon;
 using Astronomy.Core.Night;
 using Astronomy.Core.Session;
+using Astronomy.Core.Sun;
 using LiveChartsCore;
 using LiveChartsCore.Defaults;
 using LiveChartsCore.Measure;
@@ -518,7 +519,7 @@ namespace TargetPlanner.Charts
                 AltAz t = AltAzCalculator.At(target, location, utc);
                 var m = MoonSeparation.ObserveAt(target, location, utc);
                 double phase = SkyBrightness.PhaseAngleDegFromAgeDays(LunarAge.DaysAt(utc));
-                double sunAlt = AstroUtil.GetSunAltitude(utc, observer);
+                double sunAlt = SunPosition.AltAzAt(location, utc).Altitude;
 
                 double mag = SkyBrightness.KsAt(
                     t.Altitude, t.Azimuth,
