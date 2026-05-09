@@ -212,14 +212,11 @@ Right-click anywhere on the chart to clear all overlays.";
         // the 1-second hold.
         private int mProcessObjectGeneration;
 
-        // mGraphMode is now mSelection.Mode (Phase 2 of the SoC refactor). Mutators on the
-        // VM (SetSelectedSingle / SetChecked / SetCheckedSet / SetAllChecked) imply the
-        // mode, so callers don't need to update mode explicitly.
-
-        // Cancellation handle for the current chart build. Button_Graph_Click creates a new
-        // CTS per build; Button_Cancel_Click signals it; the token is observed inside
-        // AltitudeSeries.ComputeYearCache's 365-day loop and AltitudeChart.ReloadWithTargets'
-        // Task.WhenAll. Disposed in MainForm_FormClosing.
+        // Cancellation handle for the current chart build. RunGraphBuildAsync creates
+        // a new CTS per build (cancelling any prior in-flight build for supersedence);
+        // Button_Cancel_Click signals it; the token is observed inside
+        // ChartCacheStore.PrepareManyAsync's per-target Task.WhenAll. Disposed in
+        // MainForm_FormClosing.
         private CancellationTokenSource mGraphCts;
 
         // Ignore-second-click guard for Button_Graph_Click. A Graph click while a prior
@@ -236,13 +233,14 @@ Right-click anywhere on the chart to clear all overlays.";
         private System.Windows.Forms.Timer mSessionsRebuildDebounce;
         private const int SessionsRebuildDebounceMs = 150;
 
-        // Latch used by the CheckedListBox VM binding. ItemCheck sets it true; the
-        // subsequent SelectedIndexChanged consumes + clears it to decide "this highlight
-        // change came with a checkbox toggle, leave Mode=Multi alone" vs. "pure highlight,
-        // flip Mode=Single + select the highlighted target". MouseUp / KeyUp also clear it
-        // to cover the case where ItemCheck fired but SelectedIndexChanged did not (e.g.
-        // toggling the checkbox of an already-selected row).
-        private bool mCheckedListBoxJustToggled;
+        // Trailing-edge debounce for multi-graph auto-rendering. Subscribed off
+        // mSelection.CheckedSetChanged in WireSelectionVm: each Set/Clear/toggle bumps
+        // Stop+Start; CheckedToggleDebounce_Tick fires after 250 ms of quiet and runs
+        // RunGraphBuildAsync over the current Checked set. Button_Graph_Click also
+        // calls Stop() so a still-pending tick can't clobber a just-rendered single
+        // graph (see plan: mode-removal-against-current-dev.md, Edge case 4).
+        private System.Windows.Forms.Timer mCheckedToggleDebounce;
+        private const int CheckedToggleDebounceMs = 250;
 
         public MainForm()
         {
@@ -1368,15 +1366,18 @@ Right-click anywhere on the chart to clear all overlays.";
                 ResortSelectedTargets();
         }
 
-        // Graph the targets indicated by mSelection.Mode (last-touched). Multi walks the
-        // VM's Checked set; Single falls back to mSelection.SelectedSingle (RA/Dec inputs +
-        // combo). If Multi is active but Checked is empty (e.g. user just clicked Clear All),
-        // fall back to SelectedSingle so the button always produces a chart.
+        // Button_Graph is single-target only. Always graphs mSelection.SelectedSingle
+        // (the combo + RA/Dec inputs); on null SelectedSingle a 2-second
+        // ShowTransientMessage("No Targets") notice fires. Multi-target rendering is
+        // owned by the CheckedSetChanged debounce path (CheckedToggleDebounce_Tick),
+        // not by this button.
         //
-        // Async: ReloadWithTargets stages every target's Day / Moon / Year / Sessions build
-        // off to the side and only swaps into mChart.Series after all of them finish. That
-        // means (a) the prior chart stays fully stable during the compute and (b) Cancel
-        // leaves the prior chart untouched instead of half-updating.
+        // Chart-vs-checkbox divergence is intentional and unmanaged: clicking
+        // Button_Graph after checking targets renders just the combo target while the
+        // checkboxes stay ticked; the next checkbox toggle re-renders the full checked
+        // set, producing a visible jump from single to multi. That's the documented
+        // rule -- Button_Graph and the checked-set are independent views, switching
+        // between them is the user's explicit action.
         //
         // mLocation.DateTime is already kept in sync with the pickers via
         // UpdateLocalDateTimeEvents (called from DatePicker/TimePicker ValueChanged and
@@ -1384,75 +1385,66 @@ Right-click anywhere on the chart to clear all overlays.";
         // pre-refactor assumption when the app was always "live now" by default.
         private async void Button_Graph_Click(object sender, EventArgs e)
         {
-            // Ignore second click while a build is in flight. User must Cancel the running
-            // build before starting a new one.
-            if (mGraphBuildInProgress) return;
+            // Cancel any pending multi-graph trigger. A user click on Button_Graph is an
+            // explicit "I want single-target now" intent; without this stop, a checkbox
+            // toggle 200 ms ago would still tick the debounce 50 ms later and clobber
+            // the just-rendered single-graph with a multi re-render.
+            if (mCheckedToggleDebounce != null) mCheckedToggleDebounce.Stop();
 
-            var targets = new List<Target>();
+            // Resolve combo text to a Target. Covers the edge case where the user typed
+            // into ComboBox_SelectTarget without triggering SelectedIndexChanged /
+            // MouseLeave; without this, SelectedSingle would lag the combo by one edit.
+            // If the text doesn't match a loaded target, fall through and use whatever
+            // SelectedSingle currently is.
+            Target found = mSelection.KnownTargets.FirstOrDefault(t => t.Name == ComboBox_SelectTarget.Text);
+            if (found != null) mSelection.SetSelectedSingle(found);
 
-            if (mSelection.Mode == GraphMode.Multi)
+            Target current = mSelection.SelectedSingle;
+            if (current == null)
             {
-                // Walk CheckedItems in display order so the rendered target list -- and
-                // therefore the chart legend -- inherits the CheckedListBox's NaturalStringComparer
-                // sort (see GetNinaTargets). Iterating mSelection.KnownTargets here would have
-                // used folder-load order, which is effectively arbitrary.
-                foreach (object item in CheckedListBox_SelectedTargets.CheckedItems)
-                {
-                    string name = item.ToString();
-                    Target t = mSelection.KnownTargets.FirstOrDefault(x => x.Name == name);
-                    if (t != null) targets.Add(t);
-                }
+                // No SelectedSingle, no resolvable combo text. Surface a brief
+                // auto-dismissing notice instead of silently doing nothing (the silent
+                // path was confusing -- the user clicked Graph and saw no feedback).
+                ShowTransientMessage("No Targets");
+                return;
             }
 
-            // Fall back to Single when Multi yields nothing (or when Mode is Single).
-            if (targets.Count == 0)
-            {
-                // Resolve combo text to a Target. Covers the edge case where the user typed
-                // into ComboBox_SelectTarget without triggering SelectedIndexChanged /
-                // MouseLeave; without this, SelectedSingle would lag the combo by one edit.
-                // If the text doesn't match a loaded target, fall through and use whatever
-                // SelectedSingle currently is.
-                Target found = mSelection.KnownTargets.FirstOrDefault(t => t.Name == ComboBox_SelectTarget.Text);
-                if (found != null) mSelection.SetSelectedSingle(found);
+            await RunGraphBuildAsync(new[] { current });
+        }
 
-                Target current = mSelection.SelectedSingle;
-                if (current == null)
-                {
-                    // No checked targets, no SelectedSingle, no resolvable combo text.
-                    // Surface a brief auto-dismissing notice instead of silently doing
-                    // nothing (the silent path was confusing -- the user clicked Graph and
-                    // saw no feedback).
-                    ShowTransientMessage("No Targets");
-                    return;
-                }
-                targets.Add(current);
-            }
-
+        // Shared graph-build pipeline. Cancels any in-flight build + replaces
+        // mGraphCts before starting; both Button_Graph_Click (single-target) and
+        // CheckedToggleDebounce_Tick (multi-target) call this. Whoever triggers a
+        // new build supersedes the prior one -- the stale build's CT trips and the
+        // catch (OperationCanceledException) lets it unwind cleanly without leaving
+        // the form gating flags wedged.
+        //
+        // Async: PrepareManyAsync warms the per-target year-cache + per-Location
+        // NightCache; sub-chart Render calls assume the cache is ready, so we
+        // await first, then RenderArea dispatches into the active radio's sub-chart.
+        // Empty targets is intentional -- ClearAll / fresh-NINA-load both produce
+        // empty input; PrepareManyAsync no-ops on empty (the cache for previously-
+        // rendered targets stays intact -- only SetLocationAsync ever drops cache),
+        // RenderArea paints a blank chart per each sub-chart's empty-list contract.
+        //
+        // Park focus on the form before disabling Button_Graph. Otherwise Win32
+        // auto-advances focus from the just-disabled Button_Graph to the next TabStop
+        // (ComboBox_SelectTarget), whose focus-gain auto-selects its text and would
+        // cascade into the combo's SelectedIndexChanged path.
+        private async Task RunGraphBuildAsync(IReadOnlyList<Target> targets)
+        {
             (int progressGeneration, IProgress<int> targetProgress) =
                 BeginChartBuildProgress(targetCount: targets.Count);
 
             mGraphCts?.Cancel();
             mGraphCts = new CancellationTokenSource();
 
-            // Disable Button_Graph for the duration of the full build so the user can't
-            // stack clicks. Button_GraphCancel stays enabled so a cancel can still be
-            // requested; it disables itself when clicked and re-enables alongside
-            // Button_Graph in the finally block below.
-            //
-            // Park focus on the form before the disable. Otherwise Win32 auto-advances
-            // focus from the just-disabled Button_Graph to the next TabStop
-            // (ComboBox_SelectTarget), whose focus-gain auto-selects its text and
-            // cascades mode-flip side effects into the combo's SelectedIndexChanged path.
             ActiveControl = null;
             Button_Graph.Enabled = false;
             mGraphBuildInProgress = true;
 
             try
             {
-                // Cache pre-population was previously hidden inside
-                // mAltitudeChart.ReloadWithTargets; with the legacy chart deleted it's
-                // a direct PrepareManyAsync await here. Sub-chart Render calls assume
-                // the cache is ready, so we await first, then dispatch.
                 if (mCache != null)
                 {
                     await mCache.PrepareManyAsync(targets, mGraphCts.Token, targetProgress);
@@ -1464,6 +1456,13 @@ Right-click anywhere on the chart to clear all overlays.";
                 // RadioButton_Day.Checked = true) so a fresh launch lands on Day;
                 // subsequent Graph clicks preserve the user's last view choice.
                 RenderArea(SelectedArea(), mLastRenderedTargets, mGraphCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Superseded by a newer build (single->multi or multi->single) or
+                // explicit Cancel. mLastRenderedTargets is left intact -- the newer
+                // build will overwrite it, or the user cancelled and the prior
+                // mLastRenderedTargets is still the on-screen truth.
             }
             finally
             {
@@ -1477,6 +1476,44 @@ Right-click anywhere on the chart to clear all overlays.";
                 // no-ops here -- Cancel_Click already reset the bar to 0.
                 FinishChartBuildProgress(progressGeneration);
             }
+        }
+
+        // CheckedSetChanged handler that arms the multi-graph debounce. A stop+start
+        // collapses rapid mutations (toggle three checkboxes in <250 ms succession)
+        // into one trailing-edge tick. Constructed lazily on first arm so the timer
+        // exists by the time Tick subscribers fire.
+        private void OnVmCheckedSetChanged_TriggerGraph(object sender, EventArgs e)
+        {
+            if (mCheckedToggleDebounce == null)
+            {
+                mCheckedToggleDebounce = new System.Windows.Forms.Timer
+                {
+                    Interval = CheckedToggleDebounceMs
+                };
+                mCheckedToggleDebounce.Tick += CheckedToggleDebounce_Tick;
+            }
+            mCheckedToggleDebounce.Stop();
+            mCheckedToggleDebounce.Start();
+        }
+
+        // Trailing-edge debounce tick. Walks CheckedListBox_SelectedTargets.CheckedItems
+        // in display order so the rendered target list -- and therefore the chart
+        // legend -- inherits the listbox's NaturalStringComparer sort (see
+        // GetNinaTargets). Iterating mSelection.Checked here would be set-order, not
+        // sort-order. Empty CheckedItems -> empty targets -> blank chart, intentionally.
+        private async void CheckedToggleDebounce_Tick(object sender, EventArgs e)
+        {
+            mCheckedToggleDebounce.Stop();
+
+            var targets = new List<Target>();
+            foreach (object item in CheckedListBox_SelectedTargets.CheckedItems)
+            {
+                string name = item.ToString();
+                Target t = mSelection.KnownTargets.FirstOrDefault(x => x.Name == name);
+                if (t != null) targets.Add(t);
+            }
+
+            await RunGraphBuildAsync(targets);
         }
 
         // Returns the currently-checked view radio's area name. Day is the default
@@ -1726,10 +1763,10 @@ Right-click anywhere on the chart to clear all overlays.";
 
             if (dialog.ShowDialog(this) == DialogResult.OK)
             {
-                // Click-Browse implies "I'm about to graph many of these". Flip Mode to
-                // Multi so the post-load Graph click uses the checked set without an
-                // intermediate explicit user action.
-                mSelection.SetMode(GraphMode.Multi);
+                // SetKnownTargets resets Checked to empty (default-none-checked), which
+                // fires CheckedSetChanged -> debounce -> blank multi-graph after 250 ms.
+                // The user opts in target-by-target via the listbox; no Mode setup
+                // needed.
                 _ = GetNinaTargets(new[] { dialog.SelectedPath });
             }
         }
@@ -2128,21 +2165,27 @@ Right-click anywhere on the chart to clear all overlays.";
         // the VM (a UI control's user-input event still fires when the value is set
         // programmatically; without the guard the write would round-trip).
         //
-        // Mode flips are implicit: SetSelectedSingle / SetChecked / SetCheckedSet /
-        // SetAllChecked all set Mode as a side effect, so callers don't need to track it.
+        // Render dispatch is explicit, not inferred:
+        //   - Button_Graph_Click renders SelectedSingle (single-target only).
+        //   - CheckedSetChanged drives a 250 ms-debounced multi-graph through
+        //     OnVmCheckedSetChanged_TriggerGraph -> CheckedToggleDebounce_Tick.
+        // The two paths are independent views; switching between them is the user's
+        // explicit action (chart and checked-set may diverge after Button_Graph; the
+        // next checkbox toggle re-renders the full checked set).
         //
-        // CheckedListBox disambiguation: WinForms fires ItemCheck and SelectedIndexChanged
-        // on the same user click when the user toggles a checkbox. ItemCheck routes to
-        // SetChecked (Mode = Multi); we then need to suppress the immediately-following
-        // SelectedIndexChanged path (which would otherwise route to SetSelectedSingle and
-        // flip Mode = Single, undoing the toggle's intent). The mCheckedListBoxJustToggled
-        // latch is set by ItemCheck and consumed by SelectedIndexChanged for that purpose.
+        // CheckedListBox events: ItemCheck routes to SetChecked which fires
+        // CheckedSetChanged. SelectedIndexChanged routes to SetSelectedSingle which
+        // fires SelectedSingleChanged. Highlighting a row updates the combo / RA /
+        // Dec via SetSelectedSingle; the multi-graph debounce never triggers because
+        // CheckedSetChanged isn't raised. No latch needed -- the two events fire
+        // independently and route to independent VM mutators.
         private void WireSelectionVm()
         {
             // VM -> UI bindings.
             mSelection.KnownTargetsChanged   += OnVmKnownTargetsChanged;
             mSelection.SelectedSingleChanged += OnVmSelectedSingleChanged;
             mSelection.CheckedSetChanged     += OnVmCheckedSetChanged;
+            mSelection.CheckedSetChanged     += OnVmCheckedSetChanged_TriggerGraph;
 
             // UI -> VM bindings. ComboBox_SelectTarget.SelectedIndexChanged is Designer-wired
             // to ComboBox_SelectTarget_SelectedIndexChanged which routes to the VM. Browse /
@@ -2154,8 +2197,6 @@ Right-click anywhere on the chart to clear all overlays.";
             // handlers for those events today.
             CheckedListBox_SelectedTargets.ItemCheck      += OnCheckedListBoxItemCheck;
             CheckedListBox_SelectedTargets.SelectedIndexChanged += OnCheckedListBoxSelectedIndexChanged;
-            CheckedListBox_SelectedTargets.MouseUp += (s, e) => mCheckedListBoxJustToggled = false;
-            CheckedListBox_SelectedTargets.KeyUp   += (s, e) => mCheckedListBoxJustToggled = false;
         }
 
         private void OnVmKnownTargetsChanged(object sender, EventArgs e)
@@ -2235,28 +2276,19 @@ Right-click anywhere on the chart to clear all overlays.";
             if (t == null) return;
             bool isChecked = e.NewValue == CheckState.Checked;
             mSelection.SetChecked(t, isChecked);
-            mCheckedListBoxJustToggled = true;
         }
 
         private void OnCheckedListBoxSelectedIndexChanged(object sender, EventArgs e)
         {
             if (mUpdatingUiFromVm) return;
 
-            // De-selection (no row highlighted) -- consume the toggle latch and bail.
-            if (CheckedListBox_SelectedTargets.SelectedItem == null)
-            {
-                mCheckedListBoxJustToggled = false;
-                return;
-            }
+            // De-selection (no row highlighted): nothing to push to the VM.
+            if (CheckedListBox_SelectedTargets.SelectedItem == null) return;
 
-            // Consume the toggle latch: it's valid for exactly one SelectedIndexChanged.
-            // If a checkbox was just toggled (ItemCheck fired moments ago), don't route
-            // through SetSelectedSingle here -- ItemCheck already established Mode = Multi
-            // and SetSelectedSingle would reset Mode = Single, undoing the toggle's intent.
-            bool wasJustToggled = mCheckedListBoxJustToggled;
-            mCheckedListBoxJustToggled = false;
-            if (wasJustToggled) return;
-
+            // Highlighting a row updates the single-target combo + RA/Dec inputs via
+            // SetSelectedSingle. This fires SelectedSingleChanged only -- the
+            // multi-graph debounce subscribes to CheckedSetChanged, so the chart is
+            // not re-rendered when the user merely highlights a row.
             string name = CheckedListBox_SelectedTargets.SelectedItem.ToString();
             Target t = mSelection.KnownTargets.FirstOrDefault(x => x.Name == name);
             if (t != null) mSelection.SetSelectedSingle(t);
@@ -2387,8 +2419,12 @@ Right-click anywhere on the chart to clear all overlays.";
             mSelection.SetSelectedSingle(found);
         }
 
-        // VM mutator. SetAllChecked fires CheckedSetChanged + ModeChanged (Multi);
-        // OnVmCheckedSetChanged updates the listbox row check states.
+        // VM mutator. SetAllChecked fires CheckedSetChanged; OnVmCheckedSetChanged
+        // updates the listbox row check states, and OnVmCheckedSetChanged_TriggerGraph
+        // arms the multi-graph debounce -> chart blanks ~250 ms later. The cache for
+        // previously-rendered targets is preserved (PrepareManyAsync(empty) is a
+        // no-op; only SetLocationAsync ever drops cache entries), so re-checking
+        // those targets later hits the warm cache instantly.
         private void Button_ClearAllTargets_Click(object sender, EventArgs e)
         {
             mSelection.SetAllChecked(false);
@@ -2449,22 +2485,19 @@ Right-click anywhere on the chart to clear all overlays.";
                 pickedNightLocation.Horizon <= 0.0
                 && pickedNightLocation.Duration <= TimeSpan.Zero;
 
-            // Compute the visible-tonight set, then push to the VM in two steps:
-            //   1. SetSelectedSingle to the first sorted visible target. This updates
-            //      ComboBox_SelectTarget.Text + RA/Dec inputs to that target. Implies
-            //      Mode = Single transiently.
-            //   2. SetCheckedSet(visible). This fills the multi-set + flips Mode back
-            //      to Multi (the right end-state for Button_Graph).
-            // Order matters: doing SetCheckedSet first then SetSelectedSingle would
-            // leave Mode = Single. Reversing the order ensures Mode = Multi at exit.
+            // Push the visible-tonight set into the VM. SetCheckedSet fires
+            // CheckedSetChanged -> debounce -> multi-graph: the visible-tonight chart
+            // appears automatically ~250 ms after the click. The combo / RA / Dec
+            // inputs stay pointing at whatever single target the user had selected
+            // before the click -- they describe the single-target view, not the
+            // visible-set view, and the two paradigms are independent (see
+            // Button_Graph_Click + WireSelectionVm).
             var visible = mSelection.KnownTargets.Where(t =>
                 useEverVisible
                     ? Astronomy.Core.Session.CoarseVisibility.IsEverVisible(t, pickedNightLocation, night)
                     : Astronomy.Core.Session.CoarseVisibility.IsAboveHorizonForAtLeast(
                           t, pickedNightLocation, night, horizon, pickedNightLocation.Duration))
                 .ToList();
-            Target firstSorted = SortedTargets(visible).FirstOrDefault();
-            if (firstSorted != null) mSelection.SetSelectedSingle(firstSorted);
             mSelection.SetCheckedSet(visible);
         }
     }
