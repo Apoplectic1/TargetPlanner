@@ -48,6 +48,7 @@ namespace TargetPlanner.State
     public sealed class ChartCoordinator : IDisposable
     {
         private readonly IChartCacheStore mCache;
+        private readonly Action<ChartContext, CancellationToken> mRenderActiveArea;
         private readonly Func<string, IAltitudeSubChart> mResolveSubChart;
         private readonly Func<IEnumerable<IAltitudeSubChart>> mResolveAllSubCharts;
         private readonly Action<ChartContext> mPostApplyHook;
@@ -61,12 +62,14 @@ namespace TargetPlanner.State
 
         public ChartCoordinator(
             IChartCacheStore cache,
+            Action<ChartContext, CancellationToken> renderActiveArea,
             Func<string, IAltitudeSubChart> resolveSubChart,
             Func<IEnumerable<IAltitudeSubChart>> resolveAllSubCharts,
             Action<ChartContext> postApplyHook,
             int debounceMs = 150)
         {
             mCache = cache ?? throw new ArgumentNullException(nameof(cache));
+            mRenderActiveArea = renderActiveArea ?? throw new ArgumentNullException(nameof(renderActiveArea));
             mResolveSubChart = resolveSubChart ?? throw new ArgumentNullException(nameof(resolveSubChart));
             mResolveAllSubCharts = resolveAllSubCharts ?? throw new ArgumentNullException(nameof(resolveAllSubCharts));
             mPostApplyHook = postApplyHook;
@@ -201,8 +204,14 @@ namespace TargetPlanner.State
             bool needsFullRender = locationKeyChanged || targetsChanged || areaChanged;
             if (needsFullRender)
             {
-                IAltitudeSubChart active = mResolveSubChart(ctx.ActiveArea);
-                active?.Render(ctx, mCache, ct);
+                // mRenderActiveArea is MainForm.RenderArea -- it does the full
+                // structural render: ShowOnlyAltitudeChart (flips Visible per
+                // sub-chart so only the active one paints), Render, and
+                // ResizeAltitudeChartArea. Calling sc.Render directly here
+                // would skip ShowOnly and leave every sub-chart invisible
+                // (their initial Control.Visible = false set in
+                // InitializeDynamicControls).
+                mRenderActiveArea(ctx, ct);
                 ct.ThrowIfCancellationRequested();
 
                 // Inactive charts: refresh visibility so they stay current
@@ -211,6 +220,7 @@ namespace TargetPlanner.State
                 // This is the "Issue 1" cross-chart H/D/M fix from Phase 2
                 // user feedback — without it, switching to an inactive chart
                 // after an H/D/M scrub paints stale state.
+                IAltitudeSubChart active = mResolveSubChart(ctx.ActiveArea);
                 foreach (IAltitudeSubChart sc in mResolveAllSubCharts())
                 {
                     if (sc != null && !object.ReferenceEquals(sc, active))

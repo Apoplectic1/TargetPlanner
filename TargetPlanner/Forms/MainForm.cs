@@ -482,6 +482,7 @@ Right-click anywhere on the chart to clear all overlays.";
             //   - Sky's K-S brightness re-walk (Bortle/Extinction/Filter scrubs).
             mCoordinator = new TargetPlanner.State.ChartCoordinator(
                 cache: mCache,
+                renderActiveArea: (ctx, ct) => RenderArea(ctx, ct),
                 resolveSubChart: name => mSubCharts.TryGetValue(name, out var sc) ? sc : null,
                 resolveAllSubCharts: () => mSubCharts.Values,
                 postApplyHook: ctx =>
