@@ -40,6 +40,7 @@ namespace TargetPlanner.Caches
         private Dictionary<Target, Task<TargetCacheEntry>> mInFlight = new Dictionary<Target, Task<TargetCacheEntry>>();
 
         public event EventHandler<TargetReadyEventArgs> TargetReady;
+        public event EventHandler<LocationChangedEventArgs> LocationChanged;
 
         public ChartCacheStore(Location initialLocation, SynchronizationContext uiContext)
         {
@@ -141,6 +142,7 @@ namespace TargetPlanner.Caches
             CancellationTokenSource oldCts;
             Task<NightCache> oldNightTask;
             ICollection<Task<TargetCacheEntry>> oldInFlight;
+            Location oldLocation;
 
             lock (mGate)
             {
@@ -148,6 +150,7 @@ namespace TargetPlanner.Caches
                 // settings-driven calls.
                 if (object.ReferenceEquals(mLocation, newLocation)) return;
 
+                oldLocation = mLocation;
                 oldCts = mLocationCts;
                 oldNightTask = mNightCacheTask;
                 oldInFlight = mInFlight.Values.ToList();
@@ -163,6 +166,12 @@ namespace TargetPlanner.Caches
             }
 
             oldCts.Cancel();
+
+            // Fire LocationChanged immediately after the swap commits, before awaiting
+            // the in-flight unwind. Subscribers reading CurrentLocation see the new
+            // location and can blank UI / schedule re-renders without waiting on stale
+            // builds to settle.
+            FireLocationChanged(oldLocation, newLocation);
 
             // Wait for in-flight tasks to observe the cancel and unwind. OperationCanceled
             // is the expected outcome of the cancel; other exceptions are stale-build
@@ -215,7 +224,7 @@ namespace TargetPlanner.Caches
                     mInFlight.Remove(target);
                 }
 
-                FireTargetReady(target, entry);
+                FireTargetReady(location, target, entry);
                 return entry;
             }
             catch
@@ -269,12 +278,20 @@ namespace TargetPlanner.Caches
             }
         }
 
-        private void FireTargetReady(Target target, TargetCacheEntry entry)
+        private void FireTargetReady(Location location, Target target, TargetCacheEntry entry)
         {
             EventHandler<TargetReadyEventArgs> handler = TargetReady;
             if (handler == null) return;
-            TargetReadyEventArgs args = new TargetReadyEventArgs(target, entry);
+            TargetReadyEventArgs args = new TargetReadyEventArgs(location, target, entry);
             // mUiContext is non-null by ctor invariant -- subscribers always get UI marshalling.
+            mUiContext.Post(_ => handler(this, args), null);
+        }
+
+        private void FireLocationChanged(Location oldLocation, Location newLocation)
+        {
+            EventHandler<LocationChangedEventArgs> handler = LocationChanged;
+            if (handler == null) return;
+            LocationChangedEventArgs args = new LocationChangedEventArgs(oldLocation, newLocation);
             mUiContext.Post(_ => handler(this, args), null);
         }
 

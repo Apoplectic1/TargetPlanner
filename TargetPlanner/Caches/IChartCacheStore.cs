@@ -64,23 +64,48 @@ namespace TargetPlanner.Caches
 
         /// <summary>Cancel all in-flight builds, drop every cached entry, switch to
         /// <paramref name="newLocation"/>. Subsequent <see cref="GetOrBuildAsync"/> /
-        /// <see cref="PrepareManyAsync"/> calls build against the new location.</summary>
+        /// <see cref="PrepareManyAsync"/> calls build against the new location. Fires
+        /// <see cref="LocationChanged"/> after the swap commits.</summary>
         Task SetLocationAsync(Location newLocation);
 
         /// <summary>Fires after a <see cref="TargetCacheEntry"/> has been published.
-        /// Marshalled to the UI thread.</summary>
+        /// Marshalled to the UI thread. <see cref="TargetReadyEventArgs.Location"/>
+        /// identifies the location the entry was built against — subscribers should
+        /// filter against <see cref="CurrentLocation"/> to skip stale-location ticks.
+        /// </summary>
         event EventHandler<TargetReadyEventArgs> TargetReady;
+
+        /// <summary>Fires after <see cref="SetLocationAsync"/> commits the swap (and
+        /// before in-flight stale builds finish unwinding). Marshalled to the UI
+        /// thread. Subscribers can blank rendered state, drop pre-render decisions
+        /// keyed to the old location, or schedule a fresh render against the new
+        /// one.</summary>
+        event EventHandler<LocationChangedEventArgs> LocationChanged;
     }
 
     public sealed class TargetReadyEventArgs : EventArgs
     {
+        public Location Location { get; }
         public Target Target { get; }
         public TargetCacheEntry Entry { get; }
 
-        public TargetReadyEventArgs(Target target, TargetCacheEntry entry)
+        public TargetReadyEventArgs(Location location, Target target, TargetCacheEntry entry)
         {
-            Target = target;
-            Entry  = entry;
+            Location = location;
+            Target   = target;
+            Entry    = entry;
+        }
+    }
+
+    public sealed class LocationChangedEventArgs : EventArgs
+    {
+        public Location OldLocation { get; }
+        public Location NewLocation { get; }
+
+        public LocationChangedEventArgs(Location oldLocation, Location newLocation)
+        {
+            OldLocation = oldLocation;
+            NewLocation = newLocation;
         }
     }
 }
