@@ -267,18 +267,42 @@ namespace TargetPlanner.State
             //    that don't fit the Render or RefreshVisibility contracts.
             mPostApplyHook?.Invoke(ctx);
 
-            // 5. Stamp every ever-rendered area with the just-applied ctx. The
-            //    full-render path Render'd the active and RefreshVisibility'd
-            //    the inactives; the HDM path RefreshVisibility'd everything;
-            //    the ShowOnly path touched nothing but everything was already
-            //    current (otherwise we wouldn't have taken that path). So all
-            //    ever-rendered areas hold state consistent with ctx now.
-            //    Never-rendered areas stay out of the dict; their next click
-            //    triggers activeNeedsFullRender via the !activeEverRendered
-            //    branch.
-            foreach (string area in mEverRendered)
+            // 5. Stamping policy is path-dependent. RefreshVisibility on a
+            //    sub-chart with empty mSeriesByTarget early-returns (no work),
+            //    so when the active area's targets change, the inactive
+            //    foreach-RefreshVisibility loop does NOT bring an empty-state
+            //    inactive current with the new targets. Stamping it anyway
+            //    would falsely mark it "current with new targets", causing the
+            //    next radio click to take the showOnly fast path and reveal an
+            //    empty chart -- the original bug repro:
+            //      form-load Day Render with [] -> stamp Day, [] ->
+            //      check Sky -> Sky Render with [] -> only Sky stamped ->
+            //      SelectAll -> Sky Render with [44] (Day still empty) ->
+            //      stamp ALL with [44] (BUG: Day's stamp is now [44] but
+            //      Day's mSeriesByTarget is still []) -> uncheck Sky ->
+            //      Day diff against stamp [44] vs ctx [44] -> showOnly ->
+            //      Day chart shows nothing.
+            //
+            //    Path-by-path correctness:
+            //    - full-render: only the active area was actually Render'd
+            //      with this ctx. Inactives may be stale w.r.t. targets;
+            //      leave their stamps untouched so the next click triggers
+            //      a proper full Render.
+            //    - hdmChanged: foreach RefreshVisibility brought every
+            //      non-empty area current with the new HDM. Empty-state
+            //      inactives are vacuously current (their nothing-to-show
+            //      output is HDM-invariant). Safe to stamp all.
+            //    - showOnly: no work; the diff guarantees every ever-
+            //      rendered area is already current with ctx. Safe to
+            //      stamp all (often a no-op).
+            if (activeNeedsFullRender)
             {
-                mLastAppliedByArea[area] = ctx;
+                mLastAppliedByArea[activeArea] = ctx;
+            }
+            else
+            {
+                foreach (string area in mEverRendered)
+                    mLastAppliedByArea[area] = ctx;
             }
         }
 
