@@ -49,12 +49,26 @@ namespace TargetPlanner.State
     {
         private readonly IChartCacheStore mCache;
         private readonly Action<ChartContext, CancellationToken> mRenderActiveArea;
+        private readonly Action<ChartContext> mShowOnlyActiveArea;
         private readonly Func<string, IAltitudeSubChart> mResolveSubChart;
         private readonly Func<IEnumerable<IAltitudeSubChart>> mResolveAllSubCharts;
         private readonly Action<ChartContext> mPostApplyHook;
 
         private readonly System.Windows.Forms.Timer mDebounce;
-        private ChartContext mLastApplied;
+        // Per-area "last applied" tracker. Each sub-chart's data-currency is
+        // tracked independently so a radio swap to an already-current area
+        // (data unchanged since that area's last Render or RefreshVisibility)
+        // can skip the expensive Render and just flip visibility.
+        //
+        // An area gets stamped only after it has been Render'd at least once
+        // (membership in mEverRendered). RefreshVisibility on a never-rendered
+        // area early-returns (mSeriesByTarget empty), so stamping it would
+        // create a phantom-current stamp leading to a ShowOnly-of-empty-chart
+        // bug on the next radio click. The mEverRendered gate prevents that.
+        private readonly Dictionary<string, ChartContext> mLastAppliedByArea
+            = new Dictionary<string, ChartContext>(StringComparer.Ordinal);
+        private readonly HashSet<string> mEverRendered
+            = new HashSet<string>(StringComparer.Ordinal);
         private CancellationTokenSource mPipelineCts;
         private ChartContext mPendingContext;
         private IProgress<int> mPendingProgress;
@@ -63,6 +77,7 @@ namespace TargetPlanner.State
         public ChartCoordinator(
             IChartCacheStore cache,
             Action<ChartContext, CancellationToken> renderActiveArea,
+            Action<ChartContext> showOnlyActiveArea,
             Func<string, IAltitudeSubChart> resolveSubChart,
             Func<IEnumerable<IAltitudeSubChart>> resolveAllSubCharts,
             Action<ChartContext> postApplyHook,
@@ -70,6 +85,7 @@ namespace TargetPlanner.State
         {
             mCache = cache ?? throw new ArgumentNullException(nameof(cache));
             mRenderActiveArea = renderActiveArea ?? throw new ArgumentNullException(nameof(renderActiveArea));
+            mShowOnlyActiveArea = showOnlyActiveArea ?? throw new ArgumentNullException(nameof(showOnlyActiveArea));
             mResolveSubChart = resolveSubChart ?? throw new ArgumentNullException(nameof(resolveSubChart));
             mResolveAllSubCharts = resolveAllSubCharts ?? throw new ArgumentNullException(nameof(resolveAllSubCharts));
             mPostApplyHook = postApplyHook;
@@ -77,13 +93,6 @@ namespace TargetPlanner.State
             mDebounce = new System.Windows.Forms.Timer { Interval = debounceMs };
             mDebounce.Tick += OnDebounceTick;
         }
-
-        /// <summary>The last snapshot the pipeline successfully applied. Null
-        /// before the first run completes. Exposed for diagnostics; production
-        /// code should hand new snapshots to <see cref="Apply"/> /
-        /// <see cref="ApplyImmediateAsync"/> rather than read this directly.
-        /// </summary>
-        public ChartContext LastApplied => mLastApplied;
 
         /// <summary>Schedule a pipeline run after the debounce settles. Replaces
         /// any previously-pending context — only the most recent snapshot ever
@@ -170,15 +179,24 @@ namespace TargetPlanner.State
 
         private async Task RunPipelineAsync(ChartContext ctx, IProgress<int> progress, CancellationToken ct)
         {
-            ChartContext prev = mLastApplied;
+            // Per-area diff: compare the new ctx against what the *active area*
+            // was last brought current with, not against a global last-applied.
+            // An area is "ever rendered" iff mEverRendered contains its name --
+            // RefreshVisibility on a never-rendered area is a no-op (mSeriesByTarget
+            // empty), so we don't trust stamps for areas that haven't been
+            // Render'd at least once. mEverRendered.Contains(area) gates whether
+            // the area has a meaningful prev stamp.
+            string activeArea = ctx.ActiveArea;
+            bool activeEverRendered = mEverRendered.Contains(activeArea);
+            ChartContext prev = activeEverRendered
+                ? mLastAppliedByArea[activeArea]
+                : null;
 
-            bool locationKeyChanged = prev == null
+            bool locationKeyChanged = !activeEverRendered
                 || !LocationCacheEquivalent(prev.Location, ctx.Location);
-            bool targetsChanged = prev == null
+            bool targetsChanged = !activeEverRendered
                 || !TargetsEqualByReference(prev.Targets, ctx.Targets);
-            bool areaChanged = prev == null
-                || prev.ActiveArea != ctx.ActiveArea;
-            bool hdmChanged = prev != null && HdmChanged(prev, ctx);
+            bool hdmChanged = activeEverRendered && HdmChanged(prev, ctx);
 
             // 1. Cache re-key on geometry change. SetLocationAsync is a no-op
             //    when the new Location already matches by reference (identity
@@ -200,27 +218,32 @@ namespace TargetPlanner.State
                 ct.ThrowIfCancellationRequested();
             }
 
-            // 3. Dispatch render vs visibility-refresh based on the diff.
-            bool needsFullRender = locationKeyChanged || targetsChanged || areaChanged;
-            if (needsFullRender)
+            // 3. Dispatch one of three paths:
+            //    a) Full Render of the active area when its data is stale
+            //       (never rendered, or location/targets changed since).
+            //       Inactive areas get RefreshVisibility so they stay current.
+            //    b) HDM-only: refresh fit on every sub-chart (active + inactive),
+            //       then ShowOnly the active area. Covers same-area HMD scrub
+            //       (ShowOnly is a no-op) and HMD scrub + radio swap in the
+            //       same Apply (ShowOnly flips to the newly-active area whose
+            //       data was just refreshed in the foreach).
+            //    c) Only ActiveArea changed (data current): skip Render, just
+            //       flip visibility to the new active area. Instant toggle.
+            bool activeNeedsFullRender = !activeEverRendered || locationKeyChanged || targetsChanged;
+            if (activeNeedsFullRender)
             {
-                // mRenderActiveArea is MainForm.RenderArea -- it does the full
-                // structural render: ShowOnlyAltitudeChart (flips Visible per
-                // sub-chart so only the active one paints), Render, and
-                // ResizeAltitudeChartArea. Calling sc.Render directly here
-                // would skip ShowOnly and leave every sub-chart invisible
-                // (their initial Control.Visible = false set in
-                // InitializeDynamicControls).
+                // mRenderActiveArea is MainForm.RenderArea -- ShowOnlyAltitudeChart
+                // (flips Visible per sub-chart) + Render + ResizeAltitudeChartArea.
                 mRenderActiveArea(ctx, ct);
                 ct.ThrowIfCancellationRequested();
+                mEverRendered.Add(activeArea);
 
-                // Inactive charts: refresh visibility so they stay current
-                // when the user switches to them. Sub-charts with empty
-                // mSeriesByTarget (never rendered yet) early-return cheaply.
-                // This is the "Issue 1" cross-chart H/D/M fix from Phase 2
-                // user feedback — without it, switching to an inactive chart
-                // after an H/D/M scrub paints stale state.
-                IAltitudeSubChart active = mResolveSubChart(ctx.ActiveArea);
+                // Inactive charts: refresh visibility so they stay current when
+                // the user switches to them. Sub-charts with empty mSeriesByTarget
+                // (never rendered yet) early-return cheaply -- they don't get
+                // added to mEverRendered here, only via their own activeNeedsFullRender
+                // path when the user clicks their radio.
+                IAltitudeSubChart active = mResolveSubChart(activeArea);
                 foreach (IAltitudeSubChart sc in mResolveAllSubCharts())
                 {
                     if (sc != null && !object.ReferenceEquals(sc, active))
@@ -229,20 +252,34 @@ namespace TargetPlanner.State
             }
             else if (hdmChanged)
             {
-                // Visibility-only path: nothing structural changed, just
-                // refresh fit on every chart so active and inactive both
-                // reflect new H/D/M state.
                 foreach (IAltitudeSubChart sc in mResolveAllSubCharts())
                 {
                     sc?.RefreshVisibility(ctx, mCache);
                 }
+                mShowOnlyActiveArea(ctx);
+            }
+            else
+            {
+                mShowOnlyActiveArea(ctx);
             }
 
             // 4. Post-apply hook for label refresh / line position updates
             //    that don't fit the Render or RefreshVisibility contracts.
             mPostApplyHook?.Invoke(ctx);
 
-            mLastApplied = ctx;
+            // 5. Stamp every ever-rendered area with the just-applied ctx. The
+            //    full-render path Render'd the active and RefreshVisibility'd
+            //    the inactives; the HDM path RefreshVisibility'd everything;
+            //    the ShowOnly path touched nothing but everything was already
+            //    current (otherwise we wouldn't have taken that path). So all
+            //    ever-rendered areas hold state consistent with ctx now.
+            //    Never-rendered areas stay out of the dict; their next click
+            //    triggers activeNeedsFullRender via the !activeEverRendered
+            //    branch.
+            foreach (string area in mEverRendered)
+            {
+                mLastAppliedByArea[area] = ctx;
+            }
         }
 
         // -------------- diff helpers --------------

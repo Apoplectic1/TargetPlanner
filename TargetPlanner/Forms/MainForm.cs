@@ -490,6 +490,17 @@ Right-click anywhere on the chart to clear all overlays.";
             mCoordinator = new TargetPlanner.State.ChartCoordinator(
                 cache: mCache,
                 renderActiveArea: (ctx, ct) => RenderArea(ctx, ct),
+                showOnlyActiveArea: ctx =>
+                {
+                    // Cheap "make this sub-chart visible without re-rendering"
+                    // path. Used by the coordinator's skip-Render-on-redundant-
+                    // area-change optimization when the new active area is
+                    // already current with the snapshot.
+                    if (mSubCharts == null) return;
+                    if (!mSubCharts.TryGetValue(ctx.ActiveArea, out var sc)) return;
+                    ShowOnlyAltitudeChart(sc.Control);
+                    ResizeAltitudeChartArea(sc.IdealHeight);
+                },
                 resolveSubChart: name => mSubCharts.TryGetValue(name, out var sc) ? sc : null,
                 resolveAllSubCharts: () => mSubCharts.Values,
                 postApplyHook: ctx =>
