@@ -121,6 +121,18 @@ namespace TargetPlanner.Charts
         private DateTime mLastChartStartUtc;
         private int mLastCount;
 
+        // Astronomical-night bounds (UTC) snapshotted from the last Render. K-S
+        // compute is gated to this window because the model's twilight component
+        // is filter-blind and produces unreliable results at high airmass during
+        // twilight (see ROADMAP.md "wavelength-dependent twilight in K-S sky
+        // brightness"). Outside [AstronomicalDusk, AstronomicalDawn] the curve
+        // gets null-Y -- the dusk/dawn yellow gradient sections become "K-S not
+        // shown here" zones, which is self-documenting against the chart's
+        // existing visual cue. RefreshSkyBrightness reads these fields to apply
+        // the same gate during cheap-scrub rebuilds.
+        private DateTime mLastAstronomicalDuskUtc;
+        private DateTime mLastAstronomicalDawnUtc;
+
         private readonly HoverTooltipController mHover;
 
         // Cached IdealHeight from the last layout pass; used to detect changes so
@@ -304,6 +316,8 @@ namespace TargetPlanner.Charts
             mLastChartStart = chartStart;
             mLastChartStartUtc = startUtc;
             mLastCount = count;
+            mLastAstronomicalDuskUtc = night.AstronomicalDusk;
+            mLastAstronomicalDawnUtc = night.AstronomicalDawn;
 
             // Lock X axis to the night bounds so the gradient sections render
             // edge-to-edge and the now-line position is well defined even before
@@ -345,7 +359,8 @@ namespace TargetPlanner.Charts
 
                 var series = GetOrCreateTargetSeries(target, c);
                 BuildOrUpdateTargetSeries(series, target, location, chartStart, startUtc,
-                    count, observer, kAtBand, v0, ct);
+                    count, observer, kAtBand, v0,
+                    night.AstronomicalDusk, night.AstronomicalDawn, ct);
 
                 bool fits = HasFit(target, location, night, profile, horizon, duration);
                 if (fits)
@@ -460,7 +475,9 @@ namespace TargetPlanner.Charts
                 LineSeries<ObservablePoint> series = kv.Value;
                 BuildOrUpdateTargetSeries(series, target, location,
                     mLastChartStart, mLastChartStartUtc, mLastCount,
-                    observer, kAtBand, v0, CancellationToken.None);
+                    observer, kAtBand, v0,
+                    mLastAstronomicalDuskUtc, mLastAstronomicalDawnUtc,
+                    CancellationToken.None);
             }
         }
 
@@ -557,6 +574,8 @@ namespace TargetPlanner.Charts
             ObserverInfo observer,
             double kAtBand,
             double v0,
+            DateTime astronomicalDuskUtc,
+            DateTime astronomicalDawnUtc,
             CancellationToken ct)
         {
             var data = series.Values as ObservableCollection<ObservablePoint>;
@@ -573,34 +592,61 @@ namespace TargetPlanner.Charts
                 DateTime point = chartStart.AddMinutes(i);
                 DateTime utc = DateTime.SpecifyKind(startUtc.AddMinutes(i), DateTimeKind.Utc);
 
-                AltAz t = AltAzCalculator.At(target, location, utc);
-                var m = MoonSeparation.ObserveAt(target, location, utc);
-                double phase = SkyBrightness.PhaseAngleDegFromAgeDays(LunarAge.DaysAt(utc));
-                double sunAlt = SunPosition.AltAzAt(location, utc).Altitude;
+                // Gate K-S compute to astronomical night. The model's twilight
+                // component is filter-blind, producing unreliable curves at
+                // high airmass during civil/nautical twilight (see ROADMAP.md
+                // for the wavelength-dependent twilight + bandwidth fixes
+                // queued at the Library level). Outside [AstronomicalDusk,
+                // AstronomicalDawn] we null-Y the data point; the dusk/dawn
+                // yellow gradient sections then double as "K-S not shown here"
+                // zones, self-documenting against the chart's existing visual
+                // cue. Once the Library fixes land, drop this gate.
+                bool inAstronomicalNight = utc >= astronomicalDuskUtc
+                                        && utc <= astronomicalDawnUtc;
 
-                double mag = SkyBrightness.KsAt(
-                    t.Altitude, t.Azimuth,
-                    m.MoonAltDeg, m.MoonAzDeg,
-                    phase, sunAlt, kAtBand, v0);
+                double? plotY;
+                string tooltip;
+                if (!inAstronomicalNight)
+                {
+                    plotY = null;
+                    tooltip = string.Format(CultureInfo.InvariantCulture,
+                        "{0}\n{1:h:mm tt}\n(twilight — K-S not shown)",
+                        target.Name, point);
+                }
+                else
+                {
+                    AltAz t = AltAzCalculator.At(target, location, utc);
+                    var m = MoonSeparation.ObserveAt(target, location, utc);
+                    double phase = SkyBrightness.PhaseAngleDegFromAgeDays(LunarAge.DaysAt(utc));
+                    double sunAlt = SunPosition.AltAzAt(location, utc).Altitude;
 
-                // null Y = "no data" gap (LC2 renders nullable points as breaks
-                // in the line). Cleaner than the legacy -90 sentinel because
-                // Sky's plot range is [16, 22]; a -90 spike would clip but
-                // could still leave a stray pixel artifact.
-                double? plotY = double.IsNaN(mag)
-                    ? (double?)null
-                    : (SkyAxisMinMag + SkyAxisMaxMag - mag);
+                    double mag = SkyBrightness.KsAt(
+                        t.Altitude, t.Azimuth,
+                        m.MoonAltDeg, m.MoonAzDeg,
+                        phase, sunAlt, kAtBand, v0);
+
+                    // null Y = "no data" gap (LC2 renders nullable points as breaks
+                    // in the line). Cleaner than the legacy -90 sentinel because
+                    // Sky's plot range is [16, 22]; a -90 spike would clip but
+                    // could still leave a stray pixel artifact.
+                    plotY = double.IsNaN(mag)
+                        ? (double?)null
+                        : (SkyAxisMinMag + SkyAxisMaxMag - mag);
+
+                    tooltip = double.IsNaN(mag)
+                        ? string.Format(CultureInfo.InvariantCulture,
+                            "{0}\n{1:h:mm tt}\n(target below horizon)",
+                            target.Name, point)
+                        : string.Format(CultureInfo.InvariantCulture,
+                            "{0}\n{1:h:mm tt}\n{2:0.0} mag/arcsec²",
+                            target.Name, point, mag);
+                }
+
                 var p = new ObservablePoint(point.ToOADate(), plotY);
                 if (i < data.Count) data[i] = p;
                 else data.Add(p);
 
-                tooltips[i] = double.IsNaN(mag)
-                    ? string.Format(CultureInfo.InvariantCulture,
-                        "{0}\n{1:h:mm tt}\n(target below horizon)",
-                        target.Name, point)
-                    : string.Format(CultureInfo.InvariantCulture,
-                        "{0}\n{1:h:mm tt}\n{2:0.0} mag/arcsec²",
-                        target.Name, point, mag);
+                tooltips[i] = tooltip;
             }
             while (data.Count > count) data.RemoveAt(data.Count - 1);
 

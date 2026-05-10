@@ -45,6 +45,8 @@ Implementation: scale each of the three nL contributions in `KsAt` by `(BW_filte
 
 Bandwidth and wavelength corrections are orthogonal — implement together for a coherent narrowband-aware Sky chart, but either can land independently.
 
+**Interim TP fix shipped pending the two corrections above.** `AltitudeSubChart_Sky.BuildOrUpdateTargetSeries` gates the per-minute K-S compute to `[NightWindow.AstronomicalDusk, NightWindow.AstronomicalDawn]`. Outside that UTC window, the per-minute `ObservablePoint.Y` is set to `null` (line break) and the tooltip reads "(twilight — K-S not shown)". The chart's X-axis still spans the full night incl. dusk/dawn gradient sections (so Day↔Sky radio toggles keep consistent X positioning); the yellow gradient zones now double as "K-S unreliable here" indicators, self-documenting against the chart's existing visual cue. `Render` snapshots `night.AstronomicalDusk` / `night.AstronomicalDawn` to fields read by `RefreshSkyBrightness` so cheap-scrub rebuilds (Bortle / ExtinctionK / Filter) apply the same gate. **Remove this gate when the wavelength + bandwidth Library fixes above land** — at that point K-S is reliable through twilight and the curves should extend back to the chart's full X-axis bounds. The two new parameters on `BuildOrUpdateTargetSeries` (`astronomicalDuskUtc` / `astronomicalDawnUtc`) and the two `mLastAstronomical*Utc` fields on the sub-chart are also dead at that point.
+
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
