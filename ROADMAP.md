@@ -22,6 +22,29 @@ The Library half is mostly ready — `IHorizonProfile` is plumbed through every 
 
 Warrants a separate design discussion before implementation. Ties into BIRDWATCHER if the local horizon definition lives in NINA's preferences and TP needs to read it.
 
+**Future-flagged Library API — wavelength-dependent twilight in K-S sky brightness.** `Astronomy.Core.Brightness.SkyBrightness.KsAt` composes the dark-sky baseline + twilight + moon contributions in mag/nL space. The wavelength dependence today comes entirely from the single Rayleigh-scaled `k`:
+
+- `+k·(X−1)` extincts the **natural baseline** along the target's line of sight (filter-dependent ✓).
+- The **moon contribution** uses `k` for both moon-airmass extinction of moonlight and target-airmass attenuation of scattered moonlight (filter-dependent ✓).
+- The **twilight contribution** comes from `Twilight.ZenithBrightening(sunAltDeg)` which is **filter-blind** — it just returns a scalar mag delta and applies it as `vTwilight = vDark − delta` regardless of band.
+
+That last omission produces physically-wrong results for narrowband planning at low target altitudes during twilight: the model predicts redder filters see *brighter* twilight sky than bluer filters (because the brighter `vDark` for low-k filters pumps a larger nL twilight contribution), inverting the actual Rayleigh physics where blue light scatters into the sky path more strongly than red. K-S 1991 was developed for broadband V-band moonlit sky brightness; the twilight component was a pasted-on approximation. The chart is correct *as K-S predicts* but the model's prediction breaks down at high airmass + low sun altitude.
+
+V2 fix: replace `Twilight.ZenithBrightening(sunAltDeg)` with a wavelength-aware twilight model that scales the sun-scattering contribution by `kAtBand`. Patat 2003 / Krisciunas 1990 follow-ups have suitable forms. Library-level change; TP code is unaffected. Don't pursue until the model's twilight regime starts driving real planning decisions — for moderate-to-high altitudes after astronomical dusk the current model is fine.
+
+**Future-flagged Library API — bandwidth-aware sky brightness in K-S.** Independent from the wavelength fix above. `KsAt` doesn't use the filter's bandwidth at all — `v0` (Bortle's broadband V-band zenith mag) is consumed as-is regardless of whether the filter is 85 nm wide (L) or 7 nm wide (Hα). For a roughly-continuous source spectrum, integrated nL brightness in a filter passband scales linearly with bandwidth:
+
+```
+B_band ≈ S(λ₀) · BW          // continuum approximation
+mag_offset = 2.5 · log₁₀(BW_ref / BW_filter)
+```
+
+A 7 nm Hα filter against an 85 nm V-band reference is `2.5 · log₁₀(85/7) ≈ 2.7 mag` darker for any continuous-spectrum contribution (dark-sky baseline, twilight scatter, moonlight scatter). This is the "narrowband advantage" the chart currently misses entirely — Sky predictions for Hα / O3 / S2 should be 2-3 mag darker than they show today.
+
+Implementation: scale each of the three nL contributions in `KsAt` by `(BW_filter / BW_ref)` before summing, then convert back to mag. `Filters.Filter.BandwidthNm` is already on the POCO but unused by `KsAt`; needs a new parameter on `KsAt` plus a `BW_ref` constant in `SkyBrightness`. Caveat: the continuum approximation ignores narrow airglow emission lines (sodium D 589 nm, OI 557.7 nm, [OIII] 500.7 nm) — a v3 refinement would tabulate major lines and check overlap per filter band, since narrowband O3 catches [OIII] (slightly brighter than continuum-only would predict) while Hα and S2 sit clean of major airglow.
+
+Bandwidth and wavelength corrections are orthogonal — implement together for a coherent narrowband-aware Sky chart, but either can land independently.
+
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
