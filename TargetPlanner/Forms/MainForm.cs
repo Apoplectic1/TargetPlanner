@@ -1538,7 +1538,7 @@ Right-click anywhere on the chart to clear all overlays.";
                 BeginChartBuildProgress(targetCount: targets.Count);
 
             ActiveControl = null;
-            Button_Graph.Enabled = false;
+            Button_GraphTarget.Enabled = false;
             mGraphBuildInProgress = true;
 
             try
@@ -1566,7 +1566,7 @@ Right-click anywhere on the chart to clear all overlays.";
             finally
             {
                 mGraphBuildInProgress = false;
-                Button_Graph.Enabled = true;
+                Button_GraphTarget.Enabled = true;
                 Button_Cancel.Enabled = true;
 
                 // Tick the bar to its Maximum, hold 1 s, reset to 0. Generation-

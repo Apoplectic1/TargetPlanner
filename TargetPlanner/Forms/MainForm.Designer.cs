@@ -88,7 +88,7 @@
             NumericUpDown_RaMinutes = new System.Windows.Forms.NumericUpDown();
             TextBox_Declination = new System.Windows.Forms.TextBox();
             Label_DecMinuteColon = new System.Windows.Forms.Label();
-            Button_Graph = new System.Windows.Forms.Button();
+            Button_GraphTarget = new System.Windows.Forms.Button();
             NumericUpDown_RaHours = new System.Windows.Forms.NumericUpDown();
             NumericUpDown_RaSeconds = new System.Windows.Forms.NumericUpDown();
             NumericUpDown_DecMinutes = new System.Windows.Forms.NumericUpDown();
@@ -111,6 +111,7 @@
             CheckedListBox_SelectedTargets = new System.Windows.Forms.CheckedListBox();
             Button_BrowseTargetList = new System.Windows.Forms.Button();
             GroupBox_Target = new System.Windows.Forms.GroupBox();
+            Button_AddTarget = new System.Windows.Forms.Button();
             Button_CheckedTargets = new System.Windows.Forms.Button();
             GroupBox_Moon_Filters = new System.Windows.Forms.GroupBox();
             GroupBox_MoonAvoidance = new System.Windows.Forms.GroupBox();
@@ -136,6 +137,7 @@
             GroupBox_Altitude = new System.Windows.Forms.GroupBox();
             CheckBox_Sky = new System.Windows.Forms.CheckBox();
             ProgressBar_MultiTargetProcessing = new System.Windows.Forms.ProgressBar();
+            Button_RemoveTarget = new System.Windows.Forms.Button();
             GroupBox_Local.SuspendLayout();
             GroupBox_Location.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)NumericUpDown_Extinction).BeginInit();
@@ -793,7 +795,7 @@
             // ComboBox_SelectTarget
             // 
             ComboBox_SelectTarget.FormattingEnabled = true;
-            ComboBox_SelectTarget.Location = new System.Drawing.Point(174, 106);
+            ComboBox_SelectTarget.Location = new System.Drawing.Point(174, 91);
             ComboBox_SelectTarget.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             ComboBox_SelectTarget.Name = "ComboBox_SelectTarget";
             ComboBox_SelectTarget.Size = new System.Drawing.Size(319, 23);
@@ -804,7 +806,7 @@
             // Label_TargetName
             // 
             Label_TargetName.AutoSize = true;
-            Label_TargetName.Location = new System.Drawing.Point(83, 111);
+            Label_TargetName.Location = new System.Drawing.Point(83, 96);
             Label_TargetName.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             Label_TargetName.Name = "Label_TargetName";
             Label_TargetName.Size = new System.Drawing.Size(78, 15);
@@ -816,7 +818,7 @@
             CheckBox_TargetNorth.AutoSize = true;
             CheckBox_TargetNorth.Checked = true;
             CheckBox_TargetNorth.CheckState = System.Windows.Forms.CheckState.Checked;
-            CheckBox_TargetNorth.Location = new System.Drawing.Point(503, 170);
+            CheckBox_TargetNorth.Location = new System.Drawing.Point(503, 155);
             CheckBox_TargetNorth.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             CheckBox_TargetNorth.Name = "CheckBox_TargetNorth";
             CheckBox_TargetNorth.Size = new System.Drawing.Size(57, 19);
@@ -827,7 +829,7 @@
             // TextBox_RightAscension
             // 
             TextBox_RightAscension.AllowDrop = true;
-            TextBox_RightAscension.Location = new System.Drawing.Point(407, 141);
+            TextBox_RightAscension.Location = new System.Drawing.Point(407, 126);
             TextBox_RightAscension.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             TextBox_RightAscension.MaxLength = 20;
             TextBox_RightAscension.Name = "TextBox_RightAscension";
@@ -840,7 +842,7 @@
             // NumericUpDown_RaMinutes
             // 
             NumericUpDown_RaMinutes.AllowDrop = true;
-            NumericUpDown_RaMinutes.Location = new System.Drawing.Point(237, 141);
+            NumericUpDown_RaMinutes.Location = new System.Drawing.Point(237, 126);
             NumericUpDown_RaMinutes.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             NumericUpDown_RaMinutes.Maximum = new decimal(new int[] { 60, 0, 0, 0 });
             NumericUpDown_RaMinutes.Minimum = new decimal(new int[] { 1, 0, 0, int.MinValue });
@@ -851,7 +853,7 @@
             // 
             // TextBox_Declination
             // 
-            TextBox_Declination.Location = new System.Drawing.Point(407, 167);
+            TextBox_Declination.Location = new System.Drawing.Point(407, 152);
             TextBox_Declination.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             TextBox_Declination.Name = "TextBox_Declination";
             TextBox_Declination.Size = new System.Drawing.Size(86, 23);
@@ -862,28 +864,28 @@
             // Label_DecMinuteColon
             // 
             Label_DecMinuteColon.AutoSize = true;
-            Label_DecMinuteColon.Location = new System.Drawing.Point(307, 172);
+            Label_DecMinuteColon.Location = new System.Drawing.Point(307, 157);
             Label_DecMinuteColon.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             Label_DecMinuteColon.Name = "Label_DecMinuteColon";
             Label_DecMinuteColon.Size = new System.Drawing.Size(10, 15);
             Label_DecMinuteColon.TabIndex = 38;
             Label_DecMinuteColon.Text = ":";
             // 
-            // Button_Graph
+            // Button_GraphTarget
             // 
-            Button_Graph.Location = new System.Drawing.Point(523, 84);
-            Button_Graph.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            Button_Graph.Name = "Button_Graph";
-            Button_Graph.Size = new System.Drawing.Size(77, 27);
-            Button_Graph.TabIndex = 34;
-            Button_Graph.Text = "Graph";
-            Button_Graph.UseVisualStyleBackColor = true;
-            Button_Graph.Click += Button_Graph_Click;
+            Button_GraphTarget.Location = new System.Drawing.Point(509, 67);
+            Button_GraphTarget.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            Button_GraphTarget.Name = "Button_GraphTarget";
+            Button_GraphTarget.Size = new System.Drawing.Size(75, 23);
+            Button_GraphTarget.TabIndex = 34;
+            Button_GraphTarget.Text = "Graph";
+            Button_GraphTarget.UseVisualStyleBackColor = true;
+            Button_GraphTarget.Click += Button_Graph_Click;
             // 
             // NumericUpDown_RaHours
             // 
             NumericUpDown_RaHours.AllowDrop = true;
-            NumericUpDown_RaHours.Location = new System.Drawing.Point(149, 141);
+            NumericUpDown_RaHours.Location = new System.Drawing.Point(149, 126);
             NumericUpDown_RaHours.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             NumericUpDown_RaHours.Maximum = new decimal(new int[] { 23, 0, 0, 0 });
             NumericUpDown_RaHours.Name = "NumericUpDown_RaHours";
@@ -896,7 +898,7 @@
             NumericUpDown_RaSeconds.AllowDrop = true;
             NumericUpDown_RaSeconds.DecimalPlaces = 2;
             NumericUpDown_RaSeconds.Increment = new decimal(new int[] { 1, 0, 0, 131072 });
-            NumericUpDown_RaSeconds.Location = new System.Drawing.Point(324, 141);
+            NumericUpDown_RaSeconds.Location = new System.Drawing.Point(324, 126);
             NumericUpDown_RaSeconds.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             NumericUpDown_RaSeconds.Maximum = new decimal(new int[] { 60, 0, 0, 0 });
             NumericUpDown_RaSeconds.Minimum = new decimal(new int[] { 1, 0, 0, -2147352576 });
@@ -908,7 +910,7 @@
             // NumericUpDown_DecMinutes
             // 
             NumericUpDown_DecMinutes.AllowDrop = true;
-            NumericUpDown_DecMinutes.Location = new System.Drawing.Point(237, 167);
+            NumericUpDown_DecMinutes.Location = new System.Drawing.Point(237, 152);
             NumericUpDown_DecMinutes.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             NumericUpDown_DecMinutes.Maximum = new decimal(new int[] { 60, 0, 0, 0 });
             NumericUpDown_DecMinutes.Minimum = new decimal(new int[] { 1, 0, 0, int.MinValue });
@@ -920,7 +922,7 @@
             // Label_TargetDeclinationText
             // 
             Label_TargetDeclinationText.AutoSize = true;
-            Label_TargetDeclinationText.Location = new System.Drawing.Point(114, 172);
+            Label_TargetDeclinationText.Location = new System.Drawing.Point(114, 157);
             Label_TargetDeclinationText.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             Label_TargetDeclinationText.Name = "Label_TargetDeclinationText";
             Label_TargetDeclinationText.Size = new System.Drawing.Size(29, 15);
@@ -930,7 +932,7 @@
             // Label_RaHourColon
             // 
             Label_RaHourColon.AutoSize = true;
-            Label_RaHourColon.Location = new System.Drawing.Point(219, 145);
+            Label_RaHourColon.Location = new System.Drawing.Point(219, 130);
             Label_RaHourColon.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             Label_RaHourColon.Name = "Label_RaHourColon";
             Label_RaHourColon.Size = new System.Drawing.Size(10, 15);
@@ -940,7 +942,7 @@
             // Label_RaMinuteColon
             // 
             Label_RaMinuteColon.AutoSize = true;
-            Label_RaMinuteColon.Location = new System.Drawing.Point(307, 145);
+            Label_RaMinuteColon.Location = new System.Drawing.Point(307, 130);
             Label_RaMinuteColon.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             Label_RaMinuteColon.Name = "Label_RaMinuteColon";
             Label_RaMinuteColon.Size = new System.Drawing.Size(10, 15);
@@ -950,7 +952,7 @@
             // Label_DecDegreeColon
             // 
             Label_DecDegreeColon.AutoSize = true;
-            Label_DecDegreeColon.Location = new System.Drawing.Point(219, 172);
+            Label_DecDegreeColon.Location = new System.Drawing.Point(219, 157);
             Label_DecDegreeColon.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             Label_DecDegreeColon.Name = "Label_DecDegreeColon";
             Label_DecDegreeColon.Size = new System.Drawing.Size(10, 15);
@@ -960,7 +962,7 @@
             // Label_TargetRightAscensionText
             // 
             Label_TargetRightAscensionText.AutoSize = true;
-            Label_TargetRightAscensionText.Location = new System.Drawing.Point(122, 145);
+            Label_TargetRightAscensionText.Location = new System.Drawing.Point(122, 130);
             Label_TargetRightAscensionText.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             Label_TargetRightAscensionText.Name = "Label_TargetRightAscensionText";
             Label_TargetRightAscensionText.Size = new System.Drawing.Size(22, 15);
@@ -972,7 +974,7 @@
             NumericUpDown_DecSeconds.AllowDrop = true;
             NumericUpDown_DecSeconds.DecimalPlaces = 2;
             NumericUpDown_DecSeconds.Increment = new decimal(new int[] { 1, 0, 0, 131072 });
-            NumericUpDown_DecSeconds.Location = new System.Drawing.Point(324, 167);
+            NumericUpDown_DecSeconds.Location = new System.Drawing.Point(324, 152);
             NumericUpDown_DecSeconds.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             NumericUpDown_DecSeconds.Maximum = new decimal(new int[] { 60, 0, 0, 0 });
             NumericUpDown_DecSeconds.Minimum = new decimal(new int[] { 1, 0, 0, -2147352576 });
@@ -984,7 +986,7 @@
             // NumericUpDown_DecDegrees
             // 
             NumericUpDown_DecDegrees.AllowDrop = true;
-            NumericUpDown_DecDegrees.Location = new System.Drawing.Point(149, 167);
+            NumericUpDown_DecDegrees.Location = new System.Drawing.Point(149, 152);
             NumericUpDown_DecDegrees.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             NumericUpDown_DecDegrees.Maximum = new decimal(new int[] { 90, 0, 0, 0 });
             NumericUpDown_DecDegrees.Minimum = new decimal(new int[] { 90, 0, 0, int.MinValue });
@@ -1069,7 +1071,7 @@
             // 
             // ProgressBar_ProcessObject
             // 
-            ProgressBar_ProcessObject.Location = new System.Drawing.Point(131, 47);
+            ProgressBar_ProcessObject.Location = new System.Drawing.Point(131, 29);
             ProgressBar_ProcessObject.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             ProgressBar_ProcessObject.Name = "ProgressBar_ProcessObject";
             ProgressBar_ProcessObject.Size = new System.Drawing.Size(475, 21);
@@ -1113,7 +1115,7 @@
             // 
             // Button_BrowseTargetList
             // 
-            Button_BrowseTargetList.Location = new System.Drawing.Point(26, 45);
+            Button_BrowseTargetList.Location = new System.Drawing.Point(26, 27);
             Button_BrowseTargetList.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             Button_BrowseTargetList.Name = "Button_BrowseTargetList";
             Button_BrowseTargetList.Size = new System.Drawing.Size(98, 27);
@@ -1124,6 +1126,8 @@
             // 
             // GroupBox_Target
             // 
+            GroupBox_Target.Controls.Add(Button_RemoveTarget);
+            GroupBox_Target.Controls.Add(Button_AddTarget);
             GroupBox_Target.Controls.Add(Button_CheckedTargets);
             GroupBox_Target.Controls.Add(GroupBox_Moon_Filters);
             GroupBox_Target.Controls.Add(GroupBox_MoonAvoidance);
@@ -1131,7 +1135,7 @@
             GroupBox_Target.Controls.Add(Button_VisibleTargets);
             GroupBox_Target.Controls.Add(Label_TargetHours);
             GroupBox_Target.Controls.Add(Label_RaMinuteColon);
-            GroupBox_Target.Controls.Add(Button_Graph);
+            GroupBox_Target.Controls.Add(Button_GraphTarget);
             GroupBox_Target.Controls.Add(Label_DecDegreeColon);
             GroupBox_Target.Controls.Add(ComboBox_SelectTarget);
             GroupBox_Target.Controls.Add(Label_RaHourColon);
@@ -1168,6 +1172,15 @@
             GroupBox_Target.TabIndex = 3;
             GroupBox_Target.TabStop = false;
             GroupBox_Target.Text = "Target";
+            // 
+            // Button_AddTarget
+            // 
+            Button_AddTarget.Location = new System.Drawing.Point(509, 91);
+            Button_AddTarget.Name = "Button_AddTarget";
+            Button_AddTarget.Size = new System.Drawing.Size(75, 23);
+            Button_AddTarget.TabIndex = 44;
+            Button_AddTarget.Text = "Add";
+            Button_AddTarget.UseVisualStyleBackColor = true;
             // 
             // Button_CheckedTargets
             // 
@@ -1353,7 +1366,7 @@
             // 
             // Button_Cancel
             // 
-            Button_Cancel.Location = new System.Drawing.Point(523, 118);
+            Button_Cancel.Location = new System.Drawing.Point(-12, 104);
             Button_Cancel.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             Button_Cancel.Name = "Button_Cancel";
             Button_Cancel.Size = new System.Drawing.Size(77, 27);
@@ -1443,6 +1456,15 @@
             ProgressBar_MultiTargetProcessing.Size = new System.Drawing.Size(1570, 21);
             ProgressBar_MultiTargetProcessing.TabIndex = 40;
             // 
+            // Button_RemoveTarget
+            // 
+            Button_RemoveTarget.Location = new System.Drawing.Point(509, 115);
+            Button_RemoveTarget.Name = "Button_RemoveTarget";
+            Button_RemoveTarget.Size = new System.Drawing.Size(75, 23);
+            Button_RemoveTarget.TabIndex = 45;
+            Button_RemoveTarget.Text = "Remove";
+            Button_RemoveTarget.UseVisualStyleBackColor = true;
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
@@ -1531,7 +1553,7 @@
         private System.Windows.Forms.NumericUpDown NumericUpDown_DecDegrees;
         private System.Windows.Forms.NumericUpDown NumericUpDown_DecMinutes;
         private System.Windows.Forms.NumericUpDown NumericUpDown_RaMinutes;
-        private System.Windows.Forms.Button Button_Graph;
+        private System.Windows.Forms.Button Button_GraphTarget;
         private System.Windows.Forms.Label Label_AstronomicalDawnValue;
         private System.Windows.Forms.Label Label_AstronomicalDawn;
         private System.Windows.Forms.Label Label_AstronomicalDuskValue;
@@ -1608,6 +1630,8 @@
         private System.Windows.Forms.NumericUpDown NumericUpDown_Extinction;
         private System.Windows.Forms.CheckBox CheckBox_Sky;
         private System.Windows.Forms.Button Button_CheckedTargets;
+        private System.Windows.Forms.Button Button_AddTarget;
+        private System.Windows.Forms.Button Button_RemoveTarget;
     }
 }
 
