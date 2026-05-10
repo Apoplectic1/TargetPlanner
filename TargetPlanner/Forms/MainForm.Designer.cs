@@ -102,7 +102,7 @@
             RadioButton_Sessions = new System.Windows.Forms.RadioButton();
             RadioButton_Year = new System.Windows.Forms.RadioButton();
             RadioButton_Day = new System.Windows.Forms.RadioButton();
-            Button_VisibleTonight = new System.Windows.Forms.Button();
+            Button_VisibleTargets = new System.Windows.Forms.Button();
             Button_SelectAllTargets = new System.Windows.Forms.Button();
             Button_ClearAllTargets = new System.Windows.Forms.Button();
             ProgressBar_ProcessObject = new System.Windows.Forms.ProgressBar();
@@ -111,6 +111,7 @@
             CheckedListBox_SelectedTargets = new System.Windows.Forms.CheckedListBox();
             Button_BrowseTargetList = new System.Windows.Forms.Button();
             GroupBox_Target = new System.Windows.Forms.GroupBox();
+            Button_CheckedTargets = new System.Windows.Forms.Button();
             GroupBox_Moon_Filters = new System.Windows.Forms.GroupBox();
             GroupBox_MoonAvoidance = new System.Windows.Forms.GroupBox();
             CheckBox_Moon_AvoidanceEnable = new System.Windows.Forms.CheckBox();
@@ -1031,21 +1032,21 @@
             RadioButton_Day.UseVisualStyleBackColor = true;
             RadioButton_Day.CheckedChanged += RadioButton_Day_CheckedChanged;
             // 
-            // Button_VisibleTonight
+            // Button_VisibleTargets
             // 
-            Button_VisibleTonight.Location = new System.Drawing.Point(1111, 22);
-            Button_VisibleTonight.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            Button_VisibleTonight.Name = "Button_VisibleTonight";
-            Button_VisibleTonight.Size = new System.Drawing.Size(117, 27);
-            Button_VisibleTonight.TabIndex = 7;
-            Button_VisibleTonight.Text = "Visible Tonight";
-            Button_VisibleTonight.UseVisualStyleBackColor = true;
-            Button_VisibleTonight.Click += Button_VisibleTonight_Click;
+            Button_VisibleTargets.Location = new System.Drawing.Point(1072, 22);
+            Button_VisibleTargets.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            Button_VisibleTargets.Name = "Button_VisibleTargets";
+            Button_VisibleTargets.Size = new System.Drawing.Size(75, 27);
+            Button_VisibleTargets.TabIndex = 7;
+            Button_VisibleTargets.Text = "Visible";
+            Button_VisibleTargets.UseVisualStyleBackColor = true;
+            Button_VisibleTargets.Click += Button_VisibleTonight_Click;
             // 
             // Button_SelectAllTargets
             // 
             Button_SelectAllTargets.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
-            Button_SelectAllTargets.Location = new System.Drawing.Point(947, 22);
+            Button_SelectAllTargets.Location = new System.Drawing.Point(992, 22);
             Button_SelectAllTargets.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             Button_SelectAllTargets.Name = "Button_SelectAllTargets";
             Button_SelectAllTargets.Size = new System.Drawing.Size(75, 27);
@@ -1057,7 +1058,7 @@
             // Button_ClearAllTargets
             // 
             Button_ClearAllTargets.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
-            Button_ClearAllTargets.Location = new System.Drawing.Point(1029, 22);
+            Button_ClearAllTargets.Location = new System.Drawing.Point(912, 22);
             Button_ClearAllTargets.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             Button_ClearAllTargets.Name = "Button_ClearAllTargets";
             Button_ClearAllTargets.Size = new System.Drawing.Size(75, 27);
@@ -1089,7 +1090,7 @@
             ComboBox_SortTargets.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             ComboBox_SortTargets.FormattingEnabled = true;
             ComboBox_SortTargets.Items.AddRange(new object[] { "Name", "Transit", "Rise" });
-            ComboBox_SortTargets.Location = new System.Drawing.Point(685, 23);
+            ComboBox_SortTargets.Location = new System.Drawing.Point(685, 24);
             ComboBox_SortTargets.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             ComboBox_SortTargets.Name = "ComboBox_SortTargets";
             ComboBox_SortTargets.Size = new System.Drawing.Size(139, 23);
@@ -1123,10 +1124,11 @@
             // 
             // GroupBox_Target
             // 
+            GroupBox_Target.Controls.Add(Button_CheckedTargets);
             GroupBox_Target.Controls.Add(GroupBox_Moon_Filters);
             GroupBox_Target.Controls.Add(GroupBox_MoonAvoidance);
             GroupBox_Target.Controls.Add(Button_Cancel);
-            GroupBox_Target.Controls.Add(Button_VisibleTonight);
+            GroupBox_Target.Controls.Add(Button_VisibleTargets);
             GroupBox_Target.Controls.Add(Label_TargetHours);
             GroupBox_Target.Controls.Add(Label_RaMinuteColon);
             GroupBox_Target.Controls.Add(Button_Graph);
@@ -1166,6 +1168,16 @@
             GroupBox_Target.TabIndex = 3;
             GroupBox_Target.TabStop = false;
             GroupBox_Target.Text = "Target";
+            // 
+            // Button_CheckedTargets
+            // 
+            Button_CheckedTargets.Location = new System.Drawing.Point(1152, 22);
+            Button_CheckedTargets.Name = "Button_CheckedTargets";
+            Button_CheckedTargets.Size = new System.Drawing.Size(75, 27);
+            Button_CheckedTargets.TabIndex = 43;
+            Button_CheckedTargets.Text = "Checked";
+            Button_CheckedTargets.UseVisualStyleBackColor = true;
+            Button_CheckedTargets.Click += Button_CheckedTargets_Click;
             // 
             // GroupBox_Moon_Filters
             // 
@@ -1571,7 +1583,7 @@
         private System.Windows.Forms.Button Button_ClearAllTargets;
         private System.Windows.Forms.ProgressBar ProgressBar_MultiTargetProcessing;
         private System.Windows.Forms.ProgressBar ProgressBar_ProcessObject;
-        private System.Windows.Forms.Button Button_VisibleTonight;
+        private System.Windows.Forms.Button Button_VisibleTargets;
         private System.Windows.Forms.Button Button_Cancel;
         private System.Windows.Forms.GroupBox GroupBox_MoonAvoidance;
         private System.Windows.Forms.CheckBox CheckBox_Moon_AvoidanceEnable;
@@ -1595,6 +1607,7 @@
         private System.Windows.Forms.ComboBox ComboBox_Bortle;
         private System.Windows.Forms.NumericUpDown NumericUpDown_Extinction;
         private System.Windows.Forms.CheckBox CheckBox_Sky;
+        private System.Windows.Forms.Button Button_CheckedTargets;
     }
 }
 

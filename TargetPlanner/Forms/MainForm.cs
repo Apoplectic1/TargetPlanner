@@ -1615,6 +1615,27 @@ Right-click anywhere on the chart to clear all overlays.";
             await RunGraphBuildAsync(targets);
         }
 
+        // Force-render the currently-checked set immediately, bypassing the 250 ms
+        // CheckedToggleDebounce. Convenience for users who want the chart now after
+        // a series of checkbox toggles, or who want to re-render the same checked
+        // set after an HMD/Location scrub. Walks CheckedListBox_SelectedTargets in
+        // display order so the rendered list inherits the listbox's NaturalString-
+        // Comparer sort, mirroring CheckedToggleDebounce_Tick.
+        private async void Button_CheckedTargets_Click(object sender, EventArgs e)
+        {
+            mCheckedToggleDebounce?.Stop();
+
+            var targets = new List<Target>();
+            foreach (object item in CheckedListBox_SelectedTargets.CheckedItems)
+            {
+                string name = item.ToString();
+                Target t = mSelection.KnownTargets.FirstOrDefault(x => x.Name == name);
+                if (t != null) targets.Add(t);
+            }
+
+            await RunGraphBuildAsync(targets);
+        }
+
         // Returns the currently-active chart-area name. The radio cluster
         // (Day / Year / Sessions) ensures exactly one is checked at any time;
         // CheckBox_Sky lives inside the Day radio and toggles its sub-mode
