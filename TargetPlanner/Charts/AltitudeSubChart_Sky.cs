@@ -275,6 +275,9 @@ namespace TargetPlanner.Charts
 
             Location location = ctx.Location;
             IReadOnlyList<Target> targets = ctx.Targets;
+            MoonAvoidanceProfile profile = ctx.MoonProfile;
+            double horizon = location.Horizon;
+            TimeSpan duration = location.Duration;
             DateTime now = location.DateTime;
 
             // Sync ActiveFilterCenterNm from the snapshot before computing K-S.
@@ -312,6 +315,7 @@ namespace TargetPlanner.Charts
             UpdateNowLine(now);
 
             mTargetColors.Clear();
+            mFitSeries.Clear();
 
             // K-S inputs that depend only on Location + filter -- compute once
             // per Render and reuse across the per-target loop.
@@ -321,6 +325,13 @@ namespace TargetPlanner.Charts
             double lonEast   = location.LonEast();
             ObserverInfo observer = new ObserverInfo(latSigned, lonEast, location.Elevation);
 
+            // Compute K-S data for ALL passed targets so a future H/D/M scrub
+            // that brings an unfit target back into fit can re-add its series
+            // without recomputing K-S. Fit-tonight filter is applied to
+            // mChart.Series (and the legend via mFitSeries) -- mirrors Day's
+            // "compute everything, filter display" pattern. Same fit decision
+            // as Day (BestSession.For via HasFit) so Day and Sky always agree
+            // on which targets are visible tonight.
             var newSeriesByTarget = new Dictionary<Target, LineSeries<ObservablePoint>>();
             var seriesList = new List<ISeries>();
             for (int t = 0; t < targets.Count; t++)
@@ -336,8 +347,15 @@ namespace TargetPlanner.Charts
                 BuildOrUpdateTargetSeries(series, target, location, chartStart, startUtc,
                     count, observer, kAtBand, v0, ct);
 
+                bool fits = HasFit(target, location, night, profile, horizon, duration);
+                if (fits)
+                {
+                    ApplyTargetVisibility(series, c, true);
+                    mFitSeries.Add(series);
+                    seriesList.Add(series);
+                }
+
                 newSeriesByTarget[target] = series;
-                seriesList.Add(series);
             }
 
             // Drop tooltip arrays for targets no longer in the render list.
@@ -351,12 +369,6 @@ namespace TargetPlanner.Charts
             foreach (var kv in newSeriesByTarget) mSeriesByTarget[kv.Key] = kv.Value;
             mChart.Series = seriesList;
             BuildLegendItems();
-
-            // Apply hide-on-no-fit (alpha 0 stroke for targets without a D-hour
-            // window tonight). Same probe as Day so the two charts agree on
-            // which targets are hidden -- the legacy AltitudeSeries paired the
-            // -Day and -Sky series in one Color toggle for exactly this reason.
-            RefreshVisibility(ctx, cache);
 
             // Force LC2 to repaint after the Series reassignment. Defensive
             // against the LC2 miss-case on Visible=false->true transition
@@ -400,15 +412,28 @@ namespace TargetPlanner.Charts
                 if (!mTargetColors.TryGetValue(target, out Color c)) c = Color.White;
 
                 bool fits = HasFit(target, location, night, profile, horizon, duration);
-                ApplyTargetVisibility(series, c, fits);
-                if (fits) mFitSeries.Add(series);
-                else mFitSeries.Remove(series);
+                if (fits)
+                {
+                    ApplyTargetVisibility(series, c, true);
+                    mFitSeries.Add(series);
+                }
+                else
+                {
+                    mFitSeries.Remove(series);
+                }
             }
 
-            // Rebuild legend so H/D/M scrubs that change a target's fit status
-            // add or remove its entry. Curves themselves stay in mChart.Series
-            // with alpha-0 stroke for unfit targets (no chart-series filtering
-            // on Sky); only the legend filters via mFitSeries.
+            // Rebuild mChart.Series + legend from mSeriesByTarget filtered on
+            // mFitSeries -- Day-style fit-tonight filter, no alpha-0 toggling.
+            // H/D/M scrubs that change a target's fit status add or remove its
+            // curve and legend entry together; Sky and Day stay in lockstep on
+            // which targets are visible.
+            var seriesList = new List<ISeries>();
+            foreach (var kv in mSeriesByTarget)
+            {
+                if (mFitSeries.Contains(kv.Value)) seriesList.Add(kv.Value);
+            }
+            mChart.Series = seriesList;
             BuildLegendItems();
         }
 
