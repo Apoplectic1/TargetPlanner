@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using SkiaSharp;
+
+using Target = Astronomy.Core.Targets.Target;
 
 namespace TargetPlanner.Charts
 {
@@ -106,6 +109,23 @@ namespace TargetPlanner.Charts
             DateTime stop = dawnLocal.Date.AddHours(dawnLocal.Hour);
             if (stop <= dawnLocal) stop = stop.AddHours(1);
             return stop;
+        }
+
+        // Look up <paramref name="target"/>'s color from <paramref name="colorMap"/>
+        // (the MainForm-owned KnownTargets-keyed dict threaded through ChartContext);
+        // fall back to <c>palette[fallbackIndex % len]</c> when the map is null
+        // (early-init before NINA load) or the target isn't in it (transient
+        // RA/Dec-typed targets that aren't part of KnownTargets). Used by every
+        // sub-chart's Render so colors stay consistent across charts even when
+        // their iteration order diverges (sort change between Renders).
+        public static Color ResolveTargetColor(
+            IReadOnlyDictionary<Target, Color> colorMap,
+            Target target,
+            int fallbackIndex)
+        {
+            if (target != null && colorMap != null
+                && colorMap.TryGetValue(target, out Color c)) return c;
+            return TargetColorPalette[fallbackIndex % TargetColorPalette.Length];
         }
 
         // Year / Sessions x-axis tick positions: one per first-of-month boundary

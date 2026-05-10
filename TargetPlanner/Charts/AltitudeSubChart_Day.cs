@@ -286,7 +286,7 @@ namespace TargetPlanner.Charts
                 Target target = targets[t];
                 if (target == null) continue;
 
-                Color c = ChartLayout.TargetColorPalette[t % ChartLayout.TargetColorPalette.Length];
+                Color c = ChartLayout.ResolveTargetColor(ctx.TargetColors, target, t);
                 mTargetColors[target] = c;
 
                 IReadOnlyList<double> altitudes = AltitudeCurve.Sample(
@@ -313,6 +313,17 @@ namespace TargetPlanner.Charts
             foreach (var kv in newSeriesByTarget) mSeriesByTarget[kv.Key] = kv.Value;
             mChart.Series = seriesList;
             BuildLegendItems();
+
+            // Force LC2 to repaint after the Series reassignment. Defensive
+            // against the LC2 miss-case on Visible=false->true transition
+            // (ShowOnlyAltitudeChart in MainForm.RenderArea) where the just-
+            // shown control's first paint occasionally lands on stale internal
+            // state. Same pattern as the legend-click handler below.
+            // Commented out: surfaced a per-sub-chart color-divergence bug; once
+            // ChartContext.TargetColors made colors consistent across charts the
+            // observed empty-Sky symptom didn't reappear without the Invalidate.
+            // Restore if the empty-chart-on-radio-flip recurs.
+            // mChart.Invalidate();
 
             RecomputeLayout();
         }

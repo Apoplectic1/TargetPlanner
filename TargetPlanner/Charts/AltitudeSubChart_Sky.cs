@@ -96,6 +96,16 @@ namespace TargetPlanner.Charts
         private readonly Dictionary<Target, Color> mTargetColors
             = new Dictionary<Target, Color>();
 
+        // "Fit tonight" tracker for the legend filter. Populated by
+        // RefreshVisibility per HasFit per target, consulted by BuildLegendItems
+        // to skip unfit targets so the legend only lists curves the user can
+        // actually see (alpha-0 unfit curves stay in mChart.Series, but their
+        // legend entries don't render). Mirrors Day's mTargetWindows.ContainsKey
+        // shape; Sky needs only a presence bit (no window endpoints since there's
+        // no HD overlay on Sky).
+        private readonly HashSet<LineSeries<ObservablePoint>> mFitSeries
+            = new HashSet<LineSeries<ObservablePoint>>();
+
         // Pre-formatted per-minute tooltip text, keyed by series. The custom
         // CurveTooltipFormatter reads mTooltipText[series][segmentStart] to
         // surface the actual K-S magnitude rather than the inverted plot Y.
@@ -319,7 +329,7 @@ namespace TargetPlanner.Charts
                 Target target = targets[t];
                 if (target == null) continue;
 
-                Color c = ChartLayout.TargetColorPalette[t % ChartLayout.TargetColorPalette.Length];
+                Color c = ChartLayout.ResolveTargetColor(ctx.TargetColors, target, t);
                 mTargetColors[target] = c;
 
                 var series = GetOrCreateTargetSeries(target, c);
@@ -347,6 +357,15 @@ namespace TargetPlanner.Charts
             // which targets are hidden -- the legacy AltitudeSeries paired the
             // -Day and -Sky series in one Color toggle for exactly this reason.
             RefreshVisibility(ctx, cache);
+
+            // Force LC2 to repaint after the Series reassignment. Defensive
+            // against the LC2 miss-case on Visible=false->true transition
+            // (ShowOnlyAltitudeChart in MainForm.RenderArea).
+            // Commented out: surfaced a per-sub-chart color-divergence bug; once
+            // ChartContext.TargetColors made colors consistent across charts the
+            // observed empty-Sky symptom didn't reappear without the Invalidate.
+            // Restore if the empty-chart-on-radio-flip recurs.
+            // mChart.Invalidate();
 
             RecomputeLayout();
         }
@@ -382,7 +401,15 @@ namespace TargetPlanner.Charts
 
                 bool fits = HasFit(target, location, night, profile, horizon, duration);
                 ApplyTargetVisibility(series, c, fits);
+                if (fits) mFitSeries.Add(series);
+                else mFitSeries.Remove(series);
             }
+
+            // Rebuild legend so H/D/M scrubs that change a target's fit status
+            // add or remove its entry. Curves themselves stay in mChart.Series
+            // with alpha-0 stroke for unfit targets (no chart-series filtering
+            // on Sky); only the legend filters via mFitSeries.
+            BuildLegendItems();
         }
 
         // Cheap path for Bortle / ExtinctionK / ActiveFilter scrubs that don't
@@ -417,6 +444,7 @@ namespace TargetPlanner.Charts
             mSeriesByTarget.Clear();
             mTargetColors.Clear();
             mTooltipText.Clear();
+            mFitSeries.Clear();
             mLastCount = 0;
             mChart.Series = Array.Empty<ISeries>();
             mLegendPanel.Controls.Clear();
@@ -558,6 +586,13 @@ namespace TargetPlanner.Charts
         // series collection. Each item is a small Label with a color marker +
         // target-name; click toggles the corresponding LineSeries.IsVisible.
         // FlowLayoutPanel auto-wraps to multiple rows as the legend grows.
+        //
+        // Filter: targets without an entry in mFitSeries (HasFit returned false
+        // under current H/D/M) are excluded from the legend. Their alpha-0
+        // curves stay in mChart.Series but the legend matches what's actually
+        // visible. Day's BuildLegendItems uses the same shape via
+        // mTargetWindows.ContainsKey(series); Sky's mFitSeries is the parallel
+        // (Sky has no window endpoints to store, just a fit bit).
         private void BuildLegendItems()
         {
             mLegendPanel.SuspendLayout();
@@ -566,6 +601,7 @@ namespace TargetPlanner.Charts
             {
                 Target target = kv.Key;
                 LineSeries<ObservablePoint> series = kv.Value;
+                if (!mFitSeries.Contains(series)) continue;
                 Color color = mTargetColors.TryGetValue(target, out var c) ? c : Color.LightGray;
                 mLegendPanel.Controls.Add(MakeLegendItem(series, target, color));
             }

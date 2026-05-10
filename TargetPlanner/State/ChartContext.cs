@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Drawing;
 using Astronomy.Core.Moon;
 
 using Location = Astronomy.Core.Locations.Location;
@@ -40,12 +41,26 @@ namespace TargetPlanner.State
     /// the full <c>Filters.Filter</c> instance carries Name / BandwidthNm /
     /// persistence concerns the chart pipeline doesn't read.
     /// </para>
+    /// <para>
+    /// <see cref="TargetColors"/> is the single source of truth for per-target
+    /// curve / legend colors across every sub-chart. MainForm rebuilds the dict
+    /// once per <c>KnownTargets</c> change (NINA load), Name-sorted so the same
+    /// target lands on the same palette index across reloads of the same folder.
+    /// Sub-chart <c>Render</c> implementations look up <c>TargetColors[target]</c>
+    /// rather than computing <c>palette[i % len]</c> per-iteration; the latter
+    /// produces inconsistent colors across charts whenever the targets list
+    /// order diverges between sub-chart Renders (e.g. after <c>Reorder</c> on
+    /// a sort change). May be <see langword="null"/> on early-init code paths
+    /// before the first NINA load completes; sub-charts fall back to the first
+    /// palette entry as a safe default.
+    /// </para>
     /// </remarks>
     public sealed record ChartContext(
         Location Location,
         IReadOnlyList<Target> Targets,
         MoonAvoidanceProfile MoonProfile,
         double ActiveFilterCenterNm,
-        string ActiveArea
+        string ActiveArea,
+        IReadOnlyDictionary<Target, Color> TargetColors
     );
 }

@@ -61,6 +61,17 @@ namespace TargetPlanner
         private Astronomy.Core.Moon.MoonAvoidanceProfile mMoonAvoidanceProfile;
         private double mActiveFilterCenterNm = 550.0;
 
+        // Single source of truth for per-target curve / legend colors across every
+        // sub-chart. Built once per KnownTargets change (NINA load), Name-sorted so
+        // the same target lands on the same palette index across reloads of the
+        // same folder. Sub-chart Render reads ctx.TargetColors[target] (threaded
+        // through ChartContext) rather than computing palette[i % len] per-iteration
+        // — the latter diverged between sub-charts whenever the targets list order
+        // differed between their Renders (e.g. after Reorder on a sort change),
+        // visible as a target's curve flipping color when the user switched radios.
+        private System.Collections.Generic.Dictionary<Astronomy.Core.Targets.Target, System.Drawing.Color> mTargetColorsByTarget =
+            new System.Collections.Generic.Dictionary<Astronomy.Core.Targets.Target, System.Drawing.Color>();
+
         // Phase 3 of the SoC refactor: ChartCacheStore owns the per-(Location, Target)
         // year cache + per-Location NightCache. After GetNinaTargets completes we kick
         // off PrepareManyAsync(KnownTargets) for background pre-population so subsequent
@@ -1620,10 +1631,11 @@ Right-click anywhere on the chart to clear all overlays.";
 
         // Build a ChartContext snapshot from current MainForm state. Single point
         // that reads mLocation / mMoonAvoidanceProfile / mActiveFilterCenterNm /
-        // SelectedArea() — adding a new chart input is one record-field addition
-        // here plus one additional read here, not a signature break across six
-        // files. Caller decides which target list to pass (single-target via
-        // SelectedSingle, multi via the checked set, or empty for blanking).
+        // SelectedArea() / mTargetColorsByTarget — adding a new chart input is one
+        // record-field addition here plus one additional read here, not a signature
+        // break across six files. Caller decides which target list to pass
+        // (single-target via SelectedSingle, multi via the checked set, or empty
+        // for blanking).
         private ChartContext SnapshotCurrent(IReadOnlyList<Target> targets)
         {
             return new ChartContext(
@@ -1631,7 +1643,8 @@ Right-click anywhere on the chart to clear all overlays.";
                 Targets:              targets ?? Array.Empty<Target>(),
                 MoonProfile:          mMoonAvoidanceProfile,
                 ActiveFilterCenterNm: mActiveFilterCenterNm,
-                ActiveArea:           SelectedArea());
+                ActiveArea:           SelectedArea(),
+                TargetColors:         mTargetColorsByTarget);
         }
 
         // Snap the observation moment back to the current wall-clock time. Replaces the
@@ -2295,6 +2308,12 @@ Right-click anywhere on the chart to clear all overlays.";
             PopulateCheckedListBoxFromTargets(defaultChecked: false);
             PopulateTargetComboFromTargets(preserveSelection: false);
 
+            // Rebuild the per-target color map. Name-sorted so the same target lands on
+            // the same palette index across reloads of the same folder; consumed by every
+            // sub-chart's Render via ctx.TargetColors so all charts agree on each
+            // target's color regardless of their Render-time iteration order.
+            RebuildTargetColors();
+
             // SetKnownTargets clears SelectedSingle when the prior selection isn't in the
             // new catalog (different Target instance equality across reloads). Re-establish
             // a default by picking the *first sorted* known target (matching what the
@@ -2306,6 +2325,28 @@ Right-click anywhere on the chart to clear all overlays.";
             {
                 Target firstSorted = SortedTargets(mSelection.KnownTargets).FirstOrDefault();
                 if (firstSorted != null) mSelection.SetSelectedSingle(firstSorted);
+            }
+        }
+
+        // Rebuild mTargetColorsByTarget from the current KnownTargets, Name-sorted.
+        // Stable across sort changes (Reorder doesn't touch this), across radio
+        // switches (every sub-chart reads the same dict), and across HMD scrubs
+        // (RefreshVisibility doesn't reassign). Rebuilds only when KnownTargets
+        // changes (NINA load).
+        private void RebuildTargetColors()
+        {
+            mTargetColorsByTarget.Clear();
+            if (mSelection == null || mSelection.KnownTargets.Count == 0) return;
+
+            var nameSorted = mSelection.KnownTargets
+                .Where(t => t != null)
+                .OrderBy(t => t.Name, NaturalStringComparer.OrdinalIgnoreCase)
+                .ToList();
+            int paletteSize = Charts.ChartLayout.TargetColorPalette.Length;
+            for (int i = 0; i < nameSorted.Count; i++)
+            {
+                mTargetColorsByTarget[nameSorted[i]] =
+                    Charts.ChartLayout.TargetColorPalette[i % paletteSize];
             }
         }
 

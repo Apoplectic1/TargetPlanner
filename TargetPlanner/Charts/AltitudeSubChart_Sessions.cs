@@ -286,7 +286,7 @@ namespace TargetPlanner.Charts
                     gridEnd   = yearDays[yearDays.Count - 1].SentinelX;
                 }
 
-                Color c = ChartLayout.TargetColorPalette[t % ChartLayout.TargetColorPalette.Length];
+                Color c = ChartLayout.ResolveTargetColor(ctx.TargetColors, target, t);
                 mTargetColors[target] = c;
                 mYearDaysByTarget[target] = yearDays;
 
@@ -353,6 +353,15 @@ namespace TargetPlanner.Charts
             // For 44 targets × 365 nights × (PlaceBest + PlaceCentered) the
             // moon-aware case takes ~10-60 sec, which is why this is async.
             RefreshVisibility(ctx, cache);
+
+            // Force LC2 to repaint after the Series reassignment. Defensive
+            // against the LC2 miss-case on Visible=false->true transition
+            // (ShowOnlyAltitudeChart in MainForm.RenderArea).
+            // Commented out: surfaced a per-sub-chart color-divergence bug; once
+            // ChartContext.TargetColors made colors consistent across charts the
+            // observed empty-Sky symptom didn't reappear without the Invalidate.
+            // Restore if the empty-chart-on-radio-flip recurs.
+            // mChart.Invalidate();
 
             RecomputeLayout();
         }
