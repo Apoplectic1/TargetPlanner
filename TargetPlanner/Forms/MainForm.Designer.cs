@@ -133,7 +133,7 @@
             CheckUpdatesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             AboutToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             GroupBox_Altitude = new System.Windows.Forms.GroupBox();
-            RadioButton_Sky = new System.Windows.Forms.RadioButton();
+            CheckBox_Sky = new System.Windows.Forms.CheckBox();
             ProgressBar_MultiTargetProcessing = new System.Windows.Forms.ProgressBar();
             GroupBox_Local.SuspendLayout();
             GroupBox_Location.SuspendLayout();
@@ -1349,9 +1349,9 @@
             Button_Cancel.Text = "Cancel";
             Button_Cancel.UseVisualStyleBackColor = true;
             Button_Cancel.Click += Button_Cancel_Click;
-            //
+            // 
             // MenuStrip_MainForm
-            //
+            // 
             MenuStrip_MainForm.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { FileToolStripMenuItem_MainForm, FiltersToolStripMenuItem_MainForm, HelpToolStripMenuItem_MainForm });
             MenuStrip_MainForm.Location = new System.Drawing.Point(0, 0);
             MenuStrip_MainForm.Name = "MenuStrip_MainForm";
@@ -1360,47 +1360,44 @@
             MenuStrip_MainForm.Size = new System.Drawing.Size(1899, 24);
             MenuStrip_MainForm.TabIndex = 5;
             MenuStrip_MainForm.Text = "menuStrip1";
-            //
+            // 
             // FileToolStripMenuItem_MainForm
-            //
+            // 
             FileToolStripMenuItem_MainForm.Name = "FileToolStripMenuItem_MainForm";
             FileToolStripMenuItem_MainForm.Size = new System.Drawing.Size(37, 20);
             FileToolStripMenuItem_MainForm.Text = "File";
-            //
+            // 
             // FiltersToolStripMenuItem_MainForm
-            //
-            // Top-level "Filters" menu. Children populated dynamically by
-            // MainForm.BuildFiltersMenu() from FilterLibrary on every load /
-            // Edit Filters dialog Save -- empty at design time, filled at runtime.
+            // 
             FiltersToolStripMenuItem_MainForm.Name = "FiltersToolStripMenuItem_MainForm";
             FiltersToolStripMenuItem_MainForm.Size = new System.Drawing.Size(50, 20);
             FiltersToolStripMenuItem_MainForm.Text = "&Filters";
             FiltersToolStripMenuItem_MainForm.ToolTipText = "Click a filter to activate it for moon avoidance. Right-click any filter to open the Edit Filters dialog.";
-            //
+            // 
             // HelpToolStripMenuItem_MainForm
-            //
+            // 
             HelpToolStripMenuItem_MainForm.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] { CheckUpdatesToolStripMenuItem, AboutToolStripMenuItem });
             HelpToolStripMenuItem_MainForm.Name = "HelpToolStripMenuItem_MainForm";
             HelpToolStripMenuItem_MainForm.Size = new System.Drawing.Size(44, 20);
             HelpToolStripMenuItem_MainForm.Text = "&Help";
-            //
+            // 
             // CheckUpdatesToolStripMenuItem
-            //
+            // 
             CheckUpdatesToolStripMenuItem.Name = "CheckUpdatesToolStripMenuItem";
-            CheckUpdatesToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            CheckUpdatesToolStripMenuItem.Size = new System.Drawing.Size(183, 22);
             CheckUpdatesToolStripMenuItem.Text = "Check for &Updates...";
             CheckUpdatesToolStripMenuItem.Click += OnCheckUpdatesClick;
-            //
+            // 
             // AboutToolStripMenuItem
-            //
+            // 
             AboutToolStripMenuItem.Name = "AboutToolStripMenuItem";
-            AboutToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            AboutToolStripMenuItem.Size = new System.Drawing.Size(183, 22);
             AboutToolStripMenuItem.Text = "&About TargetPlanner";
             AboutToolStripMenuItem.Click += OnAboutClick;
             // 
             // GroupBox_Altitude
             // 
-            GroupBox_Altitude.Controls.Add(RadioButton_Sky);
+            GroupBox_Altitude.Controls.Add(CheckBox_Sky);
             GroupBox_Altitude.Controls.Add(ProgressBar_MultiTargetProcessing);
             GroupBox_Altitude.Controls.Add(RadioButton_Year);
             GroupBox_Altitude.Controls.Add(RadioButton_Sessions);
@@ -1414,18 +1411,17 @@
             GroupBox_Altitude.TabStop = false;
             GroupBox_Altitude.Text = "Altitude";
             // 
-            // RadioButton_Sky
+            // CheckBox_Sky
             // 
-            RadioButton_Sky.AutoSize = true;
-            RadioButton_Sky.Location = new System.Drawing.Point(65, 20);
-            RadioButton_Sky.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            RadioButton_Sky.Name = "RadioButton_Sky";
-            RadioButton_Sky.Size = new System.Drawing.Size(43, 19);
-            RadioButton_Sky.TabIndex = 41;
-            RadioButton_Sky.TabStop = true;
-            RadioButton_Sky.Text = "Sky";
-            RadioButton_Sky.UseVisualStyleBackColor = true;
-            RadioButton_Sky.CheckedChanged += RadioButton_Sky_CheckedChanged;
+            CheckBox_Sky.AutoSize = true;
+            CheckBox_Sky.Location = new System.Drawing.Point(65, 21);
+            CheckBox_Sky.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            CheckBox_Sky.Name = "CheckBox_Sky";
+            CheckBox_Sky.Size = new System.Drawing.Size(44, 19);
+            CheckBox_Sky.TabIndex = 41;
+            CheckBox_Sky.Text = "Sky";
+            CheckBox_Sky.UseVisualStyleBackColor = true;
+            CheckBox_Sky.CheckedChanged += CheckBox_Sky_CheckedChanged;
             // 
             // ProgressBar_MultiTargetProcessing
             // 
@@ -1598,7 +1594,7 @@
         private System.Windows.Forms.Label Label_Bortle;
         private System.Windows.Forms.ComboBox ComboBox_Bortle;
         private System.Windows.Forms.NumericUpDown NumericUpDown_Extinction;
-        private System.Windows.Forms.RadioButton RadioButton_Sky;
+        private System.Windows.Forms.CheckBox CheckBox_Sky;
     }
 }
 

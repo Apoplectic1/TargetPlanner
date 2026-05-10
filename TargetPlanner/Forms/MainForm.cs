@@ -1615,14 +1615,18 @@ Right-click anywhere on the chart to clear all overlays.";
             await RunGraphBuildAsync(targets);
         }
 
-        // Returns the currently-checked view radio's area name. Day is the default
-        // since the Designer sets RadioButton_Day.Checked = true; the radio cluster
-        // ensures exactly one is checked at any time.
+        // Returns the currently-active chart-area name. The radio cluster
+        // (Day / Year / Sessions) ensures exactly one is checked at any time;
+        // CheckBox_Sky lives inside the Day radio and toggles its sub-mode
+        // between altitude (Day) and K-S brightness (Sky). Day↔Sky toggling
+        // exercises the coordinator's skip-Render-on-redundant-area-change
+        // optimization for instant switching.
         private string SelectedArea()
         {
-            if (RadioButton_Sky.Checked)      return "Sky";
             if (RadioButton_Sessions.Checked) return "Sessions";
             if (RadioButton_Year.Checked)     return "Year";
+            // Day radio active (default). Sub-mode determined by CheckBox_Sky.
+            if (CheckBox_Sky != null && CheckBox_Sky.Checked) return "Sky";
             return "Day";
         }
 
@@ -2195,14 +2199,17 @@ Right-click anywhere on the chart to clear all overlays.";
             mToolTip.ReshowDelay = 2000;
         }
 
-        // The four view radio handlers all share the same shape: persist UI state,
-        // and if the radio is now checked, hand a snapshot to the coordinator.
-        // The coordinator's diff sees ActiveArea changed and Renders the new
-        // active sub-chart. Post-apply hook handles label / now-line / horizon-
-        // line / Sky-brightness sync.
+        // The three view radio handlers (Day / Year / Sessions) all share the
+        // same shape: persist UI state, and if the radio is now checked, hand a
+        // snapshot to the coordinator. CheckBox_Sky lives inside the Day radio
+        // as a sub-mode toggle (altitude vs K-S brightness); it's enabled only
+        // when Day is the active radio. The coordinator's diff sees ActiveArea
+        // changed and dispatches Render or ShowOnly depending on whether the
+        // new active area's data is current.
         private void RadioButton_Day_CheckedChanged(object sender, EventArgs e)
         {
             mUIState.DayChart = RadioButton_Day.Checked;
+            if (CheckBox_Sky != null) CheckBox_Sky.Enabled = RadioButton_Day.Checked;
             if (!RadioButton_Day.Checked) return;
             mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
         }
@@ -2221,10 +2228,21 @@ Right-click anywhere on the chart to clear all overlays.";
             mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
         }
 
-        private void RadioButton_Sky_CheckedChanged(object sender, EventArgs e)
+        // Sub-mode toggle inside the Day radio. Wired in MainForm.Designer.cs.
+        // Toggling switches between Day (altitude) and Sky (K-S brightness)
+        // chart areas. Enabled only when Day radio is active (gated by
+        // RadioButton_Day_CheckedChanged); CheckedChanged firing while
+        // disabled would only happen via programmatic state restore at
+        // form-load and is harmless (Apply of the unchecked path renders Day,
+        // which is what was about to be rendered anyway).
+        private void CheckBox_Sky_CheckedChanged(object sender, EventArgs e)
         {
-            mUIState.SkyChart = RadioButton_Sky.Checked;
-            if (!RadioButton_Sky.Checked) return;
+            mUIState.SkyChart = CheckBox_Sky.Checked;
+            // Only dispatch when Day is the active radio -- toggling the
+            // checkbox while Year or Sessions is selected would otherwise
+            // re-render those areas with an unchanged ActiveArea (Year /
+            // Sessions don't read CheckBox_Sky). Cheap to gate here.
+            if (RadioButton_Day == null || !RadioButton_Day.Checked) return;
             mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
         }
 
