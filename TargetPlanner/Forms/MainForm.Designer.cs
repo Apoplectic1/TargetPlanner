@@ -1356,6 +1356,7 @@
             MenuStrip_MainForm.Location = new System.Drawing.Point(0, 0);
             MenuStrip_MainForm.Name = "MenuStrip_MainForm";
             MenuStrip_MainForm.Padding = new System.Windows.Forms.Padding(7, 2, 0, 2);
+            MenuStrip_MainForm.ShowItemToolTips = true;
             MenuStrip_MainForm.Size = new System.Drawing.Size(1899, 24);
             MenuStrip_MainForm.TabIndex = 5;
             MenuStrip_MainForm.Text = "menuStrip1";
@@ -1374,6 +1375,7 @@
             FiltersToolStripMenuItem_MainForm.Name = "FiltersToolStripMenuItem_MainForm";
             FiltersToolStripMenuItem_MainForm.Size = new System.Drawing.Size(50, 20);
             FiltersToolStripMenuItem_MainForm.Text = "&Filters";
+            FiltersToolStripMenuItem_MainForm.ToolTipText = "Click a filter to activate it for moon avoidance. Right-click any filter to open the Edit Filters dialog.";
             //
             // HelpToolStripMenuItem_MainForm
             //
