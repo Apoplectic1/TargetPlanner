@@ -127,5 +127,41 @@ namespace TargetPlanner.State
         {
             SetCheckedSet(isChecked ? mKnown : Enumerable.Empty<Target>());
         }
+
+        /// <summary>
+        /// Append <paramref name="t"/> to <see cref="KnownTargets"/> if not already present
+        /// by reference. Returns true iff added. Fires <see cref="KnownTargetsChanged"/>
+        /// on insert; no-op (and false) if the target is null or already a member.
+        /// </summary>
+        public bool AddKnownTarget(Target t)
+        {
+            if (t == null) return false;
+            if (mKnown.Contains(t)) return false;
+            mKnown.Add(t);
+            KnownTargetsChanged?.Invoke(this, EventArgs.Empty);
+            return true;
+        }
+
+        /// <summary>
+        /// Remove <paramref name="t"/> from <see cref="KnownTargets"/>. Also drops it from
+        /// <see cref="Checked"/> and clears <see cref="SelectedSingle"/> if it was the
+        /// selected target. Each affected event fires once. Returns true iff removed from
+        /// <see cref="KnownTargets"/>; no-op (and false) if the target is null or not a
+        /// member.
+        /// </summary>
+        public bool RemoveKnownTarget(Target t)
+        {
+            if (t == null) return false;
+            if (!mKnown.Remove(t)) return false;
+
+            bool wasChecked = mChecked.Remove(t);
+            bool selectionDropped = object.ReferenceEquals(mSelected, t);
+            if (selectionDropped) mSelected = null;
+
+            KnownTargetsChanged?.Invoke(this, EventArgs.Empty);
+            if (wasChecked) CheckedSetChanged?.Invoke(this, EventArgs.Empty);
+            if (selectionDropped) SelectedSingleChanged?.Invoke(this, EventArgs.Empty);
+            return true;
+        }
     }
 }

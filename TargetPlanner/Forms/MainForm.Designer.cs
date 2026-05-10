@@ -108,9 +108,10 @@
             ProgressBar_ProcessObject = new System.Windows.Forms.ProgressBar();
             Label_SortBy = new System.Windows.Forms.Label();
             ComboBox_SortTargets = new System.Windows.Forms.ComboBox();
-            CheckedListBox_SelectedTargets = new System.Windows.Forms.CheckedListBox();
+            CheckedListBox_SelectedTargets = new TargetPlanner.Forms.DupeAwareCheckedListBox();
             Button_BrowseTargetList = new System.Windows.Forms.Button();
             GroupBox_Target = new System.Windows.Forms.GroupBox();
+            Button_RemoveTarget = new System.Windows.Forms.Button();
             Button_AddTarget = new System.Windows.Forms.Button();
             Button_CheckedTargets = new System.Windows.Forms.Button();
             GroupBox_Moon_Filters = new System.Windows.Forms.GroupBox();
@@ -137,7 +138,6 @@
             GroupBox_Altitude = new System.Windows.Forms.GroupBox();
             CheckBox_Sky = new System.Windows.Forms.CheckBox();
             ProgressBar_MultiTargetProcessing = new System.Windows.Forms.ProgressBar();
-            Button_RemoveTarget = new System.Windows.Forms.Button();
             GroupBox_Local.SuspendLayout();
             GroupBox_Location.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)NumericUpDown_Extinction).BeginInit();
@@ -1071,7 +1071,7 @@
             // 
             // ProgressBar_ProcessObject
             // 
-            ProgressBar_ProcessObject.Location = new System.Drawing.Point(131, 29);
+            ProgressBar_ProcessObject.Location = new System.Drawing.Point(131, 25);
             ProgressBar_ProcessObject.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             ProgressBar_ProcessObject.Name = "ProgressBar_ProcessObject";
             ProgressBar_ProcessObject.Size = new System.Drawing.Size(475, 21);
@@ -1115,7 +1115,7 @@
             // 
             // Button_BrowseTargetList
             // 
-            Button_BrowseTargetList.Location = new System.Drawing.Point(26, 27);
+            Button_BrowseTargetList.Location = new System.Drawing.Point(26, 22);
             Button_BrowseTargetList.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             Button_BrowseTargetList.Name = "Button_BrowseTargetList";
             Button_BrowseTargetList.Size = new System.Drawing.Size(98, 27);
@@ -1173,6 +1173,16 @@
             GroupBox_Target.TabStop = false;
             GroupBox_Target.Text = "Target";
             // 
+            // Button_RemoveTarget
+            // 
+            Button_RemoveTarget.Location = new System.Drawing.Point(509, 115);
+            Button_RemoveTarget.Name = "Button_RemoveTarget";
+            Button_RemoveTarget.Size = new System.Drawing.Size(75, 23);
+            Button_RemoveTarget.TabIndex = 45;
+            Button_RemoveTarget.Text = "Remove";
+            Button_RemoveTarget.UseVisualStyleBackColor = true;
+            Button_RemoveTarget.Click += Button_RemoveTarget_Click;
+            // 
             // Button_AddTarget
             // 
             Button_AddTarget.Location = new System.Drawing.Point(509, 91);
@@ -1181,6 +1191,7 @@
             Button_AddTarget.TabIndex = 44;
             Button_AddTarget.Text = "Add";
             Button_AddTarget.UseVisualStyleBackColor = true;
+            Button_AddTarget.Click += Button_AddTarget_Click;
             // 
             // Button_CheckedTargets
             // 
@@ -1456,15 +1467,6 @@
             ProgressBar_MultiTargetProcessing.Size = new System.Drawing.Size(1570, 21);
             ProgressBar_MultiTargetProcessing.TabIndex = 40;
             // 
-            // Button_RemoveTarget
-            // 
-            Button_RemoveTarget.Location = new System.Drawing.Point(509, 115);
-            Button_RemoveTarget.Name = "Button_RemoveTarget";
-            Button_RemoveTarget.Size = new System.Drawing.Size(75, 23);
-            Button_RemoveTarget.TabIndex = 45;
-            Button_RemoveTarget.Text = "Remove";
-            Button_RemoveTarget.UseVisualStyleBackColor = true;
-            // 
             // MainForm
             // 
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
@@ -1575,7 +1577,7 @@
         private System.Windows.Forms.Label Label_Location;
         private System.Windows.Forms.ComboBox ComboBox_Location;
         private System.Windows.Forms.Button Button_BrowseTargetList;
-        private System.Windows.Forms.CheckedListBox CheckedListBox_SelectedTargets;
+        private TargetPlanner.Forms.DupeAwareCheckedListBox CheckedListBox_SelectedTargets;
         private System.Windows.Forms.ComboBox ComboBox_SortTargets;
         private System.Windows.Forms.Label Label_SortBy;
         private System.Windows.Forms.Label Label_TargetDuration;

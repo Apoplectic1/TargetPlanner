@@ -64,6 +64,16 @@ Design notes preserved for the future implementation:
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
 
+### 2026-05-10 — Add/Remove target buttons + dupe-set visual flagging
+
+User-driven target lifecycle: **Add** merges the combo's resolved `SelectedSingle` (NINA-known or transient-from-spinners) into `Checked`, persisting locally-typed targets to a sidecar JSON; **Remove** drops the target from `KnownTargets` entirely (NINA-loaded targets reappear on next browse, locally-added stay gone). Sidecar at `%AppData%\TargetPlanner\local-targets.json`, merged into `KnownTargets` after every NINA `Load(...)` so a re-browse doesn't wipe user additions. Spinner-edit handlers honor the combo's typed `Text` as the new target's `Name` so "type a fresh name + spinner-edit RA/Dec + Add" works end-to-end. Clear-All-Data dialog deletes the sidecar alongside the other persistent files.
+
+`CheckedListBox_SelectedTargets` rows now visually flag duplicates: targets sharing `Name` OR `(round(RA, 6), round(Dec, 6), North)` form transitive groups (DSU/union-find), and each group with size > 1 gets a stable pastel background. Required two framework-level workarounds: `CheckedListBox` hard-codes `DrawMode = Normal` in its property setter (silent no-op) and `OnDrawItem` does its own checkbox+text paint without calling `base.OnDrawItem` (so the standard `DrawItem` event never fires). `Forms/DupeAwareCheckedListBox.cs` re-enables `OwnerDrawFixed` via `CreateParams` and owns the entire row paint, exposing a `Func<int, Color?> RowBackground` callback. The listbox items are now `TargetRow` wrappers (instead of bare name strings) so index-based lookups return the right `Target` instance even when two rows share a name — fixes the "highlight either row, see the same RA/Dec in spinners" symptom that the user spotted.
+
+`TargetSelection` gained `AddKnownTarget` + `RemoveKnownTarget` mutators (incremental, fire `KnownTargetsChanged` + `CheckedSetChanged` + `SelectedSingleChanged` exactly as needed). `Button_CheckedTargets` (added earlier in this session, commit `a028f68`) was joined by `Button_AddTarget` and `Button_RemoveTarget` for the full lifecycle.
+
+Detailed plan + verification list at `~/.claude/plans/high-level-refactoring-goals-separation-moonlit-clarke.md`.
+
 ### 2026-05-04 — .NET 10 migration + Library perf wave
 
 Long session covering, in commit order:

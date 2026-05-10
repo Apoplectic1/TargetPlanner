@@ -72,6 +72,42 @@ namespace TargetPlanner
         private System.Collections.Generic.Dictionary<Astronomy.Core.Targets.Target, System.Drawing.Color> mTargetColorsByTarget =
             new System.Collections.Generic.Dictionary<Astronomy.Core.Targets.Target, System.Drawing.Color>();
 
+        // User-added (non-NINA) targets, persisted to %AppData%\TargetPlanner\local-targets.json.
+        // Re-merged into KnownTargets after every NINA Load so a re-browse doesn't wipe them.
+        // Membership doubles as the "is this target locally-added?" check on Button_RemoveTarget
+        // (locally-added removals also drop the target from the sidecar; NINA-loaded removals
+        // don't, since the next browse re-adds them).
+        private System.Collections.Generic.HashSet<Astronomy.Core.Targets.Target> mLocalTargets =
+            new System.Collections.Generic.HashSet<Astronomy.Core.Targets.Target>();
+
+        // Per-target dupe-set background colors for CheckedListBox_SelectedTargets.
+        // Targets sharing (RA, Dec, North) form a dupe-set; each set gets a stable
+        // pastel from DupeSetPalette so the user can spot multi-coord coincidences
+        // at a glance. Recomputed on every KnownTargetsChanged. Targets not in any
+        // dupe-set are absent from the dict; the owner-draw handler reads missing as
+        // "use default background".
+        private System.Collections.Generic.Dictionary<Astronomy.Core.Targets.Target, System.Drawing.Color> mDupeSetColors =
+            new System.Collections.Generic.Dictionary<Astronomy.Core.Targets.Target, System.Drawing.Color>();
+
+        // Pastel palette indexed by stable hash of (RoundedRa, RoundedDec, North)
+        // so the same coord set lands on the same color across sort changes and
+        // re-populates. Alpha is muted so listbox row text stays readable on the
+        // OS theme regardless of light / dark.
+        // Opaque pastels; GDI+ alpha-blending against a system-themed CheckedListBox
+        // background renders inconsistently across Windows themes, so we mix the
+        // tints into the OS Window color directly rather than relying on alpha.
+        private static readonly System.Drawing.Color[] DupeSetPalette = new[]
+        {
+            System.Drawing.Color.FromArgb(190, 220, 250),  // soft blue
+            System.Drawing.Color.FromArgb(250, 230, 180),  // soft amber
+            System.Drawing.Color.FromArgb(240, 210, 240),  // soft magenta
+            System.Drawing.Color.FromArgb(200, 240, 220),  // soft teal
+            System.Drawing.Color.FromArgb(250, 210, 200),  // soft salmon
+            System.Drawing.Color.FromArgb(230, 240, 200),  // soft lime
+            System.Drawing.Color.FromArgb(220, 210, 250),  // soft lavender
+            System.Drawing.Color.FromArgb(240, 240, 200),  // soft pale yellow-green
+        };
+
         // Phase 3 of the SoC refactor: ChartCacheStore owns the per-(Location, Target)
         // year cache + per-Location NightCache. After GetNinaTargets completes we kick
         // off PrepareManyAsync(KnownTargets) for background pre-population so subsequent
@@ -268,6 +304,12 @@ Right-click anywhere on the chart to clear all overlays.";
             mLocalDateTime = (DateTime.Now, TimeZoneInfo.Local);
             mLocation = PickStartupLocation();
             mSelection = new TargetSelection();
+
+            // Locally-added targets (typed via RA/Dec spinners + Add button) persist to
+            // %AppData%\TargetPlanner\local-targets.json. Loaded here so they're available
+            // before the startup NINA browse merges them into KnownTargets.
+            foreach (Target lt in LocalTargetStore.Load())
+                mLocalTargets.Add(lt);
             // No M31 default seed: SelectedSingle stays null until NINA load completes
             // (auto-picks first sorted target via OnVmKnownTargetsChanged) or the user
             // types coordinates / picks from the ComboBox. The RA/Dec edit handlers fall
@@ -376,6 +418,12 @@ Right-click anywhere on the chart to clear all overlays.";
         public void InitializeDynamicControls()
         {
             string[] folderSelectedPaths = { NinaTargetsRootPath };
+
+            // Wire the dupe-set tint callback. The DupeAwareCheckedListBox owns
+            // the paint path (CheckedListBox swallows the standard DrawItem event),
+            // so we expose the dupe-color lookup as a Func and the listbox calls
+            // it on every row paint.
+            CheckedListBox_SelectedTargets.RowBackground = GetDupeRowBackground;
 
             // Duration spinner: bump Minimum off the Designer default of 0. The
             // library tolerates non-positive duration (BestSession.For etc. now
@@ -647,7 +695,8 @@ Right-click anywhere on the chart to clear all overlays.";
             if (mUpdatingUiFromVm) return;
             Target t = mSelection.SelectedSingle ?? Target.Default;
             mSelection.SetSelectedSingle(
-                t.With(rightAscension: Math.Round(mRaInput.Magnitude, 6)));
+                t.With(name: ComboTextOrFallback(t.Name),
+                       rightAscension: Math.Round(mRaInput.Magnitude, 6)));
         }
 
         private void OnDeclinationEdited(object sender, EventArgs e)
@@ -656,8 +705,20 @@ Right-click anywhere on the chart to clear all overlays.";
             Target t = mSelection.SelectedSingle ?? Target.Default;
             mSelection.SetSelectedSingle(
                 t.With(
+                    name:        ComboTextOrFallback(t.Name),
                     declination: Math.Round(mDecInput.Magnitude, 6),
                     north:       mDecInput.Positive));
+        }
+
+        // Honor the user's typed name in ComboBox_SelectTarget when building a new
+        // SelectedSingle from a spinner edit. Without this, OnVmSelectedSingleChanged
+        // overwrites the combo's typed text with the prior target's name on every
+        // RA/Dec edit -- making "type a new name + adjust RA/Dec + Add" impossible.
+        // Falls back to the prior name when the combo is blank.
+        private string ComboTextOrFallback(string fallback)
+        {
+            string typed = ComboBox_SelectTarget?.Text;
+            return string.IsNullOrWhiteSpace(typed) ? fallback : typed;
         }
 
         private void NumericUpDown_TargetDuration_ValueChanged(object sender, EventArgs e)
@@ -1243,6 +1304,7 @@ Right-click anywhere on the chart to clear all overlays.";
                 "This deletes:\n" +
                 "  • " + SettingsStore.FilePath + "\n" +
                 "  • " + FilterLibrary.DefaultPath + "\n" +
+                "  • " + LocalTargetStore.FilePath + "\n" +
                 "  • " + Log.FilePath + "\n\n" +
                 "This cannot be undone.";
 
@@ -1252,6 +1314,7 @@ Right-click anywhere on the chart to clear all overlays.";
 
             TryDeleteFile(SettingsStore.FilePath);
             TryDeleteFile(FilterLibrary.DefaultPath);
+            TryDeleteFile(LocalTargetStore.FilePath);
             TryDeleteFile(Log.FilePath);
 
             DialogResult restart = MessageBox.Show(this,
@@ -1607,9 +1670,7 @@ Right-click anywhere on the chart to clear all overlays.";
             var targets = new List<Target>();
             foreach (object item in CheckedListBox_SelectedTargets.CheckedItems)
             {
-                string name = item.ToString();
-                Target t = mSelection.KnownTargets.FirstOrDefault(x => x.Name == name);
-                if (t != null) targets.Add(t);
+                if (item is TargetRow row && row.Target != null) targets.Add(row.Target);
             }
 
             await RunGraphBuildAsync(targets);
@@ -1628,9 +1689,7 @@ Right-click anywhere on the chart to clear all overlays.";
             var targets = new List<Target>();
             foreach (object item in CheckedListBox_SelectedTargets.CheckedItems)
             {
-                string name = item.ToString();
-                Target t = mSelection.KnownTargets.FirstOrDefault(x => x.Name == name);
-                if (t != null) targets.Add(t);
+                if (item is TargetRow row && row.Target != null) targets.Add(row.Target);
             }
 
             await RunGraphBuildAsync(targets);
@@ -1969,6 +2028,11 @@ Right-click anywhere on the chart to clear all overlays.";
                 ProgressBar_ProcessObject.Value = 0;
             }
 
+            // Locally-added targets are additive on top of NINA. Append them so a NINA
+            // reload doesn't wipe them. PopulateCheckedListBoxFromTargets re-sorts via
+            // SortedTargets, so append order is irrelevant for display.
+            foreach (Target lt in mLocalTargets) allLoaded.Add(lt);
+
             // Push the new known-target list to the VM. KnownTargetsChanged fires once;
             // OnVmKnownTargetsChanged repopulates ComboBox_SelectTarget +
             // CheckedListBox_SelectedTargets via PopulateTargetComboFromTargets +
@@ -2059,6 +2123,29 @@ Right-click anywhere on the chart to clear all overlays.";
             }
         }
 
+        // Wraps a Target reference for storage as a CheckedListBox row. ToString
+        // returns the target name (which the listbox renders), but the Target
+        // property exposes the underlying instance for index-based lookups.
+        // This is the only way to disambiguate two targets with the same name
+        // (and possibly different coords) -- looking up by Name via FirstOrDefault
+        // always returns the first match, so the second row would resolve to the
+        // first target's data.
+        private sealed class TargetRow
+        {
+            public Target Target { get; }
+            public TargetRow(Target target) { Target = target; }
+            public override string ToString() => Target?.Name ?? string.Empty;
+        }
+
+        // Resolve a CheckedListBox row's underlying Target. Items are TargetRow
+        // wrappers (see PopulateCheckedListBoxFromTargets); cast and read
+        // .Target. Returns null for out-of-range indices.
+        private Target TargetForRow(int index)
+        {
+            if (index < 0 || index >= CheckedListBox_SelectedTargets.Items.Count) return null;
+            return (CheckedListBox_SelectedTargets.Items[index] as TargetRow)?.Target;
+        }
+
         // Clears CheckedListBox_SelectedTargets and re-adds every target from
         // mSelection.KnownTargets in the currently-selected sort order. Each row is
         // checked when defaultChecked is true OR when the target is currently in
@@ -2078,7 +2165,7 @@ Right-click anywhere on the chart to clear all overlays.";
                 foreach (Target t in SortedTargets(mSelection.KnownTargets))
                 {
                     bool isChecked = defaultChecked || mSelection.Checked.Contains(t);
-                    CheckedListBox_SelectedTargets.Items.Add(t.Name, isChecked);
+                    CheckedListBox_SelectedTargets.Items.Add(new TargetRow(t), isChecked);
                 }
             }
             finally
@@ -2177,8 +2264,7 @@ Right-click anywhere on the chart to clear all overlays.";
             int index = CheckedListBox_SelectedTargets.IndexFromPoint(e.Location);
             if (index < 0) return;
 
-            string name = CheckedListBox_SelectedTargets.Items[index].ToString();
-            Target found = mSelection.KnownTargets.FirstOrDefault(x => x.Name == name);
+            Target found = TargetForRow(index);
             if (found == null) return;
 
             string path = found.Directory;
@@ -2210,8 +2296,7 @@ Right-click anywhere on the chart to clear all overlays.";
             mToolTipIndex = CheckedListBox_SelectedTargets.IndexFromPoint(CheckedListBox_SelectedTargets.PointToClient(MousePosition));
             if (mToolTipIndex < 0) return;
 
-            string name = CheckedListBox_SelectedTargets.Items[mToolTipIndex].ToString();
-            Target found = mSelection.KnownTargets.FirstOrDefault(x => x.Name == name);
+            Target found = TargetForRow(mToolTipIndex);
             if (found == null) return;
 
             mToolTip.SetToolTip(CheckedListBox_SelectedTargets, found.Directory);
@@ -2368,6 +2453,11 @@ Right-click anywhere on the chart to clear all overlays.";
             // target's color regardless of their Render-time iteration order.
             RebuildTargetColors();
 
+            // Compute dupe-set background colors for the listbox owner-draw handler.
+            // Targets sharing (RA, Dec, North) get a shared pastel; recomputed any
+            // time KnownTargets changes (NINA load, Add, Remove).
+            RecomputeDupeSetColors();
+
             // SetKnownTargets clears SelectedSingle when the prior selection isn't in the
             // new catalog (different Target instance equality across reloads). Re-establish
             // a default by picking the *first sorted* known target (matching what the
@@ -2404,6 +2494,156 @@ Right-click anywhere on the chart to clear all overlays.";
             }
         }
 
+        // Group KnownTargets by (RoundedRa, RoundedDec, North) and assign each group
+        // with size > 1 a stable pastel from DupeSetPalette. The palette index is a
+        // deterministic hash of the coord triple so the same coord-set always lands
+        // on the same color across sort changes / re-populates. Targets not in any
+        // dupe-set are absent from mDupeSetColors -- the listbox owner-draw handler
+        // reads "missing" as "use the OS default background".
+        // Group targets by Name-OR-coords match. Two targets are in the same dupe
+        // set if they share a Name OR they share (RA, Dec, North) -- and the
+        // relation is transitive: T1 ~ T2 by name and T2 ~ T3 by coords means
+        // {T1, T2, T3} are one group. Implemented via DSU. Each group with size
+        // > 1 gets a stable pastel from DupeSetPalette (hash is XOR of member
+        // identities so the assignment survives sort changes).
+        private void RecomputeDupeSetColors()
+        {
+            mDupeSetColors.Clear();
+            if (mSelection == null || mSelection.KnownTargets.Count == 0) return;
+
+            var targets = mSelection.KnownTargets.Where(t => t != null).ToList();
+            int n = targets.Count;
+            if (n == 0) return;
+
+            // DSU.
+            var parent = new int[n];
+            for (int i = 0; i < n; i++) parent[i] = i;
+            int Find(int x)
+            {
+                while (parent[x] != x) { parent[x] = parent[parent[x]]; x = parent[x]; }
+                return x;
+            }
+            void Union(int a, int b)
+            {
+                int ra = Find(a), rb = Find(b);
+                if (ra != rb) parent[ra] = rb;
+            }
+
+            // Bucket by Name and by coord-triple, then union members within each
+            // bucket to the bucket's first member.
+            var byName = new Dictionary<string, int>(StringComparer.Ordinal);
+            var byCoord = new Dictionary<(double Ra, double Dec, bool N), int>();
+            for (int i = 0; i < n; i++)
+            {
+                Target t = targets[i];
+                if (byName.TryGetValue(t.Name, out int nameRoot)) Union(nameRoot, i);
+                else byName[t.Name] = i;
+
+                var key = (System.Math.Round(t.RightAscension, 6),
+                           System.Math.Round(t.Declination, 6),
+                           t.North);
+                if (byCoord.TryGetValue(key, out int coordRoot)) Union(coordRoot, i);
+                else byCoord[key] = i;
+            }
+
+            // Collect connected components.
+            var groups = new Dictionary<int, List<int>>();
+            for (int i = 0; i < n; i++)
+            {
+                int root = Find(i);
+                if (!groups.TryGetValue(root, out var bucket))
+                {
+                    bucket = new List<int>();
+                    groups[root] = bucket;
+                }
+                bucket.Add(i);
+            }
+
+            int paletteSize = DupeSetPalette.Length;
+            foreach (var kv in groups)
+            {
+                if (kv.Value.Count < 2) continue;
+                // Order-independent hash of group members, so the same set of
+                // targets always lands on the same palette index regardless of
+                // KnownTargets insertion order.
+                int hash = 0;
+                foreach (int idx in kv.Value)
+                {
+                    Target t = targets[idx];
+                    hash ^= System.HashCode.Combine(
+                        t.Name,
+                        System.Math.Round(t.RightAscension, 6),
+                        System.Math.Round(t.Declination, 6),
+                        t.North);
+                }
+                int colorIdx = (hash & 0x7FFFFFFF) % paletteSize;
+                System.Drawing.Color c = DupeSetPalette[colorIdx];
+                foreach (int idx in kv.Value) mDupeSetColors[targets[idx]] = c;
+            }
+            CheckedListBox_SelectedTargets?.Invalidate();
+        }
+
+        // RowBackground callback wired into DupeAwareCheckedListBox. Returns the
+        // dupe-set tint for a row, or null when the row's target isn't in any
+        // dupe-set. The listbox subclass owns the actual painting; we just look
+        // up by row index -> Items[idx].ToString() (the target name) -> Target.
+        private System.Drawing.Color? GetDupeRowBackground(int rowIndex)
+        {
+            Target row = TargetForRow(rowIndex);
+            if (row == null) return null;
+            return mDupeSetColors.TryGetValue(row, out var c) ? (System.Drawing.Color?)c : null;
+        }
+
+        // Merge the current SelectedSingle (combo's resolved target -- could be a
+        // NINA-known target or a transient one built from RA/Dec spinner edits) into
+        // the checked set. Transient targets are added to KnownTargets and persisted
+        // to the local-targets.json sidecar so they survive form-close + NINA reload.
+        private void Button_AddTarget_Click(object sender, EventArgs e)
+        {
+            Target t = mSelection?.SelectedSingle;
+            if (t == null) { ShowTransientMessage("No Target"); return; }
+
+            bool wasNew = mSelection.AddKnownTarget(t);
+            mSelection.SetChecked(t, true);
+            if (wasNew)
+            {
+                mLocalTargets.Add(t);
+                LocalTargetStore.Save(mLocalTargets);
+            }
+
+            // Re-sort listbox + combo by the current ComboBox_SortTargets selection
+            // so the new target lands in its sorted position rather than wherever
+            // PopulateCheckedListBoxFromTargets's first repopulate placed it.
+            ResortSelectedTargets();
+
+            // Keep the combo focused on the just-added target. ResortSelectedTargets
+            // calls PopulateTargetComboFromTargets which preserves the prior text;
+            // re-write it here in case the prior text had drifted (e.g. NINA reload
+            // path reset combo to first sorted before this Add fired).
+            bool wasUpdating = mUpdatingUiFromVm;
+            mUpdatingUiFromVm = true;
+            try { ComboBox_SelectTarget.Text = t.Name; }
+            finally { mUpdatingUiFromVm = wasUpdating; }
+        }
+
+        // Remove the current SelectedSingle from KnownTargets entirely (combo +
+        // listbox both lose the entry). NINA-loaded targets re-appear on the next
+        // browse; locally-added targets are also dropped from the sidecar so they
+        // stay gone across restarts.
+        private void Button_RemoveTarget_Click(object sender, EventArgs e)
+        {
+            Target t = mSelection?.SelectedSingle;
+            if (t == null) { ShowTransientMessage("No Target"); return; }
+
+            bool wasInLocal = mLocalTargets.Remove(t);
+            mSelection.RemoveKnownTarget(t);
+            if (wasInLocal) LocalTargetStore.Save(mLocalTargets);
+
+            // Re-sort listbox + combo by the current ComboBox_SortTargets selection
+            // so the survivor list stays in canonical order after the deletion.
+            ResortSelectedTargets();
+        }
+
         private void OnVmSelectedSingleChanged(object sender, EventArgs e)
         {
             Target t = mSelection.SelectedSingle;
@@ -2427,7 +2667,7 @@ Right-click anywhere on the chart to clear all overlays.";
         private void OnVmCheckedSetChanged(object sender, EventArgs e)
         {
             // Push VM.Checked state into the listbox row check states. Walks the listbox
-            // in display order; resolves each row's name to a Target via VM.KnownTargets,
+            // in display order; reads each row's underlying Target via TargetForRow,
             // then checks/unchecks based on whether VM.Checked contains it.
             bool wasUpdating = mUpdatingUiFromVm;
             mUpdatingUiFromVm = true;
@@ -2435,8 +2675,7 @@ Right-click anywhere on the chart to clear all overlays.";
             {
                 for (int i = 0; i < CheckedListBox_SelectedTargets.Items.Count; i++)
                 {
-                    string name = CheckedListBox_SelectedTargets.Items[i].ToString();
-                    Target row = mSelection.KnownTargets.FirstOrDefault(x => x.Name == name);
+                    Target row = TargetForRow(i);
                     bool shouldBeChecked = row != null && mSelection.Checked.Contains(row);
                     CheckState desired = shouldBeChecked ? CheckState.Checked : CheckState.Unchecked;
                     if (CheckedListBox_SelectedTargets.GetItemCheckState(i) != desired)
@@ -2452,8 +2691,7 @@ Right-click anywhere on the chart to clear all overlays.";
         private void OnCheckedListBoxItemCheck(object sender, ItemCheckEventArgs e)
         {
             if (mUpdatingUiFromVm) return;
-            string name = CheckedListBox_SelectedTargets.Items[e.Index].ToString();
-            Target t = mSelection.KnownTargets.FirstOrDefault(x => x.Name == name);
+            Target t = TargetForRow(e.Index);
             if (t == null) return;
             bool isChecked = e.NewValue == CheckState.Checked;
             mSelection.SetChecked(t, isChecked);
@@ -2464,14 +2702,16 @@ Right-click anywhere on the chart to clear all overlays.";
             if (mUpdatingUiFromVm) return;
 
             // De-selection (no row highlighted): nothing to push to the VM.
-            if (CheckedListBox_SelectedTargets.SelectedItem == null) return;
+            int idx = CheckedListBox_SelectedTargets.SelectedIndex;
+            if (idx < 0) return;
 
             // Highlighting a row updates the single-target combo + RA/Dec inputs via
             // SetSelectedSingle. This fires SelectedSingleChanged only -- the
             // multi-graph debounce subscribes to CheckedSetChanged, so the chart is
-            // not re-rendered when the user merely highlights a row.
-            string name = CheckedListBox_SelectedTargets.SelectedItem.ToString();
-            Target t = mSelection.KnownTargets.FirstOrDefault(x => x.Name == name);
+            // not re-rendered when the user merely highlights a row. Index-based
+            // lookup picks the correct Target instance even when multiple rows
+            // share the same name.
+            Target t = TargetForRow(idx);
             if (t != null) mSelection.SetSelectedSingle(t);
         }
 
