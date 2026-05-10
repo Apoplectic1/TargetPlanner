@@ -98,7 +98,6 @@ namespace TargetPlanner
         // in-place via the FilterAutoSaveDebounce_Tick path, persisting the change to
         // filters.json and refreshing the menu's '*' modified-indicator.
         private FilterLibrary mFilterLibrary;
-        private ToolStripMenuItem mFiltersMenu;
         private List<ToolStripMenuItem> mFilterMenuItems;
         private TpFilter mActiveFilter;
 
@@ -292,16 +291,13 @@ Right-click anywhere on the chart to clear all overlays.";
             clearDataItem.Click += (s, e) => HandleClearAllDataClick();
             FileToolStripMenuItem_MainForm.DropDownItems.Add(clearDataItem);
 
-            // Help menu: extends the existing MenuStrip_MainForm (which already has File).
-            // Two items: Check for Updates... (manual UpdateService entry) and About.
-            var helpMenu = new ToolStripMenuItem("&Help");
-            var checkUpdatesItem = new ToolStripMenuItem("Check for &Updates...");
-            checkUpdatesItem.Click += async (s, e) => await UpdateService.CheckManuallyAsync(this);
-            var aboutItem = new ToolStripMenuItem("&About TargetPlanner");
-            aboutItem.Click += (s, e) => { using (var dlg = new AboutDialog()) dlg.ShowDialog(this); };
-            helpMenu.DropDownItems.Add(checkUpdatesItem);
-            helpMenu.DropDownItems.Add(aboutItem);
-            MenuStrip_MainForm.Items.Add(helpMenu);
+            // Help and Filters top-level menu items + the Help children
+            // (Check for Updates / About) are now Designer-resident -- see
+            // HelpToolStripMenuItem_MainForm + FiltersToolStripMenuItem_MainForm
+            // + CheckUpdatesToolStripMenuItem + AboutToolStripMenuItem in
+            // MainForm.Designer.cs. Click handlers wire to OnCheckUpdatesClick /
+            // OnAboutClick below. Filters children (one per library filter) stay
+            // dynamic and get populated by BuildFiltersMenu().
 
             // Filters menu: load the per-filter library (or ship-defaults on first launch)
             // and build a mutually-exclusive radio group of menu items. Disabled is the
@@ -812,18 +808,12 @@ Right-click anywhere on the chart to clear all overlays.";
         {
             mFilterLibrary = FilterLibrary.LoadOrDefault();
 
-            // Idempotent: on first call, create the top-level menu and add it to the
-            // strip. On subsequent calls (after EditFiltersForm save), reuse it and
-            // wipe its items. Avoids appending a second "Filters" menu to the strip.
-            if (mFiltersMenu == null)
-            {
-                mFiltersMenu = new ToolStripMenuItem("&Filters");
-                MenuStrip_MainForm.Items.Add(mFiltersMenu);
-            }
-            else
-            {
-                mFiltersMenu.DropDownItems.Clear();
-            }
+            // Top-level "&Filters" menu is Designer-resident (FiltersToolStripMenuItem_MainForm
+            // in MainForm.Designer.cs). Children are populated dynamically per-call:
+            // first call after form load + every Edit Filters dialog Save. Clearing on
+            // each call keeps the menu in sync with the live library; no first-call
+            // special case needed.
+            FiltersToolStripMenuItem_MainForm.DropDownItems.Clear();
 
             mFilterMenuItems = new List<ToolStripMenuItem>();
 
@@ -852,7 +842,7 @@ Right-click anywhere on the chart to clear all overlays.";
                     if (owner != null) owner.Close();
                     OpenEditFiltersDialog(capturedName);
                 };
-                mFiltersMenu.DropDownItems.Add(item);
+                FiltersToolStripMenuItem_MainForm.DropDownItems.Add(item);
                 mFilterMenuItems.Add(item);
                 if (firstFilter == null)
                 {
@@ -1050,10 +1040,10 @@ Right-click anywhere on the chart to clear all overlays.";
         // Walk both UI surfaces (menu items + groupbox radios) updating each label from
         // the corresponding library filter's modified-vs-default state. Filters whose
         // values differ from FilterLibrary.BuiltinDefaults get a trailing ' *'; the
-        // top-level mFiltersMenu.Text also gets ' *' iff any filter is modified. User-
-        // created filters (no built-in baseline) always show no '*'. Called after
-        // BuildFiltersMenu/BuildFiltersGroupBox initial setup and after every filter
-        // auto-save tick.
+        // top-level FiltersToolStripMenuItem_MainForm.Text also gets ' *' iff any
+        // filter is modified. User-created filters (no built-in baseline) always show
+        // no '*'. Called after BuildFiltersMenu/BuildFiltersGroupBox initial setup and
+        // after every filter auto-save tick.
         private void RefreshFilterMenuLabels()
         {
             if (mFilterLibrary == null) return;
@@ -1072,8 +1062,7 @@ Right-click anywhere on the chart to clear all overlays.";
                 if (i < radioN) mFilterRadios[i].Text    = label;
             }
 
-            if (mFiltersMenu != null)
-                mFiltersMenu.Text = anyModified ? "&Filters *" : "&Filters";
+            FiltersToolStripMenuItem_MainForm.Text = anyModified ? "&Filters *" : "&Filters";
         }
 
         // Open the modal Edit Filters dialog. Suspends the main-form auto-save while
@@ -1213,6 +1202,21 @@ Right-click anywhere on the chart to clear all overlays.";
             mActiveFilterCenterNm = filter.CenterNm;
             if (mLC2Sky != null) mLC2Sky.ActiveFilterCenterNm = filter.CenterNm;
             mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
+        }
+
+        // Help -> Check for Updates... handler. Wired to CheckUpdatesToolStripMenuItem
+        // in MainForm.Designer.cs.
+        private async void OnCheckUpdatesClick(object sender, EventArgs e)
+        {
+            await UpdateService.CheckManuallyAsync(this);
+        }
+
+        // Help -> About TargetPlanner handler. Wired to AboutToolStripMenuItem in
+        // MainForm.Designer.cs.
+        private void OnAboutClick(object sender, EventArgs e)
+        {
+            using (var dlg = new AboutDialog())
+                dlg.ShowDialog(this);
         }
 
         // File -> Clear All Data... handler. Confirms via YesNo MessageBox, deletes the

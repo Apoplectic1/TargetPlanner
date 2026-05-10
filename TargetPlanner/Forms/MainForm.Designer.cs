@@ -128,6 +128,10 @@
             Button_Cancel = new System.Windows.Forms.Button();
             MenuStrip_MainForm = new System.Windows.Forms.MenuStrip();
             FileToolStripMenuItem_MainForm = new System.Windows.Forms.ToolStripMenuItem();
+            FiltersToolStripMenuItem_MainForm = new System.Windows.Forms.ToolStripMenuItem();
+            HelpToolStripMenuItem_MainForm = new System.Windows.Forms.ToolStripMenuItem();
+            CheckUpdatesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            AboutToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             GroupBox_Altitude = new System.Windows.Forms.GroupBox();
             RadioButton_Sky = new System.Windows.Forms.RadioButton();
             ProgressBar_MultiTargetProcessing = new System.Windows.Forms.ProgressBar();
@@ -1345,22 +1349,52 @@
             Button_Cancel.Text = "Cancel";
             Button_Cancel.UseVisualStyleBackColor = true;
             Button_Cancel.Click += Button_Cancel_Click;
-            // 
+            //
             // MenuStrip_MainForm
-            // 
-            MenuStrip_MainForm.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { FileToolStripMenuItem_MainForm });
+            //
+            MenuStrip_MainForm.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { FileToolStripMenuItem_MainForm, FiltersToolStripMenuItem_MainForm, HelpToolStripMenuItem_MainForm });
             MenuStrip_MainForm.Location = new System.Drawing.Point(0, 0);
             MenuStrip_MainForm.Name = "MenuStrip_MainForm";
             MenuStrip_MainForm.Padding = new System.Windows.Forms.Padding(7, 2, 0, 2);
             MenuStrip_MainForm.Size = new System.Drawing.Size(1899, 24);
             MenuStrip_MainForm.TabIndex = 5;
             MenuStrip_MainForm.Text = "menuStrip1";
-            // 
+            //
             // FileToolStripMenuItem_MainForm
-            // 
+            //
             FileToolStripMenuItem_MainForm.Name = "FileToolStripMenuItem_MainForm";
             FileToolStripMenuItem_MainForm.Size = new System.Drawing.Size(37, 20);
             FileToolStripMenuItem_MainForm.Text = "File";
+            //
+            // FiltersToolStripMenuItem_MainForm
+            //
+            // Top-level "Filters" menu. Children populated dynamically by
+            // MainForm.BuildFiltersMenu() from FilterLibrary on every load /
+            // Edit Filters dialog Save -- empty at design time, filled at runtime.
+            FiltersToolStripMenuItem_MainForm.Name = "FiltersToolStripMenuItem_MainForm";
+            FiltersToolStripMenuItem_MainForm.Size = new System.Drawing.Size(50, 20);
+            FiltersToolStripMenuItem_MainForm.Text = "&Filters";
+            //
+            // HelpToolStripMenuItem_MainForm
+            //
+            HelpToolStripMenuItem_MainForm.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] { CheckUpdatesToolStripMenuItem, AboutToolStripMenuItem });
+            HelpToolStripMenuItem_MainForm.Name = "HelpToolStripMenuItem_MainForm";
+            HelpToolStripMenuItem_MainForm.Size = new System.Drawing.Size(44, 20);
+            HelpToolStripMenuItem_MainForm.Text = "&Help";
+            //
+            // CheckUpdatesToolStripMenuItem
+            //
+            CheckUpdatesToolStripMenuItem.Name = "CheckUpdatesToolStripMenuItem";
+            CheckUpdatesToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            CheckUpdatesToolStripMenuItem.Text = "Check for &Updates...";
+            CheckUpdatesToolStripMenuItem.Click += OnCheckUpdatesClick;
+            //
+            // AboutToolStripMenuItem
+            //
+            AboutToolStripMenuItem.Name = "AboutToolStripMenuItem";
+            AboutToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            AboutToolStripMenuItem.Text = "&About TargetPlanner";
+            AboutToolStripMenuItem.Click += OnAboutClick;
             // 
             // GroupBox_Altitude
             // 
@@ -1527,6 +1561,10 @@
         private System.Windows.Forms.GroupBox GroupBox_Target;
         private System.Windows.Forms.MenuStrip MenuStrip_MainForm;
         private System.Windows.Forms.ToolStripMenuItem FileToolStripMenuItem_MainForm;
+        private System.Windows.Forms.ToolStripMenuItem FiltersToolStripMenuItem_MainForm;
+        private System.Windows.Forms.ToolStripMenuItem HelpToolStripMenuItem_MainForm;
+        private System.Windows.Forms.ToolStripMenuItem CheckUpdatesToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem AboutToolStripMenuItem;
         private System.Windows.Forms.GroupBox GroupBox_Altitude;
         private System.Windows.Forms.Label Label_TargetName;
         private System.Windows.Forms.Label Label_Phase;
