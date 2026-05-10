@@ -97,10 +97,19 @@ namespace TargetPlanner.Charts
         // Stop  = the integer hour mark strictly past dawnLocal.
         // If dusk/dawn lands exactly on an hour the bound steps one full hour
         // outward.
+        //
+        // Visual minimum: if the resulting gradient (start->dusk or dawn->stop)
+        // would be < 30 min, step out one more hour so the dusk-to-fully-dark
+        // (and dawn-from-fully-dark) gradient remains readable. Each side is
+        // evaluated independently -- both ends can expand on the same night if
+        // both gradients fall below the threshold. The 60-minute case (dusk/
+        // dawn exactly on the hour, already handled by the >= / <= rule above)
+        // is left alone -- 60 min is well above the threshold.
         public static DateTime DayChartStart(DateTime duskLocal)
         {
             DateTime start = duskLocal.Date.AddHours(duskLocal.Hour);
             if (start >= duskLocal) start = start.AddHours(-1);
+            if ((duskLocal - start).TotalHours < 0.5) start = start.AddHours(-1);
             return start;
         }
 
@@ -108,6 +117,7 @@ namespace TargetPlanner.Charts
         {
             DateTime stop = dawnLocal.Date.AddHours(dawnLocal.Hour);
             if (stop <= dawnLocal) stop = stop.AddHours(1);
+            if ((stop - dawnLocal).TotalHours < 0.5) stop = stop.AddHours(1);
             return stop;
         }
 
