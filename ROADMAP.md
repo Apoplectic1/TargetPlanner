@@ -13,6 +13,15 @@ Migrated from CLAUDE.md so the agent-facing reference stays lean. Order is rough
 
 **Future-flagged for Core API shape:** **partial-moon-impact tolerance** — allowing a session to span moon-blocked time at a quality penalty rather than rejecting outright. Deferred until much later, but the placement primitives are designed so they don't preclude it (moon profile is optional everywhere; mask computation is behind an internal helper).
 
+**Future-flagged UX/Core split — Local Horizon vs Target Floor.** Today the H in HMD (`NumericUpDown_TargetFloor` → `Location.Horizon`) conflates two distinct concepts:
+
+- **Target Floor** — user preference: "I don't want to image targets below this altitude tonight." A scrubbable filter knob that affects chart visibility but doesn't change the physics of what's observable.
+- **Local Horizon** — site reality: a polyline of `[Alt, Az]` pairs describing where the sky is actually blocked by terrain / trees / buildings. Both NINA and TS support this; `Astronomy.Core.Horizons.IHorizonProfile` already has the abstraction (`PolylineHorizonProfile`, `ObstructionTableHorizonProfile`).
+
+The Library half is mostly ready — `IHorizonProfile` is plumbed through every visibility / placement primitive (`CoarseVisibility.IsAboveHorizonForAtLeast`, `BestSession.For`, etc.). The TP-side work needed: a separate `Location.LocalHorizon` field + UI to import/edit a `[Alt, Az]` table (file-load from a NINA/TS shared format, or graphical scrub), plus consumer plumbing so the cache + render pipeline reads from the polyline profile rather than `ScalarHorizonProfile(Location.Horizon)` everywhere. `Button_VisibleTonight` (and the universal hide-on-no-fit rule) would intersect Local Horizon with Target Floor — a target must clear both the user's floor AND not be terrain-blocked.
+
+Warrants a separate design discussion before implementation. Ties into BIRDWATCHER if the local horizon definition lives in NINA's preferences and TP needs to read it.
+
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.

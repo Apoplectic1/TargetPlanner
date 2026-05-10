@@ -2559,30 +2559,33 @@ Right-click anywhere on the chart to clear all overlays.";
                 }
             }
 
-            Astronomy.Core.Horizons.IHorizonProfile horizon =
-                new Astronomy.Core.Horizons.ScalarHorizonProfile(pickedNightLocation.Horizon);
-
-            // Only the 0/0 case uses the parameterless IsEverVisible. It hardcodes the
-            // mathematical horizon (0 deg) and has no duration requirement, which matches
-            // the literal "no altitude threshold, no duration minimum" meaning of 0/0.
-            // Any other (Horizon, Duration) combination -- including partial zeros --
-            // still goes through IsAboveHorizonForAtLeast so the non-zero knob is honored.
-            bool useEverVisible =
-                pickedNightLocation.Horizon <= 0.0
-                && pickedNightLocation.Duration <= TimeSpan.Zero;
-
-            // Push the visible-tonight set into the VM. SetCheckedSet fires
-            // CheckedSetChanged -> debounce -> multi-graph: the visible-tonight chart
-            // appears automatically ~250 ms after the click. The combo / RA / Dec
-            // inputs stay pointing at whatever single target the user had selected
-            // before the click -- they describe the single-target view, not the
-            // visible-set view, and the two paradigms are independent (see
+            // "Visible tonight" = above mathematical horizon (0°) for at least the smallest
+            // practical imaging session (15 min = 0.25 h), independent of HMD spinners.
+            // The button populates the maximum candidate pool ("what's potentially observable
+            // tonight"); HMD scrubs filter the rendered charts visually via the universal
+            // hide-on-no-fit rule -- changing H/D/M after this click never re-keys the
+            // checked set, so the user can iterate H/D/M without losing their candidate pool.
+            //
+            // The 0° + 15-min thresholds are intentionally hard-coded here: H=0 because the
+            // user's NumericUpDown_TargetFloor is the H of HMD (a render filter, not a
+            // visibility gate), D=15 min because shorter visibility is fleeting and not
+            // worth flagging as a candidate. See ROADMAP.md "Local Horizon vs Target Floor"
+            // for the future polyline-of-(Alt, Az) physical-obstruction support that would
+            // sit alongside Target Floor as a second gate.
+            //
+            // SetCheckedSet fires CheckedSetChanged -> debounce -> multi-graph: the
+            // visible-tonight chart appears automatically ~250 ms after the click. The
+            // combo / RA / Dec inputs stay pointing at whatever single target the user
+            // had selected before the click -- they describe the single-target view, not
+            // the visible-set view, and the two paradigms are independent (see
             // Button_Graph_Click + WireSelectionVm).
-            var visible = mSelection.KnownTargets.Where(t =>
-                useEverVisible
-                    ? Astronomy.Core.Session.CoarseVisibility.IsEverVisible(t, pickedNightLocation, night)
-                    : Astronomy.Core.Session.CoarseVisibility.IsAboveHorizonForAtLeast(
-                          t, pickedNightLocation, night, horizon, pickedNightLocation.Duration))
+            Astronomy.Core.Horizons.IHorizonProfile mathHorizon =
+                new Astronomy.Core.Horizons.ScalarHorizonProfile(0.0);
+            TimeSpan minDuration = TimeSpan.FromMinutes(15);
+
+            var visible = mSelection.KnownTargets
+                .Where(t => Astronomy.Core.Session.CoarseVisibility.IsAboveHorizonForAtLeast(
+                    t, pickedNightLocation, night, mathHorizon, minDuration))
                 .ToList();
             mSelection.SetCheckedSet(visible);
         }
