@@ -2885,12 +2885,11 @@ Right-click anywhere on the chart to clear all overlays.";
                 DateTime anchorUtc = DateTime.SpecifyKind(tonightAnchor, DateTimeKind.Local).ToUniversalTime();
                 if (anchorUtc >= night.AstronomicalDawn)
                 {
-                    night.AstronomicalDusk = DateTime.MinValue;
-                    night.AstronomicalDawn = DateTime.MinValue;
+                    night = night with { AstronomicalDusk = DateTime.MinValue, AstronomicalDawn = DateTime.MinValue };
                 }
                 else if (anchorUtc > night.AstronomicalDusk)
                 {
-                    night.AstronomicalDusk = anchorUtc;
+                    night = night with { AstronomicalDusk = anchorUtc };
                 }
             }
 
