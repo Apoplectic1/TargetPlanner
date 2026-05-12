@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-04 (TP migrated to .NET 10). Originally captured 2026-04-19.
+Last updated 2026-05-11 (XISF prep notes + AnyCPU drop). Previously updated 2026-05-04 (.NET 10 migration). Originally captured 2026-04-19.
 
 ## Currently open (priority order)
 
@@ -10,6 +10,14 @@ Migrated from CLAUDE.md so the agent-facing reference stays lean. Order is rough
 2. **IS / ISP work** — current major thrust per memory; the four-phase IntervalScheduler pipeline is the strategic next axis.
 3. **Velopack version bump** — `0.0.1298` → `0.0.1589+`. Dry-run a release cycle (`vpk pack` + `vpk release` + self-update install) on net10 before shipping; the auto-update flow hasn't been smoke-tested at the current pinned version on net10.
 4. **Lower-priority perf chasing** if anyone wants to push further — `GetSunAltitude` / `GetMoonAltitude` per-call allocations (144 B / 56 B; root cause not obvious without an allocation profiler), and `Math.FusedMultiplyAdd` in the `MoonPosition` periodic-term loops (~1-5%, hardware-FMA-dependent). The big wins from the 2026-05-04 session (`MoonSeparation.ObserveAt` -54%, `BestSession_For_Narrowband` -53%) already exhausted the easy lifts; remaining items are diminishing returns.
+5. **XISF read support in TP via `Astronomy.PCL`** — feature on deck. The native AVX2 / `/fp:fast` / pinned-toolset work in `Astronomy.PCL.Native.dll` is already in place (Library repo, commits `e7ae75c` / `6072f2f` / `b13266f` from the 2026-05-11 VS2026 settings-review pass); TP just needs to consume it. AnyCPU was dropped from TP in commit `31527a7` ahead of this work, since `Astronomy.PCL`'s `<Platforms>x64</Platforms>` would force the issue when the reference goes in. Prep checklist for the moment XISF integration starts — do as a dedicated commit immediately before the first feature commit, not bundled:
+
+   1. **Build the native DLL first** via `msbuild` on `Library\Astronomy.sln` (Debug *and* Release if you want both TP configurations to consume it). The `dotnet build` trap in CLAUDE.md applies — managed-only builds silently skip the C++ vcxproj.
+   2. **Add `<ProjectReference Include="..\..\Library\Astronomy.PCL\Astronomy.PCL.csproj" />`** to `TargetPlanner.csproj`. `Astronomy.PCL.csproj` already wires the native vcxproj with the correct `ReferenceOutputAssembly=false` / `SkipGetTargetFrameworkProperties=true` / `UndefineProperties=TargetFramework` idiom plus a `<Content Pack="true">` for `Astronomy.PCL.Native.dll`, so MSBuild copies the native DLL into TP's output automatically.
+   3. **Optionally add `Astronomy.PCL` + `Astronomy.PCL.Native`** to `TargetPlanner.sln` as view-only entries (`ActiveCfg` set, `Build.0` omitted) — same convention as Library's `Vendored PCL` solution folder. Solution Explorer visibility + F12 navigation; csproj reference is the source of truth.
+   4. **Verify** `TargetPlanner\bin\x64\<Configuration>\net10.0-windows10.0.19041\Astronomy.PCL.Native.dll` shows up in TP's output after build.
+
+   Sequencing gotcha: TP's transitive `<Content>` references `bin\x64\$(Configuration)\Astronomy.PCL.Native.dll`, so TP Debug requires Library Debug native on disk, TP Release requires Library Release. Easiest rule: build `Library\Astronomy.sln` in both Debug and Release once via `msbuild`, then switch TP configurations freely.
 
 **Future-flagged for Core API shape:** **partial-moon-impact tolerance** — allowing a session to span moon-blocked time at a quality penalty rather than rejecting outright. Deferred until much later, but the placement primitives are designed so they don't preclude it (moon profile is optional everywhere; mask computation is behind an internal helper).
 
