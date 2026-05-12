@@ -32,7 +32,7 @@
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <GenerateAssemblyComVisibleAttribute>false</GenerateAssemblyComVisibleAttribute>
     <GenerateAssemblyGuidAttribute>false</GenerateAssemblyGuidAttribute>
-    <Platforms>AnyCPU;x64</Platforms>
+    <Platforms>x64</Platforms>
     <!-- Assembly metadata previously in Properties/AssemblyInfo.cs. Version is omitted so
          MinVer can stamp it from the latest git tag (e.g. v1.0.0 yields assembly 1.0.0). -->
     <AssemblyTitle>TargetPlanner</AssemblyTitle>
