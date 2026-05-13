@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-11 (XISF prep notes + AnyCPU drop). Previously updated 2026-05-04 (.NET 10 migration). Originally captured 2026-04-19.
+Last updated 2026-05-13 (architectural-review campaign). Previously updated 2026-05-11 (XISF prep notes + AnyCPU drop), 2026-05-04 (.NET 10 migration). Originally captured 2026-04-19.
 
 ## Currently open (priority order)
 
@@ -21,12 +21,20 @@ Migrated from CLAUDE.md so the agent-facing reference stays lean. Order is rough
 
 **Future-flagged for Core API shape:** **partial-moon-impact tolerance** — allowing a session to span moon-blocked time at a quality penalty rather than rejecting outright. Deferred until much later, but the placement primitives are designed so they don't preclude it (moon profile is optional everywhere; mask computation is behind an internal helper).
 
-**Future-flagged UX/Core split — Local Horizon vs Target Floor.** Today the H in HMD (`NumericUpDown_TargetFloor` → `Location.Horizon`) conflates two distinct concepts:
+**Future-flagged UX/Core split — Local Horizon vs Target Floor.** Today the H in HMD (`NumericUpDown_TargetFloor` → `Location.Horizon` → `PlanningPolicy.TargetFloorDeg` → `LocalHorizon = ScalarHorizonProfile(TargetFloorDeg)`) conflates two distinct concepts:
 
 - **Target Floor** — user preference: "I don't want to image targets below this altitude tonight." A scrubbable filter knob that affects chart visibility but doesn't change the physics of what's observable.
 - **Local Horizon** — site reality: a polyline of `[Alt, Az]` pairs describing where the sky is actually blocked by terrain / trees / buildings. Both NINA and TS support this; `Astronomy.Core.Horizons.IHorizonProfile` already has the abstraction (`PolylineHorizonProfile`, `ObstructionTableHorizonProfile`).
 
-The Library half is mostly ready — `IHorizonProfile` is plumbed through every visibility / placement primitive (`CoarseVisibility.IsAboveHorizonForAtLeast`, `BestSession.For`, etc.). The TP-side work needed: a separate `Location.LocalHorizon` field + UI to import/edit a `[Alt, Az]` table (file-load from a NINA/TS shared format, or graphical scrub), plus consumer plumbing so the cache + render pipeline reads from the polyline profile rather than `ScalarHorizonProfile(Location.Horizon)` everywhere. `Button_VisibleTonight` (and the universal hide-on-no-fit rule) would intersect Local Horizon with Target Floor — a target must clear both the user's floor AND not be terrain-blocked.
+**The seam is wired.** PR-1 of the 2026-05-13 architectural-review campaign (commit `660f396`) introduced `PlanningPolicy` with a `LocalHorizon: IHorizonProfile` field carried alongside `TargetFloorDeg`. `ChartCacheStore.ComputeNightFits` already consumes the polyline profile through `BestSession.ResolveCandidates(..., IHorizonProfile, ...)`; `AltitudeSubChart_Day.ComputeBestDayWindow` does the same via `BestSession.For`; the universal hide-on-no-fit rule reads through the cached fits. Today `SnapshotCurrent` synthesizes the scalar case via `PlanningPolicy.WithScalarHorizon(targetFloorDeg, ...)`. When the loader lands, the factory swaps for the polyline path and nothing downstream changes.
+
+**Remaining TP-side work** (sketched in `~/.claude/plans/sessions-tab-does-not-elegant-boole.md` as PR 5):
+
+- **Persistence.** `NamedLocationSetting` gains `string? LocalHorizonPath`. UI: a "Local horizon file…" picker on the GroupBox_Location flyout, persisted alongside the named location. Empty path = scalar fallback.
+- **Loader.** New `TargetPlanner/Horizons/HrzFileLoader.cs`. Parses NINA's two-column whitespace `.hrz` format (reference file at `E:\Photography\Astro Photography\Captures\Nina\Horizons\PennsPark.hrz` — 360 lines, `azimuth_deg<ws>elevation_deg`). Returns `PolylineHorizonProfile`. Errors land in `Log.Warn`; on parse failure the policy falls back to scalar.
+- **SnapshotCurrent wiring.** When `NamedLocationSetting.LocalHorizonPath` is non-null and parses, build the policy with the polyline profile; otherwise scalar. Zero call-site changes — `HdmKey` already reference-compares `Profile` so a reloaded polyline invalidates the fits cache automatically.
+- **Hot reload.** `FileSystemWatcher` on the .hrz directory; on change, reload and `mCoordinator.Apply(SnapshotCurrent())`. 500 ms debounce for editor-save patterns.
+- **Visualization.** Optional `HorizonProfileSection` overlay on Day painting the polyline as a filled area below the target curves (matching NINA's CustomHorizon visual).
 
 Warrants a separate design discussion before implementation. Ties into BIRDWATCHER if the local horizon definition lives in NINA's preferences and TP needs to read it.
 
@@ -71,6 +79,20 @@ Design notes preserved for the future implementation:
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+### 2026-05-13 — Architectural-review campaign (9 commits)
+
+Reviewer-driven multi-PR sweep through TP's chart pipeline, kicked off by a "Sessions tab no curves" bug repro that exposed deeper SoC drift between sub-charts and the cache. Detailed plan + per-PR notes at `~/.claude/plans/sessions-tab-does-not-elegant-boole.md`. In commit order:
+
+- **`c74224f` — Cache + sub-charts: lift fit compute into ChartCacheStore, drop CTS scaffolding.** Year / Sessions sub-charts stopped owning `Task.Run` + `CancellationTokenSource`; per-(target, HdmKey) fits moved into `ChartCacheStore.ComputeNightFits` behind `GetFitOrBuildAsync` / `PrepareFitsAsync`. Sub-charts became synchronous render-only painters. Closes the original Sessions-no-curves repro (the symptom was an in-flight fit compute losing its CTS-supersession race against a radio swap). Design rationale at [`docs/design/chart-fits-cache.md`](docs/design/chart-fits-cache.md).
+- **`660f396` — PlanningPolicy on ChartContext + concurrency hardening (PR 1 + PR 2).** New `State/PlanningPolicy.cs` record aggregates `TargetFloorDeg` / `MinDuration` / `MoonProfile` / `FilterCenterNm` / `IHorizonProfile LocalHorizon`. `ChartContext` replaces the prior scattered fields with a single `Policy` and a derived `Hdm` property. `HdmKey` projects from `Policy` instead of reading scattered MainForm fields. The `IHorizonProfile` seam is pre-wired through `WithScalarHorizon(...)` so the future `.hrz` work (deferred per user request) is pure plumbing. Companion concurrency hardening: `Interlocked.Increment` / `Volatile.Read` fences on `ChartCoordinator.mGeneration`, `try/catch` on every `async void Tick`, `PrepareManyAsync` continuation fault propagation, `TryPublish<TKey, TVal>` factor in `ChartCacheStore`, form-lifecycle `mFormClosingCts` for warmup cancellation on close.
+- **`caacff7` — Coordinator owns target SoT; drop mLastRenderedTargets + Reorder (PR 3).** `ChartCoordinator.LastAppliedTargets` is now the canonical source of "what was last rendered." MainForm's `mLastRenderedTargets` parallel store removed. `IAltitudeSubChart.Reorder` deleted — sort changes route through the coordinator (`Apply(SnapshotCurrent(sorted))`); the diff sees a `Targets` reference change and Renders from cache (still cheap because the set is unchanged). The no-arg `SnapshotCurrent()` reads `mCoordinator.LastAppliedTargets`.
+- **`3e12470` — Day altitude curves into the cache; Day.Render becomes synchronous (PR 4).** New `Caches/TargetDayAltitudeEntry.cs` + `Caches/DayWindowKey.cs` introduce a third cache axis. `ChartCacheStore.ComputeDayAltitudes` lifts the per-minute `AltAz.At` sweep (44 targets × 1440 min ≈ 63k Meeus calls) off the UI thread. Coordinator's pipeline awaits `PrepareDayAsync(targets, dayKey)` for Day-area Renders. `AltitudeSubChart_Day.Render` becomes synchronous, matching Year / Sessions.
+- **`ac467d8` — AstrometryUi → immutable record; PCL isolation boundary pre-set (PR 6).** Last static-mutable-state holdout in TP eliminated. `Support/AstrometryUi.cs` converted from static class to sealed record with `For(location)` factory and `Empty`; MainForm holds `mAstrometryUi` field, rebuilt on every `RefreshAstrometryLabels()`. Pre-shipped: new `TargetPlanner/Imaging/README.md` declaring the PCL native-marshalling boundary, plus `<AllowUnsafeBlocks>false</AllowUnsafeBlocks>` in `TargetPlanner.csproj` as a compile-time assertion before the XISF PR lands.
+- **`4536de3` — Year + Sessions: O(1) series-to-target tooltip lookup (PR 7.1).** `mTargetBySeries` dict populated in Render, replaces the prior O(N) scan in tooltip formatters. Hot path on hover.
+- **`c7da4b2` / `ed66492` / `17db0b0` — MainForm presenter file splits (PR 7.4a / 7.4b / 7.4c).** Three partial-class extractions into `Forms/Presenters/`: `MainForm.SortPresenter.cs` (sort + populate + listbox-row plumbing), `MainForm.CoordinatePresenter.cs` (the four `CoordinateInput` callbacks + model→UI sync methods), `MainForm.FilterMenuPresenter.cs` (~16-method filter + moon-avoidance cluster). MainForm.cs drops from 2689 → 2128 lines (−21%) without behaviour changes. One commit per presenter so any regression is easy to bisect. These are partial-class file splits rather than real Presenter objects because each cluster orchestrates 6+ form controls + the VM + the coordinator and constructor-injecting all of that would have been heavier ceremony than the relocation.
+
+PR-5 (Local Horizon `.hrz` ingestion) was scoped in the plan but deferred per user request. The `IHorizonProfile` seam is pre-wired so the future loader + UI + persistence work is pure TP plumbing — see the "Future-flagged UX/Core split — Local Horizon vs Target Floor" section above for the remaining sketch.
 
 ### 2026-05-10 — Add/Remove target buttons + dupe-set visual flagging
 
