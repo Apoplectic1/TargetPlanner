@@ -53,8 +53,9 @@ namespace TargetPlanner.Charts
         //
         // Phase 1 of the orchestration-layer refactor: consolidates the prior
         // 8-parameter signature behind a single ChartContext snapshot. The
-        // sub-chart reads ctx.Targets / ctx.MoonProfile / ctx.Location and
-        // derives Horizon / Duration / now from ctx.Location.
+        // sub-chart reads ctx.Targets / ctx.Policy (moon profile, target floor,
+        // min duration, local horizon, filter center) / ctx.Location and
+        // derives DateTime from ctx.Location.DateTime.
         void Render(ChartContext ctx, IChartCacheStore cache);
 
         // Cheap path for Sort changes -- reorders the existing series in

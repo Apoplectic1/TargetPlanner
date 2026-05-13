@@ -228,12 +228,14 @@ namespace TargetPlanner.Charts
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
             if (ctx.Location == null) throw new ArgumentException("ctx.Location must not be null", nameof(ctx));
+            if (ctx.Policy == null) throw new ArgumentException("ctx.Policy must not be null", nameof(ctx));
 
             Location location = ctx.Location;
             IReadOnlyList<Target> targets = ctx.Targets;
-            MoonAvoidanceProfile profile = ctx.MoonProfile;
-            double horizon = location.Horizon;
-            TimeSpan duration = location.Duration;
+            MoonAvoidanceProfile profile = ctx.Policy.MoonProfile;
+            IHorizonProfile horizonProfile = ctx.Policy.LocalHorizon;
+            double horizonFloor = ctx.Policy.TargetFloorDeg;
+            TimeSpan duration = ctx.Policy.MinDuration;
             DateTime now = location.DateTime;
 
             NightWindow night = cache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(location);
@@ -258,7 +260,7 @@ namespace TargetPlanner.Charts
 
             UpdateGradientSections(chartStart, duskLocal, dawnLocal, chartStop);
             UpdateNowLine(now);
-            UpdateHorizonLine(horizon);
+            UpdateHorizonLine(horizonProfile.MinAltitude);
 
             // Reset HD overlay state -- the underlying ObservableCollections are
             // about to be repopulated with fresh altitude data; any pending
@@ -292,7 +294,7 @@ namespace TargetPlanner.Charts
                 var series = GetOrCreateTargetSeries(target, c);
                 FillTargetSeriesData(series, chartStart, count, altitudes);
 
-                var window = ComputeBestDayWindow(target, location, night, profile, horizon, duration);
+                var window = ComputeBestDayWindow(target, location, night, profile, horizonProfile, duration);
                 if (window.HasValue)
                 {
                     ApplyTargetVisibility(series, c, true);
@@ -396,16 +398,16 @@ namespace TargetPlanner.Charts
         // target list.
         public void RefreshVisibility(ChartContext ctx, IChartCacheStore cache)
         {
-            if (ctx == null || ctx.Location == null || mSeriesByTarget.Count == 0) return;
+            if (ctx == null || ctx.Location == null || ctx.Policy == null || mSeriesByTarget.Count == 0) return;
             Location location = ctx.Location;
-            MoonAvoidanceProfile profile = ctx.MoonProfile;
-            double horizon = location.Horizon;
-            TimeSpan duration = location.Duration;
+            MoonAvoidanceProfile profile = ctx.Policy.MoonProfile;
+            IHorizonProfile horizonProfile = ctx.Policy.LocalHorizon;
+            TimeSpan duration = ctx.Policy.MinDuration;
 
             NightWindow night = cache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(location);
             if (!night.IsValid) return;
 
-            UpdateHorizonLine(horizon);
+            UpdateHorizonLine(horizonProfile.MinAltitude);
 
             // Re-evaluate fit per target. mTargetWindows is the source of truth
             // for "fits tonight"; the "fit tonight only" filter excludes any
@@ -416,7 +418,7 @@ namespace TargetPlanner.Charts
                 LineSeries<ObservablePoint> series = kv.Value;
                 if (!mTargetColors.TryGetValue(target, out Color c)) c = Color.White;
 
-                var window = ComputeBestDayWindow(target, location, night, profile, horizon, duration);
+                var window = ComputeBestDayWindow(target, location, night, profile, horizonProfile, duration);
                 if (window.HasValue)
                 {
                     ApplyTargetVisibility(series, c, true);
@@ -667,10 +669,9 @@ namespace TargetPlanner.Charts
         // called inline.
         private static (DateTime Start, DateTime End, double Floor)? ComputeBestDayWindow(
             Target target, Location location, NightWindow night, MoonAvoidanceProfile profile,
-            double horizon, TimeSpan duration)
+            IHorizonProfile horizonProfile, TimeSpan duration)
         {
             if (duration <= TimeSpan.Zero) return null;
-            IHorizonProfile horizonProfile = new ScalarHorizonProfile(horizon);
             // altitudeQuality omitted -- BestSession.For defaults to sin(alt) via the
             // closed-form SinAltitudeOverSession path (~25× faster than the equivalent
             // Simpson lambda). Pass a non-null quality function only if a different

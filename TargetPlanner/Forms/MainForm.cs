@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Linq;
 using System.Reflection;
 using System.Windows.Forms;
+using Astronomy.Core.Horizons;
 using Astronomy.Core.Moon;
 using Astronomy.Core.Night;
 using TargetPlanner.Filters;
@@ -114,6 +115,16 @@ namespace TargetPlanner
         // Graph clicks find caches already built. On Location change we call
         // SetLocationAsync to drop everything and re-populate at the new location.
         private TargetPlanner.Caches.ChartCacheStore mCache;
+
+        // Form-lifecycle cancellation. Cancelled on FormClosing so background
+        // warmups (GetNinaTargets' PrepareManyAsync / PrepareFitsAsync chain)
+        // stop awaiting after the form is on its way out. The cache itself
+        // doesn't observe this token -- its surface is CT-free by the
+        // c74224f cancellation-removal stance; any in-flight build runs to
+        // completion and discards harmlessly via the publish-time stale check.
+        // The CTS exists purely so the awaiting Task.Run lambda exits cleanly
+        // instead of trying to touch the form after Dispose.
+        private readonly CancellationTokenSource mFormClosingCts = new CancellationTokenSource();
 
         // Phase 2 of the orchestration-layer refactor: ChartCoordinator centralizes
         // the diff-and-dispatch pipeline. UI handlers in this form build a
@@ -400,6 +411,11 @@ Right-click anywhere on the chart to clear all overlays.";
             mRaInput?.Dispose();
             mDecInput?.Dispose();
 
+            // Signal background warmups to stop awaiting before Dispose'ing the
+            // cache they're calling into.
+            try { mFormClosingCts.Cancel(); } catch (ObjectDisposedException) { }
+            mFormClosingCts.Dispose();
+
             mCoordinator?.Dispose();
             mCache?.Dispose();
 
@@ -547,7 +563,7 @@ Right-click anywhere on the chart to clear all overlays.";
                     foreach (var sc in mSubCharts.Values)
                     {
                         sc.UpdateNowLine(ctx.Location.DateTime);
-                        sc.UpdateHorizonLine(ctx.Location.Horizon);
+                        sc.UpdateHorizonLine(ctx.Policy.LocalHorizon.MinAltitude);
                     }
                     PushSkyKSInputs(ctx);
                 });
@@ -773,16 +789,24 @@ Right-click anywhere on the chart to clear all overlays.";
         //    so Sky's K-S brightness re-walks with the new inputs.
         private async void SessionsRebuildDebounce_Tick(object sender, EventArgs e)
         {
-            mSessionsRebuildDebounce.Stop();
-
-            if (mCache != null && !LocationsCacheEquivalent(mLocation, mCache.CurrentLocation))
+            // async void: wrap entire body so a synchronous throw doesn't crash the process.
+            try
             {
-                await ResetForLocationChange();
-                return;
-            }
+                mSessionsRebuildDebounce.Stop();
 
-            if (mCoordinator == null) return;
-            await mCoordinator.ApplyImmediateAsync(SnapshotCurrent(mLastRenderedTargets));
+                if (mCache != null && !LocationsCacheEquivalent(mLocation, mCache.CurrentLocation))
+                {
+                    await ResetForLocationChange();
+                    return;
+                }
+
+                if (mCoordinator == null) return;
+                await mCoordinator.ApplyImmediateAsync(SnapshotCurrent(mLastRenderedTargets));
+            }
+            catch (Exception ex)
+            {
+                Log.Error("SessionsRebuildDebounce_Tick threw", ex);
+            }
         }
 
         // Symmetric clean-slate response to any user action that re-keys the
@@ -828,8 +852,8 @@ Right-click anywhere on the chart to clear all overlays.";
         // Null-safe; no-op when Sky isn't instantiated yet (early-init paths).
         private void PushSkyKSInputs(ChartContext ctx)
         {
-            if (mLC2Sky == null || ctx == null || ctx.Location == null) return;
-            mLC2Sky.ActiveFilterCenterNm = ctx.ActiveFilterCenterNm;
+            if (mLC2Sky == null || ctx == null || ctx.Location == null || ctx.Policy == null) return;
+            mLC2Sky.ActiveFilterCenterNm = ctx.Policy.FilterCenterNm;
             mLC2Sky.RefreshSkyBrightness(mCache, ctx.Location);
         }
 
@@ -1538,31 +1562,39 @@ Right-click anywhere on the chart to clear all overlays.";
         // pre-refactor assumption when the app was always "live now" by default.
         private async void Button_Graph_Click(object sender, EventArgs e)
         {
-            // Cancel any pending multi-graph trigger. A user click on Button_Graph is an
-            // explicit "I want single-target now" intent; without this stop, a checkbox
-            // toggle 200 ms ago would still tick the debounce 50 ms later and clobber
-            // the just-rendered single-graph with a multi re-render.
-            if (mCheckedToggleDebounce != null) mCheckedToggleDebounce.Stop();
-
-            // Resolve combo text to a Target. Covers the edge case where the user typed
-            // into ComboBox_SelectTarget without triggering SelectedIndexChanged /
-            // MouseLeave; without this, SelectedSingle would lag the combo by one edit.
-            // If the text doesn't match a loaded target, fall through and use whatever
-            // SelectedSingle currently is.
-            Target found = mSelection.KnownTargets.FirstOrDefault(t => t.Name == ComboBox_SelectTarget.Text);
-            if (found != null) mSelection.SetSelectedSingle(found);
-
-            Target current = mSelection.SelectedSingle;
-            if (current == null)
+            // async void: wrap entire body so a synchronous throw doesn't crash the process.
+            try
             {
-                // No SelectedSingle, no resolvable combo text. Surface a brief
-                // auto-dismissing notice instead of silently doing nothing (the silent
-                // path was confusing -- the user clicked Graph and saw no feedback).
-                ShowTransientMessage("No Targets");
-                return;
-            }
+                // Cancel any pending multi-graph trigger. A user click on Button_Graph is an
+                // explicit "I want single-target now" intent; without this stop, a checkbox
+                // toggle 200 ms ago would still tick the debounce 50 ms later and clobber
+                // the just-rendered single-graph with a multi re-render.
+                if (mCheckedToggleDebounce != null) mCheckedToggleDebounce.Stop();
 
-            await RunGraphBuildAsync(new[] { current });
+                // Resolve combo text to a Target. Covers the edge case where the user typed
+                // into ComboBox_SelectTarget without triggering SelectedIndexChanged /
+                // MouseLeave; without this, SelectedSingle would lag the combo by one edit.
+                // If the text doesn't match a loaded target, fall through and use whatever
+                // SelectedSingle currently is.
+                Target found = mSelection.KnownTargets.FirstOrDefault(t => t.Name == ComboBox_SelectTarget.Text);
+                if (found != null) mSelection.SetSelectedSingle(found);
+
+                Target current = mSelection.SelectedSingle;
+                if (current == null)
+                {
+                    // No SelectedSingle, no resolvable combo text. Surface a brief
+                    // auto-dismissing notice instead of silently doing nothing (the silent
+                    // path was confusing -- the user clicked Graph and saw no feedback).
+                    ShowTransientMessage("No Targets");
+                    return;
+                }
+
+                await RunGraphBuildAsync(new[] { current });
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Button_Graph_Click threw", ex);
+            }
         }
 
         // Shared graph-build entry. Both Button_Graph_Click (single-target) and
@@ -1646,15 +1678,23 @@ Right-click anywhere on the chart to clear all overlays.";
         // sort-order. Empty CheckedItems -> empty targets -> blank chart, intentionally.
         private async void CheckedToggleDebounce_Tick(object sender, EventArgs e)
         {
-            mCheckedToggleDebounce.Stop();
-
-            var targets = new List<Target>();
-            foreach (object item in CheckedListBox_SelectedTargets.CheckedItems)
+            // async void: wrap entire body so a synchronous throw doesn't crash the process.
+            try
             {
-                if (item is TargetRow row && row.Target != null) targets.Add(row.Target);
-            }
+                mCheckedToggleDebounce.Stop();
 
-            await RunGraphBuildAsync(targets);
+                var targets = new List<Target>();
+                foreach (object item in CheckedListBox_SelectedTargets.CheckedItems)
+                {
+                    if (item is TargetRow row && row.Target != null) targets.Add(row.Target);
+                }
+
+                await RunGraphBuildAsync(targets);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("CheckedToggleDebounce_Tick threw", ex);
+            }
         }
 
         // Force-render the currently-checked set immediately, bypassing the 250 ms
@@ -1716,15 +1756,27 @@ Right-click anywhere on the chart to clear all overlays.";
         // break across six files. Caller decides which target list to pass
         // (single-target via SelectedSingle, multi via the checked set, or empty
         // for blanking).
+        //
+        // PlanningPolicy is synthesized from mLocation.Horizon / .Duration plus the
+        // form-level moon profile + filter center. mLocation continues to persist
+        // these values via NamedLocationSetting; ChartContext carries only the
+        // policy projection (Library APIs never read Location.Horizon/.Duration).
+        // Once a per-site `.hrz` file is wired in PR-5, the scalar horizon factory
+        // gets swapped for the polyline path here and nothing downstream changes.
         private ChartContext SnapshotCurrent(IReadOnlyList<Target> targets)
         {
+            PlanningPolicy policy = PlanningPolicy.WithScalarHorizon(
+                targetFloorDeg:  mLocation.Horizon,
+                minDuration:     mLocation.Duration,
+                moonProfile:     mMoonAvoidanceProfile,
+                filterCenterNm:  mActiveFilterCenterNm);
+
             return new ChartContext(
-                Location:             mLocation,
-                Targets:              targets ?? Array.Empty<Target>(),
-                MoonProfile:          mMoonAvoidanceProfile,
-                ActiveFilterCenterNm: mActiveFilterCenterNm,
-                ActiveArea:           SelectedArea(),
-                TargetColors:         mTargetColorsByTarget);
+                Location:     mLocation,
+                Targets:      targets ?? Array.Empty<Target>(),
+                Policy:       policy,
+                ActiveArea:   SelectedArea(),
+                TargetColors: mTargetColorsByTarget);
         }
 
         // Snap the observation moment back to the current wall-clock time. Replaces the
@@ -2004,17 +2056,34 @@ Right-click anywhere on the chart to clear all overlays.";
             // fits against the current H/D/M (~few sec). Both run in the same Task.Run
             // so the second phase awaits the first naturally; the user's first
             // Sessions / Year click hits a warm cache and renders instantly.
-            HdmKey hdm = SnapshotCurrent(allLoaded).Hdm;
+            ChartContext warmupCtx = SnapshotCurrent(allLoaded);
+            HdmKey hdm = warmupCtx.Hdm;
+            IHorizonProfile horizon = warmupCtx.Policy.LocalHorizon;
+            CancellationToken formCt = mFormClosingCts.Token;
             _ = Task.Run(async () =>
             {
+                // Race the warmup against the form-closing signal so the awaiter
+                // doesn't keep hold of the cache reference after the form has
+                // started tearing down. The cache build itself isn't cancellable
+                // and runs to completion regardless -- its publish-time stale
+                // check makes that safe.
                 try
                 {
-                    await mCache.PrepareManyAsync(allLoaded);
-                    await mCache.PrepareFitsAsync(allLoaded, hdm);
+                    Task warmup = WarmupAsync();
+                    Task cancelled = Task.Delay(Timeout.Infinite, formCt);
+                    if (await Task.WhenAny(warmup, cancelled) == cancelled) return;
+                    await warmup;  // observe any fault
                 }
+                catch (OperationCanceledException) { /* form closed mid-warmup; expected */ }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"ChartCacheStore warmup failed: {ex}");
+                }
+
+                async Task WarmupAsync()
+                {
+                    await mCache.PrepareManyAsync(allLoaded);
+                    await mCache.PrepareFitsAsync(allLoaded, hdm, horizon);
                 }
             });
         }

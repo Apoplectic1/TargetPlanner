@@ -282,19 +282,20 @@ namespace TargetPlanner.Charts
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
             if (ctx.Location == null) throw new ArgumentException("ctx.Location must not be null", nameof(ctx));
+            if (ctx.Policy == null) throw new ArgumentException("ctx.Policy must not be null", nameof(ctx));
 
             Location location = ctx.Location;
             IReadOnlyList<Target> targets = ctx.Targets;
-            MoonAvoidanceProfile profile = ctx.MoonProfile;
-            double horizon = location.Horizon;
-            TimeSpan duration = location.Duration;
+            MoonAvoidanceProfile profile = ctx.Policy.MoonProfile;
+            IHorizonProfile horizonProfile = ctx.Policy.LocalHorizon;
+            TimeSpan duration = ctx.Policy.MinDuration;
             DateTime now = location.DateTime;
 
             // Sync ActiveFilterCenterNm from the snapshot before computing K-S.
-            // ChartContext is the authoritative input; the property setter still
+            // ChartContext.Policy is the authoritative input; the property setter still
             // exists for cheap-scrub callers (RefreshSkyBrightness from the
             // SessionsRebuildDebounce_Tick path) which feed it directly.
-            ActiveFilterCenterNm = ctx.ActiveFilterCenterNm;
+            ActiveFilterCenterNm = ctx.Policy.FilterCenterNm;
 
             NightWindow night = cache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(location);
             if (!night.IsValid)
@@ -359,7 +360,7 @@ namespace TargetPlanner.Charts
                     count, observer, kAtBand, v0,
                     night.AstronomicalDusk, night.AstronomicalDawn);
 
-                bool fits = HasFit(target, location, night, profile, horizon, duration);
+                bool fits = HasFit(target, location, night, profile, horizonProfile, duration);
                 if (fits)
                 {
                     ApplyTargetVisibility(series, c, true);
@@ -399,11 +400,11 @@ namespace TargetPlanner.Charts
         //  have its sky-brightness curve still visible on the Sky area)."
         public void RefreshVisibility(ChartContext ctx, IChartCacheStore cache)
         {
-            if (ctx == null || ctx.Location == null || mSeriesByTarget.Count == 0) return;
+            if (ctx == null || ctx.Location == null || ctx.Policy == null || mSeriesByTarget.Count == 0) return;
             Location location = ctx.Location;
-            MoonAvoidanceProfile profile = ctx.MoonProfile;
-            double horizon = location.Horizon;
-            TimeSpan duration = location.Duration;
+            MoonAvoidanceProfile profile = ctx.Policy.MoonProfile;
+            IHorizonProfile horizonProfile = ctx.Policy.LocalHorizon;
+            TimeSpan duration = ctx.Policy.MinDuration;
 
             NightWindow night = cache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(location);
             if (!night.IsValid) return;
@@ -414,7 +415,7 @@ namespace TargetPlanner.Charts
                 LineSeries<ObservablePoint> series = kv.Value;
                 if (!mTargetColors.TryGetValue(target, out Color c)) c = Color.White;
 
-                bool fits = HasFit(target, location, night, profile, horizon, duration);
+                bool fits = HasFit(target, location, night, profile, horizonProfile, duration);
                 if (fits)
                 {
                     ApplyTargetVisibility(series, c, true);
@@ -508,10 +509,9 @@ namespace TargetPlanner.Charts
         // decision so Day's hidden-target list matches Sky's hidden-target list.
         private static bool HasFit(
             Target target, Location location, NightWindow night,
-            MoonAvoidanceProfile profile, double horizon, TimeSpan duration)
+            MoonAvoidanceProfile profile, IHorizonProfile horizonProfile, TimeSpan duration)
         {
             if (duration <= TimeSpan.Zero) return false;
-            IHorizonProfile horizonProfile = new ScalarHorizonProfile(horizon);
             // altitudeQuality default (null = sin(alt) closed-form) for the
             // hide-on-no-fit visibility probe. Sky doesn't pick a session; only the
             // null/non-null shape of the result matters.

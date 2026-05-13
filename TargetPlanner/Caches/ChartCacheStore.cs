@@ -130,13 +130,14 @@ namespace TargetPlanner.Caches
             {
                 if (t == null) continue;
                 Task<TargetCacheEntry> build = GetOrBuildAsync(t);
-                if (targetCompleteProgress == null)
+                // Always include the build task itself so WhenAll observes its
+                // original fault (if any) rather than only the continuation's
+                // OnlyOnRanToCompletion cancellation. The continuation is a
+                // best-effort progress tick; faulted builds skip the tick but
+                // their exception still propagates via the build entry below.
+                tasks.Add(build);
+                if (targetCompleteProgress != null)
                 {
-                    tasks.Add(build);
-                }
-                else
-                {
-                    // ContinueWith on RanToCompletion only -- faulted tasks skip the tick.
                     // Synchronous continuation keeps the increment cheap; Progress<T>.Report
                     // internally marshals the callback to the captured SyncContext (UI thread).
                     tasks.Add(build.ContinueWith(
@@ -159,9 +160,10 @@ namespace TargetPlanner.Caches
             }
         }
 
-        public Task<TargetFitEntry> GetFitOrBuildAsync(Target t, HdmKey key)
+        public Task<TargetFitEntry> GetFitOrBuildAsync(Target t, HdmKey key, IHorizonProfile horizon)
         {
             if (t == null) throw new ArgumentNullException(nameof(t));
+            if (horizon == null) throw new ArgumentNullException(nameof(horizon));
 
             // Fast path: already published.
             TargetFitEntry existing = GetFitOrNull(t, key);
@@ -169,32 +171,36 @@ namespace TargetPlanner.Caches
 
             lock (mGate)
             {
-                // In-flight de-dupe.
+                // In-flight de-dupe. We trust that callers obey the contract that for a
+                // given HdmKey the IHorizonProfile is functionally equivalent across calls
+                // (today HdmKey.HorizonDeg uniquely identifies the scalar profile; the PR-5
+                // local-horizon work will extend the key with the profile reference).
                 if (mInFlightFits.TryGetValue((t, key), out Task<TargetFitEntry> task))
                     return task;
 
                 Location location = mLocation;
-                task = BuildFitEntryAsync(t, key, location);
+                task = BuildFitEntryAsync(t, key, location, horizon);
                 mInFlightFits[(t, key)] = task;
                 return task;
             }
         }
 
         public async Task PrepareFitsAsync(IEnumerable<Target> targets, HdmKey key,
-            IProgress<int> targetCompleteProgress = null)
+            IHorizonProfile horizon, IProgress<int> targetCompleteProgress = null)
         {
             if (targets == null) return;
+            if (horizon == null) throw new ArgumentNullException(nameof(horizon));
             List<Task> tasks = new List<Task>();
             int completed = 0;
             foreach (Target t in targets)
             {
                 if (t == null) continue;
-                Task<TargetFitEntry> build = GetFitOrBuildAsync(t, key);
-                if (targetCompleteProgress == null)
-                {
-                    tasks.Add(build);
-                }
-                else
+                Task<TargetFitEntry> build = GetFitOrBuildAsync(t, key, horizon);
+                // Always include the build task itself -- see PrepareManyAsync for
+                // the rationale (the continuation's OnlyOnRanToCompletion would
+                // otherwise mask the original build fault on a WhenAll).
+                tasks.Add(build);
+                if (targetCompleteProgress != null)
                 {
                     tasks.Add(build.ContinueWith(
                         _ => targetCompleteProgress.Report(Interlocked.Increment(ref completed)),
@@ -321,13 +327,13 @@ namespace TargetPlanner.Caches
         // Ceiling / Floor / CenteredFloor triple. Year reads Floor; both share the
         // upstream BestSession.ResolveCandidates resolve so one resolve drives both
         // placements.
-        private async Task<TargetFitEntry> BuildFitEntryAsync(Target target, HdmKey key, Location location)
+        private async Task<TargetFitEntry> BuildFitEntryAsync(Target target, HdmKey key,
+            Location location, IHorizonProfile horizon)
         {
             try
             {
                 TargetCacheEntry yearEntry = await GetOrBuildAsync(target);
                 IReadOnlyList<NightCacheEntry> yearDays = yearEntry.YearDays;
-                double horizon = key.HorizonDeg;
                 TimeSpan duration = TimeSpan.FromTicks(key.DurationTicks);
                 MoonAvoidanceProfile profile = key.Profile;
 
@@ -508,16 +514,20 @@ namespace TargetPlanner.Caches
         // null-fit row directly without touching BestSession at all.
         private static IReadOnlyList<NightFit> ComputeNightFits(
             Target target, Location location, IReadOnlyList<NightCacheEntry> yearDays,
-            double horizon, TimeSpan duration, MoonAvoidanceProfile profile)
+            IHorizonProfile horizonProfile, TimeSpan duration, MoonAvoidanceProfile profile)
         {
-            IHorizonProfile horizonProfile = new ScalarHorizonProfile(horizon);
+            // Scalar lower bound for the geometric pre-rejection. For a scalar
+            // profile this equals TargetFloorDeg; for a polyline profile it's the
+            // lowest sample. A target whose YearAlt is below this is below the
+            // profile everywhere, so the pre-rejection is conservative-safe.
+            double minHorizonDeg = horizonProfile.MinAltitude;
             int n = yearDays.Count;
             NightFit[] fits = new NightFit[n];
 
             for (int i = 0; i < n; i++)
             {
                 NightCacheEntry night = yearDays[i];
-                if (night.IsPolar || night.YearAlt < horizon || duration <= TimeSpan.Zero)
+                if (night.IsPolar || night.YearAlt < minHorizonDeg || duration <= TimeSpan.Zero)
                 {
                     continue;        // default(NightFit) — all nullable doubles null
                 }

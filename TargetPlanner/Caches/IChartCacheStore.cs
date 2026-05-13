@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Astronomy.Core.Horizons;
 using Astronomy.Core.Night;
 using TargetPlanner.State;
 using Location = Astronomy.Core.Locations.Location;
@@ -79,16 +80,21 @@ namespace TargetPlanner.Caches
         /// <see cref="GetOrBuildAsync"/> / <see cref="PrepareManyAsync"/> has completed
         /// for the same target before calling this. The implementation reads
         /// <see cref="TargetCacheEntry.YearDays"/> off the published yearDays entry to
-        /// drive the per-night fit walk.</remarks>
-        Task<TargetFitEntry> GetFitOrBuildAsync(Target t, HdmKey key);
+        /// drive the per-night fit walk. <paramref name="horizon"/> drives
+        /// <see cref="Astronomy.Core.Session.BestSession.ResolveCandidates"/>'s per-azimuth
+        /// visibility test; for a given <paramref name="key"/> the caller must pass a
+        /// functionally-equivalent profile (today the scalar case is the only case in flight,
+        /// keyed uniquely by <see cref="HdmKey.HorizonDeg"/>).</remarks>
+        Task<TargetFitEntry> GetFitOrBuildAsync(Target t, HdmKey key, IHorizonProfile horizon);
 
         /// <summary>Pre-build fit entries for many targets at <paramref name="key"/>
         /// in parallel. Awaits the yearDays prepare for missing targets internally, so
         /// callers can fire this immediately after constructing the cache without
-        /// pre-awaiting yearDays themselves. Optional progress reports a 1-based
-        /// completion count as each target's fit-build finishes.</summary>
+        /// pre-awaiting yearDays themselves. <paramref name="horizon"/> is passed through
+        /// to each per-target build. Optional progress reports a 1-based completion count
+        /// as each target's fit-build finishes.</summary>
         Task PrepareFitsAsync(IEnumerable<Target> targets, HdmKey key,
-            IProgress<int> targetCompleteProgress = null);
+            IHorizonProfile horizon, IProgress<int> targetCompleteProgress = null);
 
         /// <summary>Drop every cached entry and switch to <paramref name="newLocation"/>.
         /// In-flight builds against the old location run to completion and discard

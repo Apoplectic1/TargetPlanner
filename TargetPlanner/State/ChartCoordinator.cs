@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Astronomy.Core.Night;
 using TargetPlanner.Caches;
@@ -122,14 +123,23 @@ namespace TargetPlanner.State
 
         private async void OnDebounceTick(object sender, EventArgs e)
         {
-            mDebounce.Stop();
-            ChartContext pending = mPendingContext;
-            IProgress<int> progress = mPendingProgress;
-            mPendingContext = null;
-            mPendingProgress = null;
-            if (pending == null) return;
-            try { await RunPipelineAsync(pending, progress); }
-            catch (Exception ex) { Log.Error("ChartCoordinator debounce tick threw", ex); }
+            // async void: any exception escaping this handler crashes the process.
+            // Wrap the entire body (including the synchronous prefix) so a stray
+            // NRE in the field reads doesn't blow up the form.
+            try
+            {
+                mDebounce.Stop();
+                ChartContext pending = mPendingContext;
+                IProgress<int> progress = mPendingProgress;
+                mPendingContext = null;
+                mPendingProgress = null;
+                if (pending == null) return;
+                await RunPipelineAsync(pending, progress);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("ChartCoordinator debounce tick threw", ex);
+            }
         }
 
         private async Task RunPipelineAsync(ChartContext ctx, IProgress<int> progress)
@@ -137,7 +147,10 @@ namespace TargetPlanner.State
             // Capture this pipeline's generation. A newer Apply increments
             // mGeneration; older pipelines that complete their awaits later see
             // gen != mGeneration and bail before any side-effecting write.
-            int gen = ++mGeneration;
+            // Interlocked + Volatile fence the read/write so a stray off-UI-thread
+            // Apply doesn't lose its bump (today every caller is UI-thread but the
+            // primitive is cheap; defensive in case the contract ever softens).
+            int gen = Interlocked.Increment(ref mGeneration);
 
             // Per-area diff: compare the new ctx against what the *active area*
             // was last brought current with, not against a global last-applied.
@@ -176,8 +189,11 @@ namespace TargetPlanner.State
 
                     // 2b. Per-(target, HdmKey) fit pre-pop. Internally de-duped per
                     //     (Target, HdmKey); when fits for the current HdmKey are
-                    //     already built this is a no-op.
-                    await mCache.PrepareFitsAsync(ctx.Targets, ctx.Hdm, progress);
+                    //     already built this is a no-op. The horizon profile from
+                    //     PlanningPolicy is passed through to BestSession.ResolveCandidates
+                    //     -- scalar today, polyline once PR-5 LocalHorizon lands.
+                    await mCache.PrepareFitsAsync(
+                        ctx.Targets, ctx.Hdm, ctx.Policy.LocalHorizon, progress);
                 }
             }
             catch (Exception ex)
@@ -187,7 +203,7 @@ namespace TargetPlanner.State
             }
 
             // Generation guard: a newer Apply has come in while we awaited; bail.
-            if (gen != mGeneration) return;
+            if (gen != Volatile.Read(ref mGeneration)) return;
 
             // 3. Dispatch one of two paths:
             //    a) Full Render of the active area when its data is stale

@@ -234,14 +234,15 @@ namespace TargetPlanner.Charts
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
             if (ctx.Location == null) throw new ArgumentException("ctx.Location must not be null", nameof(ctx));
+            if (ctx.Policy == null) throw new ArgumentException("ctx.Policy must not be null", nameof(ctx));
 
             Location location = ctx.Location;
             IReadOnlyList<Target> targets = ctx.Targets;
-            double horizon = location.Horizon;
+            double horizonAlt = ctx.Policy.LocalHorizon.MinAltitude;
             DateTime now = location.DateTime;
             HdmKey hdm = ctx.Hdm;
 
-            UpdateHorizonLine(horizon);
+            UpdateHorizonLine(horizonAlt);
             UpdateNowLine(now);
 
             mLastCache = cache;
