@@ -59,6 +59,19 @@ namespace TargetPlanner.Caches
         private Dictionary<(Target, HdmKey), Task<TargetFitEntry>> mInFlightFits
             = new Dictionary<(Target, HdmKey), Task<TargetFitEntry>>();
 
+        // Per-(target, DayWindowKey) altitude-curve cache. Third axis alongside
+        // yearDays (per-target) and fits (per-(target, HdmKey)). Drives the Day
+        // chart's per-target altitude polyline -- AltitudeCurve.Sample is the
+        // heavy call (44 targets × 1440 minutes ≈ 63k Meeus calls) and was the
+        // last UI-thread hot path before this axis. DayWindowKey is independent
+        // of HdmKey (altitude depends on target geometry + time, not on the
+        // user's planning policy), so HDM scrubs hit warm cache and only re-run
+        // the per-target ComputeBestDayWindow fit-tonight filter.
+        private Dictionary<(Target, DayWindowKey), TargetDayAltitudeEntry> mDay
+            = new Dictionary<(Target, DayWindowKey), TargetDayAltitudeEntry>();
+        private Dictionary<(Target, DayWindowKey), Task<TargetDayAltitudeEntry>> mInFlightDay
+            = new Dictionary<(Target, DayWindowKey), Task<TargetDayAltitudeEntry>>();
+
         public event EventHandler<TargetReadyEventArgs> TargetReady;
         public event EventHandler<LocationChangedEventArgs> LocationChanged;
 
@@ -212,6 +225,59 @@ namespace TargetPlanner.Caches
             await Task.WhenAll(tasks);
         }
 
+        public TargetDayAltitudeEntry GetDayOrNull(Target t, DayWindowKey key)
+        {
+            if (t == null) return null;
+            lock (mGate)
+            {
+                mDay.TryGetValue((t, key), out TargetDayAltitudeEntry entry);
+                return entry;
+            }
+        }
+
+        public Task<TargetDayAltitudeEntry> GetDayOrBuildAsync(Target t, DayWindowKey key)
+        {
+            if (t == null) throw new ArgumentNullException(nameof(t));
+
+            // Fast path: already published.
+            TargetDayAltitudeEntry existing = GetDayOrNull(t, key);
+            if (existing != null) return Task.FromResult(existing);
+
+            lock (mGate)
+            {
+                if (mInFlightDay.TryGetValue((t, key), out Task<TargetDayAltitudeEntry> task))
+                    return task;
+
+                Location location = mLocation;
+                task = BuildDayEntryAsync(t, key, location);
+                mInFlightDay[(t, key)] = task;
+                return task;
+            }
+        }
+
+        public async Task PrepareDayAsync(IEnumerable<Target> targets, DayWindowKey key,
+            IProgress<int> targetCompleteProgress = null)
+        {
+            if (targets == null) return;
+            List<Task> tasks = new List<Task>();
+            int completed = 0;
+            foreach (Target t in targets)
+            {
+                if (t == null) continue;
+                Task<TargetDayAltitudeEntry> build = GetDayOrBuildAsync(t, key);
+                tasks.Add(build);
+                if (targetCompleteProgress != null)
+                {
+                    tasks.Add(build.ContinueWith(
+                        _ => targetCompleteProgress.Report(Interlocked.Increment(ref completed)),
+                        CancellationToken.None,
+                        TaskContinuationOptions.OnlyOnRanToCompletion | TaskContinuationOptions.ExecuteSynchronously,
+                        TaskScheduler.Default));
+                }
+            }
+            await Task.WhenAll(tasks);
+        }
+
         public async Task SetLocationAsync(Location newLocation)
         {
             if (newLocation == null) throw new ArgumentNullException(nameof(newLocation));
@@ -219,6 +285,7 @@ namespace TargetPlanner.Caches
             Task<NightCache> oldNightTask;
             ICollection<Task<TargetCacheEntry>> oldInFlight;
             ICollection<Task<TargetFitEntry>> oldInFlightFits;
+            ICollection<Task<TargetDayAltitudeEntry>> oldInFlightDay;
             Location oldLocation;
 
             lock (mGate)
@@ -231,10 +298,11 @@ namespace TargetPlanner.Caches
                 oldNightTask = mNightCacheTask;
                 oldInFlight = mInFlight.Values.ToList();
                 oldInFlightFits = mInFlightFits.Values.ToList();
+                oldInFlightDay = mInFlightDay.Values.ToList();
 
                 // Reset state for the new location. Old in-flight builds keep running and
                 // discard themselves at publish via the ReferenceEquals(mLocation, location)
-                // check in BuildEntryAsync / BuildFitEntryAsync.
+                // check in BuildEntryAsync / BuildFitEntryAsync / BuildDayEntryAsync.
                 mLocation = newLocation;
                 mNightCache = null;
                 mNightCacheTask = null;
@@ -242,6 +310,8 @@ namespace TargetPlanner.Caches
                 mInFlight = new Dictionary<Target, Task<TargetCacheEntry>>();
                 mFits = new Dictionary<(Target, HdmKey), TargetFitEntry>();
                 mInFlightFits = new Dictionary<(Target, HdmKey), Task<TargetFitEntry>>();
+                mDay = new Dictionary<(Target, DayWindowKey), TargetDayAltitudeEntry>();
+                mInFlightDay = new Dictionary<(Target, DayWindowKey), Task<TargetDayAltitudeEntry>>();
             }
 
             // Fire LocationChanged immediately after the swap commits, before awaiting
@@ -271,6 +341,12 @@ namespace TargetPlanner.Caches
             {
                 try { await t; }
                 catch (Exception ex) { Log.Warn("Stale per-(target, HdmKey) fit build threw during SetLocationAsync", ex); }
+            }
+
+            foreach (Task<TargetDayAltitudeEntry> t in oldInFlightDay)
+            {
+                try { await t; }
+                catch (Exception ex) { Log.Warn("Stale per-(target, DayWindowKey) altitude build threw during SetLocationAsync", ex); }
             }
         }
 
@@ -358,6 +434,43 @@ namespace TargetPlanner.Caches
                 {
                     if (object.ReferenceEquals(mLocation, location))
                         mInFlightFits.Remove((target, key));
+                }
+                throw;
+            }
+        }
+
+        // Per-(target, DayWindowKey) altitude-curve build. AltitudeCurve.Sample on a
+        // threadpool thread; the result is the minute-spaced altitudes the Day chart
+        // paints. Independent of HdmKey (altitude is a function of geometry + time,
+        // not user policy), so the cache hits across HDM scrubs.
+        private async Task<TargetDayAltitudeEntry> BuildDayEntryAsync(Target target, DayWindowKey key, Location location)
+        {
+            try
+            {
+                DateTime startUtc = new DateTime(key.ChartStartUtcTicks, DateTimeKind.Utc);
+                int count = key.Count;
+
+                IReadOnlyList<double> altitudes = await Task.Run(
+                    () => AltitudeCurve.Sample(target, location, startUtc, TimeSpan.FromMinutes(1), count));
+
+                TargetDayAltitudeEntry entry = new TargetDayAltitudeEntry(target, key, altitudes);
+
+                lock (mGate)
+                {
+                    // Discard if location changed mid-build (the publish would corrupt the new
+                    // location's cache).
+                    if (!object.ReferenceEquals(mLocation, location)) return entry;
+                    mDay[(target, key)] = entry;
+                    mInFlightDay.Remove((target, key));
+                }
+                return entry;
+            }
+            catch
+            {
+                lock (mGate)
+                {
+                    if (object.ReferenceEquals(mLocation, location))
+                        mInFlightDay.Remove((target, key));
                 }
                 throw;
             }

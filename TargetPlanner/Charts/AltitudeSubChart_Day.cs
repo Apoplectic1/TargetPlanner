@@ -245,13 +245,14 @@ namespace TargetPlanner.Charts
                 return;
             }
 
+            var dayWindow = ChartLayout.BuildDayWindow(night);
+            DateTime chartStart = dayWindow.ChartStart;
+            DateTime chartStop = dayWindow.ChartStop;
+            DateTime startUtc = dayWindow.StartUtc;
+            int count = dayWindow.Count;
+            DayWindowKey dayKey = dayWindow.Key;
             DateTime duskLocal = night.AstronomicalDusk.ToLocalTime();
             DateTime dawnLocal = night.AstronomicalDawn.ToLocalTime();
-            DateTime chartStart = ChartLayout.DayChartStart(duskLocal);
-            DateTime chartStop  = ChartLayout.DayChartStop(dawnLocal);
-            int totalMins = Convert.ToInt32(Math.Round((chartStop - chartStart).TotalMinutes));
-            int count = totalMins + 1;
-            DateTime startUtc = DateTime.SpecifyKind(chartStart, DateTimeKind.Local).ToUniversalTime();
 
             // Lock X axis to the night bounds so the HD overlay's null Y values
             // can't trigger LC2's auto-zoom-to-non-null-span behavior.
@@ -288,8 +289,13 @@ namespace TargetPlanner.Charts
                 Color c = ChartLayout.ResolveTargetColor(ctx.TargetColors, target, t);
                 mTargetColors[target] = c;
 
-                IReadOnlyList<double> altitudes = AltitudeCurve.Sample(
-                    target, location, startUtc, TimeSpan.FromMinutes(1), count);
+                // Altitude curve lives in the cache, keyed by (target, dayKey).
+                // Coordinator's PrepareDayAsync await guarantees it's published
+                // (modulo a raced location swap -- GetDayOrNull returns null in
+                // that case and the target is skipped silently).
+                TargetDayAltitudeEntry dayEntry = cache?.GetDayOrNull(target, dayKey);
+                if (dayEntry == null) continue;
+                IReadOnlyList<double> altitudes = dayEntry.AltitudesPerMinute;
 
                 var series = GetOrCreateTargetSeries(target, c);
                 FillTargetSeriesData(series, chartStart, count, altitudes);

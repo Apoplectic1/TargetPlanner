@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using Astronomy.Core.Night;
 using SkiaSharp;
+using TargetPlanner.Caches;
 
 using Target = Astronomy.Core.Targets.Target;
 
@@ -119,6 +121,34 @@ namespace TargetPlanner.Charts
             if (stop <= dawnLocal) stop = stop.AddHours(1);
             if ((stop - dawnLocal).TotalHours < 0.5) stop = stop.AddHours(1);
             return stop;
+        }
+
+        /// <summary>
+        /// Convert a <see cref="NightWindow"/> to the Day chart's minute-spaced
+        /// sampling window: rounded local-time chart bounds + the UTC start +
+        /// total minute count + a cache key that uniquely identifies the
+        /// resulting altitude curve. The coordinator's pipeline and
+        /// <c>AltitudeSubChart_Day.Render</c> both call this so the
+        /// <see cref="DayWindowKey"/> they pass to the cache is guaranteed
+        /// identical.
+        /// </summary>
+        public static (DayWindowKey Key, DateTime ChartStart, DateTime ChartStop,
+                       DateTime StartUtc, int Count)
+            BuildDayWindow(NightWindow night)
+        {
+            DateTime duskLocal = night.AstronomicalDusk.ToLocalTime();
+            DateTime dawnLocal = night.AstronomicalDawn.ToLocalTime();
+            DateTime chartStart = DayChartStart(duskLocal);
+            DateTime chartStop = DayChartStop(dawnLocal);
+            int totalMins = Convert.ToInt32(Math.Round((chartStop - chartStart).TotalMinutes));
+            int count = totalMins + 1;
+            DateTime startUtc = DateTime.SpecifyKind(chartStart, DateTimeKind.Local).ToUniversalTime();
+            DayWindowKey key = new DayWindowKey
+            {
+                ChartStartUtcTicks = startUtc.Ticks,
+                Count = count,
+            };
+            return (key, chartStart, chartStop, startUtc, count);
         }
 
         // Look up <paramref name="target"/>'s color from <paramref name="colorMap"/>

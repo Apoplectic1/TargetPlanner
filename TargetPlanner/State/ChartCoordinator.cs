@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Astronomy.Core.Night;
 using TargetPlanner.Caches;
+using TargetPlanner.Charts;
 using TargetPlanner.Support;
 
 using Location = Astronomy.Core.Locations.Location;
@@ -221,6 +222,20 @@ namespace TargetPlanner.State
                     //     -- scalar today, polyline once PR-5 LocalHorizon lands.
                     await mCache.PrepareFitsAsync(
                         ctx.Targets, ctx.Hdm, ctx.Policy.LocalHorizon, progress);
+
+                    // 2c. Per-(target, DayWindowKey) altitude-curve pre-pop. Independent
+                    //     of HdmKey -- altitude depends on geometry + time, not policy --
+                    //     so HDM scrubs hit warm cache. The night window is read off the
+                    //     cache's LocationNightCache (built by PrepareManyAsync above);
+                    //     when the night is invalid (polar etc) we skip the prep and
+                    //     Day.Render's IsValid check paints a blank chart.
+                    NightWindow night = mCache.LocationNightCache?.Starting
+                                     ?? NightCalculator.ComputeNight(ctx.Location);
+                    if (night.IsValid)
+                    {
+                        var dayWindow = ChartLayout.BuildDayWindow(night);
+                        await mCache.PrepareDayAsync(ctx.Targets, dayWindow.Key, progress);
+                    }
                 }
             }
             catch (Exception ex)

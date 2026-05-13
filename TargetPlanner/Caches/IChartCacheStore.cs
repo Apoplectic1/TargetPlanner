@@ -96,6 +96,23 @@ namespace TargetPlanner.Caches
         Task PrepareFitsAsync(IEnumerable<Target> targets, HdmKey key,
             IHorizonProfile horizon, IProgress<int> targetCompleteProgress = null);
 
+        /// <summary>Returns the published per-night altitude curve for
+        /// <paramref name="t"/> at <paramref name="key"/>, or <see langword="null"/>
+        /// if not yet built. Synchronous, lock-protected.</summary>
+        TargetDayAltitudeEntry GetDayOrNull(Target t, DayWindowKey key);
+
+        /// <summary>Build (or wait for an in-flight build of) the Day altitude curve
+        /// for <paramref name="t"/> at <paramref name="key"/>. Idempotent per
+        /// (target, key); concurrent calls dedupe to one underlying
+        /// <see cref="Astronomy.Core.AltitudeCurve"/>.Sample call.</summary>
+        Task<TargetDayAltitudeEntry> GetDayOrBuildAsync(Target t, DayWindowKey key);
+
+        /// <summary>Pre-build Day altitude entries for many targets at <paramref name="key"/>
+        /// in parallel. Optional progress reports a 1-based completion count
+        /// as each target's altitude build finishes.</summary>
+        Task PrepareDayAsync(IEnumerable<Target> targets, DayWindowKey key,
+            IProgress<int> targetCompleteProgress = null);
+
         /// <summary>Drop every cached entry and switch to <paramref name="newLocation"/>.
         /// In-flight builds against the old location run to completion and discard
         /// themselves at publish via the cache's internal location check. Subsequent
