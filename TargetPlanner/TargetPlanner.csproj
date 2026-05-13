@@ -33,6 +33,13 @@
     <GenerateAssemblyComVisibleAttribute>false</GenerateAssemblyComVisibleAttribute>
     <GenerateAssemblyGuidAttribute>false</GenerateAssemblyGuidAttribute>
     <Platforms>x64</Platforms>
+    <!-- Compile-time assertion that no TP code uses unsafe blocks. The default is
+         already false; making it explicit means a future ProjectReference to
+         Astronomy.PCL (which wraps native PCL pointers) cannot leak `unsafe`
+         constructs into the WinForms host without flipping this flag deliberately.
+         All P/Invoke / native-marshalling code lives in TargetPlanner/Imaging/
+         and exposes only managed DTOs upward; see Imaging/README.md. -->
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <!-- Assembly metadata previously in Properties/AssemblyInfo.cs. Version is omitted so
          MinVer can stamp it from the latest git tag (e.g. v1.0.0 yields assembly 1.0.0). -->
     <AssemblyTitle>TargetPlanner</AssemblyTitle>

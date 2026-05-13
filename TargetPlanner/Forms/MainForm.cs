@@ -115,6 +115,12 @@ namespace TargetPlanner
         // SetLocationAsync to drop everything and re-populate at the new location.
         private TargetPlanner.Caches.ChartCacheStore mCache;
 
+        // Latest UI-bound astrometry snapshot, refreshed by RefreshAstrometryLabels
+        // on every DatePicker / TimePicker / OnLocationEdited tick. Immutable
+        // record -- safe to read from any thread; replaces the prior static
+        // mutable AstrometryUi.* properties.
+        private TargetPlanner.Support.AstrometryUi mAstrometryUi = TargetPlanner.Support.AstrometryUi.Empty;
+
         // Form-lifecycle cancellation. Cancelled on FormClosing so background
         // warmups (GetNinaTargets' PrepareManyAsync / PrepareFitsAsync chain)
         // stop awaiting after the form is on its way out. The cache itself
@@ -620,16 +626,16 @@ Right-click anywhere on the chart to clear all overlays.";
         // elevation spinners), and ComboBox_Location_SelectionIndexChanged (preset picks).
         private void RefreshAstrometryLabels()
         {
-            AstrometryUi.Location(mLocation);
+            mAstrometryUi = AstrometryUi.For(mLocation);
 
-            Label_AstronomicalDuskValue.Text = AstrometryUi.AstronomicalDusk.ToShortTimeString();
-            Label_AstronomicalDawnValue.Text = AstrometryUi.AstronomicalDawn.ToShortTimeString();
-            Label_SunAltitudeValue.Text = AstrometryUi.SunAltitude.ToString("F0") + "\u00B0";
-            Label_LunarAltitudeValue.Text = AstrometryUi.LunarAltitude.ToString("F0") + "\u00B0";
-            Label_LunarIlluminationFractionValue.Text = (AstrometryUi.LunarIlluminationFraction * 100).ToString("F0") + "%";
-            Label_LunarPhaseValue.Text = AstrometryUi.LunarPhase;
-            Label_MoonRiseValue.Text = AstrometryUi.LunarRise.ToShortTimeString();
-            Label_MoonSetValue.Text = AstrometryUi.LunarSet.ToShortTimeString();
+            Label_AstronomicalDuskValue.Text = mAstrometryUi.AstronomicalDusk.ToShortTimeString();
+            Label_AstronomicalDawnValue.Text = mAstrometryUi.AstronomicalDawn.ToShortTimeString();
+            Label_SunAltitudeValue.Text = mAstrometryUi.SunAltitude.ToString("F0") + "\u00B0";
+            Label_LunarAltitudeValue.Text = mAstrometryUi.LunarAltitude.ToString("F0") + "\u00B0";
+            Label_LunarIlluminationFractionValue.Text = (mAstrometryUi.LunarIlluminationFraction * 100).ToString("F0") + "%";
+            Label_LunarPhaseValue.Text = mAstrometryUi.LunarPhase;
+            Label_MoonRiseValue.Text = mAstrometryUi.LunarRise.ToShortTimeString();
+            Label_MoonSetValue.Text = mAstrometryUi.LunarSet.ToShortTimeString();
         }
 
         // ---------- Coordinate-input callbacks (ValueChanged from CoordinateInput) ----------
