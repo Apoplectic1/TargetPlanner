@@ -2,7 +2,7 @@
 
 Deep architecture reference for `TargetPlanner`. Read this when editing `Charts/`, `Caches/`, `State/`, `Filters/`, or any of the chart-pipeline paths in `Forms/MainForm.cs`. For the high-level overview (repo split, SoC phases, threading model), the **Glossary**, the **Conventions worth knowing before editing**, and the **Core consumer contract**, see [CLAUDE.md](CLAUDE.md). User-facing behaviour, defaults, and chart UX live in [README.md](README.md).
 
-The codebase is split at the repo boundary: **`Astronomy.Core`** lives in the sibling `Library\` repo and provides pure, UI-free astronomical math plus POCOs; **`TargetPlanner`** (this repo) is the WinForms chart/host/UI on top, consuming Core via `ProjectReference`. The TP-side architecture has been through a three-phase SoC refactor (commits `0f6c81c` / `1e1986d` / `3425f8e`): chart construction is decoupled from cache construction, cache state is decoupled from selection state, and selection state is decoupled from UI controls. Threading model: UI thread owns form events / VM mutations / render passes / chart paint; cache worker (`Task.Run` inside `ChartCacheStore.GetOrBuildAsync`, gated by an internal `SemaphoreSlim` cap of 4) owns per-target year-cache builds and per-Location `NightCache` build; NINA loader (`Task.Run` inside `MainForm.GetNinaTargets`) owns file enumeration + JSON parse.
+The codebase is split at the repo boundary: **`Astronomy.Core`** lives in the sibling `Library\` repo and provides pure, UI-free astronomical math plus POCOs; **`TargetPlanner`** (this repo) is the WinForms chart/host/UI on top, consuming Core via `ProjectReference`. The TP-side architecture has been through a three-phase SoC refactor (commits `0f6c81c` / `1e1986d` / `3425f8e`) plus a follow-on cache-completion pass (lifts per-(target, H/D/M) fit compute out of the sub-charts and into `ChartCacheStore` — design rationale at [`docs/design/chart-fits-cache.md`](docs/design/chart-fits-cache.md)). Chart construction is decoupled from cache construction, cache state is decoupled from selection state, selection state is decoupled from UI controls, and **sub-charts are now render-only synchronous painters** that read pre-built fits from the cache. Threading model: UI thread owns form events / VM mutations / render passes / chart paint; cache worker (`Task.Run` inside `ChartCacheStore.GetOrBuildAsync` and `GetFitOrBuildAsync`) owns per-target year-cache builds, per-Location `NightCache` build, and per-(target, HdmKey) fit builds; NINA loader (`Task.Run` inside `MainForm.GetNinaTargets`) owns file enumeration + JSON parse plus the post-load `PrepareManyAsync` + `PrepareFitsAsync` warmup.
 
 ## `Astronomy.Core` — pure math, no UI (source in `..\Library\Astronomy.Core\`)
 
@@ -45,14 +45,17 @@ The form's `WireSelectionVm` subscribes the VM events to UI-update handlers (`On
 
 ### Cache store (`Caches/`)
 
-Phase 3 of the SoC refactor (commit `3425f8e`). Five files:
+Phase 3 of the SoC refactor (commit `3425f8e`) plus the follow-on fit-cache completion. Seven files:
 - `MoonSample` — public struct `(Utc, SepDeg, MoonAltDeg)`. Promoted from a private nested type in `AltitudeSeries`.
 - `NightCacheEntry` — public class holding per-target per-night precomputes (`Dusk` / `Dawn` / `LstDusk` / `LstDawn` / `AltDusk` / `AltDawn` / `TransitInNight` / `YearAlt` / `IsPolar` / `SentinelX` / `MoonSamples` / `MoonAgeDays`). Promoted to public.
 - `TargetCacheEntry` — owns `Target` + `IReadOnlyList<NightCacheEntry>` (the 365-day series).
-- `IChartCacheStore` — interface. `IsReady(t)` / `GetOrNull(t)` (sync, lock-free reads) / `GetOrBuildAsync(t, ct)` (in-flight de-duping; one underlying compute per target) / `PrepareManyAsync(targets, ct, IProgress<int>? targetCompleteProgress = null)` (parallel bulk build with optional 1-based per-target completion ticks for the chart-build progress bar) / `SetLocationAsync(loc)` (cancel in-flight + drop cache + switch). UI-thread-marshalled `TargetReady` event.
-- `ChartCacheStore` — default implementation. `Task.Run`-backed per-target builds; per-location-CTS for cancel-on-location-change. Owns the heavy chart-cache compute paths — `ComputeYearDays` (lifted from the old `AltitudeSeries.ComputeYearCache`) is the ~25,600-call-per-target moon-sample sweep.
+- `TargetFitEntry` — owns `Target` + `HdmKey` + `IReadOnlyList<NightFit>` (per-night Ceiling / Floor / CenteredFloor triple, all `double?`). Index-aligned with `TargetCacheEntry.YearDays`.
+- `IChartCacheStore` — interface. **yearDays axis**: `IsReady(t)` / `GetOrNull(t)` (sync, lock-free reads) / `GetOrBuildAsync(t)` (in-flight de-duping; one underlying compute per target) / `PrepareManyAsync(targets, IProgress<int>? = null)` (parallel bulk build with optional 1-based per-target completion ticks). **Fits axis**: `GetFitOrNull(t, HdmKey)` / `GetFitOrBuildAsync(t, HdmKey)` / `PrepareFitsAsync(targets, HdmKey, IProgress<int>? = null)`. Lifecycle: `SetLocationAsync(loc)` (drop both caches + switch). UI-thread-marshalled `TargetReady` event. **No `CancellationToken` parameters on any method** — stale work runs to completion and discards via a publish-time location check (see Cancellation policy below).
+- `ChartCacheStore` — default implementation. `Task.Run`-backed per-(target) and per-(target, HdmKey) builds. Owns the heavy chart-cache compute paths: `ComputeYearDays` (the ~25,600-call-per-target moon-sample sweep, builds `mEntries[Target]`) and `ComputeNightFits` (per-night `BestSession.ResolveCandidates` + `PlaceBest` + `PlaceCentered` + `SessionAltitude.{Floor, Ceiling}`, builds `mFits[(Target, HdmKey)]`). One `ResolveCandidates` resolve drives both placements per night (~25% fewer Meeus calls than the old separate Year / Sessions paths). **No cancellation infrastructure** — `mLocationCts` / `WithExternalCancel` removed in the cache-completion pass; in-flight stale builds are detected at publish via `ReferenceEquals(mLocation, location)` and silently discarded.
 
-`MainForm` instantiates `mCache = new ChartCacheStore(mLocation, SynchronizationContext.Current)` before the sub-charts (the SyncContext lets the cache marshal `TargetReady` to the UI thread), threads the cache reference into each sub-chart's `Render(...)` call, and after each NINA load fires `_ = Task.Run(async () => mCache.PrepareManyAsync(allLoaded, prepToken))` for background warmup. `Button_Graph_Click` calls `PrepareManyAsync` with the progress handler returned by `BeginChartBuildProgress` so the per-target completion ticks drive `ProgressBar_MultiTargetProcessing`. Location-edit paths route through `LocationsCacheEquivalent` (compares Lat / Lon / North / West / Elevation / `NightCache.ComputeYearStartDay`) and call `mCache.SetLocationAsync` only when geometry actually changed — Horizon / Duration scrubs preserve the year-cache.
+`HdmKey` (`State/HdmKey.cs`) — readonly struct keying the fits cache. Fields: `HorizonDeg`, `DurationTicks`, `Profile` (reference identity, since `MoonAvoidanceProfile` is immutable), `FilterCenterNm`. Surfaced as `ChartContext.Hdm` (derived property). Bortle / ExtinctionK are intentionally excluded — they affect Sky's K-S brightness path, not fit decisions.
+
+`MainForm` instantiates `mCache = new ChartCacheStore(mLocation, SynchronizationContext.Current)` before the sub-charts (the SyncContext lets the cache marshal `TargetReady` to the UI thread), threads the cache reference into each sub-chart's `Render(...)` call, and after each NINA load fires `_ = Task.Run(async () => { await mCache.PrepareManyAsync(allLoaded); await mCache.PrepareFitsAsync(allLoaded, currentHdm); })` for background warmup. `Button_Graph_Click` calls `ApplyImmediateAsync` with the progress handler returned by `BeginChartBuildProgress` so the per-target completion ticks (yearDays then fits) drive `ProgressBar_MultiTargetProcessing`. Location-edit paths route through `LocationsCacheEquivalent` (compares Lat / Lon / North / West / Elevation / `NightCache.ComputeYearStartDay`) and call `mCache.SetLocationAsync` only when geometry actually changed — Horizon / Duration scrubs preserve the year-cache but invalidate the fits cache via a new `HdmKey`.
 
 ### Orchestration layer (`State/ChartContext.cs`, `State/ChartCoordinator.cs`)
 
@@ -73,28 +76,39 @@ The orchestration layer factors that out:
 
 - **`ChartCoordinator`** — single funnel. Public surface: `Apply(ctx, progress=null)`
   (debounced 150 ms internally), `ApplyImmediateAsync(ctx, progress=null)` (no-debounce,
-  awaitable), `Cancel`, `Dispose`. Holds `mLastApplied` (last successfully-applied
-  snapshot) for diffing, `mPipelineCts` (single CTS for the in-flight pipeline,
-  replaced on supersede), `mPendingContext` + `mPendingProgress` (most recent debounced
-  Apply, drained on tick).
+  awaitable), `Cancel` (stops the debounce; no in-flight cancellation — see below),
+  `Dispose`. Holds `mLastAppliedByArea` (per-area last-successfully-applied snapshot,
+  for diffing radio swaps), `mEverRendered` (areas that have been Render'd at least
+  once), `mGeneration` (monotonic counter that drives supersession), `mPendingContext`
+  + `mPendingProgress` (most recent debounced Apply, drained on tick).
 
   Pipeline flow (`RunPipelineAsync`):
-  1. Diff `prev` vs new: location-key (`LocationCacheEquivalent`), targets
-     (reference-equality), area, HDM (Horizon / Duration / MoonProfile /
-     ActiveFilterCenterNm / Bortle / ExtinctionK).
+  1. Capture `gen = ++mGeneration` at entry. Diff `prev` vs new for the active area:
+     location-key (`LocationCacheEquivalent`), targets (reference-equality), HdmKey
+     (`prev.Hdm != ctx.Hdm` — Horizon / Duration / MoonProfile / FilterCenterNm).
   2. If location-key changed → `await mCache.SetLocationAsync(ctx.Location)`.
-  3. If `ctx.Targets` non-empty → `await mCache.PrepareManyAsync(ctx.Targets, ct, progress)`.
-  4. If `needsFullRender` (location/targets/area changed) → `Render` active sub-chart;
-     also `RefreshVisibility` on every inactive sub-chart so they stay current when
-     the user switches to them (Issue 1 cross-chart H/D/M propagation fix).
-  5. Else if HDM-only changed → `RefreshVisibility` on every sub-chart.
+  3. If `ctx.Targets` non-empty → `await mCache.PrepareManyAsync(ctx.Targets, progress)`
+     then `await mCache.PrepareFitsAsync(ctx.Targets, ctx.Hdm, progress)`. Both are
+     no-ops when their cache is warm; the second blocks the synchronous Render below
+     until fits for the current `HdmKey` are built.
+  4. **Generation guard**: if `gen != mGeneration` (a newer Apply has come in while
+     we awaited) → return without writing any state.
+  5. If `activeNeedsFullRender` (never rendered, or location/targets/HdmKey changed)
+     → `Render` active sub-chart (synchronous; reads cache).
+     Else → `ShowOnly` (flip Visible on the active sub-chart's Control).
   6. Post-apply hook: `RefreshAstrometryLabels` + `UpdateNowLine` + `UpdateHorizonLine`
-     on every sub-chart + `PushSkyKSInputs(ctx)` for Sky's K-S walk.
-  7. Update `mLastApplied`.
+     on every sub-chart + `PushSkyKSInputs(ctx)` for Sky's K-S walk (Bortle / ExtinctionK
+     / Filter changes ride here without forcing a fit recompute).
+  7. Stamp `mLastAppliedByArea[activeArea]` (full-render path) or every ever-rendered
+     area (showOnly path).
 
-  Cancellation: every `Apply` / `ApplyImmediateAsync` cancels the prior pipeline's CTS;
-  the in-flight `await`s throw OperationCanceledException, the catch swallows it, the
-  next pipeline runs. One pipeline ever runs at a time.
+  Supersession: instead of CTS-based cancellation, the coordinator uses the generation
+  counter. Multiple pipelines may overlap during rapid scrubs (each captures its own
+  `gen` at entry); the cache's per-(target, key) in-flight dedupe ensures the heavy
+  compute isn't duplicated. When the older pipeline's awaits resolve, its `gen !=
+  mGeneration` check causes it to bail before any side-effecting Render / ShowOnly /
+  stamp call. Only the latest Apply's pipeline ever writes chart state. No exceptions
+  thrown, no try/catch needed for supersession.
 
 - **`MainForm.SnapshotCurrent(targets)`** — single point that reads `mLocation` /
   `mMoonAvoidanceProfile` / `mActiveFilterCenterNm` / `SelectedArea()` into a
@@ -122,13 +136,13 @@ and `mCoordinator.ApplyImmediateAsync` (within-equiv scrubs that ride OnLocation
 Each chart area lives in its own LC2 sub-chart class implementing `IAltitudeSubChart`:
 - `AltitudeSubChart_Day.cs` — single-night altitude curves; HD-overlay click-toggle via `OverlayController`; smooth-curve interpolated tooltip (300 ms debounce); shared moon series filled below the per-target altitude curves with alpha scaled by lunar illumination. **Fit-tonight-only filter:** targets without a D-hour window tonight are excluded from `mChart.Series` and the legend entirely (their altitude data is still computed into `mSeriesByTarget` so a subsequent H/D/M scrub that brings them back into fit can re-add them via `RefreshVisibility` without recomputing). Day's legend therefore reflects "what can I image tonight," independent of which boxes are checked in `CheckedListBox_SelectedTargets`. Sky / Year / Sessions stay alpha-0-toggle (no filter).
 - `AltitudeSubChart_Sky.cs` — single-night K-S sky brightness curves (mag/arcsec², inverted-data Y axis 16–22 with `Labeler` mapping); per-DataPoint snap tooltip (30 ms). Owns `ActiveFilterCenterNm` (Rayleigh λ⁻⁴ scaling for K-S extinction) and `RefreshSkyBrightness(cache, location)` separate from the universal `RefreshVisibility` since Bortle / ExtinctionK / Filter scrubs change brightness without touching fit decisions.
-- `AltitudeSubChart_Year.cs` — 12-month per-night sweep; **Y is session-floor altitude under current H/D/M** (worst-case in the placed D-hour window), not night-max. Background `Task.Run` does the per-(target, night) `BestSession.For` probe with cancellation-on-rescrub.
-- `AltitudeSubChart_Sessions.cs` — 12-month per-night sweep with three curves per target: Ceiling / Floor / Symmetric. `BestSession.ResolveCandidates(...)` resolves visibility ∩ moon-clear once per night so `PlaceBest` (Ceiling/Floor) and `PlaceCentered` (Symmetric) see identical inputs. ONE legend item per target — click toggles all three series together. Same background task pattern as Year.
-- `IAltitudeSubChart.cs` — common interface (`Control`, `IdealHeight`, `IdealHeightChanged`, `UpdateNowLine`, `UpdateHorizonLine`, `Render(ChartContext, IChartCacheStore, CancellationToken)`, `Reorder`, `RefreshVisibility(ChartContext, IChartCacheStore)`). The two snapshot-taking methods replaced 8-param / 5-param signatures during the orchestration-layer refactor; new sub-charts get the snapshot-coherent API for free. MainForm holds `Dictionary<string, IAltitudeSubChart> mSubCharts` keyed by area ("Day" / "Sky" / "Year" / "Sessions"); coordinator dispatch resolves the active sub-chart by name. Forgetting any contract method on a new sub-chart is a compile error.
+- `AltitudeSubChart_Year.cs` — 12-month per-night sweep; **Y is session-floor altitude under current H/D/M** (worst-case in the placed D-hour window), not night-max. **Render-only**: reads `cache.GetFitOrNull(target, ctx.Hdm).Nights[i].Floor` per night and paints synchronously. No bg task, no `CancellationTokenSource`. Tooltips formatted on hover from cached `NightFit` + `yearDays[i].SentinelX`.
+- `AltitudeSubChart_Sessions.cs` — 12-month per-night sweep with three curves per target: Ceiling / Floor / Symmetric. Same render-only pattern as Year, reading `Ceiling` / `Floor` / `CenteredFloor` fields off the cached `NightFit`. ONE legend item per target — click toggles all three series together. The shared-resolve optimization (`BestSession.ResolveCandidates` once driving both `PlaceBest` and `PlaceCentered`) lives in `ChartCacheStore.ComputeNightFits` rather than the sub-chart.
+- `IAltitudeSubChart.cs` — common interface (`Control`, `IdealHeight`, `IdealHeightChanged`, `UpdateNowLine`, `UpdateHorizonLine`, `Render(ChartContext, IChartCacheStore)`, `Reorder`, `RefreshVisibility(ChartContext, IChartCacheStore)`). Snapshot-taking methods replaced the prior loose primitive parameter lists during the orchestration-layer refactor; `Render` lost its `CancellationToken` parameter in the cancellation-removal pass. MainForm holds `Dictionary<string, IAltitudeSubChart> mSubCharts` keyed by area ("Day" / "Sky" / "Year" / "Sessions"); coordinator dispatch resolves the active sub-chart by name. Forgetting any contract method on a new sub-chart is a compile error.
 - `ChartLayout.cs` — shared template: `FixedPlotAreaHeight = 420`, chrome dimensions, legend padding, `ChartBackground`, `GridLineColor`, `TargetColorPalette` (12 colors). `DayChartStart(duskLocal)` / `DayChartStop(dawnLocal)` round dusk/dawn to the nearest enclosing integer hour for the Day / Sky minute-grid bounds.
 - Controllers (`CurveHitTester`, `OverlayController`, `HoverTooltipController`) sit alongside the sub-charts. `HoverTooltipController` accepts an optional `CurveTooltipFormatter` delegate; per-DataPoint snap formatters use `segmentStart` to read pre-formatted text from a parallel `string[]` (the Sky / Year / Sessions pattern).
 
-**Series identity preservation across renders.** Each sub-chart's `Render(...)` calls a per-target `GetOrCreateTargetSeries(...)` (or three-dict equivalent on Sessions) so `LineSeries<ObservablePoint>` instances persist across renders. This keeps `IsVisible` toggle state — the user's legend clicks — alive when the chart is re-rendered for a Graph-click, a sort change, or a debounce-driven visibility refresh. `Reorder(newOrder)` is the cheap path for sort changes: rebuilds `mChart.Series` + the legend in the new order without touching data or kicking the bg fit task.
+**Series identity preservation across renders.** Each sub-chart's `Render(...)` calls a per-target `GetOrCreateTargetSeries(...)` (or three-dict equivalent on Sessions) so `LineSeries<ObservablePoint>` instances persist across renders. This keeps `IsVisible` toggle state — the user's legend clicks — alive when the chart is re-rendered for a Graph-click, a sort change, or an H/D/M scrub. `Reorder(newOrder)` is the cheap path for sort changes: rebuilds `mChart.Series` + the legend in the new order without touching data (the cached fits already painted as Y values stay valid because the target SET is unchanged).
 
 **Day chart click semantics** — three-mode handler (legend toggle / Day-curve overlay toggle / right-click restore-all). User-facing description in [README.md](README.md#chart-interactions). Implementation now lives in `OverlayController` (HD overlay state machine) + the custom legend's `Click` handler. Right-click fires `mOverlay.RestoreAll()`.
 
@@ -138,7 +152,7 @@ Lives mostly in foreach loops over `mSubCharts.Values`:
 - Live now-line: `foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(when)` from `DatePicker_ValueChanged` / `TimePicker_ValueChanged` / `Button_Now_Click`.
 - Live horizon: same shape from `NumericUpDown_TargetFloor_ValueChanged` (Sky's `UpdateHorizonLine` is a no-op).
 - Debounce tick: `foreach RefreshVisibility(...)` + `mLC2Sky.RefreshSkyBrightness(...)` + `mLC2Sky.ActiveFilterCenterNm = mActiveFilterCenterNm`.
-- Graph-click + radio handlers: shared `RenderArea(ChartContext ctx, CancellationToken ct)` helper that does dict lookup on `ctx.ActiveArea`, `ShowOnlyAltitudeChart(sc.Control)`, `sc.Render(ctx, mCache, ct)`, and `ResizeAltitudeChartArea(sc.IdealHeight)`. Post-orchestration-refactor, `RenderArea` is called only from inside the coordinator's pipeline; the radio handlers reduce to `mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets))` and the coordinator's diff sees `ActiveArea` changed → dispatches `Render` on the new active sub-chart.
+- Graph-click + radio handlers: shared `RenderArea(ChartContext ctx)` helper that does dict lookup on `ctx.ActiveArea`, `ShowOnlyAltitudeChart(sc.Control)`, `sc.Render(ctx, mCache)`, and `ResizeAltitudeChartArea(sc.IdealHeight)`. Post-orchestration-refactor, `RenderArea` is called only from inside the coordinator's pipeline; the radio handlers reduce to `mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets))` and the coordinator's diff sees `ActiveArea` changed → dispatches `Render` on the new active sub-chart.
 - Sort callback: `foreach (var sc in mSubCharts.Values) sc.Reorder(sorted)` — no replot, no fit recompute.
 - State that legacy `AltitudeChart` used to own now lives on MainForm: `mLastRenderedTargets`, `mMoonAvoidanceProfile`, `mActiveFilterCenterNm`. `SetActiveFilter` / `OnLorentzianControlChanged` / `OnAvoidanceEnableChanged` write these and call `mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets))`. The coordinator's diff catches `MoonProfile` / `ActiveFilterCenterNm` change as HDM-style and refreshes visibility on every sub-chart; the post-apply hook re-walks Sky's K-S grid.
 
@@ -150,32 +164,32 @@ Every chart sub-area (Day / Sky / Year / Sessions; any future chart) MUST implem
 
 2. **Live horizon-line scrub.** `UpdateHorizonLine(double horizon)` mutates the green section's Y position in place. `NumericUpDown_TargetFloor_ValueChanged` iterates the same way. Sky has no horizon line and the method is a no-op there; every other sub-chart implements it.
 
-3. **Hide-on-no-fit on H/D/M scrub** (the "universal" hide rule). When the active Horizon, Duration, or MoonAvoidanceProfile leaves a target with no D-hour fit (`BestSession.For(...)` returns null), the target's curve is hidden on every chart simultaneously. Hide unit varies per chart:
-   - **Day** (single-night view, Phase-3 fit-tonight-only): per-target. Targets without a D-hour window tonight are excluded from `mChart.Series` and the legend entirely (not just alpha-0). `RefreshVisibility` rebuilds `mChart.Series` + legend on every H/D/M scrub so previously-hidden targets that now fit reappear, and previously-fit targets that now miss disappear.
-   - **Sky** (single-night view): per-target. Stroke alpha → 0 when no fit; restore palette alpha when fit. One `BestSession.For` call per target tonight (cheap, ~10 ms for 44 targets, runs synchronously inside `RefreshVisibility`).
-   - **Year** (12-month view): per-target × per-night. `ObservablePoint.Y` → null (line break) for unfit nights; for fit nights, the Y value IS the session floor altitude (`SessionAltitude.Floor` of the placed `BestSession.For` result). Runs on `Task.Run` with a `CancellationTokenSource` replaced on every scrub.
-   - **Sessions** (12-month view, three curves): per-target × per-night × three. `BestSession.ResolveCandidates(...)` resolves visibility ∩ moon-clear once per night; `PlaceBest` produces Ceiling/Floor altitudes, `PlaceCentered` produces Symmetric altitude; null Y line breaks for unfit. Same bg task pattern as Year.
+3. **Hide-on-no-fit on H/D/M scrub** (the "universal" hide rule). When the active Horizon, Duration, or MoonAvoidanceProfile leaves a target with no D-hour fit, the target's curve is hidden on every chart simultaneously. Each chart hides differently, and where the fit decision lives has moved post-cache-completion:
+   - **Day** (single-night view, fit-tonight-only): per-target. Targets without a D-hour window tonight are excluded from `mChart.Series` and the legend entirely (not just alpha-0). `Render` re-evaluates the fit-tonight filter via one `BestSession.For` call per target on the live night (~10 ms total for 44 targets, synchronous). H/D/M scrubs hit the coordinator → `hdmKeyChanged` → full Render.
+   - **Sky** (single-night view): per-target. Stroke alpha → 0 when no fit; restore palette alpha when fit. One `BestSession.For` call per target tonight in `Render`, same shape as Day.
+   - **Year** (12-month view): per-target × per-night. `ObservablePoint.Y` → null (line break) for unfit nights; for fit nights, Y is `NightFit.Floor` read directly from the cached `TargetFitEntry`. **No compute in the sub-chart** — `ChartCacheStore.ComputeNightFits` runs the `BestSession.ResolveCandidates` + `PlaceBest` + `SessionAltitude.Floor` walk under each `HdmKey`, the coordinator awaits `PrepareFitsAsync(targets, ctx.Hdm)` before dispatching Render, and the sub-chart paints synchronously.
+   - **Sessions** (12-month view, three curves): per-target × per-night × three. `NightFit.Ceiling` / `Floor` / `CenteredFloor` read straight off the cached entry. The shared-resolve optimization (one `ResolveCandidates` drives both `PlaceBest` and `PlaceCentered`) lives in `ChartCacheStore.ComputeNightFits`, not the sub-chart.
 
    M (the Moon component) covers EVERY input that mutates `mMoonAvoidanceProfile`:
    - Active filter selection (`SetActiveFilter` calls `Filter.ToProfile()` which builds a fresh `MoonAvoidanceProfile`).
    - Lorentzian relaxation parameters (`OnLorentzianControlChanged` reads `BuildProfileFromControls()`).
    - Moon avoidance enable checkbox (`CheckBox_Moon_AvoidanceEnable` toggles between profile and `null`).
 
-   All three converge through `mCoordinator.Apply(SnapshotCurrent(mLastRenderedTargets))` (150 ms internal debounce). The coordinator's pipeline detects `MoonProfile` change as HDM-style and runs `RefreshVisibility` on every sub-chart; the post-apply hook calls `PushSkyKSInputs(ctx)` to re-walk Sky's K-S grid. Bortle / ExtinctionK changes ride the same path via `OnLocationEdited` → `RestartSessionsRebuildDebounce` (the only remaining caller of that legacy timer; debouncing the keying-change check that decides between `ResetForLocationChange` vs `ApplyImmediateAsync`).
+   All three converge through `mCoordinator.Apply(SnapshotCurrent(mLastRenderedTargets))` (150 ms internal debounce). The coordinator's pipeline detects the change as an `HdmKey` flip, awaits `PrepareFitsAsync` for the new key, then renders the active sub-chart synchronously from the just-built cache entries. The post-apply hook calls `PushSkyKSInputs(ctx)` to re-walk Sky's K-S grid. Bortle / ExtinctionK changes don't move `HdmKey` (they're Sky-K-S inputs, not fit inputs) and ride the post-apply hook only — no fit recompute fires.
 
-4. **First-paint visibility.** `Render(...)` ends with a `RefreshVisibility(...)` call so the initial paint already reflects current H/D/M — the user never sees a "show all, then hide" flicker.
+4. **First-paint visibility.** `Render(...)` reads `cache.GetFitOrNull(target, ctx.Hdm)` directly — the initial paint already reflects current H/D/M with no "show all, then hide" flicker. The coordinator's `PrepareFitsAsync` await before Render guarantees fits for the current `HdmKey` are built (or in-flight; an in-flight build for the same key is awaited via the cache's per-(target, key) dedupe).
 
-5. **Cheap reorder for Sort changes.** `Reorder(IReadOnlyList<Target> newOrder)` rebuilds `mChart.Series` + legend in the new order without recomputing data and without restarting the bg fit task. The cached fit results (already painted as Y values) stay valid because the target SET is unchanged. ResortSelectedTargets iterates `foreach (var sc in mSubCharts.Values) sc.Reorder(sorted)` instead of doing a full Render.
+5. **Cheap reorder for Sort changes.** `Reorder(IReadOnlyList<Target> newOrder)` rebuilds `mChart.Series` + legend in the new order without re-reading the cache. The series' painted Y values (from the most recent Render) stay valid because the target SET is unchanged. ResortSelectedTargets iterates `foreach (var sc in mSubCharts.Values) sc.Reorder(sorted)` instead of doing a full Render.
 
-6. **Cancellation hygiene.** Sub-charts owning a `CancellationTokenSource` (Year, Sessions today; future per-night chart areas) cancel + dispose in `Dispose()` so a closing form doesn't leave a zombie task running against a torn-down chart.
+6. **No sub-chart cancellation infrastructure.** Sub-charts are render-only synchronous painters — there is no `CancellationTokenSource`, no `Task.Run`, no `BeginInvoke`. The cache owns all the async compute and dedupes per (target, key); a closing form orphans any in-flight cache builds, which discard themselves at publish via the `ReferenceEquals(mLocation, location)` check.
 
-When adding a new sub-chart, the pattern is: implement `IAltitudeSubChart`, add an entry to `mSubCharts` in `InitializeDynamicControls`. The foreach loops in MainForm pick it up automatically. No new IdealHeightChanged handler, no new radio handler boilerplate beyond the 2-line `RenderArea(area, mLastRenderedTargets)`. The interface IS the contract.
+When adding a new sub-chart, the pattern is: implement `IAltitudeSubChart`, add an entry to `mSubCharts` in `InitializeDynamicControls`. If the sub-chart needs H/D/M-dependent precompute, extend `NightFit` / `ChartCacheStore.ComputeNightFits` rather than introducing a per-sub-chart bg task. The foreach loops in MainForm pick the new sub-chart up automatically. The interface IS the contract.
 
 ### Moon avoidance
 
 Per-night Lorentzian-driven moon-clear evaluation gates the Day-chart HD Overlay, the Sessions placement candidates, and the universal hide-on-no-fit rule across every chart. User-facing UX (Enable checkbox, filter library, Edit Filters dialog, `*` indicator, right-click-to-edit) in [README.md](README.md#filters--moon-avoidance). MoonAvoidanceProfile is owned by MainForm (`mMoonAvoidanceProfile`) and threaded into each sub-chart's `Render(...)` / `RefreshVisibility(...)` call. `BestSession.ResolveCandidates(...)` (Library) returns visibility ∩ moon-clear in one call so Sessions's PlaceBest + PlaceCentered see identical inputs.
 
-Moon avoidance is committed and active end-to-end. Post-NINA-load `mCache.PrepareManyAsync` warmup runs in **~1-2 sec for 44 targets** (down from ~17 min pre-CoordinateSharp-removal; halved again 2026-05-04 by the `MoonSeparation.ObserveAt` single-pass dedup, the `ObserverInfo` class→struct conversion, and the `MoonPosition` periodic-table flatten — see `Astronomy.Core.Tests/Benchmarks/HotPathBenchmarks.cs` for the BDN baseline). The 10-min `MoonSeparation.ObserveAt` sweep populates `entry.MoonSamples` per night per target.
+Moon avoidance is committed and active end-to-end. Post-NINA-load warmup runs in **~1-2 sec for 44 targets** (yearDays via `PrepareManyAsync`) plus a few seconds for the per-`HdmKey` fit build (`PrepareFitsAsync`) chained behind it; both fire in a single `Task.Run` so the user's first Sessions / Year click hits a fully warm cache. Down from ~17 min pre-CoordinateSharp-removal; halved again 2026-05-04 by the `MoonSeparation.ObserveAt` single-pass dedup, the `ObserverInfo` class→struct conversion, and the `MoonPosition` periodic-table flatten — see `Astronomy.Core.Tests/Benchmarks/HotPathBenchmarks.cs` for the BDN baseline. The 10-min `MoonSeparation.ObserveAt` sweep populates `entry.MoonSamples` per night per target.
 
 ### K-S sky brightness (Sky chart area)
 

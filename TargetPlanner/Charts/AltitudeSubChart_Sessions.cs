@@ -4,13 +4,8 @@ using System.Collections.ObjectModel;
 using System.Drawing;
 using System.Globalization;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Windows.Forms;
-using Astronomy.Core.Horizons;
-using Astronomy.Core.Moon;
 using Astronomy.Core.Night;
-using Astronomy.Core.Session;
 using LiveChartsCore;
 using LiveChartsCore.Defaults;
 using LiveChartsCore.Measure;
@@ -32,16 +27,21 @@ namespace TargetPlanner.Charts
     //   - Floor    ({TargetName}-SessionsFloor)         -- low endpoint of the same session.
     //   - Symmetric ({TargetName}-SessionsFloorCentered)-- strict transit-centered placement (either endpoint, since centered).
     //
-    // Per-night fit decision uses the SAME candidates list (visibility ∩ moon-clear)
-    // for both PlaceBest and PlaceCentered -- the public BestSession.ResolveCandidates
-    // helper exists exactly so we don't run the moon mask twice per night.
+    // **Render-only.** Sub-chart paints synchronously from
+    // <see cref="IChartCacheStore.GetFitOrNull"/>; the heavy
+    // <c>BestSession.ResolveCandidates</c> + <c>PlaceBest</c> + <c>PlaceCentered</c>
+    // + <c>SessionAltitude.{Floor, Ceiling}</c> walk lives in
+    // <see cref="ChartCacheStore.BuildFitEntryAsync"/> keyed on (Target,
+    // <see cref="HdmKey"/>). The coordinator awaits
+    // <see cref="IChartCacheStore.PrepareFitsAsync"/> before dispatching Render
+    // so all three fields of <see cref="NightFit"/> are guaranteed populated
+    // for every (target, night) we render.
     //
     // Owns one controller wired to its CartesianChart instance:
     //   - HoverTooltipController: per-DataPoint snap tooltip (30 ms debounce);
-    //     custom formatter reads pre-formatted text from a parallel string[]
-    //     populated during the visibility task. Same tooltip string is assigned
-    //     to all three of a night's DataPoints so hovering any of the curves
-    //     surfaces the full triple (Ceiling / Floor / Symmetric).
+    //     custom formatter assembles the unified Ceiling / Floor / Symmetric
+    //     triple text on hover from the cached NightFit. Same tooltip string
+    //     applies regardless of which of the three curves the user is hovering.
     //
     // Legend: ONE item per target, click toggles all three of that target's
     // series IsVisible together. Mirrors the legacy MS Charts behavior where
@@ -83,21 +83,15 @@ namespace TargetPlanner.Charts
         private readonly Dictionary<Target, Color> mTargetColors
             = new Dictionary<Target, Color>();
 
-        // Pre-formatted per-night unified tooltip text, keyed by Target. The
-        // SAME text is read by all three series' formatters for a given night
-        // so hovering any curve surfaces the full triple.
-        private readonly Dictionary<Target, string[]> mTooltipTextByTarget
-            = new Dictionary<Target, string[]>();
-
-        // Per-target year-day cache snapshot stashed at Render so the
-        // background visibility task can read it without going through the
-        // cache store again.
+        // Per-target yearDays snapshot stashed at Render so the tooltip
+        // formatter can look up SentinelX + IsPolar at hover time.
         private readonly Dictionary<Target, IReadOnlyList<NightCacheEntry>> mYearDaysByTarget
             = new Dictionary<Target, IReadOnlyList<NightCacheEntry>>();
 
-        // Cancellation for the in-flight visibility task. Replaced (cancelling
-        // the prior) on every RefreshVisibility call.
-        private CancellationTokenSource mVisibilityCts;
+        // Cache + HdmKey captured at Render so the tooltip formatter can fetch
+        // the per-night NightFit on hover.
+        private IChartCacheStore mLastCache;
+        private HdmKey mLastHdmKey;
 
         private readonly HoverTooltipController mHover;
 
@@ -183,9 +177,9 @@ namespace TargetPlanner.Charts
             Control = mContainer;
 
             // Per-DataPoint snap tooltip: each night is a discrete data point,
-            // 30 ms debounce, custom formatter reads unified per-target text
-            // by segmentStart so hovering any of the three curves shows
-            // Ceiling / Floor / Symmetric together.
+            // 30 ms debounce, custom formatter assembles the unified
+            // Ceiling / Floor / Symmetric text on hover. Hovering any of the
+            // three curves surfaces the same triple.
             mHover = new HoverTooltipController(
                 mChart,
                 () => AllSeries(),
@@ -216,9 +210,9 @@ namespace TargetPlanner.Charts
         }
 
         // Custom formatter: reverse-lookup the Target that owns this series so
-        // we can index into the unified per-target tooltip array. The same
-        // string is returned regardless of which of the three series is hit --
-        // hovering any one shows Ceiling / Floor / Symmetric for the night.
+        // we can fetch its cached NightFit. The same string is returned regardless
+        // of which of the three series is hit -- hovering any one shows Ceiling /
+        // Floor / Symmetric for the night.
         private string SessionsTooltipFormatter(
             LineSeries<ObservablePoint> series,
             IList<ObservablePoint> data,
@@ -228,9 +222,16 @@ namespace TargetPlanner.Charts
         {
             Target target = TargetFor(series);
             if (target == null) return string.Empty;
-            if (!mTooltipTextByTarget.TryGetValue(target, out var arr)) return string.Empty;
-            if (segmentStart < 0 || segmentStart >= arr.Length) return string.Empty;
-            return arr[segmentStart] ?? string.Empty;
+            if (!mYearDaysByTarget.TryGetValue(target, out var days)) return string.Empty;
+            if (segmentStart < 0 || segmentStart >= days.Count) return string.Empty;
+
+            NightCacheEntry night = days[segmentStart];
+            TargetFitEntry fitEntry = mLastCache?.GetFitOrNull(target, mLastHdmKey);
+            NightFit fit = fitEntry != null && segmentStart < fitEntry.Nights.Count
+                ? fitEntry.Nights[segmentStart]
+                : default;
+
+            return FormatTooltip(target, night, fit);
         }
 
         private Target TargetFor(LineSeries<ObservablePoint> series)
@@ -244,19 +245,22 @@ namespace TargetPlanner.Charts
             return null;
         }
 
-        public void Render(ChartContext ctx, IChartCacheStore cache, CancellationToken ct = default)
+        public void Render(ChartContext ctx, IChartCacheStore cache)
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
             if (ctx.Location == null) throw new ArgumentException("ctx.Location must not be null", nameof(ctx));
-            ct.ThrowIfCancellationRequested();
 
             Location location = ctx.Location;
             IReadOnlyList<Target> targets = ctx.Targets;
             double horizon = location.Horizon;
             DateTime now = location.DateTime;
+            HdmKey hdm = ctx.Hdm;
 
             UpdateHorizonLine(horizon);
             UpdateNowLine(now);
+
+            mLastCache = cache;
+            mLastHdmKey = hdm;
 
             mTargetColors.Clear();
             mYearDaysByTarget.Clear();
@@ -271,13 +275,14 @@ namespace TargetPlanner.Charts
 
             for (int t = 0; t < targets.Count; t++)
             {
-                ct.ThrowIfCancellationRequested();
                 Target target = targets[t];
                 if (target == null) continue;
 
-                TargetCacheEntry cacheEntry = cache?.GetOrNull(target);
-                if (cacheEntry == null) continue;
-                IReadOnlyList<NightCacheEntry> yearDays = cacheEntry.YearDays;
+                TargetCacheEntry yearEntry = cache?.GetOrNull(target);
+                TargetFitEntry fitEntry = cache?.GetFitOrNull(target, hdm);
+                if (yearEntry == null || fitEntry == null) continue;
+                IReadOnlyList<NightCacheEntry> yearDays = yearEntry.YearDays;
+                IReadOnlyList<NightFit> fits = fitEntry.Nights;
                 if (yearDays == null || yearDays.Count == 0) continue;
 
                 if (gridStart == null)
@@ -294,16 +299,9 @@ namespace TargetPlanner.Charts
                 LineSeries<ObservablePoint> floor    = GetOrCreateSeries(mFloorByTarget,    target, c, "-SessionsFloor");
                 LineSeries<ObservablePoint> centered = GetOrCreateSeries(mCenteredByTarget, target, c, "-SessionsFloorCentered");
 
-                // Initialize all three series to null Y across the year. The
-                // background visibility task will fill in fitted nights.
-                // Geometric early-out (polar / sub-horizon / duration<=0) is
-                // handled by the bg task too, since it has the same predicate.
-                InitializeNullSeriesData(ceiling,  yearDays);
-                InitializeNullSeriesData(floor,    yearDays);
-                InitializeNullSeriesData(centered, yearDays);
-
-                // Reset the per-night tooltip array; bg task will overwrite.
-                mTooltipTextByTarget[target] = new string[yearDays.Count];
+                ApplyFitsToSeries(ceiling,  yearDays, fits, NightFitField.Ceiling);
+                ApplyFitsToSeries(floor,    yearDays, fits, NightFitField.Floor);
+                ApplyFitsToSeries(centered, yearDays, fits, NightFitField.CenteredFloor);
 
                 newCeiling[target]  = ceiling;
                 newFloor[target]    = floor;
@@ -332,12 +330,6 @@ namespace TargetPlanner.Charts
                 mXAxis.CustomSeparators = ChartLayout.MonthBoundaryOADates(startMonth, 12);
             }
 
-            // Drop tooltip arrays for targets dropped from the render list.
-            var droppedTargets = mCeilingByTarget.Keys
-                .Where(k => !newCeiling.ContainsKey(k))
-                .ToList();
-            foreach (var k in droppedTargets) mTooltipTextByTarget.Remove(k);
-
             mCeilingByTarget.Clear();
             mFloorByTarget.Clear();
             mCenteredByTarget.Clear();
@@ -348,209 +340,61 @@ namespace TargetPlanner.Charts
             mChart.Series = seriesList;
             BuildLegendItems();
 
-            // Kick off the per-night fit pass on a background thread. First
-            // paint shows empty curves; the bg task fills in fitted nights.
-            // For 44 targets × 365 nights × (PlaceBest + PlaceCentered) the
-            // moon-aware case takes ~10-60 sec, which is why this is async.
-            RefreshVisibility(ctx, cache);
-
             RecomputeLayout();
         }
 
-        // Recompute per-night fit under the current Horizon / Duration / Moon
-        // profile and apply line breaks / fitted altitudes on every series'
-        // ObservablePoint.Y. Runs the BestSession.ResolveCandidates +
-        // PlaceBest + PlaceCentered probe per (target, night) on a background
-        // thread so the UI stays responsive during a scrub. Replaces any
-        // in-flight task (cancellation token) so a rapid spinner scrub doesn't
-        // queue stale work behind in-flight stale work.
+        // H/D/M-aware "refresh". Synchronous re-render from the cache; coordinator's
+        // PrepareFitsAsync await guarantees the new HdmKey's fits are built before
+        // this fires. Contract shape stays uniform with Day/Sky.
         public void RefreshVisibility(ChartContext ctx, IChartCacheStore cache)
         {
-            // cache is part of the IAltitudeSubChart contract for uniform
-            // call sites; Sessions snapshots YearDays at Render via
-            // mYearDaysByTarget and doesn't need to re-read it here.
-            _ = cache;
             if (ctx == null || ctx.Location == null || mCeilingByTarget.Count == 0) return;
-            Location location = ctx.Location;
-            MoonAvoidanceProfile profile = ctx.MoonProfile;
-            double horizon = location.Horizon;
-            TimeSpan duration = location.Duration;
-
-            mVisibilityCts?.Cancel();
-            mVisibilityCts = new CancellationTokenSource();
-            CancellationToken ct = mVisibilityCts.Token;
-
-            // Snapshot per-target work onto a stack-local list so the bg task
-            // captures stable references even if the UI thread keeps mutating
-            // mCeilingByTarget / mYearDaysByTarget for a subsequent Render.
-            var snapshot = new List<(Target Target,
-                                     LineSeries<ObservablePoint> Ceiling,
-                                     LineSeries<ObservablePoint> Floor,
-                                     LineSeries<ObservablePoint> Centered,
-                                     IReadOnlyList<NightCacheEntry> Days)>();
-            foreach (var kv in mCeilingByTarget)
-            {
-                if (!mFloorByTarget.TryGetValue(kv.Key, out var floor)) continue;
-                if (!mCenteredByTarget.TryGetValue(kv.Key, out var centered)) continue;
-                if (!mYearDaysByTarget.TryGetValue(kv.Key, out var days)) continue;
-                snapshot.Add((kv.Key, kv.Value, floor, centered, days));
-            }
-            if (snapshot.Count == 0) return;
-
-            IHorizonProfile horizonProfile = new ScalarHorizonProfile(horizon);
-            TimeSpan dur = duration;
-            MoonAvoidanceProfile profileCapture = profile;
-            Location locationCapture = location;
-            double horizonCapture = horizon;
-
-            Task.Run(() =>
-            {
-                // Per-target buffers: three nullable-double arrays for the three
-                // curves' Y values + a string[] for the unified tooltip per night.
-                var perTarget = new List<(Target Target,
-                                         LineSeries<ObservablePoint> Ceiling,
-                                         LineSeries<ObservablePoint> Floor,
-                                         LineSeries<ObservablePoint> Centered,
-                                         IReadOnlyList<NightCacheEntry> Days,
-                                         double?[] CeilY,
-                                         double?[] FloorY,
-                                         double?[] CenteredY,
-                                         string[] Tooltips)>();
-                foreach (var (target, ceil, fl, cen, days) in snapshot)
-                {
-                    if (ct.IsCancellationRequested) return;
-
-                    int n = days.Count;
-                    double?[] ceilY  = new double?[n];
-                    double?[] floorY = new double?[n];
-                    double?[] cenY   = new double?[n];
-                    string[]  tips   = new string[n];
-
-                    for (int i = 0; i < n; i++)
-                    {
-                        if (ct.IsCancellationRequested) return;
-                        NightCacheEntry night = days[i];
-
-                        if (night.IsPolar
-                            || night.YearAlt < horizonCapture
-                            || dur <= TimeSpan.Zero)
-                        {
-                            // Geometric pre-rejection: line break on all three.
-                            tips[i] = FormatTooltip(target, night, null, null, null);
-                            continue;
-                        }
-
-                        NightWindow nw = new NightWindow
-                        {
-                            AstronomicalDusk = night.Dusk,
-                            AstronomicalDawn = night.Dawn,
-                            LunarIlluminationFraction = 0,
-                        };
-
-                        var candidates = BestSession.ResolveCandidates(
-                            target, locationCapture, nw, horizonProfile,
-                            profileCapture);
-                        if (candidates.Count == 0)
-                        {
-                            tips[i] = FormatTooltip(target, night, null, null, null);
-                            continue;
-                        }
-
-                        // Ceiling / Floor: best transit-centered-or-wall-pushed
-                        // placement. altitudeQuality omitted -- PlaceBest defaults
-                        // to sin(alt) via the closed-form fast path (~25× faster
-                        // than the equivalent Simpson lambda).
-                        var session = BestSession.PlaceBest(
-                            target, locationCapture, candidates,
-                            dur, dur);
-                        if (session != null)
-                        {
-                            floorY[i] = SessionAltitude.Floor(target, locationCapture,
-                                session.Value.Start, session.Value.End);
-                            ceilY[i]  = SessionAltitude.Ceiling(target, locationCapture,
-                                session.Value.Start, session.Value.End);
-                        }
-
-                        // Symmetric: strict-centered placement; null when
-                        // transit doesn't fit with positive room on both sides.
-                        var centered = BestSession.PlaceCentered(
-                            target, locationCapture, candidates, dur);
-                        if (centered != null)
-                        {
-                            cenY[i] = SessionAltitude.Floor(target, locationCapture,
-                                centered.Value.Start, centered.Value.End);
-                        }
-
-                        tips[i] = FormatTooltip(target, night, ceilY[i], floorY[i], cenY[i]);
-                    }
-
-                    perTarget.Add((target, ceil, fl, cen, days, ceilY, floorY, cenY, tips));
-                }
-
-                if (ct.IsCancellationRequested) return;
-
-                if (mChart.IsHandleCreated)
-                {
-                    mChart.BeginInvoke(new Action(() =>
-                    {
-                        if (ct.IsCancellationRequested) return;
-                        foreach (var (target, ceil, fl, cen, days, ceilY, floorY, cenY, tips)
-                            in perTarget)
-                        {
-                            ApplyTargetFit(target, ceil, fl, cen, days, ceilY, floorY, cenY, tips);
-                        }
-                    }));
-                }
-            }, ct);
+            Render(ctx, cache);
         }
 
-        // UI-thread continuation: rewrite each series' ObservablePoint.Y in
-        // place + the unified tooltip text. Mutates the existing
-        // ObservableCollection so series identity (and the user's legend
-        // toggle state) survives the refresh.
-        private void ApplyTargetFit(
-            Target target,
-            LineSeries<ObservablePoint> ceiling,
-            LineSeries<ObservablePoint> floor,
-            LineSeries<ObservablePoint> centered,
-            IReadOnlyList<NightCacheEntry> days,
-            double?[] ceilY, double?[] floorY, double?[] cenY,
-            string[] tooltips)
-        {
-            ObservableCollection<ObservablePoint> ceilData  = ceiling.Values  as ObservableCollection<ObservablePoint>;
-            ObservableCollection<ObservablePoint> floorData = floor.Values    as ObservableCollection<ObservablePoint>;
-            ObservableCollection<ObservablePoint> cenData   = centered.Values as ObservableCollection<ObservablePoint>;
-            if (ceilData == null || floorData == null || cenData == null) return;
+        private enum NightFitField { Ceiling, Floor, CenteredFloor }
 
-            int n = Math.Min(days.Count,
-                    Math.Min(ceilData.Count,
-                    Math.Min(floorData.Count,
-                    Math.Min(cenData.Count,
-                    Math.Min(ceilY.Length,
-                    Math.Min(floorY.Length,
-                    Math.Min(cenY.Length, tooltips.Length)))))));
+        private static double? GetField(in NightFit fit, NightFitField field) => field switch
+        {
+            NightFitField.Ceiling => fit.Ceiling,
+            NightFitField.Floor => fit.Floor,
+            NightFitField.CenteredFloor => fit.CenteredFloor,
+            _ => null,
+        };
+
+        private static void ApplyFitsToSeries(
+            LineSeries<ObservablePoint> series,
+            IReadOnlyList<NightCacheEntry> yearDays,
+            IReadOnlyList<NightFit> fits,
+            NightFitField field)
+        {
+            var data = series.Values as ObservableCollection<ObservablePoint>;
+            if (data == null)
+            {
+                data = new ObservableCollection<ObservablePoint>();
+                series.Values = data;
+            }
+            int n = Math.Min(yearDays.Count, fits.Count);
             for (int i = 0; i < n; i++)
             {
-                double oa = days[i].SentinelX.ToOADate();
-                ceilData[i]  = new ObservablePoint(oa, ceilY[i]);
-                floorData[i] = new ObservablePoint(oa, floorY[i]);
-                cenData[i]   = new ObservablePoint(oa, cenY[i]);
+                double oa = yearDays[i].SentinelX.ToOADate();
+                var p = new ObservablePoint(oa, GetField(fits[i], field));
+                if (i < data.Count) data[i] = p;
+                else data.Add(p);
             }
-
-            mTooltipTextByTarget[target] = tooltips;
+            while (data.Count > n) data.RemoveAt(data.Count - 1);
         }
 
         // Unified per-night tooltip text. Format mirrors the legacy
         // AssignSessionsTooltip output (CLAUDE.md): target name + date header,
         // then Ceiling / Floor / Symmetric lines.
         private static string FormatTooltip(
-            Target target, NightCacheEntry night,
-            double? ceilAlt, double? floorAlt, double? centeredAlt)
+            Target target, NightCacheEntry night, NightFit fit)
         {
-            string ceilLine  = "Ceiling: "    + FormatAlt(ceilAlt);
-            string floorLine = "Floor: "      + FormatAlt(floorAlt);
-            string symLine   = "Symmetric: "  + FormatAlt(centeredAlt);
-            string statusLine = ceilAlt.HasValue
+            string ceilLine  = "Ceiling: "    + FormatAlt(fit.Ceiling);
+            string floorLine = "Floor: "      + FormatAlt(fit.Floor);
+            string symLine   = "Symmetric: "  + FormatAlt(fit.CenteredFloor);
+            string statusLine = fit.Ceiling.HasValue
                 ? string.Empty
                 : (night.IsPolar ? "(polar period)" : "(no fit at current Horizon / Duration / Moon)");
 
@@ -639,10 +483,9 @@ namespace TargetPlanner.Charts
         }
 
         // Cheap path for Sort changes -- rebuild the three dicts' iteration
-        // order + mChart.Series + legend without recomputing data and
-        // without restarting the background fit task. The cached fit results
-        // (already painted as Y values on each series) stay valid because
-        // the target SET is unchanged.
+        // order + mChart.Series + legend without recomputing data. The cached
+        // fit results (already painted as Y values on each series) stay valid
+        // because the target SET is unchanged.
         public void Reorder(IReadOnlyList<Target> newOrder)
         {
             if (newOrder == null || mCeilingByTarget.Count == 0) return;
@@ -696,29 +539,6 @@ namespace TargetPlanner.Charts
             };
         }
 
-        // Initialize a series' Values to all-null-Y points indexed by yearDays.
-        // The bg fit task will overwrite specific indices; nights that stay
-        // null Y render as line breaks (visible "no fit / not yet computed").
-        private static void InitializeNullSeriesData(
-            LineSeries<ObservablePoint> series,
-            IReadOnlyList<NightCacheEntry> yearDays)
-        {
-            var data = series.Values as ObservableCollection<ObservablePoint>;
-            if (data == null)
-            {
-                data = new ObservableCollection<ObservablePoint>();
-                series.Values = data;
-            }
-            int n = yearDays.Count;
-            for (int i = 0; i < n; i++)
-            {
-                var p = new ObservablePoint(yearDays[i].SentinelX.ToOADate(), null);
-                if (i < data.Count) data[i] = p;
-                else data.Add(p);
-            }
-            while (data.Count > n) data.RemoveAt(data.Count - 1);
-        }
-
         private void RecomputeLayout()
         {
             int idealHeight = IdealHeight;
@@ -731,8 +551,6 @@ namespace TargetPlanner.Charts
 
         public void Dispose()
         {
-            mVisibilityCts?.Cancel();
-            mVisibilityCts?.Dispose();
             mHover.Dispose();
             mContainer.Dispose();
         }

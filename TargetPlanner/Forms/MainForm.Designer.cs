@@ -128,7 +128,6 @@
             NumericUpDown_Moon_RelaxMax = new System.Windows.Forms.NumericUpDown();
             Label_Moon_RelaxScale = new System.Windows.Forms.Label();
             NumericUpDown_Moon_RelaxScale = new System.Windows.Forms.NumericUpDown();
-            Button_Cancel = new System.Windows.Forms.Button();
             MenuStrip_MainForm = new System.Windows.Forms.MenuStrip();
             FileToolStripMenuItem_MainForm = new System.Windows.Forms.ToolStripMenuItem();
             FiltersToolStripMenuItem_MainForm = new System.Windows.Forms.ToolStripMenuItem();
@@ -1131,7 +1130,6 @@
             GroupBox_Target.Controls.Add(Button_CheckedTargets);
             GroupBox_Target.Controls.Add(GroupBox_Moon_Filters);
             GroupBox_Target.Controls.Add(GroupBox_MoonAvoidance);
-            GroupBox_Target.Controls.Add(Button_Cancel);
             GroupBox_Target.Controls.Add(Button_VisibleTargets);
             GroupBox_Target.Controls.Add(Label_TargetHours);
             GroupBox_Target.Controls.Add(Label_RaMinuteColon);
@@ -1375,17 +1373,6 @@
             NumericUpDown_Moon_RelaxScale.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             NumericUpDown_Moon_RelaxScale.ValueChanged += OnLorentzianControlChanged;
             // 
-            // Button_Cancel
-            // 
-            Button_Cancel.Location = new System.Drawing.Point(-12, 104);
-            Button_Cancel.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            Button_Cancel.Name = "Button_Cancel";
-            Button_Cancel.Size = new System.Drawing.Size(77, 27);
-            Button_Cancel.TabIndex = 41;
-            Button_Cancel.Text = "Cancel";
-            Button_Cancel.UseVisualStyleBackColor = true;
-            Button_Cancel.Click += Button_Cancel_Click;
-            // 
             // MenuStrip_MainForm
             // 
             MenuStrip_MainForm.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { FileToolStripMenuItem_MainForm, FiltersToolStripMenuItem_MainForm, HelpToolStripMenuItem_MainForm });
@@ -1608,7 +1595,6 @@
         private System.Windows.Forms.ProgressBar ProgressBar_MultiTargetProcessing;
         private System.Windows.Forms.ProgressBar ProgressBar_ProcessObject;
         private System.Windows.Forms.Button Button_VisibleTargets;
-        private System.Windows.Forms.Button Button_Cancel;
         private System.Windows.Forms.GroupBox GroupBox_MoonAvoidance;
         private System.Windows.Forms.CheckBox CheckBox_Moon_AvoidanceEnable;
         private System.Windows.Forms.Label Label_Moon_Seperation;

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Drawing;
 using System.Linq;
-using System.Threading;
 using System.Windows.Forms;
 using Astronomy.Core.Astrometry;
 using Astronomy.Core.Horizons;
@@ -225,11 +224,10 @@ namespace TargetPlanner.Charts
             mNowLine.Xj = oa;
         }
 
-        public void Render(ChartContext ctx, IChartCacheStore cache, CancellationToken ct = default)
+        public void Render(ChartContext ctx, IChartCacheStore cache)
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
             if (ctx.Location == null) throw new ArgumentException("ctx.Location must not be null", nameof(ctx));
-            ct.ThrowIfCancellationRequested();
 
             Location location = ctx.Location;
             IReadOnlyList<Target> targets = ctx.Targets;
@@ -269,7 +267,7 @@ namespace TargetPlanner.Charts
             mTargetWindows.Clear();
             mTargetColors.Clear();
 
-            BuildOrUpdateMoonSeries(location, chartStart, startUtc, count, night.LunarIlluminationFraction, ct);
+            BuildOrUpdateMoonSeries(location, chartStart, startUtc, count, night.LunarIlluminationFraction);
 
             // "Fit tonight only" filter for Day: targets without a D-hour window
             // tonight are excluded from mChart.Series and the legend entirely.
@@ -282,7 +280,6 @@ namespace TargetPlanner.Charts
 
             for (int t = 0; t < targets.Count; t++)
             {
-                ct.ThrowIfCancellationRequested();
                 Target target = targets[t];
                 if (target == null) continue;
 
@@ -580,8 +577,7 @@ namespace TargetPlanner.Charts
             DateTime chartStart,
             DateTime startUtc,
             int count,
-            double lunarIllumination,
-            CancellationToken ct)
+            double lunarIllumination)
         {
             double latSigned = location.LatSigned();
             double lonEast   = location.LonEast();
@@ -617,7 +613,6 @@ namespace TargetPlanner.Charts
             // / remove to fit count.
             for (int i = 0; i < count; i++)
             {
-                ct.ThrowIfCancellationRequested();
                 DateTime point = chartStart.AddMinutes(i);
                 DateTime pointUtc = DateTime.SpecifyKind(
                     startUtc.AddMinutes(i), DateTimeKind.Utc);

@@ -4,9 +4,12 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Astronomy.Core;
+using Astronomy.Core.Horizons;
 using Astronomy.Core.Moon;
 using Astronomy.Core.Night;
+using Astronomy.Core.Session;
 using Astronomy.Core.Time;
+using TargetPlanner.State;
 using TargetPlanner.Support;
 using Location = Astronomy.Core.Locations.Location;
 using Target = Astronomy.Core.Targets.Target;
@@ -15,12 +18,22 @@ namespace TargetPlanner.Caches
 {
     /// <summary>
     /// Default <see cref="IChartCacheStore"/> implementation. Single-writer cache with
-    /// in-flight de-duping; cache builds run on the threadpool and self-throttle.
+    /// in-flight de-duping; cache builds run on the threadpool.
     /// </summary>
     /// <remarks>
     /// Phase 3 of the SoC refactor: the renderer queries cache state instead of owning
     /// its own. Astronomy.Core's Meeus implementation is lock-free, so per-target year
     /// builds run in parallel across threadpool cores.
+    ///
+    /// <para><b>Cancellation policy.</b> The cache itself does not cancel in-flight
+    /// builds on a Location swap; <see cref="SetLocationAsync"/> just drops the cache
+    /// dicts under the lock and starts fresh. Builds that were running against the
+    /// old location keep going on the threadpool and discard themselves at publish
+    /// time via the <c>ReferenceEquals(mLocation, location)</c> check inside
+    /// <see cref="BuildEntryAsync"/>. Compute is short (~1-2 sec for 44 targets
+    /// post-CS-removal); the wasted CPU is bounded by per-(target, location) build
+    /// dedupe and by the fact that location swaps are user-initiated and infrequent.
+    /// </para>
     /// </remarks>
     public sealed class ChartCacheStore : IChartCacheStore, IDisposable
     {
@@ -35,9 +48,16 @@ namespace TargetPlanner.Caches
         private Location mLocation;
         private NightCache mNightCache;
         private Task<NightCache> mNightCacheTask;        // in-flight per-location night-cache build
-        private CancellationTokenSource mLocationCts;    // cancels everything keyed to mLocation
         private Dictionary<Target, TargetCacheEntry> mEntries = new Dictionary<Target, TargetCacheEntry>();
         private Dictionary<Target, Task<TargetCacheEntry>> mInFlight = new Dictionary<Target, Task<TargetCacheEntry>>();
+
+        // Per-(target, HdmKey) fit cache. Sibling axis to mEntries (per-target yearDays).
+        // SetLocationAsync clears both. HdmKey changes invalidate fits but preserve yearDays
+        // so H/D/M scrubs don't re-pay the per-(target, location) moon-sample sweep.
+        private Dictionary<(Target, HdmKey), TargetFitEntry> mFits
+            = new Dictionary<(Target, HdmKey), TargetFitEntry>();
+        private Dictionary<(Target, HdmKey), Task<TargetFitEntry>> mInFlightFits
+            = new Dictionary<(Target, HdmKey), Task<TargetFitEntry>>();
 
         public event EventHandler<TargetReadyEventArgs> TargetReady;
         public event EventHandler<LocationChangedEventArgs> LocationChanged;
@@ -51,7 +71,6 @@ namespace TargetPlanner.Caches
                 + "from the form constructor / InitializeDynamicControls. A null context would silently "
                 + "fall back to firing TargetReady on the build thread, breaking subscribers' UI marshalling.");
             mLocation = initialLocation;
-            mLocationCts = new CancellationTokenSource();
             mUiContext = uiContext;
         }
 
@@ -81,7 +100,7 @@ namespace TargetPlanner.Caches
             }
         }
 
-        public Task<TargetCacheEntry> GetOrBuildAsync(Target t, CancellationToken ct)
+        public Task<TargetCacheEntry> GetOrBuildAsync(Target t)
         {
             if (t == null) throw new ArgumentNullException(nameof(t));
 
@@ -89,22 +108,19 @@ namespace TargetPlanner.Caches
             TargetCacheEntry existing = GetOrNull(t);
             if (existing != null) return Task.FromResult(existing);
 
-            CancellationTokenSource locationCts;
-            Task<TargetCacheEntry> task;
             lock (mGate)
             {
                 // In-flight de-dupe.
-                if (mInFlight.TryGetValue(t, out task)) return WithExternalCancel(task, ct);
+                if (mInFlight.TryGetValue(t, out Task<TargetCacheEntry> task)) return task;
 
-                locationCts = mLocationCts;
                 Location location = mLocation;
-                task = BuildEntryAsync(t, location, locationCts.Token);
+                task = BuildEntryAsync(t, location);
                 mInFlight[t] = task;
+                return task;
             }
-            return WithExternalCancel(task, ct);
         }
 
-        public async Task PrepareManyAsync(IEnumerable<Target> targets, CancellationToken ct,
+        public async Task PrepareManyAsync(IEnumerable<Target> targets,
             IProgress<int> targetCompleteProgress = null)
         {
             if (targets == null) return;
@@ -113,17 +129,16 @@ namespace TargetPlanner.Caches
             foreach (Target t in targets)
             {
                 if (t == null) continue;
-                Task<TargetCacheEntry> build = GetOrBuildAsync(t, ct);
+                Task<TargetCacheEntry> build = GetOrBuildAsync(t);
                 if (targetCompleteProgress == null)
                 {
                     tasks.Add(build);
                 }
                 else
                 {
-                    // ContinueWith on RanToCompletion only -- cancelled / faulted tasks
-                    // skip the tick (they propagate via Task.WhenAll below). Synchronous
-                    // continuation keeps the increment cheap; Progress<T>.Report internally
-                    // marshals the callback to the captured SyncContext (UI thread).
+                    // ContinueWith on RanToCompletion only -- faulted tasks skip the tick.
+                    // Synchronous continuation keeps the increment cheap; Progress<T>.Report
+                    // internally marshals the callback to the captured SyncContext (UI thread).
                     tasks.Add(build.ContinueWith(
                         _ => targetCompleteProgress.Report(Interlocked.Increment(ref completed)),
                         CancellationToken.None,
@@ -131,17 +146,73 @@ namespace TargetPlanner.Caches
                         TaskScheduler.Default));
                 }
             }
-            try { await Task.WhenAll(tasks); }
-            catch (OperationCanceledException) { /* expected on cancel; surface only one */ throw; }
+            await Task.WhenAll(tasks);
+        }
+
+        public TargetFitEntry GetFitOrNull(Target t, HdmKey key)
+        {
+            if (t == null) return null;
+            lock (mGate)
+            {
+                mFits.TryGetValue((t, key), out TargetFitEntry entry);
+                return entry;
+            }
+        }
+
+        public Task<TargetFitEntry> GetFitOrBuildAsync(Target t, HdmKey key)
+        {
+            if (t == null) throw new ArgumentNullException(nameof(t));
+
+            // Fast path: already published.
+            TargetFitEntry existing = GetFitOrNull(t, key);
+            if (existing != null) return Task.FromResult(existing);
+
+            lock (mGate)
+            {
+                // In-flight de-dupe.
+                if (mInFlightFits.TryGetValue((t, key), out Task<TargetFitEntry> task))
+                    return task;
+
+                Location location = mLocation;
+                task = BuildFitEntryAsync(t, key, location);
+                mInFlightFits[(t, key)] = task;
+                return task;
+            }
+        }
+
+        public async Task PrepareFitsAsync(IEnumerable<Target> targets, HdmKey key,
+            IProgress<int> targetCompleteProgress = null)
+        {
+            if (targets == null) return;
+            List<Task> tasks = new List<Task>();
+            int completed = 0;
+            foreach (Target t in targets)
+            {
+                if (t == null) continue;
+                Task<TargetFitEntry> build = GetFitOrBuildAsync(t, key);
+                if (targetCompleteProgress == null)
+                {
+                    tasks.Add(build);
+                }
+                else
+                {
+                    tasks.Add(build.ContinueWith(
+                        _ => targetCompleteProgress.Report(Interlocked.Increment(ref completed)),
+                        CancellationToken.None,
+                        TaskContinuationOptions.OnlyOnRanToCompletion | TaskContinuationOptions.ExecuteSynchronously,
+                        TaskScheduler.Default));
+                }
+            }
+            await Task.WhenAll(tasks);
         }
 
         public async Task SetLocationAsync(Location newLocation)
         {
             if (newLocation == null) throw new ArgumentNullException(nameof(newLocation));
 
-            CancellationTokenSource oldCts;
             Task<NightCache> oldNightTask;
             ICollection<Task<TargetCacheEntry>> oldInFlight;
+            ICollection<Task<TargetFitEntry>> oldInFlightFits;
             Location oldLocation;
 
             lock (mGate)
@@ -151,21 +222,21 @@ namespace TargetPlanner.Caches
                 if (object.ReferenceEquals(mLocation, newLocation)) return;
 
                 oldLocation = mLocation;
-                oldCts = mLocationCts;
                 oldNightTask = mNightCacheTask;
                 oldInFlight = mInFlight.Values.ToList();
+                oldInFlightFits = mInFlightFits.Values.ToList();
 
-                // Reset state for the new location. Cancel + drop everything tied to the old
-                // location; new GetOrBuildAsync calls will build against the new location.
+                // Reset state for the new location. Old in-flight builds keep running and
+                // discard themselves at publish via the ReferenceEquals(mLocation, location)
+                // check in BuildEntryAsync / BuildFitEntryAsync.
                 mLocation = newLocation;
-                mLocationCts = new CancellationTokenSource();
                 mNightCache = null;
                 mNightCacheTask = null;
                 mEntries = new Dictionary<Target, TargetCacheEntry>();
                 mInFlight = new Dictionary<Target, Task<TargetCacheEntry>>();
+                mFits = new Dictionary<(Target, HdmKey), TargetFitEntry>();
+                mInFlightFits = new Dictionary<(Target, HdmKey), Task<TargetFitEntry>>();
             }
-
-            oldCts.Cancel();
 
             // Fire LocationChanged immediately after the swap commits, before awaiting
             // the in-flight unwind. Subscribers reading CurrentLocation see the new
@@ -173,45 +244,48 @@ namespace TargetPlanner.Caches
             // builds to settle.
             FireLocationChanged(oldLocation, newLocation);
 
-            // Wait for in-flight tasks to observe the cancel and unwind. OperationCanceled
-            // is the expected outcome of the cancel; other exceptions are stale-build
-            // compute errors -- log them but don't fail SetLocationAsync.
+            // Wait for in-flight tasks (against the old location) to finish so callers
+            // who await SetLocationAsync don't continue while stale work is still
+            // touching the threadpool. Stale-publish is harmless (the ReferenceEquals
+            // check drops them); we just want the wait for hygiene. Exceptions thrown
+            // by stale builds are logged but don't fail SetLocationAsync.
             try
             {
                 if (oldNightTask != null) await oldNightTask;
             }
-            catch (OperationCanceledException) { }
             catch (Exception ex) { Log.Warn("Stale NightCache build threw during SetLocationAsync", ex); }
 
             foreach (Task<TargetCacheEntry> t in oldInFlight)
             {
                 try { await t; }
-                catch (OperationCanceledException) { }
                 catch (Exception ex) { Log.Warn("Stale per-target build threw during SetLocationAsync", ex); }
             }
 
-            oldCts.Dispose();
+            foreach (Task<TargetFitEntry> t in oldInFlightFits)
+            {
+                try { await t; }
+                catch (Exception ex) { Log.Warn("Stale per-(target, HdmKey) fit build threw during SetLocationAsync", ex); }
+            }
         }
 
         public void Dispose()
         {
-            CancellationTokenSource cts;
-            lock (mGate) { cts = mLocationCts; }
-            try { cts?.Cancel(); cts?.Dispose(); }
-            catch (Exception ex) { Log.Warn("ChartCacheStore.Dispose: cancel/dispose threw", ex); }
+            // No cancellation-related state to clean up since the cancellation removal pass
+            // (Phase 1 of the SoC-completion refactor). In-flight tasks are orphaned on
+            // Dispose; their publish-time stale check ensures they don't write into a
+            // disposed store's state.
         }
 
         // -------------- internals --------------
 
-        private async Task<TargetCacheEntry> BuildEntryAsync(Target target, Location location, CancellationToken ct)
+        private async Task<TargetCacheEntry> BuildEntryAsync(Target target, Location location)
         {
             try
             {
-                NightCache night = await EnsureNightCacheAsync(location, ct);
-                ct.ThrowIfCancellationRequested();
+                NightCache night = await EnsureNightCacheAsync(location);
 
                 IReadOnlyList<NightCacheEntry> yearDays = await Task.Run(
-                    () => ComputeYearDays(target, location, night, ct), ct);
+                    () => ComputeYearDays(target, location, night));
 
                 TargetCacheEntry entry = new TargetCacheEntry(target, yearDays);
 
@@ -229,11 +303,10 @@ namespace TargetPlanner.Caches
             }
             catch
             {
-                // Remove the failed/cancelled task from in-flight so a subsequent
-                // GetOrBuildAsync starts fresh instead of re-awaiting the broken Task.
-                // Mirrors the success-path location guard above: if SetLocationAsync
-                // swapped mInFlight while we were building, the new dict doesn't
-                // contain us anyway -- leave it alone.
+                // Remove the failed task from in-flight so a subsequent GetOrBuildAsync starts
+                // fresh instead of re-awaiting the broken Task. Mirrors the success-path
+                // location guard above: if SetLocationAsync swapped mInFlight while we were
+                // building, the new dict doesn't contain us anyway -- leave it alone.
                 lock (mGate)
                 {
                     if (object.ReferenceEquals(mLocation, location))
@@ -243,7 +316,48 @@ namespace TargetPlanner.Caches
             }
         }
 
-        private Task<NightCache> EnsureNightCacheAsync(Location location, CancellationToken ct)
+        // Per-(target, HdmKey) fit build. Awaits yearDays for the target (de-duped via
+        // the existing mInFlight path), then walks each night computing the Sessions
+        // Ceiling / Floor / CenteredFloor triple. Year reads Floor; both share the
+        // upstream BestSession.ResolveCandidates resolve so one resolve drives both
+        // placements.
+        private async Task<TargetFitEntry> BuildFitEntryAsync(Target target, HdmKey key, Location location)
+        {
+            try
+            {
+                TargetCacheEntry yearEntry = await GetOrBuildAsync(target);
+                IReadOnlyList<NightCacheEntry> yearDays = yearEntry.YearDays;
+                double horizon = key.HorizonDeg;
+                TimeSpan duration = TimeSpan.FromTicks(key.DurationTicks);
+                MoonAvoidanceProfile profile = key.Profile;
+
+                IReadOnlyList<NightFit> nights = await Task.Run(
+                    () => ComputeNightFits(target, location, yearDays, horizon, duration, profile));
+
+                TargetFitEntry entry = new TargetFitEntry(target, key, nights);
+
+                lock (mGate)
+                {
+                    // Discard if location changed mid-build (the publish would corrupt the new
+                    // location's cache).
+                    if (!object.ReferenceEquals(mLocation, location)) return entry;
+                    mFits[(target, key)] = entry;
+                    mInFlightFits.Remove((target, key));
+                }
+                return entry;
+            }
+            catch
+            {
+                lock (mGate)
+                {
+                    if (object.ReferenceEquals(mLocation, location))
+                        mInFlightFits.Remove((target, key));
+                }
+                throw;
+            }
+        }
+
+        private Task<NightCache> EnsureNightCacheAsync(Location location)
         {
             lock (mGate)
             {
@@ -259,8 +373,8 @@ namespace TargetPlanner.Caches
                     DateTime seed = loc.DateTime;
                     DateTime startDay = NightCache.ComputeYearStartDay(seed);
                     int days = NightCache.ComputeYearDaysCount(seed);
-                    return new NightCache(loc, startDay, days, ct);
-                }, ct);
+                    return new NightCache(loc, startDay, days);
+                });
 
                 mNightCacheTask = task.ContinueWith(t =>
                 {
@@ -295,25 +409,13 @@ namespace TargetPlanner.Caches
             mUiContext.Post(_ => handler(this, args), null);
         }
 
-        // External cancellation: the caller's ct may fire before the build's locationCts.
-        // Wrap the in-flight build so the caller's await throws on either source. The inner
-        // task is keyed to the location's CTS and isn't cancelled from here -- WhenAny just
-        // gives the caller's await a path to observe external cancellation.
-        private static async Task<TargetCacheEntry> WithExternalCancel(Task<TargetCacheEntry> inner, CancellationToken external)
-        {
-            if (!external.CanBeCanceled) return await inner;
-            Task completed = await Task.WhenAny(inner, Task.Delay(Timeout.Infinite, external));
-            if (completed != inner) external.ThrowIfCancellationRequested();
-            return await inner;
-        }
-
         // -------------- compute --------------
 
         // Lifted from AltitudeSeries.ComputeYearCache (Phase 3). Pure compute: no UI access,
         // no instance state. Reads `night` (the per-location NightCache) and `target` /
         // `location` (the per-target inputs). Returns the per-target year-of-night precomputes.
         private static IReadOnlyList<NightCacheEntry> ComputeYearDays(
-            Target target, Location location, NightCache night, CancellationToken ct)
+            Target target, Location location, NightCache night)
         {
             double latSigned  = location.LatSigned();
             double decSigned  = target.DecSigned();
@@ -329,8 +431,6 @@ namespace TargetPlanner.Caches
 
             for (int day = 0; day < totalDays; day++)
             {
-                ct.ThrowIfCancellationRequested();
-
                 NightWindow nw = night.YearDays[day];
                 NightCacheEntry entry = new NightCacheEntry();
 
@@ -396,6 +496,73 @@ namespace TargetPlanner.Caches
             }
 
             return cache;
+        }
+
+        // Per-(target, HdmKey) fit walk. Lifted from the pre-cache Year + Sessions
+        // sub-chart bg tasks. One BestSession.ResolveCandidates resolve per night
+        // drives both PlaceBest (Ceiling + Floor) and PlaceCentered (CenteredFloor) --
+        // the net cost is ~25% lower than today's separate Year / Sessions paths,
+        // which each re-resolved internally via BestSession.For.
+        //
+        // Geometric pre-rejection (polar / sub-horizon / duration<=0) returns the
+        // null-fit row directly without touching BestSession at all.
+        private static IReadOnlyList<NightFit> ComputeNightFits(
+            Target target, Location location, IReadOnlyList<NightCacheEntry> yearDays,
+            double horizon, TimeSpan duration, MoonAvoidanceProfile profile)
+        {
+            IHorizonProfile horizonProfile = new ScalarHorizonProfile(horizon);
+            int n = yearDays.Count;
+            NightFit[] fits = new NightFit[n];
+
+            for (int i = 0; i < n; i++)
+            {
+                NightCacheEntry night = yearDays[i];
+                if (night.IsPolar || night.YearAlt < horizon || duration <= TimeSpan.Zero)
+                {
+                    continue;        // default(NightFit) — all nullable doubles null
+                }
+
+                NightWindow nw = new NightWindow
+                {
+                    AstronomicalDusk = night.Dusk,
+                    AstronomicalDawn = night.Dawn,
+                    LunarIlluminationFraction = 0,
+                };
+
+                var candidates = BestSession.ResolveCandidates(
+                    target, location, nw, horizonProfile, profile);
+                if (candidates.Count == 0) continue;
+
+                // PlaceBest: transit-centered-or-wall-pushed placement. altitudeQuality
+                // default (null) dispatches to the sin(alt) closed-form path inside
+                // BestSession.PlaceBestInternal -- ~25x faster than the Simpson lambda.
+                double? floor = null, ceiling = null;
+                var session = BestSession.PlaceBest(target, location, candidates, duration, duration);
+                if (session != null)
+                {
+                    floor   = SessionAltitude.Floor(target, location, session.Value.Start, session.Value.End);
+                    ceiling = SessionAltitude.Ceiling(target, location, session.Value.Start, session.Value.End);
+                }
+
+                // PlaceCentered: strict-centered placement; null when transit doesn't
+                // fit with positive room on both sides.
+                double? centeredFloor = null;
+                var centered = BestSession.PlaceCentered(target, location, candidates, duration);
+                if (centered != null)
+                {
+                    centeredFloor = SessionAltitude.Floor(target, location,
+                        centered.Value.Start, centered.Value.End);
+                }
+
+                fits[i] = new NightFit
+                {
+                    Ceiling = ceiling,
+                    Floor = floor,
+                    CenteredFloor = centeredFloor,
+                };
+            }
+
+            return fits;
         }
     }
 }

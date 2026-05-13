@@ -114,7 +114,6 @@ namespace TargetPlanner
         // Graph clicks find caches already built. On Location change we call
         // SetLocationAsync to drop everything and re-populate at the new location.
         private TargetPlanner.Caches.ChartCacheStore mCache;
-        private CancellationTokenSource mCachePrepCts;
 
         // Phase 2 of the orchestration-layer refactor: ChartCoordinator centralizes
         // the diff-and-dispatch pipeline. UI handlers in this form build a
@@ -268,11 +267,6 @@ Right-click anywhere on the chart to clear all overlays.";
         // the 1-second hold.
         private int mProcessObjectGeneration;
 
-        // Ignore-second-click guard for Button_Graph_Click. A Graph click while a prior
-        // build is still awaiting its Task.WhenAll just returns -- the user has to Cancel
-        // the in-flight build before a new one can start.
-        private bool mGraphBuildInProgress;
-
         // Debounce for the Horizon / Duration spinners. Each ValueChanged restarts the
         // timer (stop + start), so rapid scrubs coalesce into one trailing-edge
         // RebuildSessionsData on the Tick. Horizon-line positioning stays immediate in the
@@ -406,8 +400,6 @@ Right-click anywhere on the chart to clear all overlays.";
             mRaInput?.Dispose();
             mDecInput?.Dispose();
 
-            mCachePrepCts?.Cancel();
-            mCachePrepCts?.Dispose();
             mCoordinator?.Dispose();
             mCache?.Dispose();
 
@@ -537,7 +529,7 @@ Right-click anywhere on the chart to clear all overlays.";
             //   - Sky's K-S brightness re-walk (Bortle/Extinction/Filter scrubs).
             mCoordinator = new TargetPlanner.State.ChartCoordinator(
                 cache: mCache,
-                renderActiveArea: (ctx, ct) => RenderArea(ctx, ct),
+                renderActiveArea: ctx => RenderArea(ctx),
                 showOnlyActiveArea: ctx =>
                 {
                     // Cheap "make this sub-chart visible without re-rendering"
@@ -549,8 +541,6 @@ Right-click anywhere on the chart to clear all overlays.";
                     ShowOnlyAltitudeChart(sc.Control);
                     ResizeAltitudeChartArea(sc.IdealHeight);
                 },
-                resolveSubChart: name => mSubCharts.TryGetValue(name, out var sc) ? sc : null,
-                resolveAllSubCharts: () => mSubCharts.Values,
                 postApplyHook: ctx =>
                 {
                     RefreshAstrometryLabels();
@@ -1577,9 +1567,9 @@ Right-click anywhere on the chart to clear all overlays.";
 
         // Shared graph-build entry. Both Button_Graph_Click (single-target) and
         // CheckedToggleDebounce_Tick (multi-target) call this. The coordinator's
-        // pipeline owns supersedence: a new ApplyImmediateAsync cancels the
-        // in-flight one's await chain, the catch (OperationCanceledException)
-        // lets it unwind cleanly, and the finally restores the form gating flags.
+        // pipeline owns supersedence via its internal generation counter: a newer
+        // Apply increments the generation; older pipelines bail at their gen check
+        // before any side-effecting write.
         //
         // Empty targets is intentional -- ClearAll / fresh-NINA-load / location
         // change all produce empty input; PrepareManyAsync no-ops on empty (the
@@ -1602,14 +1592,14 @@ Right-click anywhere on the chart to clear all overlays.";
 
             ActiveControl = null;
             Button_GraphTarget.Enabled = false;
-            mGraphBuildInProgress = true;
 
             try
             {
-                // Coordinator owns the cache-prep + render pipeline. Its internal
-                // CTS provides supersedence -- a new ApplyImmediateAsync cancels
-                // the in-flight one's await chain. The progress object forwards
-                // to PrepareManyAsync so per-target completion ticks drive
+                // Coordinator owns the cache-prep + render pipeline. Its
+                // generation-counter supersedence ensures only the latest Apply's
+                // pipeline writes Render state; older pipelines bail before
+                // touching the chart. The progress object forwards to
+                // PrepareManyAsync so per-target completion ticks drive
                 // ProgressBar_MultiTargetProcessing through BeginChartBuildProgress.
                 if (mCoordinator != null)
                 {
@@ -1621,21 +1611,12 @@ Right-click anywhere on the chart to clear all overlays.";
                 // record used by sort/reorder paths and inactive-radio re-renders.
                 mLastRenderedTargets = new List<Target>(targets);
             }
-            catch (OperationCanceledException)
-            {
-                // Superseded by a newer build (single->multi or multi->single) or
-                // explicit Cancel. mLastRenderedTargets is left intact.
-            }
             finally
             {
-                mGraphBuildInProgress = false;
                 Button_GraphTarget.Enabled = true;
-                Button_Cancel.Enabled = true;
 
                 // Tick the bar to its Maximum, hold 1 s, reset to 0. Generation-
-                // guarded so the success path is observed cleanly while a cancel
-                // (which bumped mChartBuildGeneration in Button_Cancel_Click)
-                // no-ops here -- Cancel_Click already reset the bar to 0.
+                // guarded so a superseding Apply doesn't leave the bar stuck.
                 FinishChartBuildProgress(progressGeneration);
             }
         }
@@ -1718,13 +1699,13 @@ Right-click anywhere on the chart to clear all overlays.";
         // <see cref="SnapshotCurrent(IReadOnlyList{Target})"/> (radio toggles, etc.)
         // or capture the snapshot at the start of an async build (RunGraphBuildAsync)
         // so the paint is location-coherent even if mLocation has drifted since.
-        private void RenderArea(ChartContext ctx, CancellationToken ct = default)
+        private void RenderArea(ChartContext ctx)
         {
             if (mSubCharts == null) return;
             if (ctx == null) return;
             if (!mSubCharts.TryGetValue(ctx.ActiveArea, out var sc)) return;
             ShowOnlyAltitudeChart(sc.Control);
-            sc.Render(ctx, mCache, ct);
+            sc.Render(ctx, mCache);
             ResizeAltitudeChartArea(sc.IdealHeight);
         }
 
@@ -1768,33 +1749,6 @@ Right-click anywhere on the chart to clear all overlays.";
                 foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mLocalDateTime.When);
 
             mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
-        }
-
-        // Signal the in-flight chart build to unwind. The Day / Moon phase is synchronous
-        // and completes before Button_Graph_Click returns, so it can't be cancelled -- only
-        // the Year + Sessions background compute is interruptible. The progress bar is reset
-        // because partial Day ticks would otherwise leave it stuck at ~1/3 full.
-        //
-        // Disables itself to prevent a second click from firing while cancellation
-        // propagates; Button_Graph_Click's finally re-enables it when the build fully
-        // unwinds. If no build is in flight (mGraphBuildInProgress false), early-return
-        // without disabling -- the button has nothing to cancel and should stay clickable
-        // for the next build.
-        private void Button_Cancel_Click(object sender, EventArgs e)
-        {
-            if (!mGraphBuildInProgress) return;
-
-            Button_Cancel.Enabled = false;
-
-            // Cancels any in-flight coordinator pipeline. RunGraphBuildAsync's
-            // await throws OCE, the catch swallows it, and the finally cleans
-            // up Button_Graph.Enabled etc.
-            mCoordinator?.Cancel();
-
-            // Bump the build generation so any late Progress<int> callbacks from the
-            // unwinding tasks no-op instead of re-ticking a zeroed bar.
-            mChartBuildGeneration++;
-            ProgressBar_MultiTargetProcessing.Value = 0;
         }
 
         // ---------- ComboBox_Location ----------
@@ -2040,23 +1994,29 @@ Right-click anywhere on the chart to clear all overlays.";
             mSelection.SetKnownTargets(allLoaded);
 
             // Phase 3: kick off background pre-population of the chart cache so subsequent
-            // Graph clicks find caches already built. Fire-and-forget; cancellation comes
-            // from mCachePrepCts (cancelled on Form close + replaced on each new load so
-            // a re-Browse aborts the prior load's prep). Errors swallowed -- this is a
-            // best-effort warmup, not load-bearing.
-            mCachePrepCts?.Cancel();
-            mCachePrepCts?.Dispose();
-            mCachePrepCts = new CancellationTokenSource();
-            CancellationToken prepToken = mCachePrepCts.Token;
+            // Graph clicks find caches already built. Fire-and-forget; a re-Browse just
+            // starts a new warmup over the same (and possibly larger) target set -- the
+            // cache de-dupes per target so already-built entries are no-ops. Errors
+            // swallowed -- this is a best-effort warmup, not load-bearing.
+            //
+            // Two phases of warmup: PrepareManyAsync builds the per-target yearDays
+            // (~1-2 sec for 44 targets); PrepareFitsAsync builds per-(target, HdmKey)
+            // fits against the current H/D/M (~few sec). Both run in the same Task.Run
+            // so the second phase awaits the first naturally; the user's first
+            // Sessions / Year click hits a warm cache and renders instantly.
+            HdmKey hdm = SnapshotCurrent(allLoaded).Hdm;
             _ = Task.Run(async () =>
             {
-                try { await mCache.PrepareManyAsync(allLoaded, prepToken); }
-                catch (OperationCanceledException) { /* expected on re-load / form close */ }
+                try
+                {
+                    await mCache.PrepareManyAsync(allLoaded);
+                    await mCache.PrepareFitsAsync(allLoaded, hdm);
+                }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"ChartCacheStore.PrepareManyAsync warmup failed: {ex}");
+                    System.Diagnostics.Debug.WriteLine($"ChartCacheStore warmup failed: {ex}");
                 }
-            }, prepToken);
+            });
         }
 
         // Repopulates ComboBox_SelectTarget.Items in the order produced by

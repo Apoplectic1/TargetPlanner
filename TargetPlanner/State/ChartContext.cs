@@ -62,5 +62,21 @@ namespace TargetPlanner.State
         double ActiveFilterCenterNm,
         string ActiveArea,
         IReadOnlyDictionary<Target, Color> TargetColors
-    );
+    )
+    {
+        /// <summary>
+        /// Derived cache key for per-(target, H/D/M) fit data. Stable under
+        /// reference equality of <see cref="MoonProfile"/> (immutable POCO);
+        /// flips on any Horizon / Duration / Profile / FilterCenter change.
+        /// Bortle / ExtinctionK are excluded — they affect Sky's K-S brightness
+        /// path, not fit decisions.
+        /// </summary>
+        public HdmKey Hdm => new HdmKey
+        {
+            HorizonDeg = Location.Horizon,
+            DurationTicks = Location.Duration.Ticks,
+            Profile = MoonProfile,
+            FilterCenterNm = ActiveFilterCenterNm,
+        };
+    }
 }

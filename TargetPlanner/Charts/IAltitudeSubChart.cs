@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
 using System.Windows.Forms;
 using TargetPlanner.Caches;
 using TargetPlanner.State;
@@ -56,7 +55,7 @@ namespace TargetPlanner.Charts
         // 8-parameter signature behind a single ChartContext snapshot. The
         // sub-chart reads ctx.Targets / ctx.MoonProfile / ctx.Location and
         // derives Horizon / Duration / now from ctx.Location.
-        void Render(ChartContext ctx, IChartCacheStore cache, CancellationToken ct = default);
+        void Render(ChartContext ctx, IChartCacheStore cache);
 
         // Cheap path for Sort changes -- reorders the existing series in
         // mChart.Series without recomputing data and without restarting the
@@ -65,16 +64,17 @@ namespace TargetPlanner.Charts
         // current state are silently skipped.
         //
         // Without this, sort changes would fire a full Render which kicks the
-        // background visibility task on Year / Sessions (10-60 sec wasted work
-        // for an order change that doesn't invalidate the cached fit results).
+        // background visibility task on Year / Sessions (wasted work for an
+        // order change that doesn't invalidate the cached fit results).
         void Reorder(IReadOnlyList<Target> newOrder);
 
         // H/D/M-aware visibility refresh per the universal contract. Day / Sky
         // run synchronous BestSession.For probes and toggle stroke alpha;
-        // Year / Sessions kick a Task.Run with a CancellationTokenSource and
-        // null out unfit nights when the task lands. Cache argument is
-        // consumed by Day / Sky for NightCache.Starting; Year / Sessions
-        // snapshot YearDays at Render time and ignore it.
+        // Year / Sessions delegate to Render (their fits live in the cache
+        // keyed on HdmKey, so the synchronous re-render reads the new HdmKey's
+        // fits directly from cache without any bg work). Cache argument is
+        // consumed by Day / Sky for NightCache.Starting and by Year / Sessions
+        // for the GetFitOrNull(target, ctx.Hdm) lookup.
         void RefreshVisibility(ChartContext ctx, IChartCacheStore cache);
     }
 }

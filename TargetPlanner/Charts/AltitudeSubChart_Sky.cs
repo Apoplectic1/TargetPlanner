@@ -4,7 +4,6 @@ using System.Collections.ObjectModel;
 using System.Drawing;
 using System.Globalization;
 using System.Linq;
-using System.Threading;
 using System.Windows.Forms;
 using Astronomy.Core;
 using Astronomy.Core.Astrometry;
@@ -279,11 +278,10 @@ namespace TargetPlanner.Charts
             return arr[segmentStart] ?? string.Empty;
         }
 
-        public void Render(ChartContext ctx, IChartCacheStore cache, CancellationToken ct = default)
+        public void Render(ChartContext ctx, IChartCacheStore cache)
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
             if (ctx.Location == null) throw new ArgumentException("ctx.Location must not be null", nameof(ctx));
-            ct.ThrowIfCancellationRequested();
 
             Location location = ctx.Location;
             IReadOnlyList<Target> targets = ctx.Targets;
@@ -350,7 +348,6 @@ namespace TargetPlanner.Charts
             var seriesList = new List<ISeries>();
             for (int t = 0; t < targets.Count; t++)
             {
-                ct.ThrowIfCancellationRequested();
                 Target target = targets[t];
                 if (target == null) continue;
 
@@ -360,7 +357,7 @@ namespace TargetPlanner.Charts
                 var series = GetOrCreateTargetSeries(target, c);
                 BuildOrUpdateTargetSeries(series, target, location, chartStart, startUtc,
                     count, observer, kAtBand, v0,
-                    night.AstronomicalDusk, night.AstronomicalDawn, ct);
+                    night.AstronomicalDusk, night.AstronomicalDawn);
 
                 bool fits = HasFit(target, location, night, profile, horizon, duration);
                 if (fits)
@@ -467,8 +464,7 @@ namespace TargetPlanner.Charts
                 BuildOrUpdateTargetSeries(series, target, location,
                     mLastChartStart, mLastChartStartUtc, mLastCount,
                     observer, kAtBand, v0,
-                    mLastAstronomicalDuskUtc, mLastAstronomicalDawnUtc,
-                    CancellationToken.None);
+                    mLastAstronomicalDuskUtc, mLastAstronomicalDawnUtc);
             }
         }
 
@@ -566,8 +562,7 @@ namespace TargetPlanner.Charts
             double kAtBand,
             double v0,
             DateTime astronomicalDuskUtc,
-            DateTime astronomicalDawnUtc,
-            CancellationToken ct)
+            DateTime astronomicalDawnUtc)
         {
             var data = series.Values as ObservableCollection<ObservablePoint>;
             if (data == null)
@@ -579,7 +574,6 @@ namespace TargetPlanner.Charts
             string[] tooltips = new string[count];
             for (int i = 0; i < count; i++)
             {
-                ct.ThrowIfCancellationRequested();
                 DateTime point = chartStart.AddMinutes(i);
                 DateTime utc = DateTime.SpecifyKind(startUtc.AddMinutes(i), DateTimeKind.Utc);
 
