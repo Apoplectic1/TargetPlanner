@@ -402,7 +402,10 @@ namespace TargetPlanner.Caches
         // the existing mInFlight path), then walks each night computing the Sessions
         // Ceiling / Floor / CenteredFloor triple. Year reads Floor; both share the
         // upstream BestSession.ResolveCandidates resolve so one resolve drives both
-        // placements.
+        // placements. The tail also computes a single-night Tonight fit from the
+        // NightCache.Starting window so Day's HD-overlay box and Sky's
+        // hide-on-no-fit read from the same cache (one source of truth for the
+        // fit decision; zero UI-thread Library calls in render).
         private async Task<TargetFitEntry> BuildFitEntryAsync(Target target, HdmKey key,
             Location location, IHorizonProfile horizon)
         {
@@ -412,11 +415,15 @@ namespace TargetPlanner.Caches
                 IReadOnlyList<NightCacheEntry> yearDays = yearEntry.YearDays;
                 TimeSpan duration = TimeSpan.FromTicks(key.DurationTicks);
                 MoonAvoidanceProfile profile = key.Profile;
+                NightCache nightCache = await EnsureNightCacheAsync(location);
+                NightWindow starting = nightCache.Starting;
 
-                IReadOnlyList<NightFit> nights = await Task.Run(
-                    () => ComputeNightFits(target, location, yearDays, horizon, duration, profile));
+                (IReadOnlyList<NightFit> nights, NightFit tonight) = await Task.Run(
+                    () => (
+                        ComputeNightFits(target, location, yearDays, horizon, duration, profile),
+                        ComputeTonightFit(target, location, starting, horizon, duration, profile)));
 
-                TargetFitEntry entry = new TargetFitEntry(target, key, nights);
+                TargetFitEntry entry = new TargetFitEntry(target, key, nights, tonight);
 
                 lock (mGate)
                 {
@@ -682,10 +689,57 @@ namespace TargetPlanner.Caches
                     Ceiling = ceiling,
                     Floor = floor,
                     CenteredFloor = centeredFloor,
+                    StartUtc = session?.Start,
+                    EndUtc   = session?.End,
                 };
             }
 
             return fits;
+        }
+
+        // Single-night equivalent of ComputeNightFits' loop body, for the
+        // LocationNightCache.Starting slot consumed by Day's HD-overlay and
+        // Sky's hide-on-no-fit. Same recipe (ResolveCandidates + PlaceBest +
+        // SessionAltitude.Floor / Ceiling + PlaceCentered) -- so the cached
+        // Tonight fit is byte-identical to what Day's ad-hoc BestSession.For
+        // produced pre-consolidation.
+        private static NightFit ComputeTonightFit(
+            Target target, Location location, NightWindow starting,
+            IHorizonProfile horizonProfile, TimeSpan duration, MoonAvoidanceProfile profile)
+        {
+            if (duration <= TimeSpan.Zero || !starting.IsValid) return default;
+
+            var candidates = BestSession.ResolveCandidates(
+                target, location, starting, horizonProfile, profile);
+            if (candidates.Count == 0) return default;
+
+            double? floor = null, ceiling = null;
+            DateTime? startUtc = null, endUtc = null;
+            var session = BestSession.PlaceBest(target, location, candidates, duration, duration);
+            if (session != null)
+            {
+                floor    = SessionAltitude.Floor(target, location, session.Value.Start, session.Value.End);
+                ceiling  = SessionAltitude.Ceiling(target, location, session.Value.Start, session.Value.End);
+                startUtc = session.Value.Start;
+                endUtc   = session.Value.End;
+            }
+
+            double? centeredFloor = null;
+            var centered = BestSession.PlaceCentered(target, location, candidates, duration);
+            if (centered != null)
+            {
+                centeredFloor = SessionAltitude.Floor(target, location,
+                    centered.Value.Start, centered.Value.End);
+            }
+
+            return new NightFit
+            {
+                Ceiling = ceiling,
+                Floor = floor,
+                CenteredFloor = centeredFloor,
+                StartUtc = startUtc,
+                EndUtc   = endUtc,
+            };
         }
     }
 }

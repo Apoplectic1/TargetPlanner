@@ -286,9 +286,6 @@ namespace TargetPlanner.Charts
 
             Location location = ctx.Location;
             IReadOnlyList<Target> targets = ctx.Targets;
-            MoonAvoidanceProfile profile = ctx.Policy.MoonProfile;
-            IHorizonProfile horizonProfile = ctx.Policy.LocalHorizon;
-            TimeSpan duration = ctx.Policy.MinDuration;
             DateTime now = location.DateTime;
 
             // Sync ActiveFilterCenterNm from the snapshot before computing K-S.
@@ -343,8 +340,9 @@ namespace TargetPlanner.Charts
             // without recomputing K-S. Fit-tonight filter is applied to
             // mChart.Series (and the legend via mFitSeries) -- mirrors Day's
             // "compute everything, filter display" pattern. Same fit decision
-            // as Day (BestSession.For via HasFit) so Day and Sky always agree
-            // on which targets are visible tonight.
+            // as Day (TargetFitEntry.Tonight.Floor.HasValue) so Day and Sky
+            // always agree on which targets are visible tonight; zero
+            // BestSession.For calls in the Sky render path.
             var newSeriesByTarget = new Dictionary<Target, LineSeries<ObservablePoint>>();
             var seriesList = new List<ISeries>();
             for (int t = 0; t < targets.Count; t++)
@@ -360,7 +358,7 @@ namespace TargetPlanner.Charts
                     count, observer, kAtBand, v0,
                     night.AstronomicalDusk, night.AstronomicalDawn);
 
-                bool fits = HasFit(target, location, night, profile, horizonProfile, duration);
+                bool fits = cache?.GetFitOrNull(target, ctx.Hdm)?.Tonight.Floor.HasValue ?? false;
                 if (fits)
                 {
                     ApplyTargetVisibility(series, c, true);
@@ -402,9 +400,6 @@ namespace TargetPlanner.Charts
         {
             if (ctx == null || ctx.Location == null || ctx.Policy == null || mSeriesByTarget.Count == 0) return;
             Location location = ctx.Location;
-            MoonAvoidanceProfile profile = ctx.Policy.MoonProfile;
-            IHorizonProfile horizonProfile = ctx.Policy.LocalHorizon;
-            TimeSpan duration = ctx.Policy.MinDuration;
 
             NightWindow night = cache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(location);
             if (!night.IsValid) return;
@@ -415,7 +410,7 @@ namespace TargetPlanner.Charts
                 LineSeries<ObservablePoint> series = kv.Value;
                 if (!mTargetColors.TryGetValue(target, out Color c)) c = Color.White;
 
-                bool fits = HasFit(target, location, night, profile, horizonProfile, duration);
+                bool fits = cache?.GetFitOrNull(target, ctx.Hdm)?.Tonight.Floor.HasValue ?? false;
                 if (fits)
                 {
                     ApplyTargetVisibility(series, c, true);
@@ -480,25 +475,6 @@ namespace TargetPlanner.Charts
             mLegendPanel.Controls.Clear();
         }
 
-
-        // True when BestSession.For would place a session for this target on
-        // the supplied night under the current Horizon / Duration / Moon
-        // profile. Same probe Day uses for hide-on-no-fit -- byte-identical
-        // decision so Day's hidden-target list matches Sky's hidden-target list.
-        private static bool HasFit(
-            Target target, Location location, NightWindow night,
-            MoonAvoidanceProfile profile, IHorizonProfile horizonProfile, TimeSpan duration)
-        {
-            if (duration <= TimeSpan.Zero) return false;
-            // altitudeQuality default (null = sin(alt) closed-form) for the
-            // hide-on-no-fit visibility probe. Sky doesn't pick a session; only the
-            // null/non-null shape of the result matters.
-            var best = BestSession.For(
-                target, location, night, horizonProfile,
-                duration, duration,
-                profile: profile);
-            return best != null;
-        }
 
         // Hide via fully-transparent stroke (zero alpha) when no D-hour window
         // fits tonight; restore the palette stroke when one fits. Mirrors Day's

@@ -232,10 +232,7 @@ namespace TargetPlanner.Charts
 
             Location location = ctx.Location;
             IReadOnlyList<Target> targets = ctx.Targets;
-            MoonAvoidanceProfile profile = ctx.Policy.MoonProfile;
-            IHorizonProfile horizonProfile = ctx.Policy.LocalHorizon;
             double horizonFloor = ctx.Policy.TargetFloorDeg;
-            TimeSpan duration = ctx.Policy.MinDuration;
             DateTime now = location.DateTime;
 
             NightWindow night = cache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(location);
@@ -302,14 +299,18 @@ namespace TargetPlanner.Charts
                 var series = GetOrCreateTargetSeries(target, c);
                 FillTargetSeriesData(series, chartStart, count, altitudes);
 
-                var window = ComputeBestDayWindow(target, location, night, profile, horizonProfile, duration);
-                if (window.HasValue)
+                // Tonight's fit lives on TargetFitEntry.Tonight (computed once at
+                // BuildFitEntryAsync time); we read Start/End/Floor straight off
+                // it -- no UI-thread BestSession.For call, byte-identical to the
+                // pre-consolidation ad-hoc compute.
+                NightFit? tonight = cache?.GetFitOrNull(target, ctx.Hdm)?.Tonight;
+                if (tonight is { StartUtc: { } winStart, EndUtc: { } winEnd, Floor: { } winFloor })
                 {
                     ApplyTargetVisibility(series, c, true);
                     mTargetWindows[series] = (
-                        window.Value.Start.ToOADate(),
-                        window.Value.End.ToOADate(),
-                        window.Value.Floor);
+                        winStart.ToLocalTime().ToOADate(),
+                        winEnd.ToLocalTime().ToOADate(),
+                        winFloor);
                     seriesList.Add(series);
                 }
 
@@ -408,10 +409,7 @@ namespace TargetPlanner.Charts
         {
             if (ctx == null || ctx.Location == null || ctx.Policy == null || mSeriesByTarget.Count == 0) return;
             Location location = ctx.Location;
-            MoonAvoidanceProfile profile = ctx.Policy.MoonProfile;
-            IHorizonProfile horizonProfile = ctx.Policy.LocalHorizon;
             double horizonFloor = ctx.Policy.TargetFloorDeg;
-            TimeSpan duration = ctx.Policy.MinDuration;
 
             NightWindow night = cache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(location);
             if (!night.IsValid) return;
@@ -420,21 +418,23 @@ namespace TargetPlanner.Charts
 
             // Re-evaluate fit per target. mTargetWindows is the source of truth
             // for "fits tonight"; the "fit tonight only" filter excludes any
-            // unfit target from mChart.Series and the legend.
+            // unfit target from mChart.Series and the legend. The coordinator's
+            // PrepareFitsAsync await before RefreshVisibility guarantees the new
+            // HdmKey's fits are built; we read tonight straight off the cache.
             foreach (var kv in mSeriesByTarget)
             {
                 Target target = kv.Key;
                 LineSeries<ObservablePoint> series = kv.Value;
                 if (!mTargetColors.TryGetValue(target, out Color c)) c = Color.White;
 
-                var window = ComputeBestDayWindow(target, location, night, profile, horizonProfile, duration);
-                if (window.HasValue)
+                NightFit? tonight = cache?.GetFitOrNull(target, ctx.Hdm)?.Tonight;
+                if (tonight is { StartUtc: { } startUtc, EndUtc: { } endUtc, Floor: { } floorAlt })
                 {
                     ApplyTargetVisibility(series, c, true);
                     mTargetWindows[series] = (
-                        window.Value.Start.ToOADate(),
-                        window.Value.End.ToOADate(),
-                        window.Value.Floor);
+                        startUtc.ToLocalTime().ToOADate(),
+                        endUtc.ToLocalTime().ToOADate(),
+                        floorAlt);
                 }
                 else
                 {
@@ -640,27 +640,6 @@ namespace TargetPlanner.Charts
                 else data.Add(p);
             }
             while (data.Count > count) data.RemoveAt(data.Count - 1);
-        }
-
-        // Mirrors AltitudeSeries.ComputeBestDayWindow. Shared NightCache (when
-        // present) is used; otherwise the gated NightCalculator.ComputeNight is
-        // called inline.
-        private static (DateTime Start, DateTime End, double Floor)? ComputeBestDayWindow(
-            Target target, Location location, NightWindow night, MoonAvoidanceProfile profile,
-            IHorizonProfile horizonProfile, TimeSpan duration)
-        {
-            if (duration <= TimeSpan.Zero) return null;
-            // altitudeQuality omitted -- BestSession.For defaults to sin(alt) via the
-            // closed-form SinAltitudeOverSession path (~25× faster than the equivalent
-            // Simpson lambda). Pass a non-null quality function only if a different
-            // scoring model is needed.
-            var best = BestSession.For(
-                target, location, night, horizonProfile,
-                duration, duration,
-                profile: profile);
-            if (best == null) return null;
-            double floor = SessionAltitude.Floor(target, location, best.Value.Start, best.Value.End);
-            return (best.Value.Start.ToLocalTime(), best.Value.End.ToLocalTime(), floor);
         }
 
         public void Dispose()
