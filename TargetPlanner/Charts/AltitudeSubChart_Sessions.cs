@@ -95,6 +95,13 @@ namespace TargetPlanner.Charts
         private ChartContext mLastCtx;
         private IChartCacheStore mLastCache;
 
+        // Reverse lookup: series → target, spanning all three of a target's series
+        // (Ceiling / Floor / Centered). Populated at Render time so the tooltip
+        // hit-test resolves in O(1) instead of three sequential O(N) foreach
+        // scans over the three per-target dicts on every mouse motion.
+        private readonly Dictionary<LineSeries<ObservablePoint>, Target> mTargetBySeries
+            = new Dictionary<LineSeries<ObservablePoint>, Target>();
+
         private readonly HoverTooltipController mHover;
 
         private int mLastIdealHeight = -1;
@@ -239,12 +246,8 @@ namespace TargetPlanner.Charts
 
         private Target TargetFor(LineSeries<ObservablePoint> series)
         {
-            foreach (var kv in mCeilingByTarget)
-                if (ReferenceEquals(kv.Value, series)) return kv.Key;
-            foreach (var kv in mFloorByTarget)
-                if (ReferenceEquals(kv.Value, series)) return kv.Key;
-            foreach (var kv in mCenteredByTarget)
-                if (ReferenceEquals(kv.Value, series)) return kv.Key;
+            if (series == null) return null;
+            if (mTargetBySeries.TryGetValue(series, out Target target)) return target;
             return null;
         }
 
@@ -337,9 +340,22 @@ namespace TargetPlanner.Charts
             mCeilingByTarget.Clear();
             mFloorByTarget.Clear();
             mCenteredByTarget.Clear();
-            foreach (var kv in newCeiling)  mCeilingByTarget[kv.Key]  = kv.Value;
-            foreach (var kv in newFloor)    mFloorByTarget[kv.Key]    = kv.Value;
-            foreach (var kv in newCentered) mCenteredByTarget[kv.Key] = kv.Value;
+            mTargetBySeries.Clear();
+            foreach (var kv in newCeiling)
+            {
+                mCeilingByTarget[kv.Key]  = kv.Value;
+                mTargetBySeries[kv.Value] = kv.Key;
+            }
+            foreach (var kv in newFloor)
+            {
+                mFloorByTarget[kv.Key]    = kv.Value;
+                mTargetBySeries[kv.Value] = kv.Key;
+            }
+            foreach (var kv in newCentered)
+            {
+                mCenteredByTarget[kv.Key] = kv.Value;
+                mTargetBySeries[kv.Value] = kv.Key;
+            }
 
             mChart.Series = seriesList;
             BuildLegendItems();

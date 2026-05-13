@@ -81,6 +81,12 @@ namespace TargetPlanner.Charts
         private ChartContext mLastCtx;
         private IChartCacheStore mLastCache;
 
+        // Reverse lookup: series → target. Populated alongside mSeriesByTarget at
+        // Render time so the tooltip hit-test resolves the hovered series in O(1)
+        // instead of an O(N) scan over mSeriesByTarget on every mouse motion.
+        private readonly Dictionary<LineSeries<ObservablePoint>, Target> mTargetBySeries
+            = new Dictionary<LineSeries<ObservablePoint>, Target>();
+
         private readonly HoverTooltipController mHover;
 
         private int mLastIdealHeight = -1;
@@ -228,9 +234,9 @@ namespace TargetPlanner.Charts
 
         private Target TargetForSeries(LineSeries<ObservablePoint> series)
         {
-            foreach (var kv in mSeriesByTarget)
-                if (ReferenceEquals(kv.Value, series)) return kv.Key;
-            return null;
+            if (series == null) return null;
+            mTargetBySeries.TryGetValue(series, out Target target);
+            return target;
         }
 
         public void Render(ChartContext ctx, IChartCacheStore cache)
@@ -309,7 +315,12 @@ namespace TargetPlanner.Charts
             }
 
             mSeriesByTarget.Clear();
-            foreach (var kv in newSeriesByTarget) mSeriesByTarget[kv.Key] = kv.Value;
+            mTargetBySeries.Clear();
+            foreach (var kv in newSeriesByTarget)
+            {
+                mSeriesByTarget[kv.Key] = kv.Value;
+                mTargetBySeries[kv.Value] = kv.Key;
+            }
             mChart.Series = seriesList;
             BuildLegendItems();
 
