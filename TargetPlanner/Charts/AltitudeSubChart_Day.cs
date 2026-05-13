@@ -478,37 +478,6 @@ namespace TargetPlanner.Charts
             mLegendPanel.Controls.Clear();
         }
 
-        // Cheap path for Sort changes: rebuild mSeriesByTarget (and hence
-        // mChart.Series + the legend) in the new target order without
-        // recomputing altitude data and without restarting the visibility
-        // refresh. Targets not in the chart's current state are silently
-        // skipped (caller passes the same set, just permuted).
-        public void Reorder(IReadOnlyList<Target> newOrder)
-        {
-            if (newOrder == null || mSeriesByTarget.Count == 0) return;
-            var reordered = new Dictionary<Target, LineSeries<ObservablePoint>>();
-            foreach (var target in newOrder)
-            {
-                if (target == null) continue;
-                if (mSeriesByTarget.TryGetValue(target, out var s))
-                    reordered[target] = s;
-            }
-            mSeriesByTarget.Clear();
-            foreach (var kv in reordered) mSeriesByTarget[kv.Key] = kv.Value;
-
-            // Filter mChart.Series on fit-tonight (presence in mTargetWindows)
-            // so the "fit tonight only" rule survives a sort change. Series that
-            // were excluded from mChart.Series in Render stay excluded.
-            var seriesList = new List<ISeries>();
-            if (mMoonSeries != null) seriesList.Add(mMoonSeries);
-            foreach (var s in mSeriesByTarget.Values)
-            {
-                if (mTargetWindows.ContainsKey(s)) seriesList.Add(s);
-            }
-            mChart.Series = seriesList;
-            BuildLegendItems();
-        }
-
         // Recreate gradient Fills sized to the actual dusk/dawn widths. LC2 caches
         // shaders per-Section; calling this every Render keeps the gradient correctly
         // sized when the night window changes (Location / DateTime edits).

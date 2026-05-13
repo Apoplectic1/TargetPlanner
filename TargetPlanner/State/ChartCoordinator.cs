@@ -56,6 +56,12 @@ namespace TargetPlanner.State
         // its generation at entry and bails before any side-effecting write if a
         // newer Apply has run in the meantime. Replaces the prior mPipelineCts.
         private int mGeneration;
+        // Most recently applied target set, shared across all areas. Radio swaps
+        // re-use the same targets across sub-charts; this is the SoT that
+        // SnapshotCurrent() reads on a radio-only Apply (when LastAppliedFor of
+        // the newly-active area is null because it's never been rendered).
+        // Replaces MainForm's prior mLastRenderedTargets shadow store.
+        private IReadOnlyList<Target> mLastAppliedTargets = Array.Empty<Target>();
         private ChartContext mPendingContext;
         private IProgress<int> mPendingProgress;
         private bool mDisposed;
@@ -111,6 +117,27 @@ namespace TargetPlanner.State
             mDebounce.Stop();
             mPendingContext = null;
         }
+
+        /// <summary>Returns the last successfully-applied <see cref="ChartContext"/>
+        /// for the given chart area, or <see langword="null"/> if the area has
+        /// never been rendered.</summary>
+        public ChartContext LastAppliedFor(string area)
+        {
+            if (area == null) return null;
+            if (!mEverRendered.Contains(area)) return null;
+            mLastAppliedByArea.TryGetValue(area, out ChartContext ctx);
+            return ctx;
+        }
+
+        /// <summary>Targets list from the most recent <see cref="RunPipelineAsync"/>
+        /// that reached the stamping block, regardless of which area was active.
+        /// Defaults to <c>Array.Empty&lt;Target&gt;()</c> before any pipeline has
+        /// run, and after a deliberate empty-targets reset
+        /// (<c>ResetForLocationChange</c>). Use this on radio-only swaps where the
+        /// newly-active area's stamp doesn't exist yet -- the targets carry across
+        /// sub-charts so the right thing is "what's the user currently viewing,"
+        /// not "what's this specific area's last seen target set."</summary>
+        public IReadOnlyList<Target> LastAppliedTargets => mLastAppliedTargets;
 
         public void Dispose()
         {
@@ -249,6 +276,11 @@ namespace TargetPlanner.State
                 foreach (string area in mEverRendered)
                     mLastAppliedByArea[area] = ctx;
             }
+
+            // Stamp the shared "current targets" SoT used by SnapshotCurrent() (no-arg).
+            // Always update -- including to empty after a deliberate reset -- so the
+            // next no-arg snapshot reflects the actual current state.
+            mLastAppliedTargets = ctx.Targets ?? Array.Empty<Target>();
         }
 
         // -------------- diff helpers --------------

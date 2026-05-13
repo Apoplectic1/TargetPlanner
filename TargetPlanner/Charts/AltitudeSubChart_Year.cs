@@ -74,10 +74,12 @@ namespace TargetPlanner.Charts
         private readonly Dictionary<Target, IReadOnlyList<NightCacheEntry>> mYearDaysByTarget
             = new Dictionary<Target, IReadOnlyList<NightCacheEntry>>();
 
-        // Cache + HdmKey captured at Render so the tooltip formatter can fetch
-        // the per-night NightFit on hover.
+        // Snapshot of the full ChartContext at Render so the tooltip formatter
+        // can read per-night NightFit (via cache.GetFitOrNull(target, ctx.Hdm))
+        // plus any future per-target solver results without growing more
+        // mLastFoo fields per input source.
+        private ChartContext mLastCtx;
         private IChartCacheStore mLastCache;
-        private HdmKey mLastHdmKey;
 
         private readonly HoverTooltipController mHover;
 
@@ -201,7 +203,8 @@ namespace TargetPlanner.Charts
             if (segmentStart < 0 || segmentStart >= days.Count) return string.Empty;
 
             NightCacheEntry night = days[segmentStart];
-            TargetFitEntry fitEntry = mLastCache?.GetFitOrNull(target, mLastHdmKey);
+            HdmKey hdm = mLastCtx?.Hdm ?? default;
+            TargetFitEntry fitEntry = mLastCache?.GetFitOrNull(target, hdm);
             NightFit fit = fitEntry != null && segmentStart < fitEntry.Nights.Count
                 ? fitEntry.Nights[segmentStart]
                 : default;
@@ -245,8 +248,8 @@ namespace TargetPlanner.Charts
             UpdateHorizonLine(horizonAlt);
             UpdateNowLine(now);
 
+            mLastCtx = ctx;
             mLastCache = cache;
-            mLastHdmKey = hdm;
 
             mTargetColors.Clear();
             mYearDaysByTarget.Clear();
@@ -348,29 +351,6 @@ namespace TargetPlanner.Charts
                 else data.Add(p);
             }
             while (data.Count > n) data.RemoveAt(data.Count - 1);
-        }
-
-        // Cheap path for Sort changes -- rebuild mSeriesByTarget order +
-        // mChart.Series + legend without recomputing data. The cached fit
-        // results (already painted as Y values) stay valid because the target
-        // SET is unchanged.
-        public void Reorder(IReadOnlyList<Target> newOrder)
-        {
-            if (newOrder == null || mSeriesByTarget.Count == 0) return;
-            var reordered = new Dictionary<Target, LineSeries<ObservablePoint>>();
-            foreach (var target in newOrder)
-            {
-                if (target == null) continue;
-                if (mSeriesByTarget.TryGetValue(target, out var s))
-                    reordered[target] = s;
-            }
-            mSeriesByTarget.Clear();
-            foreach (var kv in reordered) mSeriesByTarget[kv.Key] = kv.Value;
-
-            var seriesList = new List<ISeries>();
-            foreach (var s in mSeriesByTarget.Values) seriesList.Add(s);
-            mChart.Series = seriesList;
-            BuildLegendItems();
         }
 
         private LineSeries<ObservablePoint> GetOrCreateTargetSeries(Target target, Color c)

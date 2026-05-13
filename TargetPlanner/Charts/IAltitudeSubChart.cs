@@ -58,17 +58,6 @@ namespace TargetPlanner.Charts
         // derives DateTime from ctx.Location.DateTime.
         void Render(ChartContext ctx, IChartCacheStore cache);
 
-        // Cheap path for Sort changes -- reorders the existing series in
-        // mChart.Series without recomputing data and without restarting the
-        // visibility refresh task. Caller must pass the SAME target set as
-        // the most recent Render, just permuted; targets not in the chart's
-        // current state are silently skipped.
-        //
-        // Without this, sort changes would fire a full Render which kicks the
-        // background visibility task on Year / Sessions (wasted work for an
-        // order change that doesn't invalidate the cached fit results).
-        void Reorder(IReadOnlyList<Target> newOrder);
-
         // H/D/M-aware visibility refresh per the universal contract. Day / Sky
         // run synchronous BestSession.For probes and toggle stroke alpha;
         // Year / Sessions delegate to Render (their fits live in the cache

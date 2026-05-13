@@ -480,28 +480,6 @@ namespace TargetPlanner.Charts
             mLegendPanel.Controls.Clear();
         }
 
-        // Cheap path for Sort changes -- rebuild mSeriesByTarget order +
-        // mChart.Series + legend without recomputing K-S magnitudes or
-        // toggling visibility. Targets not in the chart's current state
-        // are silently skipped.
-        public void Reorder(IReadOnlyList<Target> newOrder)
-        {
-            if (newOrder == null || mSeriesByTarget.Count == 0) return;
-            var reordered = new Dictionary<Target, LineSeries<ObservablePoint>>();
-            foreach (var target in newOrder)
-            {
-                if (target == null) continue;
-                if (mSeriesByTarget.TryGetValue(target, out var s))
-                    reordered[target] = s;
-            }
-            mSeriesByTarget.Clear();
-            foreach (var kv in reordered) mSeriesByTarget[kv.Key] = kv.Value;
-
-            var seriesList = new List<ISeries>();
-            foreach (var s in mSeriesByTarget.Values) seriesList.Add(s);
-            mChart.Series = seriesList;
-            BuildLegendItems();
-        }
 
         // True when BestSession.For would place a session for this target on
         // the supplied night under the current Horizon / Duration / Moon

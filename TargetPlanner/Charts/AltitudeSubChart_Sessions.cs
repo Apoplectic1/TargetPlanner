@@ -88,10 +88,12 @@ namespace TargetPlanner.Charts
         private readonly Dictionary<Target, IReadOnlyList<NightCacheEntry>> mYearDaysByTarget
             = new Dictionary<Target, IReadOnlyList<NightCacheEntry>>();
 
-        // Cache + HdmKey captured at Render so the tooltip formatter can fetch
-        // the per-night NightFit on hover.
+        // Snapshot of the full ChartContext at Render so the tooltip formatter
+        // can read per-night NightFit (via cache.GetFitOrNull(target, ctx.Hdm))
+        // plus any future per-target solver results without growing more
+        // mLastFoo fields per input source.
+        private ChartContext mLastCtx;
         private IChartCacheStore mLastCache;
-        private HdmKey mLastHdmKey;
 
         private readonly HoverTooltipController mHover;
 
@@ -226,7 +228,8 @@ namespace TargetPlanner.Charts
             if (segmentStart < 0 || segmentStart >= days.Count) return string.Empty;
 
             NightCacheEntry night = days[segmentStart];
-            TargetFitEntry fitEntry = mLastCache?.GetFitOrNull(target, mLastHdmKey);
+            HdmKey hdm = mLastCtx?.Hdm ?? default;
+            TargetFitEntry fitEntry = mLastCache?.GetFitOrNull(target, hdm);
             NightFit fit = fitEntry != null && segmentStart < fitEntry.Nights.Count
                 ? fitEntry.Nights[segmentStart]
                 : default;
@@ -260,8 +263,8 @@ namespace TargetPlanner.Charts
             UpdateHorizonLine(horizonAlt);
             UpdateNowLine(now);
 
+            mLastCtx = ctx;
             mLastCache = cache;
-            mLastHdmKey = hdm;
 
             mTargetColors.Clear();
             mYearDaysByTarget.Clear();
@@ -481,42 +484,6 @@ namespace TargetPlanner.Charts
                 mChart.Invalidate();
             };
             return label;
-        }
-
-        // Cheap path for Sort changes -- rebuild the three dicts' iteration
-        // order + mChart.Series + legend without recomputing data. The cached
-        // fit results (already painted as Y values on each series) stay valid
-        // because the target SET is unchanged.
-        public void Reorder(IReadOnlyList<Target> newOrder)
-        {
-            if (newOrder == null || mCeilingByTarget.Count == 0) return;
-            var reCeil  = new Dictionary<Target, LineSeries<ObservablePoint>>();
-            var reFloor = new Dictionary<Target, LineSeries<ObservablePoint>>();
-            var reCen   = new Dictionary<Target, LineSeries<ObservablePoint>>();
-            foreach (var target in newOrder)
-            {
-                if (target == null) continue;
-                if (mCeilingByTarget.TryGetValue(target, out var c))   reCeil[target]  = c;
-                if (mFloorByTarget.TryGetValue(target, out var f))     reFloor[target] = f;
-                if (mCenteredByTarget.TryGetValue(target, out var ce)) reCen[target]   = ce;
-            }
-            mCeilingByTarget.Clear();
-            mFloorByTarget.Clear();
-            mCenteredByTarget.Clear();
-            foreach (var kv in reCeil)  mCeilingByTarget[kv.Key]  = kv.Value;
-            foreach (var kv in reFloor) mFloorByTarget[kv.Key]    = kv.Value;
-            foreach (var kv in reCen)   mCenteredByTarget[kv.Key] = kv.Value;
-
-            var seriesList = new List<ISeries>();
-            foreach (var target in newOrder)
-            {
-                if (target == null) continue;
-                if (mCeilingByTarget.TryGetValue(target, out var c))   seriesList.Add(c);
-                if (mFloorByTarget.TryGetValue(target, out var f))     seriesList.Add(f);
-                if (mCenteredByTarget.TryGetValue(target, out var ce)) seriesList.Add(ce);
-            }
-            mChart.Series = seriesList;
-            BuildLegendItems();
         }
 
         private LineSeries<ObservablePoint> GetOrCreateSeries(

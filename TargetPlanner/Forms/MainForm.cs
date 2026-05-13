@@ -50,15 +50,14 @@ namespace TargetPlanner
         //     traffic dispatches via foreach + dict lookup instead of explicit fields.
         //   - mLC2Sky: typed reference for the Sky-specific quirks not in the
         //     interface (ActiveFilterCenterNm setter + RefreshSkyBrightness).
-        //   - mLastRenderedTargets: snapshot of the most recent Graph-click target
-        //     list. Sort callbacks read this for the Reorder fast path; radio
-        //     handlers read it to re-Render when toggling between areas.
         //   - mMoonAvoidanceProfile / mActiveFilterCenterNm: state pushed into each
         //     sub-chart's Render / RefreshVisibility call. Set by SetActiveFilter
         //     and the Lorentzian / avoidance-checkbox handlers.
+        // The "what targets is the active chart currently displaying" question is
+        // answered by mCoordinator.LastAppliedFor(SelectedArea())?.Targets -- the
+        // coordinator's stamp is the single SoT; the prior mLastRenderedTargets
+        // shadow store is gone.
         private System.Collections.Generic.Dictionary<string, Charts.IAltitudeSubChart> mSubCharts;
-        private System.Collections.Generic.List<Astronomy.Core.Targets.Target> mLastRenderedTargets =
-            new System.Collections.Generic.List<Astronomy.Core.Targets.Target>();
         private Astronomy.Core.Moon.MoonAvoidanceProfile mMoonAvoidanceProfile;
         private double mActiveFilterCenterNm = 550.0;
 
@@ -735,7 +734,7 @@ Right-click anywhere on the chart to clear all overlays.";
             // Coordinator's internal debounce coalesces rapid scrub ticks into one
             // pipeline run; pipeline diff catches Duration change as HDM-only and
             // refreshes visibility on every sub-chart.
-            mCoordinator.Apply(SnapshotCurrent(mLastRenderedTargets));
+            mCoordinator.Apply(SnapshotCurrent());
         }
 
         private void NumericUpDown_TargetFloor_ValueChanged(object sender, EventArgs e)
@@ -749,7 +748,7 @@ Right-click anywhere on the chart to clear all overlays.";
             // collapses scrub ticks into one trailing-edge pipeline run.
             if (mSubCharts != null)
                 foreach (var sc in mSubCharts.Values) sc.UpdateHorizonLine(newHorizon);
-            mCoordinator.Apply(SnapshotCurrent(mLastRenderedTargets));
+            mCoordinator.Apply(SnapshotCurrent());
         }
 
         // Lazily-constructed shared Timer debouncing OnLocationEdited (lat/lon/elev/
@@ -801,7 +800,7 @@ Right-click anywhere on the chart to clear all overlays.";
                 }
 
                 if (mCoordinator == null) return;
-                await mCoordinator.ApplyImmediateAsync(SnapshotCurrent(mLastRenderedTargets));
+                await mCoordinator.ApplyImmediateAsync(SnapshotCurrent());
             }
             catch (Exception ex)
             {
@@ -820,7 +819,7 @@ Right-click anywhere on the chart to clear all overlays.";
         //     don't want a 250-ms-late blank-render to fight our explicit one
         //     (and harmless when the set was already empty -- VM short-circuits,
         //     no event, Stop() no-ops).
-        //   - Reset mLastRenderedTargets to empty. The coordinator's pipeline
+        //   - Hand the coordinator an empty-targets snapshot. The pipeline
         //     drops the cache (gated by LocationCacheEquivalent), runs
         //     PrepareManyAsync(empty) as a no-op, Renders the active chart
         //     with the empty target list (-> blank chart), and refreshes
@@ -838,8 +837,11 @@ Right-click anywhere on the chart to clear all overlays.";
             mSelection.SetAllChecked(false);
             mCheckedToggleDebounce?.Stop();
 
-            mLastRenderedTargets = new List<Target>();
-            await mCoordinator.ApplyImmediateAsync(SnapshotCurrent(mLastRenderedTargets));
+            // Explicit empty targets so the active area re-renders blank under the
+            // new location. The no-arg SnapshotCurrent() would inherit the prior
+            // last-applied target list (i.e., the old location's targets) -- not
+            // what we want on a deliberate reset.
+            await mCoordinator.ApplyImmediateAsync(SnapshotCurrent(Array.Empty<Target>()));
         }
 
         // Push the active filter's center wavelength + re-walk the K-S minute grid
@@ -1192,7 +1194,7 @@ Right-click anywhere on the chart to clear all overlays.";
             // year caches are populated and the call is cheap.
             if (mSubCharts != null)
             {
-                ChartContext refreshCtx = SnapshotCurrent(mLastRenderedTargets);
+                ChartContext refreshCtx = SnapshotCurrent();
                 foreach (var sc in mSubCharts.Values)
                 {
                     sc.RefreshVisibility(refreshCtx, mCache);
@@ -1287,7 +1289,7 @@ Right-click anywhere on the chart to clear all overlays.";
             // sync read that lands before the pipeline settles.
             mActiveFilterCenterNm = filter.CenterNm;
             if (mLC2Sky != null) mLC2Sky.ActiveFilterCenterNm = filter.CenterNm;
-            mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
+            mCoordinator?.Apply(SnapshotCurrent());
         }
 
         // Help -> Check for Updates... handler. Wired to CheckUpdatesToolStripMenuItem
@@ -1375,7 +1377,7 @@ Right-click anywhere on the chart to clear all overlays.";
             mMoonAvoidanceProfile = profile;
             // Coordinator's internal debounce collapses a fast Enable-Disable-
             // Enable click sequence into one trailing-edge pipeline run.
-            mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
+            mCoordinator?.Apply(SnapshotCurrent());
         }
 
         // User scrubbed a Lorentzian control. Push the live values to the chart (gated
@@ -1392,7 +1394,7 @@ Right-click anywhere on the chart to clear all overlays.";
                             && CheckBox_Moon_AvoidanceEnable.Checked;
             mMoonAvoidanceProfile = avoidanceOn ? BuildProfileFromControls() : null;
             RestartFilterAutoSaveDebounce();
-            mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
+            mCoordinator?.Apply(SnapshotCurrent());
         }
 
         // Read the live Lorentzian control values into a MoonAvoidanceProfile. Used by
@@ -1530,7 +1532,7 @@ Right-click anywhere on the chart to clear all overlays.";
             // Coordinator: post-apply hook handles RefreshAstrometryLabels + final
             // line sync. DateTime sub-day changes don't trigger any structural diff
             // (year-start unchanged), so the pipeline is no-op except the hook.
-            mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
+            mCoordinator?.Apply(SnapshotCurrent());
         }
 
         private void TimePicker_ValueChanged(object sender, EventArgs e)
@@ -1540,7 +1542,7 @@ Right-click anywhere on the chart to clear all overlays.";
                 foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mLocalDateTime.When);
             if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
                 ResortSelectedTargets();
-            mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
+            mCoordinator?.Apply(SnapshotCurrent());
         }
 
         // Button_Graph is single-target only. Always graphs mSelection.SelectedSingle
@@ -1637,11 +1639,8 @@ Right-click anywhere on the chart to clear all overlays.";
                 {
                     await mCoordinator.ApplyImmediateAsync(ctxSnapshot, targetProgress);
                 }
-
-                // Snapshot the rendered target list. Coordinator updates its own
-                // mLastApplied internally; mLastRenderedTargets is the form-side
-                // record used by sort/reorder paths and inactive-radio re-renders.
-                mLastRenderedTargets = new List<Target>(targets);
+                // The coordinator's mLastAppliedByArea is the single SoT for the
+                // rendered target list; no form-side shadow store to update.
             }
             finally
             {
@@ -1749,6 +1748,21 @@ Right-click anywhere on the chart to clear all overlays.";
             ResizeAltitudeChartArea(sc.IdealHeight);
         }
 
+        // No-arg overload: reads the shared "current targets" from the coordinator
+        // (any area's stamp would carry the same target set, but using the dedicated
+        // LastAppliedTargets property avoids the "Year never rendered, returns
+        // empty after a radio swap" bug -- the coordinator stamps this property
+        // on every successful pipeline regardless of active area). This is the
+        // SoT replacement for the prior mLastRenderedTargets shadow store.
+        // RunGraphBuildAsync and ResetForLocationChange still use the
+        // explicit-targets overload to set Targets explicitly.
+        private ChartContext SnapshotCurrent()
+        {
+            IReadOnlyList<Target> lastTargets =
+                mCoordinator?.LastAppliedTargets ?? Array.Empty<Target>();
+            return SnapshotCurrent(lastTargets);
+        }
+
         // Build a ChartContext snapshot from current MainForm state. Single point
         // that reads mLocation / mMoonAvoidanceProfile / mActiveFilterCenterNm /
         // SelectedArea() / mTargetColorsByTarget — adding a new chart input is one
@@ -1800,7 +1814,7 @@ Right-click anywhere on the chart to clear all overlays.";
             if (mSubCharts != null)
                 foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mLocalDateTime.When);
 
-            mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
+            mCoordinator?.Apply(SnapshotCurrent());
         }
 
         // ---------- ComboBox_Location ----------
@@ -2221,14 +2235,19 @@ Right-click anywhere on the chart to clear all overlays.";
             PopulateTargetComboFromTargets(preserveSelection: !autoSelectFirstInCombo);
             PopulateCheckedListBoxFromTargets(defaultChecked: false);
 
-            // Reorder every sub-chart's series + legend to match, in place -- no
-            // replot, no recompute, no visibility refresh. The cached fit data
-            // stays valid because the target SET is unchanged.
-            if (mSubCharts != null && mLastRenderedTargets != null && mLastRenderedTargets.Count > 0)
+            // Sort change: build a snapshot with the permuted Targets and hand
+            // it to the coordinator. The diff sees a Targets reference change
+            // and Renders the active sub-chart from cache; the cache's fits
+            // are still valid because the target SET is unchanged (the new
+            // List instance just has a different order). Inactive sub-charts
+            // catch up to the new order the next time the user clicks their
+            // radio -- coordinator's stamp records the new order so the diff
+            // takes the showOnly fast path after that one re-render.
+            IReadOnlyList<Target> lastTargets = mCoordinator?.LastAppliedTargets;
+            if (mCoordinator != null && lastTargets != null && lastTargets.Count > 0)
             {
-                var sorted = SortedTargets(mLastRenderedTargets).Where(t => t != null).ToList();
-                mLastRenderedTargets = sorted;
-                foreach (var sc in mSubCharts.Values) sc.Reorder(sorted);
+                var sorted = SortedTargets(lastTargets).Where(t => t != null).ToList();
+                mCoordinator.Apply(SnapshotCurrent(sorted));
             }
 
             // Belt-and-suspenders for autoSelectFirstInCombo: re-apply the first item's text
@@ -2346,21 +2365,21 @@ Right-click anywhere on the chart to clear all overlays.";
             mUIState.DayChart = RadioButton_Day.Checked;
             if (CheckBox_Sky != null) CheckBox_Sky.Enabled = RadioButton_Day.Checked;
             if (!RadioButton_Day.Checked) return;
-            mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
+            mCoordinator?.Apply(SnapshotCurrent());
         }
 
         private void RadioButton_Year_CheckedChanged(object sender, EventArgs e)
         {
             mUIState.YearChart = RadioButton_Year.Checked;
             if (!RadioButton_Year.Checked) return;
-            mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
+            mCoordinator?.Apply(SnapshotCurrent());
         }
 
         private void RadioButton_Sessions_CheckedChanged(object sender, EventArgs e)
         {
             mUIState.SessionsChart = RadioButton_Sessions.Checked;
             if (!RadioButton_Sessions.Checked) return;
-            mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
+            mCoordinator?.Apply(SnapshotCurrent());
         }
 
         // Sub-mode toggle inside the Day radio. Wired in MainForm.Designer.cs.
@@ -2378,7 +2397,7 @@ Right-click anywhere on the chart to clear all overlays.";
             // re-render those areas with an unchanged ActiveArea (Year /
             // Sessions don't read CheckBox_Sky). Cheap to gate here.
             if (RadioButton_Day == null || !RadioButton_Day.Checked) return;
-            mCoordinator?.Apply(SnapshotCurrent(mLastRenderedTargets));
+            mCoordinator?.Apply(SnapshotCurrent());
         }
 
         // Hide every control in Panel_AltitudeChart except `target`. Used to
