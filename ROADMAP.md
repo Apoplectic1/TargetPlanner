@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-13 (architectural-review campaign). Previously updated 2026-05-11 (XISF prep notes + AnyCPU drop), 2026-05-04 (.NET 10 migration). Originally captured 2026-04-19.
+Last updated 2026-05-13 (architectural-review campaign + post-campaign re-review follow-ups). Previously updated 2026-05-11 (XISF prep notes + AnyCPU drop), 2026-05-04 (.NET 10 migration). Originally captured 2026-04-19.
 
 ## Currently open (priority order)
 
@@ -79,6 +79,16 @@ Design notes preserved for the future implementation:
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+### 2026-05-13 — Architectural-review campaign: post-ship re-review follow-ups
+
+A second-pass review of the just-shipped campaign (above) flagged three high-leverage refinements ahead of the next two features (SessionSolvers UX, Local Horizon polyline). All three landed across two TP commits + one Library commit:
+
+- **Library `301fa3f` + TP `972a757` — `[Obsolete]` `Location.Horizon` / `.Duration` + UpdateHorizonLine semantics + SortPresenter routing.** `Location.Horizon` and `Location.Duration` are now `[Obsolete]` (warning, not error) — Library scheduling helpers MUST take horizon as an `IHorizonProfile` and duration as a `TimeSpan` explicitly, never read off a captured `Location` reference. The four transitional TP-side reads (`SnapshotCurrent`'s policy projection, `CoordinatePresenter`'s spinner sync, `NamedLocationSetting`'s `FromLocation` persistence, the chart-sub-area horizon-line reads) are pragma-suppressed with one-line rationales each. `SortPresenter`'s `TargetOrdering.ByRise(... mLocation.Horizon)` — the one TP-side read outside that transitional set — now routes through `SnapshotCurrent().Policy.TargetFloorDeg`. Companion: `UpdateHorizonLine` now receives `ctx.Policy.TargetFloorDeg` (the user's scalar spinner) rather than `LocalHorizon.MinAltitude`. Pre-emptive PR-5 correctness: with a polyline horizon, `LocalHorizon.MinAltitude` would be the polyline's lowest sample, and the green chart line would sit below the floor the user just set on the spinner. The polyline still drives per-azimuth fit decisions through the cache; the chart line is a UI affordance for the spinner knob, not the polyline.
+
+- **TP `9111675` — Day/Sky's `BestSession.For` lifted into the cache.** `NightFit` (in `Caches/TargetFitEntry.cs`) now also carries `StartUtc` / `EndUtc` alongside Ceiling / Floor / CenteredFloor. `TargetFitEntry` now exposes a `Tonight: NightFit` slot in addition to the per-night `Nights[i]` year array — tonight's index in the year grid isn't 0 (the grid anchors at 1st-of-month, not today), so a dedicated slot is the right shape. `ChartCacheStore.BuildFitEntryAsync` computes both year array + Tonight in one `Task.Run` (`ComputeNightFits` + new `ComputeTonightFit` helper). `AltitudeSubChart_Day` reads `cache.GetFitOrNull(target, ctx.Hdm)?.Tonight` for its HD-overlay window box (StartUtc / EndUtc / Floor straight off the cached entry); `AltitudeSubChart_Sky` reads `cache.GetFitOrNull(target, ctx.Hdm)?.Tonight.Floor.HasValue` for hide-on-no-fit. Day's `ComputeBestDayWindow` static helper and Sky's `HasFit` static helper are deleted. Net effect: zero UI-thread `BestSession.For` calls anywhere in the chart render path, and Day/Sky/Year/Sessions all read fit decisions from the same cache — single source of truth ahead of SessionSolvers UI work.
+
+Deferred from the same review (acknowledged tradeoffs, raise again when SessionSolvers adds a fourth axis): `TryPublish` factoring (the lock/identity/publish idiom is now in four places in `ChartCacheStore`), generic `CacheEntry<TKey, TValue>` consolidation, `mPendingContext` / `mPendingProgress` fences on `ChartCoordinator`, dead `TargetReady` / `LocationChanged` events on `IChartCacheStore` (zero subscribers; reintroduce when the NINA ISP plugin needs them).
 
 ### 2026-05-13 — Architectural-review campaign (9 commits)
 
