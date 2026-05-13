@@ -40,8 +40,10 @@ namespace TargetPlanner.Settings
                 Longitude = loc.Longitude,
                 North = loc.North,
                 West = loc.West,
+#pragma warning disable CS0618 // Transitional persistence: NamedLocationSetting serializes Location.Horizon/.Duration scalars until PlanningPolicy owns per-site persistence.
                 Horizon = loc.Horizon,
                 DurationMinutes = loc.Duration.TotalMinutes,
+#pragma warning restore CS0618
                 Elevation = loc.Elevation,
                 BortleClass = loc.BortleClass,
                 ExtinctionK = loc.ExtinctionK,

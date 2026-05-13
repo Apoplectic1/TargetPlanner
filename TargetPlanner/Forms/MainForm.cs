@@ -568,7 +568,11 @@ Right-click anywhere on the chart to clear all overlays.";
                     foreach (var sc in mSubCharts.Values)
                     {
                         sc.UpdateNowLine(ctx.Location.DateTime);
-                        sc.UpdateHorizonLine(ctx.Policy.LocalHorizon.MinAltitude);
+                        // Horizon line tracks the user's TargetFloor spinner -- a UI
+                        // affordance for the scalar knob, not the LocalHorizon polyline
+                        // (which can dip below the floor and drive per-azimuth fit
+                        // decisions in the cache instead).
+                        sc.UpdateHorizonLine(ctx.Policy.TargetFloorDeg);
                     }
                     PushSkyKSInputs(ctx);
                 });
@@ -1174,11 +1178,13 @@ Right-click anywhere on the chart to clear all overlays.";
         // gets swapped for the polyline path here and nothing downstream changes.
         private ChartContext SnapshotCurrent(IReadOnlyList<Target> targets)
         {
+#pragma warning disable CS0618 // Transitional projection: SnapshotCurrent reads the scalars off mLocation until PlanningPolicy owns persistence directly.
             PlanningPolicy policy = PlanningPolicy.WithScalarHorizon(
                 targetFloorDeg:  mLocation.Horizon,
                 minDuration:     mLocation.Duration,
                 moonProfile:     mMoonAvoidanceProfile,
                 filterCenterNm:  mActiveFilterCenterNm);
+#pragma warning restore CS0618
 
             return new ChartContext(
                 Location:     mLocation,

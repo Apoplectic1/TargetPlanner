@@ -247,7 +247,9 @@ namespace TargetPlanner.Charts
 
             Location location = ctx.Location;
             IReadOnlyList<Target> targets = ctx.Targets;
-            double horizonAlt = ctx.Policy.LocalHorizon.MinAltitude;
+            // Green horizon line follows the scalar TargetFloor spinner; LocalHorizon's
+            // polyline drives per-azimuth fit decisions in the cache, not the chart line.
+            double horizonAlt = ctx.Policy.TargetFloorDeg;
             DateTime now = location.DateTime;
             HdmKey hdm = ctx.Hdm;
 

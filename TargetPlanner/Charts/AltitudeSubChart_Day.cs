@@ -261,7 +261,9 @@ namespace TargetPlanner.Charts
 
             UpdateGradientSections(chartStart, duskLocal, dawnLocal, chartStop);
             UpdateNowLine(now);
-            UpdateHorizonLine(horizonProfile.MinAltitude);
+            // Green horizon line follows the scalar TargetFloor spinner, not the polyline's
+            // minimum sample -- the polyline drives per-azimuth fit decisions in the cache.
+            UpdateHorizonLine(horizonFloor);
 
             // Reset HD overlay state -- the underlying ObservableCollections are
             // about to be repopulated with fresh altitude data; any pending
@@ -408,12 +410,13 @@ namespace TargetPlanner.Charts
             Location location = ctx.Location;
             MoonAvoidanceProfile profile = ctx.Policy.MoonProfile;
             IHorizonProfile horizonProfile = ctx.Policy.LocalHorizon;
+            double horizonFloor = ctx.Policy.TargetFloorDeg;
             TimeSpan duration = ctx.Policy.MinDuration;
 
             NightWindow night = cache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(location);
             if (!night.IsValid) return;
 
-            UpdateHorizonLine(horizonProfile.MinAltitude);
+            UpdateHorizonLine(horizonFloor);
 
             // Re-evaluate fit per target. mTargetWindows is the source of truth
             // for "fits tonight"; the "fit tonight only" filter excludes any

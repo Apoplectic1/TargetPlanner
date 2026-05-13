@@ -211,8 +211,12 @@ namespace TargetPlanner
                     return Astronomy.Core.Session.TargetOrdering.ByTransit(
                         targets, mLocation, anchorUtc);
                 }
+                // Read the floor through the snapshot rather than mLocation.Horizon: the
+                // policy projection is the canonical source ahead of Local Horizon (PR 5)
+                // and keeps Library callers off the deprecated property.
+                double targetFloorDeg = SnapshotCurrent().Policy.TargetFloorDeg;
                 return Astronomy.Core.Session.TargetOrdering.ByRise(
-                    targets, mLocation, anchorUtc, mLocation.Horizon);
+                    targets, mLocation, anchorUtc, targetFloorDeg);
             }
 
             return targets.Where(t => t != null)
