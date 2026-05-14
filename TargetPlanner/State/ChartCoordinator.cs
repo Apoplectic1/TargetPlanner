@@ -62,6 +62,13 @@ namespace TargetPlanner.State
         // SnapshotCurrent() reads on a radio-only Apply (when LastAppliedFor of
         // the newly-active area is null because it's never been rendered).
         // Replaces MainForm's prior mLastRenderedTargets shadow store.
+        //
+        // Pre-stamped at RunPipelineAsync entry (after the generation bump), not
+        // at end-of-success, so a concurrent Apply()'s no-arg SnapshotCurrent
+        // sees the user's CURRENT intent rather than the previous successful
+        // render -- matters during the ~2 sec cache-cold pipeline-await window
+        // when checkbox-toggle and radio-click races would otherwise stamp a
+        // stale target set.
         private IReadOnlyList<Target> mLastAppliedTargets = Array.Empty<Target>();
         private ChartContext mPendingContext;
         private IProgress<int> mPendingProgress;
@@ -131,13 +138,24 @@ namespace TargetPlanner.State
         }
 
         /// <summary>Targets list from the most recent <see cref="RunPipelineAsync"/>
-        /// that reached the stamping block, regardless of which area was active.
+        /// invocation, regardless of which area was active. Pre-stamped at pipeline
+        /// entry (after the generation bump) so a concurrent <c>Apply</c>'s no-arg
+        /// <c>SnapshotCurrent</c> reads the user's current intent rather than the
+        /// previous successful render, even during cache-cold await windows.
         /// Defaults to <c>Array.Empty&lt;Target&gt;()</c> before any pipeline has
         /// run, and after a deliberate empty-targets reset
         /// (<c>ResetForLocationChange</c>). Use this on radio-only swaps where the
         /// newly-active area's stamp doesn't exist yet -- the targets carry across
         /// sub-charts so the right thing is "what's the user currently viewing,"
-        /// not "what's this specific area's last seen target set."</summary>
+        /// not "what's this specific area's last seen target set."
+        /// <para>
+        /// Semantic: "last intended to render" (may be in-flight, may have bailed),
+        /// not "last successfully rendered." Generation-bail leaves the stamp at
+        /// the bailed pipeline's intent, but a newer pipeline's own pre-stamp has
+        /// already overwritten by then. Exception-bail in the cache awaits leaves
+        /// the stamp at unrendered intent; same chart-stuck outcome as the prior
+        /// "stamp at end of success" path, no regression.
+        /// </para></summary>
         public IReadOnlyList<Target> LastAppliedTargets => mLastAppliedTargets;
 
         public void Dispose()
@@ -179,6 +197,22 @@ namespace TargetPlanner.State
             // Apply doesn't lose its bump (today every caller is UI-thread but the
             // primitive is cheap; defensive in case the contract ever softens).
             int gen = Interlocked.Increment(ref mGeneration);
+
+            // Pre-stamp intended targets: a concurrent Apply()'s no-arg
+            // SnapshotCurrent reads mLastAppliedTargets during this pipeline's
+            // ~2 sec cache-cold await window. Stamping BEFORE the awaits ensures
+            // the second Apply sees the user's CURRENT intent, not the previous
+            // render. Without this, a checkbox toggle (which routes through
+            // mCheckedToggleDebounce -> RunGraphBuildAsync -> ApplyImmediateAsync,
+            // taking ~2 sec to complete cold) followed by a radio click captures
+            // the pre-toggle targets via the no-arg snapshot and persists the
+            // stale render until user-driven recovery (Button_CheckedTargets).
+            // Bail-safe: a generation-bailed pipeline leaves the stamp pointing
+            // at intent that was already superseded by the newer pipeline's own
+            // pre-stamp; an exception-bailed pipeline leaves the stamp pointing
+            // at unrendered intent (same outcome as the prior "stamp at end of
+            // success" path -- no regression).
+            mLastAppliedTargets = ctx.Targets ?? Array.Empty<Target>();
 
             // Per-area diff: compare the new ctx against what the *active area*
             // was last brought current with, not against a global last-applied.
@@ -292,10 +326,9 @@ namespace TargetPlanner.State
                     mLastAppliedByArea[area] = ctx;
             }
 
-            // Stamp the shared "current targets" SoT used by SnapshotCurrent() (no-arg).
-            // Always update -- including to empty after a deliberate reset -- so the
-            // next no-arg snapshot reflects the actual current state.
-            mLastAppliedTargets = ctx.Targets ?? Array.Empty<Target>();
+            // (mLastAppliedTargets is pre-stamped at pipeline entry above; no
+            // end-of-pipeline stamp is needed because ChartContext is immutable
+            // and ctx.Targets cannot change between entry and here.)
         }
 
         // -------------- diff helpers --------------
