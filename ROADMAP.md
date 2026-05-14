@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-13 (architectural-review campaign + post-campaign re-review follow-ups). Previously updated 2026-05-11 (XISF prep notes + AnyCPU drop), 2026-05-04 (.NET 10 migration). Originally captured 2026-04-19.
+Last updated 2026-05-13 (architectural-review campaign + post-campaign re-review follow-ups + Gemini code-review triage). Previously updated 2026-05-11 (XISF prep notes + AnyCPU drop), 2026-05-04 (.NET 10 migration). Originally captured 2026-04-19.
 
 ## Currently open (priority order)
 
@@ -79,6 +79,23 @@ Design notes preserved for the future implementation:
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+### 2026-05-13 — Gemini code-review triage + ChartCoordinator pre-stamp fix
+
+External (Gemini) architectural review surfaced 8 findings across concurrency, SoC, and perf themes in prep for the next two features (SessionSolvers UX, XISF integration). Triage at `~/.claude/plans/i-asked-gemini-to-indexed-mochi.md`. Most were already-roadmap'd, misreads of the code, or low-impact deferrals; one real race surfaced and landed:
+
+- **TP `eeb13c7` — `ChartCoordinator` pre-stamps `mLastAppliedTargets` at pipeline entry.** Gemini's "snapshot drift" framing (#6/#7) pointed at a benign Location-edit-then-radio scenario — `mLocation` reference reads are atomic and the cache keys on `(Location, Target)`, so the snapshot is internally consistent. Tracing the call paths surfaced a different real race: the checkbox toggle path routes through a *separate* 250 ms `mCheckedToggleDebounce` → `RunGraphBuildAsync` → `ApplyImmediateAsync` (asymmetric with every other handler's coordinator-debounced `Apply`). A radio click during the ~2 sec cache-cold pipeline-await window calls the no-arg `SnapshotCurrent`, which reads `LastAppliedTargets` before the checkbox pipeline has stamped, capturing the pre-toggle target set. The radio's smaller-target pipeline completes first (cache de-duped via in-flight build sharing) and stamps the stale set as the SoT; bug persisted across subsequent radio / HMD / sort actions until user-driven recovery via `Button_CheckedTargets`. Fix moves the stamp from end-of-success to start-of-pipeline. `mLastAppliedTargets`'s semantic shifts from "last successfully rendered" to "last intended to render"; bail-safe per the commit message's analysis; consumer audit clean (`SnapshotCurrent` no-arg, `SortPresenter`, `LastAppliedFor`).
+
+**Triage residuals — no new action:**
+
+- **#1 `ObservablePoint` per-minute allocations** in `AltitudeSubChart_Day` (~1,440 × N visible targets per Day render via `data[i] = new ObservablePoint(...)` at lines 601, 638) — deferred. Gen-0, click-triggered, no UX symptom listed. Mutating `p.X` / `p.Y` in place is the plausible 1-2 LOC fix but depends on LC2 v2.1.0-dev-365 firing redraws on `INotifyPropertyChanged` — unverified. Profile first if SessionSolvers UX work surfaces GC stutter.
+- **#4 `GetMoonAltitude` 56 B/call** — already item 4 above ("Lower-priority perf chasing"); Library-side fix. Gemini's "~80 KB/render × 44 targets" framing was off by a factor of 44 — the moon series is a single instance, not per-target.
+- **#5 polyline-horizon persistence** — already PR-5 sketch above; `[Obsolete]` marks shipped in TP `972a757` / Library `301fa3f`. Gemini's "promote `PlanningPolicy` to a first-class persisted entity" overshoots — `PlanningPolicy` is a transient snapshot, the schema gap is on `NamedLocationSetting` (planned to gain `string? LocalHorizonPath`).
+- **#8 native isolation for XISF** — already item 5 above; `AllowUnsafeBlocks=false` pre-wiring from `ac467d8` plus `Imaging/README.md` boundary declaration is sufficient. Designing `IImageMetadataProvider` preemptively violates the "don't design for hypothetical future requirements" rule.
+- **#2 `ChartLayout.BuildDayWindow` "returns records"** — dismissed; returns a 5-element value tuple, already stack-allocated.
+- **#3 DSU dicts in `RecomputeDupeSetColors`** — dismissed; called only on `KnownTargetsChanged` (NINA load + Add/Remove) with N≈44 — allocations measured in bytes, not KB.
+
+**Net Gemini assessment.** Diagnostic skill > prescriptive skill. Useful for surfacing the polyline-horizon plan independently (positive signal about PR-5 direction) and the ObservablePoint pattern (worth a profiler pass eventually). Recommendations consistently overshot; lean on the diagnoses, not the fixes.
 
 ### 2026-05-13 — Architectural-review campaign: post-ship re-review follow-ups
 
