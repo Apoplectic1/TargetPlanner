@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Drawing;
+using Astronomy.Core.Horizons;
 
 using Location = Astronomy.Core.Locations.Location;
 using Target   = Astronomy.Core.Targets.Target;
@@ -51,11 +52,15 @@ namespace TargetPlanner.State
     )
     {
         /// <summary>
-        /// Derived cache key for per-(target, H/D/M) fit data. All four fields
+        /// Derived cache key for per-(target, H/D/M) fit data. All fields
         /// source from <see cref="Policy"/>; flips on any TargetFloor /
-        /// Duration / MoonProfile / FilterCenter change. Bortle / ExtinctionK
-        /// are excluded — they affect Sky's K-S brightness path, not fit
-        /// decisions.
+        /// Duration / MoonProfile / FilterCenter / LocalHorizon-reference
+        /// change. Bortle / ExtinctionK are excluded — they affect Sky's K-S
+        /// brightness path, not fit decisions. <see cref="HdmKey.LocalHorizon"/>
+        /// is populated only for non-scalar profiles; scalar lives under
+        /// <c>HorizonDeg</c> to avoid cache thrash on every snapshot (the
+        /// <see cref="PlanningPolicy.WithScalarHorizon"/> factory creates a
+        /// fresh <see cref="ScalarHorizonProfile"/> instance per call).
         /// </summary>
         public HdmKey Hdm => new HdmKey
         {
@@ -63,6 +68,7 @@ namespace TargetPlanner.State
             DurationTicks  = Policy.MinDuration.Ticks,
             Profile        = Policy.MoonProfile,
             FilterCenterNm = Policy.FilterCenterNm,
+            LocalHorizon   = Policy.LocalHorizon is ScalarHorizonProfile ? null : Policy.LocalHorizon,
         };
     }
 }

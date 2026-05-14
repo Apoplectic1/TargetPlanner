@@ -143,16 +143,18 @@ namespace TargetPlanner.Settings
         {
             return new NamedLocationSetting
             {
-                Name            = src.Name,
-                Latitude        = src.Latitude,
-                Longitude       = src.Longitude,
-                North           = src.North,
-                West            = src.West,
-                Horizon         = src.Horizon,
-                DurationMinutes = src.DurationMinutes,
-                Elevation       = src.Elevation,
-                BortleClass     = src.BortleClass,
-                ExtinctionK     = src.ExtinctionK,
+                Name             = src.Name,
+                Latitude         = src.Latitude,
+                Longitude        = src.Longitude,
+                North            = src.North,
+                West             = src.West,
+                Horizon          = src.Horizon,
+                DurationMinutes  = src.DurationMinutes,
+                Elevation        = src.Elevation,
+                BortleClass      = src.BortleClass,
+                ExtinctionK      = src.ExtinctionK,
+                LocalHorizonPath = src.LocalHorizonPath,
+                UtcOffsetHours   = src.UtcOffsetHours,
             };
         }
     }

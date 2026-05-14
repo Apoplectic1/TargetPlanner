@@ -30,6 +30,9 @@
         {
             GroupBox_Local = new System.Windows.Forms.GroupBox();
             GroupBox_Location = new System.Windows.Forms.GroupBox();
+            Label_TimeZone = new System.Windows.Forms.Label();
+            Button_BrowseLocalHorizon = new System.Windows.Forms.Button();
+            Label_HorizonPath = new System.Windows.Forms.Label();
             Lable_Extinction = new System.Windows.Forms.Label();
             Label_Bortle = new System.Windows.Forms.Label();
             ComboBox_Bortle = new System.Windows.Forms.ComboBox();
@@ -137,6 +140,7 @@
             GroupBox_Altitude = new System.Windows.Forms.GroupBox();
             CheckBox_Sky = new System.Windows.Forms.CheckBox();
             ProgressBar_MultiTargetProcessing = new System.Windows.Forms.ProgressBar();
+            NumericUpDown_TimeZone = new System.Windows.Forms.NumericUpDown();
             GroupBox_Local.SuspendLayout();
             GroupBox_Location.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)NumericUpDown_Extinction).BeginInit();
@@ -165,6 +169,7 @@
             ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_RelaxScale).BeginInit();
             MenuStrip_MainForm.SuspendLayout();
             GroupBox_Altitude.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_TimeZone).BeginInit();
             SuspendLayout();
             // 
             // GroupBox_Local
@@ -175,13 +180,17 @@
             GroupBox_Local.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             GroupBox_Local.Name = "GroupBox_Local";
             GroupBox_Local.Padding = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            GroupBox_Local.Size = new System.Drawing.Size(588, 372);
+            GroupBox_Local.Size = new System.Drawing.Size(588, 389);
             GroupBox_Local.TabIndex = 0;
             GroupBox_Local.TabStop = false;
             GroupBox_Local.Text = "Local";
             // 
             // GroupBox_Location
             // 
+            GroupBox_Location.Controls.Add(NumericUpDown_TimeZone);
+            GroupBox_Location.Controls.Add(Label_TimeZone);
+            GroupBox_Location.Controls.Add(Button_BrowseLocalHorizon);
+            GroupBox_Location.Controls.Add(Label_HorizonPath);
             GroupBox_Location.Controls.Add(Lable_Extinction);
             GroupBox_Location.Controls.Add(Label_Bortle);
             GroupBox_Location.Controls.Add(ComboBox_Bortle);
@@ -211,10 +220,39 @@
             GroupBox_Location.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             GroupBox_Location.Name = "GroupBox_Location";
             GroupBox_Location.Padding = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            GroupBox_Location.Size = new System.Drawing.Size(548, 152);
+            GroupBox_Location.Size = new System.Drawing.Size(548, 182);
             GroupBox_Location.TabIndex = 30;
             GroupBox_Location.TabStop = false;
             GroupBox_Location.Text = "Location";
+            // 
+            // Label_TimeZone
+            // 
+            Label_TimeZone.AutoSize = true;
+            Label_TimeZone.Location = new System.Drawing.Point(393, 23);
+            Label_TimeZone.Name = "Label_TimeZone";
+            Label_TimeZone.Size = new System.Drawing.Size(28, 15);
+            Label_TimeZone.TabIndex = 45;
+            Label_TimeZone.Text = "UTC";
+            // 
+            // Button_BrowseLocalHorizon
+            // 
+            Button_BrowseLocalHorizon.Location = new System.Drawing.Point(136, 145);
+            Button_BrowseLocalHorizon.Name = "Button_BrowseLocalHorizon";
+            Button_BrowseLocalHorizon.Size = new System.Drawing.Size(130, 23);
+            Button_BrowseLocalHorizon.TabIndex = 46;
+            Button_BrowseLocalHorizon.Text = "Local Horizon";
+            Button_BrowseLocalHorizon.UseVisualStyleBackColor = true;
+            Button_BrowseLocalHorizon.Click += Button_BrowseHorizon_Click;
+            // 
+            // Label_HorizonPath
+            // 
+            Label_HorizonPath.AutoEllipsis = true;
+            Label_HorizonPath.Location = new System.Drawing.Point(272, 147);
+            Label_HorizonPath.Name = "Label_HorizonPath";
+            Label_HorizonPath.Size = new System.Drawing.Size(163, 18);
+            Label_HorizonPath.TabIndex = 47;
+            Label_HorizonPath.Text = "(no local horizon)";
+            Label_HorizonPath.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
             // Lable_Extinction
             // 
@@ -316,7 +354,7 @@
             // ComboBox_Location
             // 
             ComboBox_Location.FormattingEnabled = true;
-            ComboBox_Location.Location = new System.Drawing.Point(126, 18);
+            ComboBox_Location.Location = new System.Drawing.Point(126, 19);
             ComboBox_Location.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             ComboBox_Location.Name = "ComboBox_Location";
             ComboBox_Location.Size = new System.Drawing.Size(140, 23);
@@ -516,11 +554,11 @@
             GroupBox_LocalDateTime.Controls.Add(Label_LunarAltitudeValue);
             GroupBox_LocalDateTime.Controls.Add(Label_LunarIlluminationFractionValue);
             GroupBox_LocalDateTime.Controls.Add(Label_LunarIlluminationFraction);
-            GroupBox_LocalDateTime.Location = new System.Drawing.Point(21, 181);
+            GroupBox_LocalDateTime.Location = new System.Drawing.Point(21, 211);
             GroupBox_LocalDateTime.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             GroupBox_LocalDateTime.Name = "GroupBox_LocalDateTime";
             GroupBox_LocalDateTime.Padding = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            GroupBox_LocalDateTime.Size = new System.Drawing.Size(547, 174);
+            GroupBox_LocalDateTime.Size = new System.Drawing.Size(547, 153);
             GroupBox_LocalDateTime.TabIndex = 29;
             GroupBox_LocalDateTime.TabStop = false;
             GroupBox_LocalDateTime.Text = "Date and Time";
@@ -1454,6 +1492,16 @@
             ProgressBar_MultiTargetProcessing.Size = new System.Drawing.Size(1570, 21);
             ProgressBar_MultiTargetProcessing.TabIndex = 40;
             // 
+            // NumericUpDown_TimeZone
+            // 
+            NumericUpDown_TimeZone.Location = new System.Drawing.Point(421, 20);
+            NumericUpDown_TimeZone.Maximum = new decimal(new int[] { 12, 0, 0, 0 });
+            NumericUpDown_TimeZone.Minimum = new decimal(new int[] { 12, 0, 0, int.MinValue });
+            NumericUpDown_TimeZone.Name = "NumericUpDown_TimeZone";
+            NumericUpDown_TimeZone.Size = new System.Drawing.Size(50, 23);
+            NumericUpDown_TimeZone.TabIndex = 48;
+            NumericUpDown_TimeZone.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
@@ -1504,6 +1552,7 @@
             MenuStrip_MainForm.PerformLayout();
             GroupBox_Altitude.ResumeLayout(false);
             GroupBox_Altitude.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_TimeZone).EndInit();
             ResumeLayout(false);
             PerformLayout();
 
@@ -1620,6 +1669,10 @@
         private System.Windows.Forms.Button Button_CheckedTargets;
         private System.Windows.Forms.Button Button_AddTarget;
         private System.Windows.Forms.Button Button_RemoveTarget;
+        private System.Windows.Forms.Label Label_TimeZone;
+        private System.Windows.Forms.Button Button_BrowseLocalHorizon;
+        private System.Windows.Forms.Label Label_HorizonPath;
+        private System.Windows.Forms.NumericUpDown NumericUpDown_TimeZone;
     }
 }
 

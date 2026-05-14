@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Windows.Forms;
@@ -9,6 +10,7 @@ using Astronomy.Core.Moon;
 using Astronomy.Core.Night;
 using TargetPlanner.Filters;
 using TargetPlanner.Forms;
+using TargetPlanner.Horizons;
 using TargetPlanner.Settings;
 using TargetPlanner.State;
 using TargetPlanner.Support;
@@ -26,6 +28,16 @@ namespace TargetPlanner
     {
         private Location mLocation;
         private (DateTime When, TimeZoneInfo Zone) mLocalDateTime;
+
+        // Per-site polyline horizon (NINA `.hrz`) when one is configured for the
+        // active NamedLocationSetting and loads successfully; null otherwise (the
+        // scalar `mLocation.Horizon` floor path applies). Reloaded on site-pick
+        // and on FileSystemWatcher change events; threaded through
+        // PlanningPolicy.LocalHorizon by SnapshotCurrent so the chart and the
+        // fits cache pick it up. HdmKey reference-compares this so a swap
+        // (different file, hot-reload) invalidates the per-(target, HdmKey)
+        // fits cache automatically.
+        private IHorizonProfile mLocalHorizon;
 
         // Phase 2 of the SoC refactor: TargetSelection view-model owns target / list / mode
         // state. UI controls (ComboBox_SelectTarget, CheckedListBox_SelectedTargets, RA/Dec
@@ -301,6 +313,17 @@ Right-click anywhere on the chart to clear all overlays.";
         private System.Windows.Forms.Timer mCheckedToggleDebounce;
         private const int CheckedToggleDebounceMs = 250;
 
+        // FileSystemWatcher + 500 ms debounce for hot-reload of the active `.hrz`
+        // file. Editor-save patterns (write-tmp + rename) typically fire multiple
+        // change events in quick succession; the debounce coalesces them into one
+        // reload + Apply. Watcher Changed/Created callbacks run off the UI thread
+        // and BeginInvoke onto the form to restart the timer.
+        // (Button_BrowseHorizon and Label_HorizonPath are Designer-managed controls;
+        // their declarations live in MainForm.Designer.cs.)
+        private FileSystemWatcher mHorizonWatcher;
+        private System.Windows.Forms.Timer mHorizonReloadDebounce;
+        private const int HorizonReloadDebounceMs = 500;
+
         public MainForm()
         {
             InitializeComponent();
@@ -313,6 +336,11 @@ Right-click anywhere on the chart to clear all overlays.";
 
             mLocalDateTime = (DateTime.Now, TimeZoneInfo.Local);
             mLocation = PickStartupLocation();
+            // Polyline horizon for the boot location, if the matching NamedLocationSetting
+            // carries a LocalHorizonPath. Null result falls back to the scalar Horizon path
+            // through SnapshotCurrent. Looked up by name against mAppSettings.NamedLocations
+            // since PickStartupLocation returns a Location with no path reference.
+            mLocalHorizon = LoadLocalHorizonForCurrentLocation();
             mSelection = new TargetSelection();
 
             // Locally-added targets (typed via RA/Dec spinners + Add button) persist to
@@ -426,6 +454,10 @@ Right-click anywhere on the chart to clear all overlays.";
 
             mSessionsRebuildDebounce?.Stop();
             mSessionsRebuildDebounce?.Dispose();
+
+            mHorizonWatcher?.Dispose();
+            mHorizonReloadDebounce?.Stop();
+            mHorizonReloadDebounce?.Dispose();
         }
 
         public void InitializeDynamicControls()
@@ -478,6 +510,13 @@ Right-click anywhere on the chart to clear all overlays.";
             ComboBox_Bortle.DropDownStyle      = ComboBoxStyle.DropDownList;
             ComboBox_Bortle.SelectedIndexChanged += ComboBox_Bortle_SelectedIndexChanged;
             NumericUpDown_Extinction.ValueChanged += NumericUpDown_Extinction_ValueChanged;
+
+            // Wire NumericUpDown_TimeZone (whole-hour UTC offset, -12..+12 per Designer).
+            // Edits route through OnLocationEdited so the combo flips to "Custom" and the
+            // cache invalidation debounce restarts, matching Bortle/Extinction. The model
+            // side stores the offset on Location.TimeZoneInfo as a no-DST custom TZ built
+            // by NamedLocationSetting.TimeZoneFromUtcOffsetHours.
+            NumericUpDown_TimeZone.ValueChanged += NumericUpDown_TimeZone_ValueChanged;
 
             // Populate ComboBox_Location from settings, select the startup location, then
             // push mLocation's values into the lat/lon/N/W/Horizon/Duration inputs.
@@ -598,6 +637,12 @@ Right-click anywhere on the chart to clear all overlays.";
             // The ComboBox starts blank; OnVmKnownTargetsChanged populates it after NINA
             // load completes (~100 ms) and auto-selects the first sorted target.
             WireSelectionVm();
+
+            // Local-horizon hot-reload + initial label sync. The Button_BrowseHorizon
+            // and Label_HorizonPath controls themselves are Designer-managed; this just
+            // wires the FileSystemWatcher debounce timer and seeds the path label from
+            // the startup site's NamedLocationSetting.LocalHorizonPath.
+            InitializeLocalHorizonControls();
         }
 
         private void UpdateUI()
@@ -685,6 +730,19 @@ Right-click anywhere on the chart to clear all overlays.";
             OnLocationEdited(sender, e);
         }
 
+        // TimeZone spinner change: build a no-DST custom TimeZoneInfo from the offset
+        // hours and push it onto mLocation. Like the other site-characteristic edits
+        // (Bortle / Extinction), routes through OnLocationEdited so the combo flips
+        // to "Custom" and the cache invalidation debounce restarts. Programmatic
+        // syncs (SyncLocationUIFromModel) are gated by mSyncingLocationUI.
+        private void NumericUpDown_TimeZone_ValueChanged(object sender, EventArgs e)
+        {
+            if (mSyncingLocationUI) return;
+            double hours = (double)NumericUpDown_TimeZone.Value;
+            mLocation = mLocation.With(
+                timeZoneInfo: NamedLocationSetting.TimeZoneFromUtcOffsetHours(hours));
+            OnLocationEdited(sender, e);
+        }
 
         private void NumericUpDown_TargetDuration_ValueChanged(object sender, EventArgs e)
         {
@@ -1179,11 +1237,20 @@ Right-click anywhere on the chart to clear all overlays.";
         private ChartContext SnapshotCurrent(IReadOnlyList<Target> targets)
         {
 #pragma warning disable CS0618 // Transitional projection: SnapshotCurrent reads the scalars off mLocation until PlanningPolicy owns persistence directly.
-            PlanningPolicy policy = PlanningPolicy.WithScalarHorizon(
-                targetFloorDeg:  mLocation.Horizon,
-                minDuration:     mLocation.Duration,
-                moonProfile:     mMoonAvoidanceProfile,
-                filterCenterNm:  mActiveFilterCenterNm);
+            // Polyline horizon (when configured + loaded for the active named
+            // location) overrides the scalar Horizon for scheduling. TargetFloorDeg
+            // still carries the scalar for the chart's green horizon-line affordance;
+            // Phase 2 of the Location refactor brings the two together via a max-of-
+            // profile combinator. For Phase 1 the polyline wholly replaces the
+            // scheduling floor when present.
+            IHorizonProfile horizon = mLocalHorizon
+                ?? new ScalarHorizonProfile(mLocation.Horizon);
+            PlanningPolicy policy = new PlanningPolicy(
+                TargetFloorDeg:  mLocation.Horizon,
+                MinDuration:     mLocation.Duration,
+                MoonProfile:     mMoonAvoidanceProfile,
+                FilterCenterNm:  mActiveFilterCenterNm,
+                LocalHorizon:    horizon);
 #pragma warning restore CS0618
 
             return new ChartContext(
@@ -1230,6 +1297,12 @@ Right-click anywhere on the chart to clear all overlays.";
                 // values. Preserve Horizon / Duration / N / W: those are independent of the
                 // location name and the user may have deliberately tuned them.
                 mLocation = mLocation.With(name: "Custom", latitude: 0, longitude: 0);
+                // Polyline horizon is per-named-site; Custom has no associated NamedLocation-
+                // Setting to look up a LocalHorizonPath against, so clear the loaded profile
+                // and fall back to the scalar Horizon path until the user picks a named site.
+                mLocalHorizon = null;
+                UpdateHorizonPathLabel();
+                ConfigureHorizonWatcher(null);
                 SyncLocationUIFromModel();
             }
             else
@@ -1240,6 +1313,13 @@ Right-click anywhere on the chart to clear all overlays.";
                 // date/time selection shouldn't reset when they swap locations.
                 Location loaded = named.ToLocation();
                 mLocation = loaded.With(dateTime: mLocation.DateTime, timeZoneInfo: mLocation.TimeZoneInfo);
+                // Load the polyline horizon for the picked site, if configured. Null result
+                // (no path, missing file, parse failure) falls back through SnapshotCurrent
+                // to the scalar ScalarHorizonProfile(mLocation.Horizon) path; the loader
+                // logs to tp.log on failure.
+                mLocalHorizon = HrzFileLoader.Load(named.LocalHorizonPath);
+                UpdateHorizonPathLabel();
+                ConfigureHorizonWatcher(named.LocalHorizonPath);
                 SyncLocationUIFromModel();
             }
 
@@ -1289,6 +1369,13 @@ Right-click anywhere on the chart to clear all overlays.";
             ComboBox_Location.SelectedIndexChanged += ComboBox_Location_SelectionIndexChanged;
 
             mLocation = mLocation.With(name: "Custom");
+            // Clear the polyline -- the user has edited away from the named site that
+            // owned the LocalHorizonPath, so the loaded polyline no longer corresponds
+            // to the displayed coordinates. Scalar Horizon takes over until the user
+            // re-picks a named location (or stays on Custom, where there's no polyline).
+            mLocalHorizon = null;
+            UpdateHorizonPathLabel();
+            ConfigureHorizonWatcher(null);
             mAppSettings.LastSelectedLocationName = "Custom";
             // Not saving on every edit -- settings are persisted on form close.
         }
@@ -1311,6 +1398,172 @@ Right-click anywhere on the chart to clear all overlays.";
             // Fully qualify: MainForm inherits Control.Location (type Point), which shadows
             // the `using Location = ...` alias in member-access context.
             return Astronomy.Core.Locations.Location.Default;
+        }
+
+        // Look up the active named-location's LocalHorizonPath (if any) and return the
+        // loaded polyline profile. Null if mLocation is null/Custom, no matching named
+        // setting exists, no path is configured, or the loader fails (logs to tp.log).
+        // Used by the startup flow + FileSystemWatcher Tick to refresh mLocalHorizon
+        // against the currently-active site without going through the combo handler.
+        private IHorizonProfile LoadLocalHorizonForCurrentLocation()
+        {
+            if (mLocation == null || string.Equals(mLocation.Name, "Custom", StringComparison.Ordinal))
+                return null;
+            NamedLocationSetting named = mAppSettings?.NamedLocations?.Find(x =>
+                string.Equals(x.Name, mLocation.Name, StringComparison.OrdinalIgnoreCase));
+            return HrzFileLoader.Load(named?.LocalHorizonPath);
+        }
+
+        // Returns the LocalHorizonPath configured for the active named location, or
+        // null when the active location is Custom / unknown / has no path.
+        private string GetCurrentHorizonPath()
+        {
+            if (mLocation == null || string.Equals(mLocation.Name, "Custom", StringComparison.Ordinal))
+                return null;
+            NamedLocationSetting named = mAppSettings?.NamedLocations?.Find(x =>
+                string.Equals(x.Name, mLocation.Name, StringComparison.OrdinalIgnoreCase));
+            return named?.LocalHorizonPath;
+        }
+
+        // Drives Label_HorizonPath's text from GetCurrentHorizonPath(). Safe to call
+        // before InitializeLocalHorizonControls (label may still be null) -- guard
+        // checks for that.
+        private void UpdateHorizonPathLabel()
+        {
+            if (Label_HorizonPath == null) return;
+            string path = GetCurrentHorizonPath();
+            Label_HorizonPath.Text = string.IsNullOrEmpty(path)
+                ? "(no local horizon)"
+                : Path.GetFileName(path);
+        }
+
+        // Rebuild the FileSystemWatcher for the given path. Disposing the previous
+        // watcher cleanly drops its event subscriptions; a null/missing path leaves
+        // the watcher disposed and unconfigured.
+        private void ConfigureHorizonWatcher(string path)
+        {
+            mHorizonWatcher?.Dispose();
+            mHorizonWatcher = null;
+
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return;
+            string dir = Path.GetDirectoryName(path);
+            string file = Path.GetFileName(path);
+            if (string.IsNullOrEmpty(dir) || string.IsNullOrEmpty(file)) return;
+
+            try
+            {
+                mHorizonWatcher = new FileSystemWatcher(dir, file)
+                {
+                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.CreationTime,
+                    EnableRaisingEvents = true,
+                };
+                mHorizonWatcher.Changed += HorizonWatcher_FileChanged;
+                mHorizonWatcher.Created += HorizonWatcher_FileChanged;
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("ConfigureHorizonWatcher failed for '" + path + "'", ex);
+                mHorizonWatcher = null;
+            }
+        }
+
+        // Watcher callback runs off the UI thread; marshal to the UI thread and
+        // restart the debounce timer. The Tick handler does the actual reload.
+        private void HorizonWatcher_FileChanged(object sender, FileSystemEventArgs e)
+        {
+            if (!IsHandleCreated || IsDisposed) return;
+            try
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    mHorizonReloadDebounce?.Stop();
+                    mHorizonReloadDebounce?.Start();
+                }));
+            }
+            catch (ObjectDisposedException)
+            {
+                // Form closed between IsHandleCreated check and BeginInvoke; safe to ignore.
+            }
+        }
+
+        // Trailing-edge debounce tick for FileSystemWatcher coalescing. Reloads the
+        // polyline from the active path and re-renders via the coordinator.
+        private void HorizonReloadDebounce_Tick(object sender, EventArgs e)
+        {
+            try
+            {
+                mHorizonReloadDebounce.Stop();
+                string path = GetCurrentHorizonPath();
+                if (string.IsNullOrWhiteSpace(path)) return;
+                mLocalHorizon = HrzFileLoader.Load(path);
+                UpdateHorizonPathLabel();
+                mCoordinator?.Apply(SnapshotCurrent());
+            }
+            catch (Exception ex)
+            {
+                Log.Error("HorizonReloadDebounce_Tick threw", ex);
+            }
+        }
+
+        // Browse button click handler. Opens an OpenFileDialog filtered to *.hrz,
+        // persists the selected path to NamedLocationSetting for the active named
+        // location, reloads the polyline + re-renders via the coordinator. No-op
+        // (informational message) when the active location is Custom -- the
+        // polyline is per-named-site so Custom has nowhere to persist the path.
+        private void Button_BrowseHorizon_Click(object sender, EventArgs e)
+        {
+            if (mLocation == null || string.Equals(mLocation.Name, "Custom", StringComparison.Ordinal))
+            {
+                MessageBox.Show(this,
+                    "Pick a named location first; the local horizon file is associated with a specific site.",
+                    "Local horizon",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            using (var dlg = new OpenFileDialog
+            {
+                Title = "Select local horizon file (.hrz)",
+                Filter = "NINA horizon files (*.hrz)|*.hrz|All files (*.*)|*.*",
+                DefaultExt = "hrz",
+            })
+            {
+                string current = GetCurrentHorizonPath();
+                if (!string.IsNullOrEmpty(current))
+                {
+                    string dir = Path.GetDirectoryName(current);
+                    if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                        dlg.InitialDirectory = dir;
+                    dlg.FileName = Path.GetFileName(current);
+                }
+
+                if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+                NamedLocationSetting named = mAppSettings.NamedLocations.Find(x =>
+                    string.Equals(x.Name, mLocation.Name, StringComparison.OrdinalIgnoreCase));
+                if (named == null) return;
+                named.LocalHorizonPath = dlg.FileName;
+                SettingsStore.Save(mAppSettings);
+
+                mLocalHorizon = HrzFileLoader.Load(dlg.FileName);
+                UpdateHorizonPathLabel();
+                ConfigureHorizonWatcher(dlg.FileName);
+                mCoordinator?.Apply(SnapshotCurrent());
+            }
+        }
+
+        // Wire up the local-horizon hot-reload pipeline: debounce timer for the
+        // FileSystemWatcher coalescing, initial label text from the current path,
+        // and watcher configured for the startup site (if one is set). The Browse
+        // button + path label themselves live in MainForm.Designer.cs; their
+        // Click handler is wired there too.
+        private void InitializeLocalHorizonControls()
+        {
+            mHorizonReloadDebounce = new System.Windows.Forms.Timer { Interval = HorizonReloadDebounceMs };
+            mHorizonReloadDebounce.Tick += HorizonReloadDebounce_Tick;
+
+            UpdateHorizonPathLabel();
+            ConfigureHorizonWatcher(GetCurrentHorizonPath());
         }
 
         private static decimal ClampToRange(NumericUpDown spinner, decimal value)

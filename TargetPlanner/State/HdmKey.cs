@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
+using Astronomy.Core.Horizons;
 using Astronomy.Core.Moon;
 
 namespace TargetPlanner.State
@@ -24,6 +25,17 @@ namespace TargetPlanner.State
     /// different code paths would technically rebuild fits unnecessarily; we
     /// accept that trade for the cheap-equality fast path.
     /// </para>
+    /// <para>
+    /// <see cref="LocalHorizon"/> is populated only for non-scalar profiles
+    /// (polyline / obstruction-table). For the scalar case the field stays
+    /// <see langword="null"/> and <see cref="HorizonDeg"/> is the differentiator;
+    /// this avoids cache thrash on every <c>SnapshotCurrent</c> call (which
+    /// creates a fresh <see cref="ScalarHorizonProfile"/> instance each time
+    /// via <see cref="PlanningPolicy.WithScalarHorizon"/>). Reference identity
+    /// on the polyline case: the form-level <c>mLocalHorizon</c> caches the
+    /// loaded profile for the active location, so the same site reuses the
+    /// same instance until a hot-reload swaps it out.
+    /// </para>
     /// </remarks>
     public readonly struct HdmKey : IEquatable<HdmKey>
     {
@@ -31,17 +43,20 @@ namespace TargetPlanner.State
         public long DurationTicks { get; init; }
         public MoonAvoidanceProfile Profile { get; init; }
         public double FilterCenterNm { get; init; }
+        public IHorizonProfile LocalHorizon { get; init; }
 
         public bool Equals(HdmKey other) =>
             HorizonDeg == other.HorizonDeg
             && DurationTicks == other.DurationTicks
             && ReferenceEquals(Profile, other.Profile)
-            && FilterCenterNm == other.FilterCenterNm;
+            && FilterCenterNm == other.FilterCenterNm
+            && ReferenceEquals(LocalHorizon, other.LocalHorizon);
 
         public override bool Equals(object obj) => obj is HdmKey k && Equals(k);
 
         public override int GetHashCode() => HashCode.Combine(
-            HorizonDeg, DurationTicks, RuntimeHelpers.GetHashCode(Profile), FilterCenterNm);
+            HorizonDeg, DurationTicks, RuntimeHelpers.GetHashCode(Profile), FilterCenterNm,
+            RuntimeHelpers.GetHashCode(LocalHorizon));
 
         public static bool operator ==(HdmKey a, HdmKey b) => a.Equals(b);
         public static bool operator !=(HdmKey a, HdmKey b) => !a.Equals(b);

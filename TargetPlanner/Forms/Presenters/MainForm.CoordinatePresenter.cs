@@ -91,6 +91,7 @@ namespace TargetPlanner
                 NumericUpDown_LocalElevation.ValueChanged -= NumericUpDown_LocalElevation_ValueChanged;
                 NumericUpDown_Extinction.ValueChanged     -= NumericUpDown_Extinction_ValueChanged;
                 ComboBox_Bortle.SelectedIndexChanged      -= ComboBox_Bortle_SelectedIndexChanged;
+                NumericUpDown_TimeZone.ValueChanged       -= NumericUpDown_TimeZone_ValueChanged;
 #pragma warning disable CS0618 // Transitional UI sync: spinners are model→UI mirrors of the persisted Location.Horizon/.Duration scalars.
                 NumericUpDown_TargetFloor.Value    = ClampToRange(NumericUpDown_TargetFloor,    (decimal)mLocation.Horizon);
                 NumericUpDown_TargetDuration.Value = ClampToRange(NumericUpDown_TargetDuration, (decimal)mLocation.Duration.TotalHours);
@@ -100,11 +101,20 @@ namespace TargetPlanner
                 int bortleIdx = mLocation.BortleClass - 1;
                 if (bortleIdx >= 0 && bortleIdx < ComboBox_Bortle.Items.Count)
                     ComboBox_Bortle.SelectedIndex = bortleIdx;
+                // TimeZone spinner mirrors the active TZ's BaseUtcOffset hours. The TZ on
+                // Location was built as a no-DST custom zone (TimeZoneFromUtcOffsetHours),
+                // so BaseUtcOffset is the canonical persisted value -- a round-trip
+                // through the spinner shows the exact integer the user set.
+                if (mLocation.TimeZoneInfo != null)
+                    NumericUpDown_TimeZone.Value = ClampToRange(
+                        NumericUpDown_TimeZone,
+                        (decimal)mLocation.TimeZoneInfo.BaseUtcOffset.TotalHours);
                 NumericUpDown_TargetFloor.ValueChanged    += NumericUpDown_TargetFloor_ValueChanged;
                 NumericUpDown_TargetDuration.ValueChanged += NumericUpDown_TargetDuration_ValueChanged;
                 NumericUpDown_LocalElevation.ValueChanged += NumericUpDown_LocalElevation_ValueChanged;
                 NumericUpDown_Extinction.ValueChanged     += NumericUpDown_Extinction_ValueChanged;
                 ComboBox_Bortle.SelectedIndexChanged      += ComboBox_Bortle_SelectedIndexChanged;
+                NumericUpDown_TimeZone.ValueChanged       += NumericUpDown_TimeZone_ValueChanged;
             }
             finally { mSyncingLocationUI = false; }
         }
