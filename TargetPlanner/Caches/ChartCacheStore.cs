@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Astronomy.Core;
+using Astronomy.Core.Astrometry;
 using Astronomy.Core.Horizons;
 using Astronomy.Core.Moon;
 using Astronomy.Core.Night;
@@ -71,6 +72,17 @@ namespace TargetPlanner.Caches
             = new Dictionary<(Target, DayWindowKey), TargetDayAltitudeEntry>();
         private Dictionary<(Target, DayWindowKey), Task<TargetDayAltitudeEntry>> mInFlightDay
             = new Dictionary<(Target, DayWindowKey), Task<TargetDayAltitudeEntry>>();
+
+        // Per-DayWindowKey moon altitude curves. Singleton-style (not target-keyed)
+        // since the moon is shared across all targets. SetLocationAsync clears
+        // these alongside the per-target dicts. The Day chart's render reads
+        // GetMoonOrNull(dayKey) instead of computing AstroUtil.GetMoonAltitude
+        // per-minute inline -- same SoC win as TargetDayAltitudeEntry was for
+        // per-target altitudes.
+        private Dictionary<DayWindowKey, MoonAltitudeEntry> mMoon
+            = new Dictionary<DayWindowKey, MoonAltitudeEntry>();
+        private Dictionary<DayWindowKey, Task<MoonAltitudeEntry>> mInFlightMoon
+            = new Dictionary<DayWindowKey, Task<MoonAltitudeEntry>>();
 
         public event EventHandler<TargetReadyEventArgs> TargetReady;
         public event EventHandler<LocationChangedEventArgs> LocationChanged;
@@ -278,6 +290,35 @@ namespace TargetPlanner.Caches
             await Task.WhenAll(tasks);
         }
 
+        public MoonAltitudeEntry GetMoonOrNull(DayWindowKey key)
+        {
+            lock (mGate)
+            {
+                mMoon.TryGetValue(key, out MoonAltitudeEntry entry);
+                return entry;
+            }
+        }
+
+        public Task<MoonAltitudeEntry> GetMoonOrBuildAsync(DayWindowKey key)
+        {
+            // Fast path: already published.
+            MoonAltitudeEntry existing = GetMoonOrNull(key);
+            if (existing != null) return Task.FromResult(existing);
+
+            lock (mGate)
+            {
+                if (mInFlightMoon.TryGetValue(key, out Task<MoonAltitudeEntry> task))
+                    return task;
+
+                Location location = mLocation;
+                task = BuildMoonEntryAsync(key, location);
+                mInFlightMoon[key] = task;
+                return task;
+            }
+        }
+
+        public Task PrepareMoonAsync(DayWindowKey key) => GetMoonOrBuildAsync(key);
+
         public async Task SetLocationAsync(Location newLocation)
         {
             if (newLocation == null) throw new ArgumentNullException(nameof(newLocation));
@@ -286,6 +327,7 @@ namespace TargetPlanner.Caches
             ICollection<Task<TargetCacheEntry>> oldInFlight;
             ICollection<Task<TargetFitEntry>> oldInFlightFits;
             ICollection<Task<TargetDayAltitudeEntry>> oldInFlightDay;
+            ICollection<Task<MoonAltitudeEntry>> oldInFlightMoon;
             Location oldLocation;
 
             lock (mGate)
@@ -299,10 +341,12 @@ namespace TargetPlanner.Caches
                 oldInFlight = mInFlight.Values.ToList();
                 oldInFlightFits = mInFlightFits.Values.ToList();
                 oldInFlightDay = mInFlightDay.Values.ToList();
+                oldInFlightMoon = mInFlightMoon.Values.ToList();
 
                 // Reset state for the new location. Old in-flight builds keep running and
                 // discard themselves at publish via the ReferenceEquals(mLocation, location)
-                // check in BuildEntryAsync / BuildFitEntryAsync / BuildDayEntryAsync.
+                // check in BuildEntryAsync / BuildFitEntryAsync / BuildDayEntryAsync /
+                // BuildMoonEntryAsync.
                 mLocation = newLocation;
                 mNightCache = null;
                 mNightCacheTask = null;
@@ -312,6 +356,8 @@ namespace TargetPlanner.Caches
                 mInFlightFits = new Dictionary<(Target, HdmKey), Task<TargetFitEntry>>();
                 mDay = new Dictionary<(Target, DayWindowKey), TargetDayAltitudeEntry>();
                 mInFlightDay = new Dictionary<(Target, DayWindowKey), Task<TargetDayAltitudeEntry>>();
+                mMoon = new Dictionary<DayWindowKey, MoonAltitudeEntry>();
+                mInFlightMoon = new Dictionary<DayWindowKey, Task<MoonAltitudeEntry>>();
             }
 
             // Fire LocationChanged immediately after the swap commits, before awaiting
@@ -347,6 +393,12 @@ namespace TargetPlanner.Caches
             {
                 try { await t; }
                 catch (Exception ex) { Log.Warn("Stale per-(target, DayWindowKey) altitude build threw during SetLocationAsync", ex); }
+            }
+
+            foreach (Task<MoonAltitudeEntry> t in oldInFlightMoon)
+            {
+                try { await t; }
+                catch (Exception ex) { Log.Warn("Stale per-DayWindowKey moon altitude build threw during SetLocationAsync", ex); }
             }
         }
 
@@ -478,6 +530,56 @@ namespace TargetPlanner.Caches
                 {
                     if (object.ReferenceEquals(mLocation, location))
                         mInFlightDay.Remove((target, key));
+                }
+                throw;
+            }
+        }
+
+        // Per-DayWindowKey moon altitude-curve build. Singleton per night-window
+        // (the moon is shared across all targets at a location). AstroUtil.GetMoonAltitude
+        // on a threadpool thread; the result is the minute-spaced geometric altitudes
+        // the Day chart's moon plot reads. Stored geometric -- callers needing
+        // apparent altitude (K-S brightness gate) apply Saemundsson refraction.
+        private async Task<MoonAltitudeEntry> BuildMoonEntryAsync(DayWindowKey key, Location location)
+        {
+            try
+            {
+                DateTime startUtc = new DateTime(key.ChartStartUtcTicks, DateTimeKind.Utc);
+                int count = key.Count;
+                double latSigned = location.LatSigned();
+                double lonEast = location.LonEast();
+                ObserverInfo observer = new ObserverInfo(latSigned, lonEast, location.Elevation);
+
+                IReadOnlyList<double> altitudes = await Task.Run(() =>
+                {
+                    double[] arr = new double[count];
+                    for (int i = 0; i < count; i++)
+                    {
+                        DateTime pointUtc = DateTime.SpecifyKind(
+                            startUtc.AddMinutes(i), DateTimeKind.Utc);
+                        arr[i] = AstroUtil.GetMoonAltitude(pointUtc, observer);
+                    }
+                    return arr;
+                });
+
+                MoonAltitudeEntry entry = new MoonAltitudeEntry(key, altitudes);
+
+                lock (mGate)
+                {
+                    // Discard if location changed mid-build (the publish would corrupt the new
+                    // location's cache).
+                    if (!object.ReferenceEquals(mLocation, location)) return entry;
+                    mMoon[key] = entry;
+                    mInFlightMoon.Remove(key);
+                }
+                return entry;
+            }
+            catch
+            {
+                lock (mGate)
+                {
+                    if (object.ReferenceEquals(mLocation, location))
+                        mInFlightMoon.Remove(key);
                 }
                 throw;
             }

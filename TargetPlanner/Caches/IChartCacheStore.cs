@@ -113,6 +113,21 @@ namespace TargetPlanner.Caches
         Task PrepareDayAsync(IEnumerable<Target> targets, DayWindowKey key,
             IProgress<int> targetCompleteProgress = null);
 
+        /// <summary>Returns the published per-minute moon altitude entry at
+        /// <paramref name="key"/>, or <see langword="null"/> if not yet built.
+        /// Singleton per <see cref="DayWindowKey"/> (the moon is not target-keyed).
+        /// Synchronous, lock-protected.</summary>
+        MoonAltitudeEntry GetMoonOrNull(DayWindowKey key);
+
+        /// <summary>Build (or wait for an in-flight build of) the moon altitude
+        /// entry at <paramref name="key"/>. Idempotent per key; concurrent calls
+        /// dedupe to one underlying compute.</summary>
+        Task<MoonAltitudeEntry> GetMoonOrBuildAsync(DayWindowKey key);
+
+        /// <summary>Pre-build the moon altitude entry at <paramref name="key"/>.
+        /// No-op when already published.</summary>
+        Task PrepareMoonAsync(DayWindowKey key);
+
         /// <summary>Drop every cached entry and switch to <paramref name="newLocation"/>.
         /// In-flight builds against the old location run to completion and discard
         /// themselves at publish via the cache's internal location check. Subsequent
