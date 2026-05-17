@@ -35,9 +35,19 @@ namespace TargetPlanner.Charts
             = new Dictionary<LineSeries<ObservablePoint>, double?[]>();
 
         // True if the most recent activation was via ToggleAll's apply path
-        // (right-click apply-all). Cleared by RestoreAll, ClearAll, and by
-        // PruneStaleBackups when the prune drains backups to empty.
+        // (right-click apply-all). Cleared by RestoreAll, ClearAll, by
+        // PruneStaleBackups when the prune drains backups to empty, and by
+        // TryToggleAt when a per-target toggle-off drains the last backup.
         private bool mWasGlobalApply;
+
+        // Series the user has explicitly opted out of the global overlay via
+        // per-target left-click while in global mode. EnsureGlobalApplied
+        // skips these so H/D/M scrubs don't re-overlay them. Cleared by
+        // ClearAll, RestoreAll, ToggleAll's apply path (fresh global state),
+        // PruneStaleBackups when backups drain to empty, and TryToggleAt
+        // when a toggle-off drains the last backup.
+        private readonly HashSet<LineSeries<ObservablePoint>> mGlobalOptOuts
+            = new HashSet<LineSeries<ObservablePoint>>();
 
         // True when the overlay state is in "show windows for all visible
         // targets" mode (right-click apply-all was the last activation and at
@@ -45,7 +55,9 @@ namespace TargetPlanner.Charts
         // the global intent to newly-added targets after a Render: per-target
         // mode (false) leaves added targets bare; global mode (true) auto-
         // applies overlay to newly-visible targets via EnsureGlobalApplied.
-        // Drains naturally when the user clicks all individual overlays off.
+        // Per-target clicks in global mode are allowed and tracked as
+        // exceptions in mGlobalOptOuts. Drains naturally when the user clicks
+        // all individual overlays off.
         public bool IsGlobalMode => mWasGlobalApply && mBackups.Count > 0;
 
         public OverlayController(
@@ -67,6 +79,7 @@ namespace TargetPlanner.Charts
         {
             mBackups.Clear();
             mWasGlobalApply = false;
+            mGlobalOptOuts.Clear();
         }
 
         // Walk currently-active overlays and re-render against the latest window
@@ -111,16 +124,13 @@ namespace TargetPlanner.Charts
 
         public void TryToggleAt(double clickX, double clickY)
         {
-            // Global mode is strict: per-target overlay clicks are disabled.
-            // The only way to interact with overlays in global mode is right-
-            // click (ToggleAll), which clears all and returns to "no mode."
-            // To do per-target overlay work, right-click first to clear, then
-            // start clicking individual targets.
-            if (IsGlobalMode)
-            {
-                mReportStatus?.Invoke("HD overlay: per-target click disabled in global mode -- right-click to clear");
-                return;
-            }
+            // Per-target click is allowed in both modes. In per-target mode it
+            // toggles the clicked target's overlay. In global mode it carves
+            // out an exception: toggle-off adds the series to mGlobalOptOuts
+            // so EnsureGlobalApplied won't re-overlay it on the next H/D/M
+            // scrub; toggle-on removes the exception. Right-click (ToggleAll)
+            // remains the bulk clear / bulk apply gesture.
+            //
             // Walk every visible target series, find the closest curve.
             // Hidden series are excluded — clicking empty space where a
             // curve used to be should not trigger an overlay on it.
@@ -154,17 +164,31 @@ namespace TargetPlanner.Charts
             }
 
             if (!(best.Values is ObservableCollection<ObservablePoint> bdata)) return;
+            bool wasGlobal = IsGlobalMode;
             if (mBackups.TryGetValue(best, out var backup))
             {
                 for (int i = 0; i < backup.Length && i < bdata.Count; i++)
                     bdata[i] = new ObservablePoint(bdata[i].X, backup[i]);
                 mBackups.Remove(best);
-                mReportStatus?.Invoke($"HD overlay restored: '{best.Name}'");
+                if (wasGlobal) mGlobalOptOuts.Add(best);
+                // Draining the last backup exits global mode cleanly; opt-out
+                // bookkeeping becomes meaningless once global intent is gone.
+                if (mBackups.Count == 0)
+                {
+                    mWasGlobalApply = false;
+                    mGlobalOptOuts.Clear();
+                }
+                mReportStatus?.Invoke(wasGlobal && mBackups.Count > 0
+                    ? $"HD overlay restored: '{best.Name}' (global -- excluded)"
+                    : $"HD overlay restored: '{best.Name}'");
             }
             else if (bestWin.HasValue)
             {
+                mGlobalOptOuts.Remove(best);
                 ApplyOverlay(best, bdata, bestWin.Value);
-                mReportStatus?.Invoke($"HD overlay applied: '{best.Name}'");
+                mReportStatus?.Invoke(wasGlobal
+                    ? $"HD overlay applied: '{best.Name}' (global -- restored)"
+                    : $"HD overlay applied: '{best.Name}'");
             }
             else
             {
@@ -185,6 +209,7 @@ namespace TargetPlanner.Charts
             var n = mBackups.Count;
             mBackups.Clear();
             mWasGlobalApply = false;
+            mGlobalOptOuts.Clear();
             mReportStatus?.Invoke($"HD overlay restored ({n})");
         }
 
@@ -200,6 +225,11 @@ namespace TargetPlanner.Charts
                 RestoreAll();
                 return;
             }
+
+            // Re-applying globally starts from a fresh state: any prior
+            // per-target opt-outs are discarded so the right-click apply-all
+            // gesture always covers every visible+fitting target.
+            mGlobalOptOuts.Clear();
 
             int applied = 0;
             foreach (var s in mTargetSeries())
@@ -217,31 +247,42 @@ namespace TargetPlanner.Charts
                 : "HD overlay: no visible targets with a D-hour window tonight");
         }
 
-        // Drop backup tracking for series not in the active set. Host's Render
-        // path calls this after rebuilding mSeriesByTarget so backups for removed
-        // targets are released while backups for surviving targets remain valid
-        // for RefreshActiveOverlays. If the prune drains backups to empty, also
-        // resets mWasGlobalApply so IsGlobalMode goes false naturally.
+        // Drop backup tracking AND opt-out tracking for series not in the
+        // active set. Host's Render path calls this after rebuilding
+        // mSeriesByTarget so entries for removed targets are released while
+        // entries for surviving targets remain valid for RefreshActiveOverlays.
+        // If the prune drains backups to empty, also resets mWasGlobalApply
+        // and clears the opt-out set so IsGlobalMode goes false naturally
+        // and stale opt-outs don't suppress a later EnsureGlobalApplied.
         public void PruneStaleBackups(IEnumerable<LineSeries<ObservablePoint>> activeSeries)
         {
-            if (mBackups.Count == 0) return;
+            if (mBackups.Count == 0 && mGlobalOptOuts.Count == 0) return;
             var active = new HashSet<LineSeries<ObservablePoint>>(activeSeries);
-            var stale = mBackups.Keys.Where(s => !active.Contains(s)).ToList();
-            foreach (var s in stale) mBackups.Remove(s);
-            if (mBackups.Count == 0) mWasGlobalApply = false;
+            var staleBackups = mBackups.Keys.Where(s => !active.Contains(s)).ToList();
+            foreach (var s in staleBackups) mBackups.Remove(s);
+            var staleOptOuts = mGlobalOptOuts.Where(s => !active.Contains(s)).ToList();
+            foreach (var s in staleOptOuts) mGlobalOptOuts.Remove(s);
+            if (mBackups.Count == 0)
+            {
+                mWasGlobalApply = false;
+                mGlobalOptOuts.Clear();
+            }
         }
 
         // Apply overlay to any visible, fits-tonight series that doesn't currently
-        // have a backup. Called by the host's Render path when IsGlobalMode is
-        // true so newly-added targets pick up the overlay -- extends "show
-        // windows for all visible targets" intent across target add. Visibility
-        // + has-a-window guards mirror ToggleAll's apply path exactly.
+        // have a backup AND isn't in the per-target opt-out set. Called by the
+        // host's Render path when IsGlobalMode is true so newly-added targets
+        // pick up the overlay -- extends "show windows for all visible targets"
+        // intent across target add. Visibility + has-a-window guards mirror
+        // ToggleAll's apply path exactly; the opt-out skip honours per-target
+        // exceptions the user carved out via left-click in global mode.
         public void EnsureGlobalApplied()
         {
             foreach (var s in mTargetSeries())
             {
                 if (!s.IsVisible) continue;
                 if (mBackups.ContainsKey(s)) continue;
+                if (mGlobalOptOuts.Contains(s)) continue;
                 if (!(s.Values is ObservableCollection<ObservablePoint> data)) continue;
                 var win = mWindowFor(s);
                 if (!win.HasValue) continue;
