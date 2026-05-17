@@ -66,9 +66,9 @@ namespace TargetPlanner
         //     sub-chart's Render / RefreshVisibility call. Set by SetActiveFilter
         //     and the Lorentzian / avoidance-checkbox handlers.
         // The "what targets is the active chart currently displaying" question is
-        // answered by mCoordinator.LastAppliedFor(SelectedArea())?.Targets -- the
-        // coordinator's stamp is the single SoT; the prior mLastRenderedTargets
-        // shadow store is gone.
+        // answered by mCoordinator.LastAppliedTargets -- pre-stamped at pipeline
+        // entry so concurrent Apply()s see the user's current intent rather than
+        // the previous successful render.
         private System.Collections.Generic.Dictionary<string, Charts.IAltitudeSubChart> mSubCharts;
         private Astronomy.Core.Moon.MoonAvoidanceProfile mMoonAvoidanceProfile;
         private double mActiveFilterCenterNm = 550.0;
@@ -649,18 +649,6 @@ is preserved.";
             mCoordinator = new TargetPlanner.State.ChartCoordinator(
                 cache: mCache,
                 renderActiveArea: (ctx, eval) => RenderArea(ctx, eval),
-                refreshActiveArea: ctx => RefreshArea(ctx),
-                showOnlyActiveArea: ctx =>
-                {
-                    // Cheap "make this sub-chart visible without re-rendering"
-                    // path. Used by the coordinator's skip-Render-on-redundant-
-                    // area-change optimization when the new active area is
-                    // already current with the snapshot.
-                    if (mSubCharts == null) return;
-                    if (!mSubCharts.TryGetValue(ctx.ActiveArea, out var sc)) return;
-                    ShowOnlyAltitudeChart(sc.Control);
-                    ResizeAltitudeChartArea(sc.IdealHeight);
-                },
                 postApplyHook: ctx =>
                 {
                     RefreshAstrometryLabels();
@@ -1285,23 +1273,6 @@ is preserved.";
             if (!mSubCharts.TryGetValue(ctx.ActiveArea, out var sc)) return;
             ShowOnlyAltitudeChart(sc.Control);
             sc.Render(ctx, mCache, eval);
-            ResizeAltitudeChartArea(sc.IdealHeight);
-        }
-
-        // Lightweight sibling of RenderArea for the coordinator's Hdm-only path
-        // (H/D/M spinners, filter wavelength). Altitude geometry is unchanged,
-        // so the sub-chart only needs to re-evaluate fit + refresh visibility +
-        // re-apply any sticky state (e.g. Day's HD overlay backups). Caller
-        // guarantees ctx.ActiveArea has been Render'd at least once -- sub-charts
-        // early-return from RefreshVisibility when their internal series state
-        // is empty.
-        private void RefreshArea(ChartContext ctx)
-        {
-            if (mSubCharts == null) return;
-            if (ctx == null) return;
-            if (!mSubCharts.TryGetValue(ctx.ActiveArea, out var sc)) return;
-            ShowOnlyAltitudeChart(sc.Control);
-            sc.RefreshVisibility(ctx, mCache);
             ResizeAltitudeChartArea(sc.IdealHeight);
         }
 

@@ -338,7 +338,7 @@ namespace TargetPlanner.Caches
             lock (mGate) { prev = mLastEnsureCtx; }
 
             bool locationChanged = prev == null
-                || !object.ReferenceEquals(prev.Location, ctx.Location);
+                || !LocationCacheEquivalent(prev.Location, ctx.Location);
             bool targetsChanged = prev == null
                 || !TargetsEqualByReference(prev.Targets, ctx.Targets);
             bool hdmChanged = prev == null || prev.Hdm != ctx.Hdm;
@@ -348,10 +348,12 @@ namespace TargetPlanner.Caches
                 || ctx.Location.ExtinctionK != prev.Location.ExtinctionK
                 || ctx.Policy.FilterCenterNm != prev.Policy.FilterCenterNm;
 
-            // 1. Re-key cache on geometry change. SetLocationAsync no-ops on
-            //    reference-equal Location, so unconditional call here is cheap
-            //    on the unchanged path.
-            await SetLocationAsync(ctx.Location);
+            // 1. Re-key cache on geometry change. Skip the SetLocationAsync
+            //    call entirely when LocationCacheEquivalent reports unchanged --
+            //    SetLocationAsync's own ReferenceEquals fast path doesn't help
+            //    when the form re-creates Location instances on every UI tick
+            //    even for value-unchanged saves (NumericUpDown.ValueChanged etc).
+            if (locationChanged) await SetLocationAsync(ctx.Location);
 
             // 2. Per-target prep: yearDays + fits + per-night Day altitudes +
             //    moon altitudes. Each Prepare path is internally idempotent
@@ -400,6 +402,27 @@ namespace TargetPlanner.Caches
             for (int i = 0; i < a.Count; i++)
                 if (!object.ReferenceEquals(a[i], b[i])) return false;
             return true;
+        }
+
+        // Value-equivalent comparison on the Location fields the cache itself
+        // keys against (geometry + DateTime.Date + year-start-day). Bortle /
+        // ExtinctionK / TimeZoneInfo are NOT included -- they don't affect cache
+        // contents (brightness inputs ride the separate BrightnessInputsChanged
+        // flag). Used by EnsureAsync so a ref-different / value-equivalent ctx
+        // (form re-creating Location on every NumericUpDown tick) doesn't trash
+        // the cache. Identical contract to the prior ChartCoordinator helper.
+        private static bool LocationCacheEquivalent(Location a, Location b)
+        {
+            if (object.ReferenceEquals(a, b)) return true;
+            if (a == null || b == null) return false;
+            return a.Latitude == b.Latitude
+                && a.Longitude == b.Longitude
+                && a.North == b.North
+                && a.West == b.West
+                && a.Elevation == b.Elevation
+                && a.DateTime.Date == b.DateTime.Date
+                && NightCache.ComputeYearStartDay(a.DateTime)
+                   == NightCache.ComputeYearStartDay(b.DateTime);
         }
 
         public async Task SetLocationAsync(Location newLocation)
