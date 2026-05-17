@@ -162,13 +162,18 @@ namespace TargetPlanner.State
             try
             {
                 // Caller (this coordinator) computes the dayKey from the current
-                // night window so the cache stays Charts-agnostic. NightCache
-                // is built by EnsureAsync's downstream PrepareManyAsync; on first
-                // call mCache.LocationNightCache is null and NightCalculator
-                // computes a one-shot fallback so dayKey is real on first invocation.
+                // night window so the cache stays Charts-agnostic. Always
+                // re-derive from ctx.Location -- using mCache.LocationNightCache
+                // here would pick up the PREVIOUS location's night on a date
+                // scrub (SetLocationAsync inside EnsureAsync hasn't run yet),
+                // and the resulting OLD dayKey would mismatch the sub-chart's
+                // post-SetLocation NEW dayKey -> every cache.GetDayOrNull /
+                // GetMoonOrNull returns null and targets disappear from Day.
+                // NightCalculator.ComputeNight is sub-millisecond Meeus math;
+                // recomputing per pipeline is cheap insurance against stale-key
+                // bugs.
                 DayWindowKey dayKey = default;
-                NightWindow night = mCache.LocationNightCache?.Starting
-                                 ?? NightCalculator.ComputeNight(ctx.Location);
+                NightWindow night = NightCalculator.ComputeNight(ctx.Location);
                 if (night.IsValid)
                 {
                     dayKey = ChartLayout.BuildDayWindow(night).Key;
