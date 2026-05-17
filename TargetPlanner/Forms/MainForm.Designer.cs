@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             GroupBox_Local = new System.Windows.Forms.GroupBox();
             GroupBox_Location = new System.Windows.Forms.GroupBox();
             NumericUpDown_TimeZone = new System.Windows.Forms.NumericUpDown();
@@ -1511,6 +1512,7 @@
             Controls.Add(GroupBox_Target);
             Controls.Add(GroupBox_Local);
             Controls.Add(MenuStrip_MainForm);
+            Icon = (System.Drawing.Icon)resources.GetObject("$this.Icon");
             MainMenuStrip = MenuStrip_MainForm;
             Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             MaximizeBox = false;
