@@ -56,7 +56,12 @@ namespace TargetPlanner.Charts
         // sub-chart reads ctx.Targets / ctx.Policy (moon profile, target floor,
         // min duration, local horizon, filter center) / ctx.Location and
         // derives DateTime from ctx.Location.DateTime.
-        void Render(ChartContext ctx, IChartCacheStore cache);
+        //
+        // Phase 4 adds the ChartEvaluation flow: the cache's pre-render diff
+        // arrives as <paramref name="eval"/>. Sub-charts accept the param
+        // today and may ignore it; Phase 7 wires per-sub-chart short-circuit
+        // logic against eval flags so unchanged-ctx Apply settles in sub-ms.
+        void Render(ChartContext ctx, IChartCacheStore cache, ChartEvaluation eval);
 
         // H/D/M-aware visibility refresh per the universal contract. Day / Sky
         // run synchronous BestSession.For probes and toggle stroke alpha;

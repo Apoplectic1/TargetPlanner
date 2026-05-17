@@ -648,7 +648,7 @@ is preserved.";
             //   - Sky's K-S brightness re-walk (Bortle/Extinction/Filter scrubs).
             mCoordinator = new TargetPlanner.State.ChartCoordinator(
                 cache: mCache,
-                renderActiveArea: ctx => RenderArea(ctx),
+                renderActiveArea: (ctx, eval) => RenderArea(ctx, eval),
                 refreshActiveArea: ctx => RefreshArea(ctx),
                 showOnlyActiveArea: ctx =>
                 {
@@ -1278,13 +1278,13 @@ is preserved.";
         // <see cref="SnapshotCurrent(IReadOnlyList{Target})"/> (radio toggles, etc.)
         // or capture the snapshot at the start of an async build (RunGraphBuildAsync)
         // so the paint is location-coherent even if mLocation has drifted since.
-        private void RenderArea(ChartContext ctx)
+        private void RenderArea(ChartContext ctx, ChartEvaluation eval)
         {
             if (mSubCharts == null) return;
             if (ctx == null) return;
             if (!mSubCharts.TryGetValue(ctx.ActiveArea, out var sc)) return;
             ShowOnlyAltitudeChart(sc.Control);
-            sc.Render(ctx, mCache);
+            sc.Render(ctx, mCache, eval);
             ResizeAltitudeChartArea(sc.IdealHeight);
         }
 

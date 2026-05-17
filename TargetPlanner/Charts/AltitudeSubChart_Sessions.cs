@@ -252,8 +252,9 @@ namespace TargetPlanner.Charts
             return null;
         }
 
-        public void Render(ChartContext ctx, IChartCacheStore cache)
+        public void Render(ChartContext ctx, IChartCacheStore cache, ChartEvaluation eval)
         {
+            _ = eval; // Phase 4: accept but ignore; Phase 7 will wire short-circuit.
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
             if (ctx.Location == null) throw new ArgumentException("ctx.Location must not be null", nameof(ctx));
             if (ctx.Policy == null) throw new ArgumentException("ctx.Policy must not be null", nameof(ctx));
@@ -372,7 +373,9 @@ namespace TargetPlanner.Charts
         public void RefreshVisibility(ChartContext ctx, IChartCacheStore cache)
         {
             if (ctx == null || ctx.Location == null || mCeilingByTarget.Count == 0) return;
-            Render(ctx, cache);
+            // Sessions ignores eval; pass FullChange so the Render path proceeds
+            // unchanged. RefreshVisibility itself is going away in Phase 6.
+            Render(ctx, cache, ChartEvaluation.FullChange(default, ctx.Hdm, ctx.DayMode));
         }
 
         private enum NightFitField { Ceiling, Floor, CenteredFloor }

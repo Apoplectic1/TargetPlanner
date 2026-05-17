@@ -34,7 +34,11 @@ namespace TargetPlanner.State
     public sealed class ChartCoordinator : IDisposable
     {
         private readonly IChartCacheStore mCache;
-        private readonly Action<ChartContext> mRenderActiveArea;
+        // Phase 4: render callback now receives the typed ChartEvaluation so
+        // the sub-chart can short-circuit (Phase 7) once eval is populated by
+        // EnsureAsync (Phase 5). Refresh / showOnly stay (ctx)-only -- they're
+        // collapsing in Phase 6 when the dispatch table goes away.
+        private readonly Action<ChartContext, ChartEvaluation> mRenderActiveArea;
         private readonly Action<ChartContext> mRefreshActiveArea;
         private readonly Action<ChartContext> mShowOnlyActiveArea;
         private readonly Action<ChartContext> mPostApplyHook;
@@ -77,7 +81,7 @@ namespace TargetPlanner.State
 
         public ChartCoordinator(
             IChartCacheStore cache,
-            Action<ChartContext> renderActiveArea,
+            Action<ChartContext, ChartEvaluation> renderActiveArea,
             Action<ChartContext> refreshActiveArea,
             Action<ChartContext> showOnlyActiveArea,
             Action<ChartContext> postApplyHook,
@@ -236,6 +240,12 @@ namespace TargetPlanner.State
                 || !TargetsEqualByReference(prev.Targets, ctx.Targets);
             bool hdmKeyChanged = !activeEverRendered || prev.Hdm != ctx.Hdm;
 
+            // Phase 4: dayKey is hoisted so the ChartEvaluation constructed at
+            // dispatch time has a real DayWindowKey when the night is valid.
+            // Falls back to default(DayWindowKey) on the empty-targets or polar-
+            // night branches (sub-charts ignore eval keys in Phase 4 anyway).
+            DayWindowKey dayKey = default;
+
             // 1. Cache re-key on geometry change. SetLocationAsync is a no-op
             //    when the new Location already matches by reference (identity
             //    comparison happens inside the cache); LocationCacheEquivalent
@@ -271,6 +281,7 @@ namespace TargetPlanner.State
                     if (night.IsValid)
                     {
                         var dayWindow = ChartLayout.BuildDayWindow(night);
+                        dayKey = dayWindow.Key;
                         await mCache.PrepareDayAsync(ctx.Targets, dayWindow.Key, progress);
                     }
                 }
@@ -319,7 +330,12 @@ namespace TargetPlanner.State
             {
                 // mRenderActiveArea is MainForm.RenderArea -- ShowOnlyAltitudeChart
                 // (flips Visible per sub-chart) + Render + ResizeAltitudeChartArea.
-                mRenderActiveArea(ctx);
+                // Phase 4: hand the sub-chart a ChartEvaluation. FullChange flags
+                // everything stale so sub-charts that haven't migrated to
+                // short-circuit logic still take their full Render path. Phase 5's
+                // EnsureAsync replaces this construction with real per-axis diffs.
+                ChartEvaluation eval = ChartEvaluation.FullChange(dayKey, ctx.Hdm, ctx.DayMode);
+                mRenderActiveArea(ctx, eval);
                 mEverRendered.Add(activeArea);
             }
             else if (hdmOnlyChanged)

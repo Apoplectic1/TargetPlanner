@@ -352,8 +352,9 @@ namespace TargetPlanner.Charts
             mNowLine.Xj = oa;
         }
 
-        public void Render(ChartContext ctx, IChartCacheStore cache)
+        public void Render(ChartContext ctx, IChartCacheStore cache, ChartEvaluation eval)
         {
+            _ = eval; // Phase 4: accept but ignore; Phase 7 will wire short-circuit.
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
             if (ctx.Location == null) throw new ArgumentException("ctx.Location must not be null", nameof(ctx));
             if (ctx.Policy == null) throw new ArgumentException("ctx.Policy must not be null", nameof(ctx));
