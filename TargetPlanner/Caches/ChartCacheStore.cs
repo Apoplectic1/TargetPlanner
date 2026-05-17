@@ -84,6 +84,12 @@ namespace TargetPlanner.Caches
         private Dictionary<DayWindowKey, Task<MoonAltitudeEntry>> mInFlightMoon
             = new Dictionary<DayWindowKey, Task<MoonAltitudeEntry>>();
 
+        // Last ChartContext successfully applied via EnsureAsync; drives the
+        // per-axis diff flags returned in the next ChartEvaluation. Null until
+        // the first EnsureAsync completes (first call's eval flags all set true
+        // so sub-charts take their full Render path). Set under mGate.
+        private ChartContext mLastEnsureCtx;
+
         public event EventHandler<TargetReadyEventArgs> TargetReady;
         public event EventHandler<LocationChangedEventArgs> LocationChanged;
 
@@ -318,6 +324,83 @@ namespace TargetPlanner.Caches
         }
 
         public Task PrepareMoonAsync(DayWindowKey key) => GetMoonOrBuildAsync(key);
+
+        // -------------- single-entry pipeline --------------
+
+        public async Task<ChartEvaluation> EnsureAsync(ChartContext ctx, DayWindowKey dayKey)
+        {
+            if (ctx == null) throw new ArgumentNullException(nameof(ctx));
+
+            // Capture prev under the lock so the diff sees a consistent snapshot.
+            // The compute below runs unlocked (await), which is fine because every
+            // downstream Prepare path is itself locked + idempotent.
+            ChartContext prev;
+            lock (mGate) { prev = mLastEnsureCtx; }
+
+            bool locationChanged = prev == null
+                || !object.ReferenceEquals(prev.Location, ctx.Location);
+            bool targetsChanged = prev == null
+                || !TargetsEqualByReference(prev.Targets, ctx.Targets);
+            bool hdmChanged = prev == null || prev.Hdm != ctx.Hdm;
+            bool dayModeChanged = prev == null || prev.DayMode != ctx.DayMode;
+            bool brightnessChanged = prev == null
+                || ctx.Location.BortleClass != prev.Location.BortleClass
+                || ctx.Location.ExtinctionK != prev.Location.ExtinctionK
+                || ctx.Policy.FilterCenterNm != prev.Policy.FilterCenterNm;
+
+            // 1. Re-key cache on geometry change. SetLocationAsync no-ops on
+            //    reference-equal Location, so unconditional call here is cheap
+            //    on the unchanged path.
+            await SetLocationAsync(ctx.Location);
+
+            // 2. Per-target prep: yearDays + fits + per-night Day altitudes +
+            //    moon altitudes. Each Prepare path is internally idempotent
+            //    per cache key, so repeated EnsureAsync calls with the same
+            //    ctx settle in the per-key fast paths.
+            if (ctx.Targets != null && ctx.Targets.Count > 0)
+            {
+                await PrepareManyAsync(ctx.Targets);
+                await PrepareFitsAsync(ctx.Targets, ctx.Hdm, ctx.Policy.LocalHorizon);
+
+                // dayKey.Count == 0 sentinels "no valid Day window" (polar night
+                // or empty targets). Day chart's Render handles the blank-chart
+                // case from cache.GetDayOrNull returning null; skip the prep.
+                if (dayKey.Count > 0)
+                {
+                    await PrepareDayAsync(ctx.Targets, dayKey);
+                    await PrepareMoonAsync(dayKey);
+                }
+            }
+
+            // 3. Stamp ctx as last-applied for the NEXT EnsureAsync's diff.
+            //    If any await above threw, mLastEnsureCtx stays at the prior
+            //    value -- next call's eval reflects the bailed pipeline's
+            //    intended-but-incomplete state as "still stale", matching
+            //    the cache's actual contents.
+            lock (mGate) { mLastEnsureCtx = ctx; }
+
+            return new ChartEvaluation
+            {
+                LocationChanged = locationChanged,
+                TargetsChanged = targetsChanged,
+                HdmChanged = hdmChanged,
+                DayModeChanged = dayModeChanged,
+                BrightnessInputsChanged = brightnessChanged,
+                DayKey = dayKey,
+                HdmKey = ctx.Hdm,
+                DayMode = ctx.DayMode,
+            };
+        }
+
+        private static bool TargetsEqualByReference(IReadOnlyList<Target> a, IReadOnlyList<Target> b)
+        {
+            if (object.ReferenceEquals(a, b)) return true;
+            if (a == null || b == null) return false;
+            if (a.Count != b.Count) return false;
+            for (int i = 0; i < a.Count; i++)
+                if (!object.ReferenceEquals(a[i], b[i])) return false;
+            return true;
+        }
 
         public async Task SetLocationAsync(Location newLocation)
         {

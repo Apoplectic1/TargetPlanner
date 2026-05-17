@@ -37,6 +37,22 @@ namespace TargetPlanner.Caches
     /// </remarks>
     public interface IChartCacheStore
     {
+        /// <summary>Single-entrypoint pre-render pipeline. Diffs <paramref name="ctx"/>
+        /// against the last successfully-applied ctx, runs the necessary internal
+        /// Prepare paths (location swap, per-target year, per-(target, HdmKey)
+        /// fits, per-(target, DayWindowKey) day altitudes, per-DayWindowKey moon
+        /// altitudes), and returns a <see cref="ChartEvaluation"/> describing
+        /// what changed. <paramref name="dayKey"/> identifies the Day chart's
+        /// current minute-spaced sampling window (the caller derives this from
+        /// the night's <c>NightWindow</c>); pass <c>default(DayWindowKey)</c>
+        /// to skip the Day/Moon prep on polar or empty-targets nights.</summary>
+        /// <remarks>Idempotent: a call with the same ctx as the previous call
+        /// short-circuits via the internal per-key Prepare paths (all already
+        /// no-op on warm cache). The returned eval reflects the diff from the
+        /// previous EnsureAsync; sub-charts use the flags to decide whether
+        /// to short-circuit their own Render work.</remarks>
+        Task<ChartEvaluation> EnsureAsync(ChartContext ctx, DayWindowKey dayKey);
+
         /// <summary>Location all current cache entries are keyed against.</summary>
         Location CurrentLocation { get; }
 
