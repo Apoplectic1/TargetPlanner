@@ -27,6 +27,37 @@ namespace TargetPlanner.Support
         // Exposed so clear-all-data can delete it alongside settings.json / filters.json.
         public static string FilePath => sPath;
 
+        /// <summary>Rotate the current tp.log to tp.log.prev (overwriting any
+        /// previous rotation) and start a new empty log. Called once at app
+        /// startup so each run's diag trail is self-contained. One run back is
+        /// preserved in tp.log.prev for postmortem on the previous session.
+        /// Best-effort: any IO failure is silently swallowed (logging must not
+        /// cascade into hard errors).</summary>
+        public static void StartNewSession()
+        {
+            try
+            {
+                lock (sGate)
+                {
+                    string dir = Path.GetDirectoryName(sPath);
+                    if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+                    string prevPath = sPath + ".prev";
+                    if (File.Exists(sPath))
+                    {
+                        if (File.Exists(prevPath)) File.Delete(prevPath);
+                        File.Move(sPath, prevPath);
+                    }
+                    File.WriteAllText(sPath,
+                        string.Format("{0:o} INFO new session{1}",
+                            DateTime.UtcNow, Environment.NewLine));
+                }
+            }
+            catch
+            {
+                // Best-effort -- a logging failure must never escalate.
+            }
+        }
+
         public static void Warn(string message)        => Append("WARN",  message, null);
         public static void Warn(string message, Exception ex)  => Append("WARN",  message, ex);
         public static void Error(string message)       => Append("ERROR", message, null);

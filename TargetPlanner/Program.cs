@@ -1,5 +1,6 @@
 using System;
 using System.Windows.Forms;
+using TargetPlanner.Support;
 using Velopack;
 
 namespace TargetPlanner
@@ -18,6 +19,10 @@ namespace TargetPlanner
             // invocations don't accidentally show the main UI. Reads command-line args from
             // Environment.GetCommandLineArgs() internally; no need to pass them here.
             VelopackApp.Build().Run();
+
+            // Rotate tp.log -> tp.log.prev and start fresh. Each run's diag
+            // trail is self-contained; one run back is preserved for postmortem.
+            Log.StartNewSession();
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
