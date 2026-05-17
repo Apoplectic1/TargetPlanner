@@ -5,9 +5,11 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Windows.Forms;
+using Astronomy.Core.Astrometry;
 using Astronomy.Core.Horizons;
 using Astronomy.Core.Moon;
 using Astronomy.Core.Night;
+using Astronomy.Core.Sun;
 using TargetPlanner.Filters;
 using TargetPlanner.Forms;
 using TargetPlanner.Horizons;
@@ -143,12 +145,6 @@ namespace TargetPlanner
         // Graph clicks find caches already built. On Location change we call
         // SetLocationAsync to drop everything and re-populate at the new location.
         private TargetPlanner.Caches.ChartCacheStore mCache;
-
-        // Latest UI-bound astrometry snapshot, refreshed by RefreshAstrometryLabels
-        // on every DatePicker / TimePicker / OnLocationEdited tick. Immutable
-        // record -- safe to read from any thread; replaces the prior static
-        // mutable AstrometryUi.* properties.
-        private TargetPlanner.Support.AstrometryUi mAstrometryUi = TargetPlanner.Support.AstrometryUi.Empty;
 
         // Form-lifecycle cancellation. Cancelled on FormClosing so background
         // warmups (GetNinaTargets' PrepareManyAsync / PrepareFitsAsync chain)
@@ -716,23 +712,48 @@ is preserved.";
             RefreshAstrometryLabels();
         }
 
-        // Re-populate the AstrometryUi static cache from mLocation and push every dependent
-        // label. ~150 us of Meeus math + 8 string assignments; cheap enough to fire on
-        // every Lat/Lon/Elevation spinner tick without debouncing. Called from
-        // UpdateLocalDateTimeEvents (date/time scrubs), OnLocationEdited (lat/lon/N/W/
-        // elevation spinners), and ComboBox_Location_SelectionIndexChanged (preset picks).
+        // Push every astrometry-derived label. Reads NightWindow from the cache
+        // (single source of truth for dusk / dawn / illumination); falls back
+        // to NightCalculator.ComputeNight when the cache is still cold (early
+        // form-init before mCache is constructed). The five remaining values
+        // (sun altitude, moon altitude / phase, moon rise / set) are computed
+        // inline -- one-shot ~150 us of Meeus per call, cheap enough to fire on
+        // every spinner tick. Called from UpdateLocalDateTimeEvents (date/time
+        // scrubs), OnLocationEdited (lat/lon/N/W/elevation spinners),
+        // ComboBox_Location_SelectionIndexChanged (preset picks), and the
+        // coordinator's post-apply hook.
         private void RefreshAstrometryLabels()
         {
-            mAstrometryUi = AstrometryUi.For(mLocation);
+            NightWindow night = mCache?.LocationNightCache?.Starting
+                             ?? NightCalculator.ComputeNight(mLocation);
+            DateTime utc = mLocation.DateTime.ToUniversalTime();
+            double latSigned = mLocation.LatSigned();
+            double lonEast   = mLocation.LonEast();
+            ObserverInfo observer = new ObserverInfo(latSigned, lonEast, mLocation.Elevation);
 
-            Label_AstronomicalDuskValue.Text = mAstrometryUi.AstronomicalDusk.ToShortTimeString();
-            Label_AstronomicalDawnValue.Text = mAstrometryUi.AstronomicalDawn.ToShortTimeString();
-            Label_SunAltitudeValue.Text = mAstrometryUi.SunAltitude.ToString("F0") + "\u00B0";
-            Label_LunarAltitudeValue.Text = mAstrometryUi.LunarAltitude.ToString("F0") + "\u00B0";
-            Label_LunarIlluminationFractionValue.Text = (mAstrometryUi.LunarIlluminationFraction * 100).ToString("F0") + "%";
-            Label_LunarPhaseValue.Text = mAstrometryUi.LunarPhase;
-            Label_MoonRiseValue.Text = mAstrometryUi.LunarRise.ToShortTimeString();
-            Label_MoonSetValue.Text = mAstrometryUi.LunarSet.ToShortTimeString();
+            DateTime duskLocal = night.AstronomicalDusk != DateTime.MinValue
+                ? night.AstronomicalDusk.ToLocalTime() : DateTime.MinValue;
+            DateTime dawnLocal = night.AstronomicalDawn != DateTime.MinValue
+                ? night.AstronomicalDawn.ToLocalTime() : DateTime.MinValue;
+
+            double sunAlt = SunPosition.AltAzAt(mLocation, utc).Altitude;
+            double moonAlt = AstroUtil.GetMoonAltitude(utc, observer);
+            string moonPhase = AstroUtil.GetMoonPhaseName(utc);
+            RiseAndSetEvent moonRs = AstroUtil.GetMoonRiseAndSet(
+                utc, latSigned, lonEast, mLocation.Elevation);
+            DateTime moonRise = moonRs.Rise.HasValue
+                ? moonRs.Rise.Value.ToLocalTime() : DateTime.MinValue;
+            DateTime moonSet = moonRs.Set.HasValue
+                ? moonRs.Set.Value.ToLocalTime() : DateTime.MinValue;
+
+            Label_AstronomicalDuskValue.Text = duskLocal.ToShortTimeString();
+            Label_AstronomicalDawnValue.Text = dawnLocal.ToShortTimeString();
+            Label_SunAltitudeValue.Text = sunAlt.ToString("F0") + "\u00B0";
+            Label_LunarAltitudeValue.Text = moonAlt.ToString("F0") + "\u00B0";
+            Label_LunarIlluminationFractionValue.Text = (night.LunarIlluminationFraction * 100).ToString("F0") + "%";
+            Label_LunarPhaseValue.Text = moonPhase;
+            Label_MoonRiseValue.Text = moonRise.ToShortTimeString();
+            Label_MoonSetValue.Text = moonSet.ToShortTimeString();
         }
 
         // Coordinate-input callbacks (OnLatitudeEdited / OnLongitudeEdited /
