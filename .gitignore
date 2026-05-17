@@ -52,3 +52,9 @@ personal-defaults.json
 # Claude Code harness state (per-developer permission allowlist, scheduled-task locks).
 # Recreated by the harness; not project-relevant.
 .claude/
+
+# Local snapshot of the user's Target Scheduler database — kept for schema/data
+# reference when designing IS/ISP/XisfManager work; ~100+ MB and contains personal
+# imaging history, do not commit.
+TS DataBase Example/
+
