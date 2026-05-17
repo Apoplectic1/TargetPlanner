@@ -364,22 +364,31 @@ namespace TargetPlanner.Caches
             //    even for value-unchanged saves (NumericUpDown.ValueChanged etc).
             if (locationChanged) await SetLocationAsync(ctx.Location);
 
-            // 2. Per-target prep: yearDays + fits + per-night Day altitudes +
-            //    moon altitudes. Each Prepare path is internally idempotent
-            //    per cache key, so repeated EnsureAsync calls with the same
-            //    ctx settle in the per-key fast paths.
+            // 2a. Moon altitudes are TARGET-INDEPENDENT (function of Location +
+            //     night only). Prep unconditionally when dayKey is valid so
+            //     Day's startup Render (with empty targets, before NINA load
+            //     completes) hits a warm moon cache instead of the defensive
+            //     inline fallback WARN.
+            if (dayKey.Count > 0)
+            {
+                await PrepareMoonAsync(dayKey);
+            }
+
+            // 2b. Per-target prep: yearDays + fits + per-night Day altitudes.
+            //     Each Prepare path is internally idempotent per cache key, so
+            //     repeated EnsureAsync calls with the same ctx settle in the
+            //     per-key fast paths.
             if (ctx.Targets != null && ctx.Targets.Count > 0)
             {
                 await PrepareManyAsync(ctx.Targets);
                 await PrepareFitsAsync(ctx.Targets, ctx.Hdm, ctx.Policy.LocalHorizon);
 
-                // dayKey.Count == 0 sentinels "no valid Day window" (polar night
-                // or empty targets). Day chart's Render handles the blank-chart
-                // case from cache.GetDayOrNull returning null; skip the prep.
+                // dayKey.Count == 0 sentinels "no valid Day window" (polar
+                // night). Day chart's Render handles the blank-chart case from
+                // cache.GetDayOrNull returning null; skip the prep.
                 if (dayKey.Count > 0)
                 {
                     await PrepareDayAsync(ctx.Targets, dayKey);
-                    await PrepareMoonAsync(dayKey);
                 }
             }
 
