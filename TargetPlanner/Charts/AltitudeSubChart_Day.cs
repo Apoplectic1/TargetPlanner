@@ -119,6 +119,14 @@ namespace TargetPlanner.Charts
         // + refresh; different dayKey = altitude about to be replaced = wipe.
         private DayWindowKey mLastDayKey;
 
+        // Targets reference from the most recent successful Render. Used by the
+        // Phase-7 short-circuit predicate: when eval shows no Day-relevant
+        // change AND the same targets reference comes in, the chart's existing
+        // Series state is current and we can skip Render entirely. The
+        // post-apply hook (UpdateNowLine / UpdateHorizonLine / Refresh) still
+        // runs so live-tick state stays correct.
+        private IReadOnlyList<Target> mLastTargets;
+
         // Cached IdealHeight from the last layout pass; used to detect changes so
         // the IdealHeightChanged event only fires when the form actually needs to
         // resize.
@@ -354,16 +362,28 @@ namespace TargetPlanner.Charts
 
         public void Render(ChartContext ctx, IChartCacheStore cache, ChartEvaluation eval)
         {
-            _ = eval; // Phase 4: accept but ignore; Phase 7 will wire short-circuit.
+            if (ctx == null) throw new ArgumentNullException(nameof(ctx));
+            // Phase 7 short-circuit: skip Render when no Day-relevant input
+            // changed since the last successful Render. Day cares about
+            // Location (dayKey, now-line, horizon-line, gradients), Targets
+            // (per-target series), Hdm (fit decisions), DayMode (Floor/Transit
+            // filter). Brightness inputs are Sky-only, so a Bortle scrub
+            // short-circuits Day correctly.
+            if (eval != null && !eval.LocationChanged && !eval.TargetsChanged
+                && !eval.HdmChanged && !eval.DayModeChanged
+                && mLastTargets != null && ReferenceEquals(ctx.Targets, mLastTargets))
+            {
+                if (Log.IsDiagEnabled("Day")) Log.Diag("Day", "Render short-circuit (no relevant change)");
+                return;
+            }
             if (Log.IsDiagEnabled("Day"))
             {
                 Log.Diag("Day",
-                    $"Render enter date={ctx?.Location.DateTime:yyyy-MM-dd HH:mm} " +
-                    $"loc=({ctx?.Location.Latitude:F3},{ctx?.Location.Longitude:F3}) " +
-                    $"targets={ctx?.Targets?.Count ?? 0} LocationChanged={eval?.LocationChanged} " +
+                    $"Render enter date={ctx.Location.DateTime:yyyy-MM-dd HH:mm} " +
+                    $"loc=({ctx.Location.Latitude:F3},{ctx.Location.Longitude:F3}) " +
+                    $"targets={ctx.Targets?.Count ?? 0} LocationChanged={eval?.LocationChanged} " +
                     $"TargetsChanged={eval?.TargetsChanged} HdmChanged={eval?.HdmChanged}");
             }
-            if (ctx == null) throw new ArgumentNullException(nameof(ctx));
             if (ctx.Location == null) throw new ArgumentException("ctx.Location must not be null", nameof(ctx));
             if (ctx.Policy == null) throw new ArgumentException("ctx.Policy must not be null", nameof(ctx));
 
@@ -511,6 +531,7 @@ namespace TargetPlanner.Charts
             mOverlay.RefreshActiveOverlays();
             if (mOverlay.IsGlobalMode) mOverlay.EnsureGlobalApplied();
             mLastDayKey = dayKey;
+            mLastTargets = ctx.Targets;
 
             RecomputeLayout();
         }

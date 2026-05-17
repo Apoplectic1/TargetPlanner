@@ -15,6 +15,7 @@ using LiveChartsCore.SkiaSharpView.WinForms;
 using SkiaSharp;
 using TargetPlanner.Caches;
 using TargetPlanner.State;
+using TargetPlanner.Support;
 
 using Location = Astronomy.Core.Locations.Location;
 using Target   = Astronomy.Core.Targets.Target;
@@ -62,6 +63,10 @@ namespace TargetPlanner.Charts
 
         private readonly Dictionary<Target, LineSeries<ObservablePoint>> mSeriesByTarget
             = new Dictionary<Target, LineSeries<ObservablePoint>>();
+
+        // Targets reference from the most recent successful Render. Phase-7
+        // short-circuit; see AltitudeSubChart_Day.mLastTargets for rationale.
+        private IReadOnlyList<Target> mLastTargets;
 
         private readonly Dictionary<Target, Color> mTargetColors
             = new Dictionary<Target, Color>();
@@ -242,10 +247,19 @@ namespace TargetPlanner.Charts
 
         public void Render(ChartContext ctx, IChartCacheStore cache, ChartEvaluation eval)
         {
-            _ = eval; // Phase 4: accept but ignore; Phase 7 will wire short-circuit.
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
             if (ctx.Location == null) throw new ArgumentException("ctx.Location must not be null", nameof(ctx));
             if (ctx.Policy == null) throw new ArgumentException("ctx.Policy must not be null", nameof(ctx));
+            // Phase 7 short-circuit. Year cares about Location (year-of-nights),
+            // Targets (per-target series), Hdm (fit decisions per night). Day
+            // mode and brightness inputs don't affect Year.
+            if (eval != null && !eval.LocationChanged && !eval.TargetsChanged
+                && !eval.HdmChanged
+                && mLastTargets != null && ReferenceEquals(ctx.Targets, mLastTargets))
+            {
+                if (Log.IsDiagEnabled("Year")) Log.Diag("Year", "Render short-circuit (no relevant change)");
+                return;
+            }
 
             Location location = ctx.Location;
             IReadOnlyList<Target> targets = ctx.Targets;
@@ -326,6 +340,7 @@ namespace TargetPlanner.Charts
                 mTargetBySeries[kv.Value] = kv.Key;
             }
             mChart.Series = seriesList;
+            mLastTargets = ctx.Targets;
             BuildLegendItems();
 
             RecomputeLayout();

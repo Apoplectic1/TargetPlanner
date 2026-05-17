@@ -140,6 +140,10 @@ namespace TargetPlanner.Charts
         // this overlay is a presence/intensity indicator only.
         private LineSeries<ObservablePoint> mMoonSeries;
 
+        // Targets reference from the most recent successful Render. Phase-7
+        // short-circuit; see AltitudeSubChart_Day.mLastTargets for rationale.
+        private IReadOnlyList<Target> mLastTargets;
+
         private readonly HoverTooltipController mHover;
 
         // Cached IdealHeight from the last layout pass; used to detect changes so
@@ -293,10 +297,20 @@ namespace TargetPlanner.Charts
 
         public void Render(ChartContext ctx, IChartCacheStore cache, ChartEvaluation eval)
         {
-            _ = eval; // Phase 4: accept but ignore; Phase 7 will wire short-circuit.
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
             if (ctx.Location == null) throw new ArgumentException("ctx.Location must not be null", nameof(ctx));
             if (ctx.Policy == null) throw new ArgumentException("ctx.Policy must not be null", nameof(ctx));
+            // Phase 7 short-circuit. Sky cares about Location (dayKey, K-S
+            // bounds), Targets (per-target series), Hdm (fit gate via
+            // Tonight.Floor), and BrightnessInputs (K-S re-walk on Bortle /
+            // ExtinctionK / Filter scrubs). DayMode is Day-only.
+            if (eval != null && !eval.LocationChanged && !eval.TargetsChanged
+                && !eval.HdmChanged && !eval.BrightnessInputsChanged
+                && mLastTargets != null && ReferenceEquals(ctx.Targets, mLastTargets))
+            {
+                if (Log.IsDiagEnabled("Sky")) Log.Diag("Sky", "Render short-circuit (no relevant change)");
+                return;
+            }
 
             Location location = ctx.Location;
             IReadOnlyList<Target> targets = ctx.Targets;
@@ -414,6 +428,7 @@ namespace TargetPlanner.Charts
             mSeriesByTarget.Clear();
             foreach (var kv in newSeriesByTarget) mSeriesByTarget[kv.Key] = kv.Value;
             mChart.Series = seriesList;
+            mLastTargets = ctx.Targets;
             BuildLegendItems();
 
             RecomputeLayout();
