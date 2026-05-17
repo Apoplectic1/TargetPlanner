@@ -49,6 +49,20 @@ namespace TargetPlanner.Charts
         private readonly HashSet<LineSeries<ObservablePoint>> mGlobalOptOuts
             = new HashSet<LineSeries<ObservablePoint>>();
 
+        // Sticky-target fast-path state. After a successful per-target toggle,
+        // mLastToggled holds the series and mLastClickPxX/Y the pixel coords
+        // of that click. The NEXT TryToggleAt that lands at the IDENTICAL
+        // pixel (no mouse movement) re-toggles mLastToggled directly without
+        // a hit-test, letting the user rapidly flip an overlay on/off without
+        // moving the cursor to re-intersect the redrawn curve. Pixel-exact
+        // comparison (no tolerance) preserves the ability to target adjacent
+        // or overlapping curves with a 1-pixel mouse nudge. Cleared by
+        // ClearAll, RestoreAll, ToggleAll, PruneStaleBackups (when the series
+        // is no longer active), and the drain-to-empty branch in TryToggleAt.
+        private LineSeries<ObservablePoint> mLastToggled;
+        private int mLastClickPxX;
+        private int mLastClickPxY;
+
         // True when the overlay state is in "show windows for all visible
         // targets" mode (right-click apply-all was the last activation and at
         // least one backup is still active). Used by the host chart to extend
@@ -80,6 +94,7 @@ namespace TargetPlanner.Charts
             mBackups.Clear();
             mWasGlobalApply = false;
             mGlobalOptOuts.Clear();
+            mLastToggled = null;
         }
 
         // Walk currently-active overlays and re-render against the latest window
@@ -122,7 +137,7 @@ namespace TargetPlanner.Charts
             }
         }
 
-        public void TryToggleAt(double clickX, double clickY)
+        public void TryToggleAt(double clickX, double clickY, int clickPxX, int clickPxY)
         {
             // Per-target click is allowed in both modes. In per-target mode it
             // toggles the clicked target's overlay. In global mode it carves
@@ -130,41 +145,61 @@ namespace TargetPlanner.Charts
             // so EnsureGlobalApplied won't re-overlay it on the next H/D/M
             // scrub; toggle-on removes the exception. Right-click (ToggleAll)
             // remains the bulk clear / bulk apply gesture.
-            //
-            // Walk every visible target series, find the closest curve.
-            // Hidden series are excluded — clicking empty space where a
-            // curve used to be should not trigger an overlay on it.
             LineSeries<ObservablePoint> best = null;
             (double startOA, double endOA, double floor)? bestWin = null;
-            var bestDistance = double.MaxValue;
-            foreach (var s in mTargetSeries())
-            {
-                if (!s.IsVisible) continue;
-                if (!(s.Values is ObservableCollection<ObservablePoint> data)) continue;
-                var probe = CurveHitTester.At(data, p => p.X, p => p.Y, clickX, clickY);
-                if (probe is null) continue;
-                var dy = probe.Value.Distance;
-                if (dy < bestDistance)
-                {
-                    bestDistance = dy;
-                    best = s;
-                    bestWin = mWindowFor(s);
-                }
-            }
 
-            if (best is null)
+            // Sticky fast-path: if the mouse hasn't moved since the last
+            // successful toggle, re-toggle the same target without a hit-test.
+            // After a toggle, the curve is replaced by the step shape (or vice
+            // versa), so the cursor no longer sits over the original curve at
+            // the click pixel; without this, the second click would either
+            // miss ("no target curve at this position") or hit a neighbour.
+            // Pixel-exact (no tolerance) preserves the ability to target an
+            // adjacent or overlapping curve with even a 1-pixel mouse nudge.
+            if (mLastToggled != null
+                && mLastToggled.IsVisible
+                && clickPxX == mLastClickPxX
+                && clickPxY == mLastClickPxY)
             {
-                mReportStatus?.Invoke("HD overlay: no target curve at this position");
-                return;
+                best = mLastToggled;
+                bestWin = mWindowFor(mLastToggled);
             }
-            if (bestDistance > MaxClickDistanceDeg)
+            else
             {
-                mReportStatus?.Invoke($"HD overlay: nearest='{best.Name}' Δy={bestDistance:F1}° > {MaxClickDistanceDeg}° — no action");
-                return;
+                // Walk every visible target series, find the closest curve.
+                // Hidden series are excluded — clicking empty space where a
+                // curve used to be should not trigger an overlay on it.
+                var bestDistance = double.MaxValue;
+                foreach (var s in mTargetSeries())
+                {
+                    if (!s.IsVisible) continue;
+                    if (!(s.Values is ObservableCollection<ObservablePoint> data)) continue;
+                    var probe = CurveHitTester.At(data, p => p.X, p => p.Y, clickX, clickY);
+                    if (probe is null) continue;
+                    var dy = probe.Value.Distance;
+                    if (dy < bestDistance)
+                    {
+                        bestDistance = dy;
+                        best = s;
+                        bestWin = mWindowFor(s);
+                    }
+                }
+
+                if (best is null)
+                {
+                    mReportStatus?.Invoke("HD overlay: no target curve at this position");
+                    return;
+                }
+                if (bestDistance > MaxClickDistanceDeg)
+                {
+                    mReportStatus?.Invoke($"HD overlay: nearest='{best.Name}' Δy={bestDistance:F1}° > {MaxClickDistanceDeg}° — no action");
+                    return;
+                }
             }
 
             if (!(best.Values is ObservableCollection<ObservablePoint> bdata)) return;
             bool wasGlobal = IsGlobalMode;
+            bool didToggle = false;
             if (mBackups.TryGetValue(best, out var backup))
             {
                 for (int i = 0; i < backup.Length && i < bdata.Count; i++)
@@ -181,6 +216,7 @@ namespace TargetPlanner.Charts
                 mReportStatus?.Invoke(wasGlobal && mBackups.Count > 0
                     ? $"HD overlay restored: '{best.Name}' (global -- excluded)"
                     : $"HD overlay restored: '{best.Name}'");
+                didToggle = true;
             }
             else if (bestWin.HasValue)
             {
@@ -189,10 +225,23 @@ namespace TargetPlanner.Charts
                 mReportStatus?.Invoke(wasGlobal
                     ? $"HD overlay applied: '{best.Name}' (global -- restored)"
                     : $"HD overlay applied: '{best.Name}'");
+                didToggle = true;
             }
             else
             {
                 mReportStatus?.Invoke($"HD overlay: '{best.Name}' has no D-hour window tonight");
+            }
+
+            // Update sticky state only on a successful toggle so the no-window
+            // branch doesn't capture a target the user couldn't actually
+            // overlay. The pixel coords pin the fast-path to this exact click
+            // position; a 1-pixel mouse move on the next click falls through
+            // to the hit-test and can pick up an adjacent curve.
+            if (didToggle)
+            {
+                mLastToggled = best;
+                mLastClickPxX = clickPxX;
+                mLastClickPxY = clickPxY;
             }
         }
 
@@ -210,6 +259,7 @@ namespace TargetPlanner.Charts
             mBackups.Clear();
             mWasGlobalApply = false;
             mGlobalOptOuts.Clear();
+            mLastToggled = null;
             mReportStatus?.Invoke($"HD overlay restored ({n})");
         }
 
@@ -228,8 +278,11 @@ namespace TargetPlanner.Charts
 
             // Re-applying globally starts from a fresh state: any prior
             // per-target opt-outs are discarded so the right-click apply-all
-            // gesture always covers every visible+fitting target.
+            // gesture always covers every visible+fitting target. The sticky
+            // fast-path is also reset since bulk apply breaks the "I'm
+            // working with this individual target" context.
             mGlobalOptOuts.Clear();
+            mLastToggled = null;
 
             int applied = 0;
             foreach (var s in mTargetSeries())
@@ -256,12 +309,13 @@ namespace TargetPlanner.Charts
         // and stale opt-outs don't suppress a later EnsureGlobalApplied.
         public void PruneStaleBackups(IEnumerable<LineSeries<ObservablePoint>> activeSeries)
         {
-            if (mBackups.Count == 0 && mGlobalOptOuts.Count == 0) return;
+            if (mBackups.Count == 0 && mGlobalOptOuts.Count == 0 && mLastToggled == null) return;
             var active = new HashSet<LineSeries<ObservablePoint>>(activeSeries);
             var staleBackups = mBackups.Keys.Where(s => !active.Contains(s)).ToList();
             foreach (var s in staleBackups) mBackups.Remove(s);
             var staleOptOuts = mGlobalOptOuts.Where(s => !active.Contains(s)).ToList();
             foreach (var s in staleOptOuts) mGlobalOptOuts.Remove(s);
+            if (mLastToggled != null && !active.Contains(mLastToggled)) mLastToggled = null;
             if (mBackups.Count == 0)
             {
                 mWasGlobalApply = false;

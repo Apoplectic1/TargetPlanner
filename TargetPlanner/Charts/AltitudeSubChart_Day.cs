@@ -574,7 +574,9 @@ namespace TargetPlanner.Charts
 
             // Inside the plot area: HD overlay hit-test. Legend clicks are
             // handled per-item in the external FlowLayoutPanel, not here.
-            mOverlay.TryToggleAt(clickData.X, clickData.Y);
+            // Pixel coords flow through so the controller's sticky fast-path
+            // can re-toggle the last target when the mouse hasn't moved.
+            mOverlay.TryToggleAt(clickData.X, clickData.Y, e.X, e.Y);
             mChart.Invalidate();
         }
 
