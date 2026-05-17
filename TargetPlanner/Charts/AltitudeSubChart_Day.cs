@@ -414,7 +414,17 @@ namespace TargetPlanner.Charts
             mTargetWindows.Clear();
             mTargetColors.Clear();
 
-            BuildOrUpdateMoonSeries(location, chartStart, startUtc, count, night.LunarIlluminationFraction);
+            // Moon altitudes from cache (prepared by ChartCacheStore.EnsureAsync ->
+            // PrepareMoonAsync alongside per-target Day altitudes). Defensive
+            // fallback to inline compute if the cache misses (race-condition
+            // safety net; should never fire in practice).
+            IReadOnlyList<double> moonAltitudes = cache?.GetMoonOrNull(dayKey)?.AltitudesPerMinute;
+            if (moonAltitudes == null || moonAltitudes.Count != count)
+            {
+                Log.Warn($"Day moon cache miss; inline fallback (dayKey.Count={count}, cached={moonAltitudes?.Count ?? -1})");
+                moonAltitudes = ComputeMoonAltitudesInline(location, startUtc, count);
+            }
+            BuildOrUpdateMoonSeries(moonAltitudes, chartStart, count, night.LunarIlluminationFraction);
 
             // "Fit tonight only" filter for Day: targets without a D-hour window
             // tonight are excluded from mChart.Series and the legend entirely.
@@ -738,23 +748,22 @@ namespace TargetPlanner.Charts
             mChart.Invalidate();
         }
 
-        // Build the shared Moon-Day filled area series. Recreate fresh every
-        // Render so LC2 sees a brand-new series instance -- simpler than the
-        // prior in-place-mutate path and avoids subtle reuse bugs. The
+        // Build the shared Moon-Day filled area series from a pre-computed
+        // altitude array (sourced from the per-DayWindowKey moon cache). The
+        // Y axis is Day's altitude [0, 90]; below-horizon points get null Y so
+        // the fill gaps where the moon is down.
+        //
+        // Recreate fresh every Render so LC2 sees a brand-new series instance --
+        // simpler than in-place mutation and avoids subtle reuse bugs. The
         // first-Sky->Day moon-absent paint bug we chased here was actually a
-        // WinForms/SKControl paint-cycle issue fixed by Control.Refresh()
-        // in MainForm.RenderArea, not by anything in this series construction.
+        // WinForms/SKControl paint-cycle issue fixed by Control.Refresh() in
+        // MainForm.RenderArea, not by anything in this series construction.
         private void BuildOrUpdateMoonSeries(
-            Location location,
+            IReadOnlyList<double> altitudes,
             DateTime chartStart,
-            DateTime startUtc,
             int count,
             double lunarIllumination)
         {
-            double latSigned = location.LatSigned();
-            double lonEast   = location.LonEast();
-            ObserverInfo observer = new ObserverInfo(latSigned, lonEast, location.Elevation);
-
             byte alpha = (byte)Math.Min(250, Math.Max(0, (int)(lunarIllumination * 250.0)));
 
             int aboveHorizon = 0;
@@ -762,14 +771,12 @@ namespace TargetPlanner.Charts
             var data = new ObservableCollection<ObservablePoint>();
             for (int i = 0; i < count; i++)
             {
-                DateTime point = chartStart.AddMinutes(i);
-                DateTime pointUtc = DateTime.SpecifyKind(
-                    startUtc.AddMinutes(i), DateTimeKind.Utc);
-                double moonAlt = AstroUtil.GetMoonAltitude(pointUtc, observer);
+                double moonAlt = altitudes[i];
                 if (moonAlt > 0) aboveHorizon++;
                 if (moonAlt < minAlt) minAlt = moonAlt;
                 if (moonAlt > maxAlt) maxAlt = moonAlt;
                 double? plotY = moonAlt < 0 ? (double?)null : moonAlt;
+                DateTime point = chartStart.AddMinutes(i);
                 data.Add(new ObservablePoint(point.ToOADate(), plotY));
             }
 
@@ -790,9 +797,28 @@ namespace TargetPlanner.Charts
                 Log.Diag("Day",
                     $"BuildMoon illum={lunarIllumination:F3} alpha={alpha} count={count} " +
                     $"aboveHorizon={aboveHorizon} minAlt={minAlt:F2} maxAlt={maxAlt:F2} " +
-                    $"chartStart={chartStart:yyyy-MM-dd HH:mm} startUtc={startUtc:yyyy-MM-dd HH:mm}Z " +
-                    $"obs=({observer.Latitude:F3},{observer.Longitude:F3},{observer.Elevation})");
+                    $"chartStart={chartStart:yyyy-MM-dd HH:mm}");
             }
+        }
+
+        // Defensive fallback when the moon cache misses (e.g. a race where
+        // Render runs before PrepareMoonAsync's await settled). Matches
+        // ChartCacheStore.BuildMoonEntryAsync's compute path so the result is
+        // byte-identical to the cached version.
+        private static IReadOnlyList<double> ComputeMoonAltitudesInline(
+            Location location, DateTime startUtc, int count)
+        {
+            double latSigned = location.LatSigned();
+            double lonEast   = location.LonEast();
+            ObserverInfo observer = new ObserverInfo(latSigned, lonEast, location.Elevation);
+            double[] altitudes = new double[count];
+            for (int i = 0; i < count; i++)
+            {
+                DateTime pointUtc = DateTime.SpecifyKind(
+                    startUtc.AddMinutes(i), DateTimeKind.Utc);
+                altitudes[i] = AstroUtil.GetMoonAltitude(pointUtc, observer);
+            }
+            return altitudes;
         }
 
         private LineSeries<ObservablePoint> GetOrCreateTargetSeries(Target target, Color c)
