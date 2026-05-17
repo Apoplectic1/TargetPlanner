@@ -48,7 +48,8 @@ namespace TargetPlanner.State
         IReadOnlyList<Target> Targets,
         PlanningPolicy Policy,
         string ActiveArea,
-        IReadOnlyDictionary<Target, Color> TargetColors
+        IReadOnlyDictionary<Target, Color> TargetColors,
+        DayChartMode DayMode = DayChartMode.Floor
     )
     {
         /// <summary>

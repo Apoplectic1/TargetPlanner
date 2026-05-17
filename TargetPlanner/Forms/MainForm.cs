@@ -210,6 +210,17 @@ namespace TargetPlanner
         // RefreshSkyBrightness(cache, location) (Bortle / ExtinctionK / Filter scrub).
         private Charts.AltitudeSubChart_Sky mLC2Sky;
 
+        // Day needs a typed reference for the DayChartModeChanged event raised by
+        // the Floor / Transit radios overlaid on its plot area. Not part of
+        // IAltitudeSubChart since the radios are Day-specific UI.
+        private Charts.AltitudeSubChart_Day mLC2Day;
+
+        // Active Day-chart placement-strategy mode (driven by the radios on
+        // mLC2Day). SnapshotCurrent projects this into ChartContext.DayMode;
+        // the ChartCoordinator diff treats a flip as a RefreshVisibility trigger.
+        // Floor = current behavior (all fit-tonight targets).
+        private TargetPlanner.State.DayChartMode mDayChartMode = TargetPlanner.State.DayChartMode.Floor;
+
         private ToolTip mToolTip;
         private int mToolTipIndex;
 
@@ -491,6 +502,12 @@ Right-click anywhere on the chart to clear all overlays.";
             // Right-click on the listbox clears the Visible-tonight tint set.
             CheckedListBox_SelectedTargets.MouseDown += OnSelectedTargetsMouseDown;
 
+            // Up/Down on DatePicker = +/-1 day with natural month/year cascade
+            // (DateTime.AddDays handles the rollover). Replaces the default
+            // WinForms field-wrap behavior where Up on day=31 wraps to day=01
+            // of the same month. Use the dropdown calendar for big jumps.
+            DatePicker.KeyDown += DatePicker_KeyDown;
+
             // Duration spinner: bump Minimum off the Designer default of 0. The
             // library tolerates non-positive duration (BestSession.For etc. now
             // return null in that case rather than throwing), but a UI state
@@ -578,9 +595,10 @@ Right-click anywhere on the chart to clear all overlays.";
             // (ActiveFilterCenterNm property + RefreshSkyBrightness) that aren't
             // on the IAltitudeSubChart interface.
             mLC2Sky = new Charts.AltitudeSubChart_Sky();
+            mLC2Day = new Charts.AltitudeSubChart_Day();
             mSubCharts = new System.Collections.Generic.Dictionary<string, Charts.IAltitudeSubChart>(System.StringComparer.Ordinal)
             {
-                ["Day"]      = new Charts.AltitudeSubChart_Day(),
+                ["Day"]      = mLC2Day,
                 ["Sky"]      = mLC2Sky,
                 ["Year"]     = new Charts.AltitudeSubChart_Year(),
                 ["Sessions"] = new Charts.AltitudeSubChart_Sessions(),
@@ -591,6 +609,18 @@ Right-click anywhere on the chart to clear all overlays.";
                 sc.IdealHeightChanged += OnSubChartIdealHeightChanged;
                 Panel_AltitudeChart.Controls.Add(sc.Control);
             }
+
+            // Day-chart placement-strategy radios (Floor / Meridian / Wall) live
+            // inside the Day sub-chart's plot area. The radio CheckedChanged
+            // fires this event; route through the coordinator's snapshot pipeline
+            // so the diff sees the DayMode flip and dispatches RefreshVisibility
+            // on the active sub-chart (no cache change -- the mode is a pure
+            // visibility filter on top of NightFit.CenteredFloor).
+            mLC2Day.DayChartModeChanged += (s, e) =>
+            {
+                mDayChartMode = mLC2Day.Mode;
+                mCoordinator?.Apply(SnapshotCurrent());
+            };
 
             // Initial form sizing so an empty LC2 chart's plot area sits at the
             // ChartLayout.FixedPlotAreaHeight position even before any Graph click.
@@ -916,11 +946,14 @@ Right-click anywhere on the chart to clear all overlays.";
         {
             if (object.ReferenceEquals(a, b)) return true;
             if (a == null || b == null) return false;
+            // Mirrors ChartCoordinator.LocationCacheEquivalent -- see that
+            // method's comment for why DateTime.Date is part of the equivalence.
             return a.Latitude  == b.Latitude
                 && a.Longitude == b.Longitude
                 && a.North     == b.North
                 && a.West      == b.West
                 && a.Elevation == b.Elevation
+                && a.DateTime.Date == b.DateTime.Date
                 && NightCache.ComputeYearStartDay(a.DateTime) == NightCache.ComputeYearStartDay(b.DateTime);
         }
 
@@ -1008,9 +1041,12 @@ Right-click anywhere on the chart to clear all overlays.";
             // Name to avoid a pointless Items.Clear+re-add round-trip on every scrub tick.
             if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
                 ResortSelectedTargets();
-            // Coordinator: post-apply hook handles RefreshAstrometryLabels + final
-            // line sync. DateTime sub-day changes don't trigger any structural diff
-            // (year-start unchanged), so the pipeline is no-op except the hook.
+            // Coordinator: a date change (different DateTime.Date) trips the
+            // LocationCacheEquivalent diff -> SetLocationAsync -> full cache
+            // rebuild -> Render with fresh moon series, dusk/dawn, altitudes,
+            // and Tonight fits. Date-unchanged scrubs (TimePicker, sub-day
+            // mutations) skip the rebuild and just bounce through the post-
+            // apply hook for label + now-line sync.
             mCoordinator?.Apply(SnapshotCurrent());
         }
 
@@ -1022,6 +1058,23 @@ Right-click anywhere on the chart to clear all overlays.";
             if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
                 ResortSelectedTargets();
             mCoordinator?.Apply(SnapshotCurrent());
+        }
+
+        // Plain Up/Down on the DatePicker = +/-1 day with natural cascade across
+        // month/year boundaries (DateTime.AddDays). Setting Value programmatically
+        // fires ValueChanged which routes through Apply(SnapshotCurrent()) so the
+        // chart refreshes with the new date. Modifier keys (Shift/Ctrl/Alt + arrow)
+        // pass through to the default WinForms handler.
+        private void DatePicker_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Modifiers != Keys.None) return;
+            int delta;
+            if (e.KeyCode == Keys.Up) delta = 1;
+            else if (e.KeyCode == Keys.Down) delta = -1;
+            else return;
+            DatePicker.Value = DatePicker.Value.AddDays(delta);
+            e.Handled = true;
+            e.SuppressKeyPress = true;
         }
 
         // Button_Graph is single-target only. Always graphs mSelection.SelectedSingle
@@ -1297,7 +1350,8 @@ Right-click anywhere on the chart to clear all overlays.";
                 Targets:      targets ?? Array.Empty<Target>(),
                 Policy:       policy,
                 ActiveArea:   SelectedArea(),
-                TargetColors: mTargetColorsByTarget);
+                TargetColors: mTargetColorsByTarget,
+                DayMode:      mDayChartMode);
         }
 
         // Snap the observation moment back to the current wall-clock time. Replaces the

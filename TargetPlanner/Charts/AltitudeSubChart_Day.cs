@@ -46,6 +46,9 @@ namespace TargetPlanner.Charts
         private static readonly SKColor YellowOpaque = new SKColor(255, 238, 88, 145);
         private static readonly SKColor YellowFaded  = new SKColor(255, 238, 88,   0);
 
+        // The label-edge epsilon used to dodge LC2's Ceil/Floor edge-tick
+        // floating-point sensitivity lives in ChartLayout (shared with Sky).
+
         // The Container hosts (top) the CartesianChart at fixed height + (bottom) a
         // FlowLayoutPanel hosting custom legend items that wrap as targets grow.
         // MainForm adds Container to Panel_AltitudeChart and resizes Panel +
@@ -86,6 +89,30 @@ namespace TargetPlanner.Charts
         private readonly OverlayController mOverlay;
         private readonly HoverTooltipController mHover;
 
+        // Two placement-strategy radios overlaid on the plot area top-left
+        // (right of the Y-axis "90°" label). Pure target filter: Floor shows
+        // all fit-tonight targets (default, current behavior), Transit shows
+        // only targets whose strict transit-centered placement fits
+        // (Tonight.CenteredFloor.HasValue) -- the Sessions-chart Symmetric
+        // subset. Mode lives on ChartContext; MainForm projects it via
+        // SnapshotCurrent and the ChartCoordinator diff treats a DayMode flip
+        // as a lightweight RefreshVisibility trigger.
+        private readonly RadioButton mFloorRadio;
+        private readonly RadioButton mTransitRadio;
+        // Suppress DayChartModeChanged event during programmatic radio updates
+        // (constructor seed, future external SetMode calls) so the form's
+        // subscription doesn't trigger a spurious snapshot+apply on startup.
+        private bool mSuppressModeChangedEvent;
+
+        /// <summary>Currently selected placement-strategy mode.</summary>
+        public DayChartMode Mode { get; private set; } = DayChartMode.Floor;
+
+        /// <summary>Raised when the user clicks a different Floor/Meridian/Wall
+        /// radio. MainForm subscribes and routes through
+        /// <c>mCoordinator.Apply(SnapshotCurrent())</c> so the diff sees the
+        /// DayMode change and dispatches RefreshVisibility on the active sub-chart.</summary>
+        public event EventHandler DayChartModeChanged;
+
         // Most recent dayKey passed to a successful Render. Used to decide whether
         // HD overlay backups (which snapshot per-minute altitude Y values) remain
         // valid across the next Render: same dayKey = altitude unchanged = prune
@@ -118,6 +145,13 @@ namespace TargetPlanner.Charts
                 Labeler = v => DateTime.FromOADate(v).ToString("h:mm tt"),
                 UnitWidth = TimeSpan.FromHours(1).TotalDays,
                 MinStep = TimeSpan.FromHours(1).TotalDays,
+                // ForceStepToMin disables LC2's adaptive label-skip density logic,
+                // which would otherwise occasionally drop the leftmost/rightmost
+                // hour label when chart width vs. label width tips into the skip
+                // branch. ChartStart/ChartStop always land on exact hour
+                // boundaries (per ChartLayout.DayChartStart/Stop), so we want
+                // every hour labeled regardless of pixel-density estimates.
+                ForceStepToMin = true,
                 LabelsPaint = new SolidColorPaint(SKColors.LightGray),
                 SeparatorsPaint = new SolidColorPaint(ChartLayout.GridLineColor),
             };
@@ -214,6 +248,93 @@ namespace TargetPlanner.Charts
 
             mChart.MouseDown += OnChartMouseDown;
             mChart.SizeChanged += OnChartSizeChanged;
+
+            // Two placement-strategy radios overlaid on the plot area top-left,
+            // just right of the Y-axis "90°" label. Parented to mContainer (a
+            // sibling of mChart) rather than mChart itself: CartesianChart
+            // derives from SkiaSharp's SKControl, which paints its entire client
+            // area via Skia and does not reliably render child WinForms controls.
+            // mContainer.Controls.Add positions the radios in mContainer's
+            // coordinate space; since mChart is Dock=Top at y=0, the radios at
+            // (LeftChromePx + ..., TopChromePx + ...) land visually inside the
+            // plot area's chrome margin. BringToFront() ensures they paint above
+            // the chart in WinForms Z-order.
+            mSuppressModeChangedEvent = true;
+            mFloorRadio   = MakeModeRadio("Floor",   DayChartMode.Floor,   isChecked: true);
+            mTransitRadio = MakeModeRadio("Transit", DayChartMode.Transit, isChecked: false);
+            int radioY = ChartLayout.TopChromePx + 2;
+            int radioX = ChartLayout.LeftChromePx + 5;
+            mFloorRadio.Location   = new Point(radioX,       radioY);
+            mTransitRadio.Location = new Point(radioX + 60,  radioY);
+            mContainer.Controls.Add(mFloorRadio);
+            mContainer.Controls.Add(mTransitRadio);
+            mFloorRadio.BringToFront();
+            mTransitRadio.BringToFront();
+            mSuppressModeChangedEvent = false;
+        }
+
+        // Build one of the three placement-strategy radios. Dark theme to blend
+        // into the chart background; AutoSize keeps label width tight regardless
+        // of font metrics. The Tag holds the DayChartMode value so the shared
+        // CheckedChanged handler can route without per-radio handlers.
+        private RadioButton MakeModeRadio(string label, DayChartMode mode, bool isChecked)
+        {
+            var radio = new RadioButton
+            {
+                Text = label,
+                Tag = mode,
+                AutoSize = true,
+                BackColor = ChartLayout.ChartBackground,
+                ForeColor = SystemColors.ControlLightLight,
+                FlatStyle = FlatStyle.Flat,
+                Checked = isChecked,
+            };
+            radio.CheckedChanged += OnModeRadioCheckedChanged;
+            return radio;
+        }
+
+        // Shared handler for all three placement-strategy radios. CheckedChanged
+        // fires twice per click (once on the old radio going false, once on the
+        // new going true); only the going-true edge updates Mode + fires the
+        // public event. Suppressed during construction so the initial seed
+        // doesn't generate a phantom mode change.
+        private void OnModeRadioCheckedChanged(object sender, EventArgs e)
+        {
+            if (mSuppressModeChangedEvent) return;
+            if (!(sender is RadioButton rb) || !rb.Checked) return;
+            if (!(rb.Tag is DayChartMode newMode) || newMode == Mode) return;
+            Mode = newMode;
+            DayChartModeChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        // Mode-aware overlay-window selector. Collapses two concerns into one:
+        // (a) "is this target visible in the active mode?" and (b) "what's the
+        // overlay step's window?" -- returns null when the target is filtered
+        // out for the active mode, returns the (start, end, floor) triple
+        // otherwise. Floor mode reads PlaceBest's window + floor; Transit mode
+        // reads PlaceCentered's strict-centered window + floor. The per-mode
+        // trios in NightFit are populated atomically (all three non-null when
+        // the placement succeeded, all three null when it didn't), so the
+        // pattern-match conjunction here is equivalent to "the placement fit."
+        private static (DateTime startUtc, DateTime endUtc, double floor)? GetModeWindow(
+            NightFit tonight, DayChartMode mode)
+        {
+            switch (mode)
+            {
+                case DayChartMode.Transit:
+                    return tonight.CenteredStartUtc is { } cs
+                        && tonight.CenteredEndUtc is { } ce
+                        && tonight.CenteredFloor is { } cf
+                        ? (cs, ce, cf)
+                        : ((DateTime, DateTime, double)?)null;
+                case DayChartMode.Floor:
+                default:
+                    return tonight.StartUtc is { } s
+                        && tonight.EndUtc is { } e
+                        && tonight.Floor is { } f
+                        ? (s, e, f)
+                        : ((DateTime, DateTime, double)?)null;
+            }
         }
 
         // Update the green horizon line in place. Cheap; called from spinner ticks.
@@ -259,9 +380,13 @@ namespace TargetPlanner.Charts
             DateTime dawnLocal = night.AstronomicalDawn.ToLocalTime();
 
             // Lock X axis to the night bounds so the HD overlay's null Y values
-            // can't trigger LC2's auto-zoom-to-non-null-span behavior.
-            mXAxis.MinLimit = chartStart.ToOADate();
-            mXAxis.MaxLimit = chartStop.ToOADate();
+            // can't trigger LC2's auto-zoom-to-non-null-span behavior. MinLimit
+            // / MaxLimit are nudged outward by ChartLayout.LabelEdgeEpsilonDays
+            // (1 ms) so LC2's Ceil-based first-tick math reliably places the
+            // edge tick at MinLimit's hour rather than occasionally rounding up
+            // by a full step and silently dropping the edge label.
+            mXAxis.MinLimit = chartStart.ToOADate() - ChartLayout.LabelEdgeEpsilonDays;
+            mXAxis.MaxLimit = chartStop.ToOADate() + ChartLayout.LabelEdgeEpsilonDays;
 
             UpdateGradientSections(chartStart, duskLocal, dawnLocal, chartStop);
             UpdateNowLine(now);
@@ -315,13 +440,14 @@ namespace TargetPlanner.Charts
                 // it -- no UI-thread BestSession.For call, byte-identical to the
                 // pre-consolidation ad-hoc compute.
                 NightFit? tonight = cache?.GetFitOrNull(target, ctx.Hdm)?.Tonight;
-                if (tonight is { StartUtc: { } winStart, EndUtc: { } winEnd, Floor: { } winFloor })
+                var window = tonight is { } tn ? GetModeWindow(tn, ctx.DayMode) : null;
+                if (window is { } w)
                 {
                     ApplyTargetVisibility(series, c, true);
                     mTargetWindows[series] = (
-                        winStart.ToLocalTime().ToOADate(),
-                        winEnd.ToLocalTime().ToOADate(),
-                        winFloor);
+                        w.startUtc.ToLocalTime().ToOADate(),
+                        w.endUtc.ToLocalTime().ToOADate(),
+                        w.floor);
                     seriesList.Add(series);
                 }
 
@@ -451,13 +577,14 @@ namespace TargetPlanner.Charts
                 if (!mTargetColors.TryGetValue(target, out Color c)) c = Color.White;
 
                 NightFit? tonight = cache?.GetFitOrNull(target, ctx.Hdm)?.Tonight;
-                if (tonight is { StartUtc: { } startUtc, EndUtc: { } endUtc, Floor: { } floorAlt })
+                var window = tonight is { } tn ? GetModeWindow(tn, ctx.DayMode) : null;
+                if (window is { } w)
                 {
                     ApplyTargetVisibility(series, c, true);
                     mTargetWindows[series] = (
-                        startUtc.ToLocalTime().ToOADate(),
-                        endUtc.ToLocalTime().ToOADate(),
-                        floorAlt);
+                        w.startUtc.ToLocalTime().ToOADate(),
+                        w.endUtc.ToLocalTime().ToOADate(),
+                        w.floor);
                 }
                 else
                 {

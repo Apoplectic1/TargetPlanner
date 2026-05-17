@@ -156,13 +156,22 @@ namespace TargetPlanner.Charts
             // miss ("no target curve at this position") or hit a neighbour.
             // Pixel-exact (no tolerance) preserves the ability to target an
             // adjacent or overlapping curve with even a 1-pixel mouse nudge.
+            // mWindowFor(mLastToggled).HasValue check confirms the target is
+            // still in the host's active filter set (Day's mTargetWindows): a
+            // mode-filter swap (Floor -> Meridian/Wall) can drop the sticky
+            // target from view, in which case we want to fall through to the
+            // normal hit-test rather than toggle an invisible series' backup.
+            (double, double, double)? stickyWin = mLastToggled != null
+                ? mWindowFor(mLastToggled)
+                : null;
             if (mLastToggled != null
                 && mLastToggled.IsVisible
+                && stickyWin.HasValue
                 && clickPxX == mLastClickPxX
                 && clickPxY == mLastClickPxY)
             {
                 best = mLastToggled;
-                bestWin = mWindowFor(mLastToggled);
+                bestWin = stickyWin;
             }
             else
             {

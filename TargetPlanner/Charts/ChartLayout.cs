@@ -46,6 +46,16 @@ namespace TargetPlanner.Charts
         public const int ChartFixedHeight =
             TopChromePx + FixedPlotAreaHeight + XAxisLabelHeightPx;
 
+        // Sub-second nudge applied to time-axis MinLimit / MaxLimit (Day, Sky)
+        // so LC2's Ceil/Floor-based edge-tick math reliably places the leftmost
+        // and rightmost hour labels. Without it, floating-point precision in
+        // DateTime.ToOADate() occasionally tips Ceil(MinLimit/step) up by one
+        // full step (silently dropping the leftmost hour label) or Floor(MaxLimit
+        // /step) down (silently dropping the rightmost). 1 ms is far below any
+        // human-visible precision -- the chart still appears to start/end on the
+        // whole hour. Gradient sections stay anchored at the exact hour bounds.
+        public const double LabelEdgeEpsilonDays = 1.0 / 86400000.0; // 1 millisecond
+
         // Legend (external, below chart in a FlowLayoutPanel) styling.
         public const int LegendRowHeightPx = 22;
         public const int LegendTopPaddingPx = 6;
@@ -109,18 +119,33 @@ namespace TargetPlanner.Charts
         // is left alone -- 60 min is well above the threshold.
         public static DateTime DayChartStart(DateTime duskLocal)
         {
-            DateTime start = duskLocal.Date.AddHours(duskLocal.Hour);
-            if (start >= duskLocal) start = start.AddHours(-1);
-            if ((duskLocal - start).TotalHours < 0.5) start = start.AddHours(-1);
-            return start;
+            // Floor to the top of the current hour, preserving DateTimeKind.
+            DateTime topOfHour = new DateTime(duskLocal.Year, duskLocal.Month, duskLocal.Day,
+                                              duskLocal.Hour, 0, 0, duskLocal.Kind);
+
+            // 30+ minutes past the hour: keep the current hour as start so the
+            // dusk gradient is >= 30 min wide.
+            if (duskLocal.Minute >= 30) return topOfHour;
+
+            // Less than 30 minutes past the hour: gradient would be too thin,
+            // so roll back an hour to widen it (gradient becomes 60+ min).
+            return topOfHour.AddHours(-1);
         }
 
         public static DateTime DayChartStop(DateTime dawnLocal)
         {
-            DateTime stop = dawnLocal.Date.AddHours(dawnLocal.Hour);
-            if (stop <= dawnLocal) stop = stop.AddHours(1);
-            if ((stop - dawnLocal).TotalHours < 0.5) stop = stop.AddHours(1);
-            return stop;
+            // Floor to the top of the current hour, preserving DateTimeKind.
+            DateTime topOfHour = new DateTime(dawnLocal.Year, dawnLocal.Month, dawnLocal.Day,
+                                              dawnLocal.Hour, 0, 0, dawnLocal.Kind);
+            DateTime nextHour = topOfHour.AddHours(1);
+
+            // 30 minutes or less past the hour: the natural next-hour stop gives
+            // a dawn gradient >= 30 min wide; use it.
+            if (dawnLocal.Minute <= 30) return nextHour;
+
+            // More than 30 minutes past the hour: natural gradient would be < 30
+            // min wide, so roll forward another hour to widen it.
+            return nextHour.AddHours(1);
         }
 
         /// <summary>

@@ -44,19 +44,27 @@ namespace TargetPlanner.Caches
     /// for the strict-centered "Symmetric" curve); Day reads
     /// <see cref="StartUtc"/> / <see cref="EndUtc"/> / <see cref="Floor"/> off
     /// the entry's <see cref="TargetFitEntry.Tonight"/> slot for its HD-overlay
-    /// window box; Sky reads <see cref="Floor"/>.HasValue off the same Tonight
-    /// slot for hide-on-no-fit. One
+    /// window box in Floor mode, and <see cref="CenteredStartUtc"/> /
+    /// <see cref="CenteredEndUtc"/> / <see cref="CenteredFloor"/> for the same
+    /// box in Transit mode; Sky reads <see cref="Floor"/>.HasValue off the same
+    /// Tonight slot for hide-on-no-fit. One
     /// <see cref="Astronomy.Core.Session.BestSession.ResolveCandidates"/> resolve
     /// drives both <c>PlaceBest</c> (Ceiling + Floor + Start/End) and
-    /// <c>PlaceCentered</c> (CenteredFloor), so the per-night compute pays one
-    /// candidate resolve plus two placements regardless of which sub-charts
-    /// consume the result.
+    /// <c>PlaceCentered</c> (CenteredFloor + CenteredStart/End), so the per-night
+    /// compute pays one candidate resolve plus two placements regardless of
+    /// which sub-charts consume the result.
     /// </summary>
     /// <remarks>
     /// All fields are <see langword="null"/> when no fit exists for the night
     /// under the current H/D/M (polar / sub-horizon / moon-blocked /
-    /// transit-doesn't-center). <see cref="StartUtc"/> / <see cref="EndUtc"/>
-    /// are the placed session's UTC boundaries; convert to local at the consumer
+    /// transit-doesn't-center). The PlaceBest trio (<see cref="StartUtc"/> /
+    /// <see cref="EndUtc"/> / <see cref="Floor"/>) and the PlaceCentered trio
+    /// (<see cref="CenteredStartUtc"/> / <see cref="CenteredEndUtc"/> /
+    /// <see cref="CenteredFloor"/>) are each populated atomically -- all three
+    /// non-null when the placement succeeded, all three null when it didn't.
+    /// PlaceBest succeeding does NOT imply PlaceCentered did, so a target can
+    /// have a Floor trio but a null CenteredFloor trio (wall-pushed only).
+    /// Convert UTC to local at the consumer
     /// (Day does <c>StartUtc.Value.ToLocalTime().ToOADate()</c>). Tooltips are
     /// formatted on hover from these fields plus the index-matched
     /// <see cref="NightCacheEntry"/> rather than pre-formatted into a parallel
@@ -69,5 +77,7 @@ namespace TargetPlanner.Caches
         public double? CenteredFloor { get; init; }
         public DateTime? StartUtc { get; init; }
         public DateTime? EndUtc { get; init; }
+        public DateTime? CenteredStartUtc { get; init; }
+        public DateTime? CenteredEndUtc { get; init; }
     }
 }

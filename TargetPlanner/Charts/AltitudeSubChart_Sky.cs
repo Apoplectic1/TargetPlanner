@@ -162,6 +162,10 @@ namespace TargetPlanner.Charts
                 Labeler = v => DateTime.FromOADate(v).ToString("h:mm tt"),
                 UnitWidth = TimeSpan.FromHours(1).TotalDays,
                 MinStep = TimeSpan.FromHours(1).TotalDays,
+                // ForceStepToMin disables LC2's adaptive label-skip density logic.
+                // Mirrors Day's X-axis config; both charts use the same hour-tick
+                // labeling scheme over the same night bounds.
+                ForceStepToMin = true,
                 LabelsPaint = new SolidColorPaint(SKColors.LightGray),
                 SeparatorsPaint = new SolidColorPaint(ChartLayout.GridLineColor),
             };
@@ -318,9 +322,12 @@ namespace TargetPlanner.Charts
 
             // Lock X axis to the night bounds so the gradient sections render
             // edge-to-edge and the now-line position is well defined even before
-            // the user adds targets.
-            mXAxis.MinLimit = chartStart.ToOADate();
-            mXAxis.MaxLimit = chartStop.ToOADate();
+            // the user adds targets. MinLimit/MaxLimit are nudged outward by
+            // ChartLayout.LabelEdgeEpsilonDays (1 ms) so LC2's Ceil/Floor edge-
+            // tick math reliably places the leftmost/rightmost hour labels --
+            // same fix Day's X axis uses.
+            mXAxis.MinLimit = chartStart.ToOADate() - ChartLayout.LabelEdgeEpsilonDays;
+            mXAxis.MaxLimit = chartStop.ToOADate() + ChartLayout.LabelEdgeEpsilonDays;
 
             UpdateGradientSections(chartStart, duskLocal, dawnLocal, chartStop);
             UpdateNowLine(now);

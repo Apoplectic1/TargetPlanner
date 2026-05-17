@@ -691,6 +691,8 @@ namespace TargetPlanner.Caches
                     CenteredFloor = centeredFloor,
                     StartUtc = session?.Start,
                     EndUtc   = session?.End,
+                    CenteredStartUtc = centered?.Start,
+                    CenteredEndUtc   = centered?.End,
                 };
             }
 
@@ -739,6 +741,8 @@ namespace TargetPlanner.Caches
                 CenteredFloor = centeredFloor,
                 StartUtc = startUtc,
                 EndUtc   = endUtc,
+                CenteredStartUtc = centered?.Start,
+                CenteredEndUtc   = centered?.End,
             };
         }
     }

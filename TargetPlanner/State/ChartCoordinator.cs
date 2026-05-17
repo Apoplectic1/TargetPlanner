@@ -301,10 +301,20 @@ namespace TargetPlanner.State
             //       visibility only. Instant toggle.
             bool activeNeedsFullRender = !activeEverRendered
                 || locationKeyChanged || targetsChanged;
+            // DayMode is a Day-chart-only target-filter knob (Floor / Meridian /
+            // Wall). It doesn't enter HdmKey -- no cache state changes -- so a
+            // mode flip routes through RefreshVisibility (re-evaluates the per-
+            // target filter + re-renders any active HD overlays against the
+            // refreshed mTargetWindows). Bundled into the hdm-only branch so a
+            // mode change while Day is active triggers the lightweight refresh
+            // path; other areas ignore DayMode in their Render/RefreshVisibility
+            // so a stray mode flip while Year/Sessions/Sky is active is a cheap
+            // no-op refresh.
+            bool dayModeChanged = activeEverRendered && prev.DayMode != ctx.DayMode;
             bool hdmOnlyChanged = activeEverRendered
                 && !locationKeyChanged
                 && !targetsChanged
-                && hdmKeyChanged;
+                && (hdmKeyChanged || dayModeChanged);
             if (activeNeedsFullRender)
             {
                 // mRenderActiveArea is MainForm.RenderArea -- ShowOnlyAltitudeChart
@@ -329,25 +339,25 @@ namespace TargetPlanner.State
             //    that don't fit the Render or RefreshVisibility contracts.
             mPostApplyHook?.Invoke(ctx);
 
-            // 5. Stamping policy is path-dependent.
-            //    - full-render: only the active area was actually Render'd
-            //      with this ctx. Inactives may be stale w.r.t. targets /
-            //      HdmKey; leave their stamps untouched so the next click
-            //      triggers a proper full Render.
-            //    - hdm-refresh: only the active area was refreshed; inactives
-            //      with the old Hdm stamp remain stale and need their own
-            //      refresh when next active. Stamp the active area only.
-            //    - showOnly: no work; the diff guarantees every ever-
-            //      rendered area is already current with ctx. Safe to
-            //      stamp all (often a no-op).
+            // 5. Stamping policy: only stamp the active area, only when it was
+            //    actually Render'd (or RefreshVisibility'd) with this ctx.
+            //    - full-render: active rendered, stamp it.
+            //    - hdm-refresh: active refreshed, stamp it.
+            //    - showOnly: no work done. Don't stamp anything. The active
+            //      area's existing stamp is already cache-equivalent to ctx
+            //      (that's WHY showOnly fired); restamping is a no-op for
+            //      diff purposes. Inactive areas' stamps stay at whatever ctx
+            //      they were last actually rendered with -- crucial because
+            //      stamping them now would LIE about their on-screen state,
+            //      causing a subsequent activation to take the showOnly fast
+            //      path and show stale chart bounds (e.g. Sky's MinLimit /
+            //      gradient frozen at a previous date). The prior "stamp all
+            //      on showOnly" behavior conflated cache-state currency with
+            //      rendered-state currency, which only coincide for the
+            //      active area.
             if (activeNeedsFullRender || hdmOnlyChanged)
             {
                 mLastAppliedByArea[activeArea] = ctx;
-            }
-            else
-            {
-                foreach (string area in mEverRendered)
-                    mLastAppliedByArea[area] = ctx;
             }
 
             // (mLastAppliedTargets is pre-stamped at pipeline entry above; no
@@ -366,11 +376,20 @@ namespace TargetPlanner.State
         {
             if (object.ReferenceEquals(a, b)) return true;
             if (a == null || b == null) return false;
+            // DateTime.Date is included so a DatePicker scrub (date change within
+            // the same month) invalidates the cache. Year-start-day alone misses
+            // sub-month date changes, which leaves mNightCache.Starting stale --
+            // moon series, dusk/dawn gradients, per-target altitudes, and
+            // Tonight fits all date-sensitive. Cost is full cache rebuild on
+            // every date pick (~2-4 sec for 44 targets per the perf budget);
+            // acceptable because DatePicker is click-driven, not scrubbed.
+            // TimePicker-only scrubs (date unchanged) still skip cache rebuild.
             return a.Latitude  == b.Latitude
                 && a.Longitude == b.Longitude
                 && a.North     == b.North
                 && a.West      == b.West
                 && a.Elevation == b.Elevation
+                && a.DateTime.Date == b.DateTime.Date
                 && NightCache.ComputeYearStartDay(a.DateTime)
                 == NightCache.ComputeYearStartDay(b.DateTime);
         }
