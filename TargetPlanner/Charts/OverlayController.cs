@@ -34,6 +34,20 @@ namespace TargetPlanner.Charts
         private readonly Dictionary<LineSeries<ObservablePoint>, double?[]> mBackups
             = new Dictionary<LineSeries<ObservablePoint>, double?[]>();
 
+        // True if the most recent activation was via ToggleAll's apply path
+        // (right-click apply-all). Cleared by RestoreAll, ClearAll, and by
+        // PruneStaleBackups when the prune drains backups to empty.
+        private bool mWasGlobalApply;
+
+        // True when the overlay state is in "show windows for all visible
+        // targets" mode (right-click apply-all was the last activation and at
+        // least one backup is still active). Used by the host chart to extend
+        // the global intent to newly-added targets after a Render: per-target
+        // mode (false) leaves added targets bare; global mode (true) auto-
+        // applies overlay to newly-visible targets via EnsureGlobalApplied.
+        // Drains naturally when the user clicks all individual overlays off.
+        public bool IsGlobalMode => mWasGlobalApply && mBackups.Count > 0;
+
         public OverlayController(
             CartesianChart chart,
             Func<IEnumerable<LineSeries<ObservablePoint>>> targetSeries,
@@ -52,6 +66,7 @@ namespace TargetPlanner.Charts
         public void ClearAll()
         {
             mBackups.Clear();
+            mWasGlobalApply = false;
         }
 
         // Walk currently-active overlays and re-render against the latest window
@@ -96,6 +111,16 @@ namespace TargetPlanner.Charts
 
         public void TryToggleAt(double clickX, double clickY)
         {
+            // Global mode is strict: per-target overlay clicks are disabled.
+            // The only way to interact with overlays in global mode is right-
+            // click (ToggleAll), which clears all and returns to "no mode."
+            // To do per-target overlay work, right-click first to clear, then
+            // start clicking individual targets.
+            if (IsGlobalMode)
+            {
+                mReportStatus?.Invoke("HD overlay: per-target click disabled in global mode -- right-click to clear");
+                return;
+            }
             // Walk every visible target series, find the closest curve.
             // Hidden series are excluded — clicking empty space where a
             // curve used to be should not trigger an overlay on it.
@@ -159,6 +184,7 @@ namespace TargetPlanner.Charts
             }
             var n = mBackups.Count;
             mBackups.Clear();
+            mWasGlobalApply = false;
             mReportStatus?.Invoke($"HD overlay restored ({n})");
         }
 
@@ -185,9 +211,42 @@ namespace TargetPlanner.Charts
                 ApplyOverlay(s, data, win.Value);
                 applied++;
             }
+            if (applied > 0) mWasGlobalApply = true;
             mReportStatus?.Invoke(applied > 0
                 ? $"HD overlay applied to all ({applied})"
                 : "HD overlay: no visible targets with a D-hour window tonight");
+        }
+
+        // Drop backup tracking for series not in the active set. Host's Render
+        // path calls this after rebuilding mSeriesByTarget so backups for removed
+        // targets are released while backups for surviving targets remain valid
+        // for RefreshActiveOverlays. If the prune drains backups to empty, also
+        // resets mWasGlobalApply so IsGlobalMode goes false naturally.
+        public void PruneStaleBackups(IEnumerable<LineSeries<ObservablePoint>> activeSeries)
+        {
+            if (mBackups.Count == 0) return;
+            var active = new HashSet<LineSeries<ObservablePoint>>(activeSeries);
+            var stale = mBackups.Keys.Where(s => !active.Contains(s)).ToList();
+            foreach (var s in stale) mBackups.Remove(s);
+            if (mBackups.Count == 0) mWasGlobalApply = false;
+        }
+
+        // Apply overlay to any visible, fits-tonight series that doesn't currently
+        // have a backup. Called by the host's Render path when IsGlobalMode is
+        // true so newly-added targets pick up the overlay -- extends "show
+        // windows for all visible targets" intent across target add. Visibility
+        // + has-a-window guards mirror ToggleAll's apply path exactly.
+        public void EnsureGlobalApplied()
+        {
+            foreach (var s in mTargetSeries())
+            {
+                if (!s.IsVisible) continue;
+                if (mBackups.ContainsKey(s)) continue;
+                if (!(s.Values is ObservableCollection<ObservablePoint> data)) continue;
+                var win = mWindowFor(s);
+                if (!win.HasValue) continue;
+                ApplyOverlay(s, data, win.Value);
+            }
         }
 
         // Two-pass step-function rewrite. Inside the window: Y = floor

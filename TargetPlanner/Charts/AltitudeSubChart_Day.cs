@@ -86,6 +86,12 @@ namespace TargetPlanner.Charts
         private readonly OverlayController mOverlay;
         private readonly HoverTooltipController mHover;
 
+        // Most recent dayKey passed to a successful Render. Used to decide whether
+        // HD overlay backups (which snapshot per-minute altitude Y values) remain
+        // valid across the next Render: same dayKey = altitude unchanged = prune
+        // + refresh; different dayKey = altitude about to be replaced = wipe.
+        private DayWindowKey mLastDayKey;
+
         // Cached IdealHeight from the last layout pass; used to detect changes so
         // the IdealHeightChanged event only fires when the form actually needs to
         // resize.
@@ -263,10 +269,14 @@ namespace TargetPlanner.Charts
             // minimum sample -- the polyline drives per-azimuth fit decisions in the cache.
             UpdateHorizonLine(horizonFloor);
 
-            // Reset HD overlay state -- the underlying ObservableCollections are
-            // about to be repopulated with fresh altitude data; any pending
-            // backups belong to the prior render cycle.
-            mOverlay.ClearAll();
+            // HD overlay preservation: when dayKey is unchanged (only targets/Hdm
+            // shifted, not location/date), altitude data is identical so existing
+            // backups remain valid -- PruneStaleBackups + RefreshActiveOverlays at
+            // the end of Render updates them against any shifted windows. When
+            // dayKey changes, altitude data is about to be replaced; existing
+            // backups would reference stale Y values, so wipe them.
+            bool dayKeyChanged = !dayKey.Equals(mLastDayKey);
+            if (dayKeyChanged) mOverlay.ClearAll();
             mTargetWindows.Clear();
             mTargetColors.Clear();
 
@@ -322,6 +332,18 @@ namespace TargetPlanner.Charts
             foreach (var kv in newSeriesByTarget) mSeriesByTarget[kv.Key] = kv.Value;
             mChart.Series = seriesList;
             BuildLegendItems();
+
+            // HD overlay reconciliation. With ClearAll skipped (above) when dayKey
+            // is unchanged, surviving backups need: (a) stale entries for removed
+            // targets dropped, (b) preserved overlays re-rendered against the new
+            // window bounds, (c) in global mode, overlay applied to newly-added
+            // visible targets so "show windows for all" intent extends through add.
+            // All three calls no-op when mBackups is empty (the dayKey-changed
+            // path that hit ClearAll above), so this is safe in both cases.
+            mOverlay.PruneStaleBackups(mSeriesByTarget.Values);
+            mOverlay.RefreshActiveOverlays();
+            if (mOverlay.IsGlobalMode) mOverlay.EnsureGlobalApplied();
+            mLastDayKey = dayKey;
 
             RecomputeLayout();
         }
@@ -464,6 +486,12 @@ namespace TargetPlanner.Charts
             // releases the snapshot; series whose window shifted get the rectangle
             // re-rendered against the new bounds.
             mOverlay.RefreshActiveOverlays();
+            // In global mode, extend "show windows for all visible targets" intent
+            // to any newly-visible+fitting target (e.g. a target that didn't fit
+            // at the previous H/D/M but does at the new one). Without this, a fit
+            // shift mid-scrub would leave the newly-admitted target bare while
+            // every other target still wears its overlay.
+            if (mOverlay.IsGlobalMode) mOverlay.EnsureGlobalApplied();
         }
 
         // Hide via fully-transparent stroke (zero alpha) when no D-hour window fits

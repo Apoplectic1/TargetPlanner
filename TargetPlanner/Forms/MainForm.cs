@@ -590,6 +590,7 @@ Right-click anywhere on the chart to clear all overlays.";
             mCoordinator = new TargetPlanner.State.ChartCoordinator(
                 cache: mCache,
                 renderActiveArea: ctx => RenderArea(ctx),
+                refreshActiveArea: ctx => RefreshArea(ctx),
                 showOnlyActiveArea: ctx =>
                 {
                     // Cheap "make this sub-chart visible without re-rendering"
@@ -1202,6 +1203,23 @@ Right-click anywhere on the chart to clear all overlays.";
             if (!mSubCharts.TryGetValue(ctx.ActiveArea, out var sc)) return;
             ShowOnlyAltitudeChart(sc.Control);
             sc.Render(ctx, mCache);
+            ResizeAltitudeChartArea(sc.IdealHeight);
+        }
+
+        // Lightweight sibling of RenderArea for the coordinator's Hdm-only path
+        // (H/D/M spinners, filter wavelength). Altitude geometry is unchanged,
+        // so the sub-chart only needs to re-evaluate fit + refresh visibility +
+        // re-apply any sticky state (e.g. Day's HD overlay backups). Caller
+        // guarantees ctx.ActiveArea has been Render'd at least once -- sub-charts
+        // early-return from RefreshVisibility when their internal series state
+        // is empty.
+        private void RefreshArea(ChartContext ctx)
+        {
+            if (mSubCharts == null) return;
+            if (ctx == null) return;
+            if (!mSubCharts.TryGetValue(ctx.ActiveArea, out var sc)) return;
+            ShowOnlyAltitudeChart(sc.Control);
+            sc.RefreshVisibility(ctx, mCache);
             ResizeAltitudeChartArea(sc.IdealHeight);
         }
 

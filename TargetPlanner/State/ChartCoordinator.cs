@@ -35,6 +35,7 @@ namespace TargetPlanner.State
     {
         private readonly IChartCacheStore mCache;
         private readonly Action<ChartContext> mRenderActiveArea;
+        private readonly Action<ChartContext> mRefreshActiveArea;
         private readonly Action<ChartContext> mShowOnlyActiveArea;
         private readonly Action<ChartContext> mPostApplyHook;
 
@@ -77,12 +78,14 @@ namespace TargetPlanner.State
         public ChartCoordinator(
             IChartCacheStore cache,
             Action<ChartContext> renderActiveArea,
+            Action<ChartContext> refreshActiveArea,
             Action<ChartContext> showOnlyActiveArea,
             Action<ChartContext> postApplyHook,
             int debounceMs = 150)
         {
             mCache = cache ?? throw new ArgumentNullException(nameof(cache));
             mRenderActiveArea = renderActiveArea ?? throw new ArgumentNullException(nameof(renderActiveArea));
+            mRefreshActiveArea = refreshActiveArea ?? throw new ArgumentNullException(nameof(refreshActiveArea));
             mShowOnlyActiveArea = showOnlyActiveArea ?? throw new ArgumentNullException(nameof(showOnlyActiveArea));
             mPostApplyHook = postApplyHook;
 
@@ -281,23 +284,41 @@ namespace TargetPlanner.State
             // Generation guard: a newer Apply has come in while we awaited; bail.
             if (gen != Volatile.Read(ref mGeneration)) return;
 
-            // 3. Dispatch one of two paths:
-            //    a) Full Render of the active area when its data is stale
-            //       (never rendered, or location/targets/HdmKey changed since).
+            // 3. Dispatch one of three paths:
+            //    a) Full Render of the active area when its altitude geometry is
+            //       stale (never rendered, or location/targets changed since).
             //       Inactive sub-charts hold no per-area derived state (fits
             //       live in the cache, keyed on (Target, HdmKey)) so they don't
             //       need a "stay current" callback -- a subsequent radio swap
             //       hits the cache via Render.
-            //    b) Active area data is current: skip Render, flip visibility.
-            //       Instant toggle.
+            //    b) Hdm-only changed on an already-rendered area: dispatch to
+            //       the lightweight RefreshVisibility path. Altitude geometry is
+            //       unchanged, only fits + per-target visibility shift -- and
+            //       crucially, the Day chart's HD overlay backups stay valid
+            //       across the refresh. Routing H/D/M and filter-wavelength
+            //       scrubs through here keeps active overlays sticky.
+            //    c) Active area data is fully current: skip work, flip
+            //       visibility only. Instant toggle.
             bool activeNeedsFullRender = !activeEverRendered
-                || locationKeyChanged || targetsChanged || hdmKeyChanged;
+                || locationKeyChanged || targetsChanged;
+            bool hdmOnlyChanged = activeEverRendered
+                && !locationKeyChanged
+                && !targetsChanged
+                && hdmKeyChanged;
             if (activeNeedsFullRender)
             {
                 // mRenderActiveArea is MainForm.RenderArea -- ShowOnlyAltitudeChart
                 // (flips Visible per sub-chart) + Render + ResizeAltitudeChartArea.
                 mRenderActiveArea(ctx);
                 mEverRendered.Add(activeArea);
+            }
+            else if (hdmOnlyChanged)
+            {
+                // mRefreshActiveArea is MainForm.RefreshArea -- ShowOnlyAltitudeChart
+                // + sub-chart.RefreshVisibility + ResizeAltitudeChartArea. The Hdm
+                // cache prep above (PrepareFitsAsync) ran before this dispatch, so
+                // RefreshVisibility reads warm fits for the new HdmKey.
+                mRefreshActiveArea(ctx);
             }
             else
             {
@@ -313,10 +334,13 @@ namespace TargetPlanner.State
             //      with this ctx. Inactives may be stale w.r.t. targets /
             //      HdmKey; leave their stamps untouched so the next click
             //      triggers a proper full Render.
+            //    - hdm-refresh: only the active area was refreshed; inactives
+            //      with the old Hdm stamp remain stale and need their own
+            //      refresh when next active. Stamp the active area only.
             //    - showOnly: no work; the diff guarantees every ever-
             //      rendered area is already current with ctx. Safe to
             //      stamp all (often a no-op).
-            if (activeNeedsFullRender)
+            if (activeNeedsFullRender || hdmOnlyChanged)
             {
                 mLastAppliedByArea[activeArea] = ctx;
             }
