@@ -534,7 +534,7 @@ namespace TargetPlanner.Charts
         {
             if (e.Button == MouseButtons.Right)
             {
-                mOverlay.RestoreAll();
+                mOverlay.ToggleAll();
                 mChart.Invalidate();
                 return;
             }

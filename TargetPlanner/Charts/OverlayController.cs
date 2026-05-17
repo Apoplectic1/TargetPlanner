@@ -162,6 +162,34 @@ namespace TargetPlanner.Charts
             mReportStatus?.Invoke($"HD overlay restored ({n})");
         }
 
+        // Bulk counterpart of TryToggleAt. If any overlay is currently active,
+        // revert everything (preserves the legacy right-click "clear" semantic);
+        // otherwise apply the overlay to every visible series that has a window.
+        // Visibility and has-a-window guards mirror TryToggleAt so bulk apply
+        // matches per-target apply exactly.
+        public void ToggleAll()
+        {
+            if (mBackups.Count > 0)
+            {
+                RestoreAll();
+                return;
+            }
+
+            int applied = 0;
+            foreach (var s in mTargetSeries())
+            {
+                if (!s.IsVisible) continue;
+                if (!(s.Values is ObservableCollection<ObservablePoint> data)) continue;
+                var win = mWindowFor(s);
+                if (!win.HasValue) continue;
+                ApplyOverlay(s, data, win.Value);
+                applied++;
+            }
+            mReportStatus?.Invoke(applied > 0
+                ? $"HD overlay applied to all ({applied})"
+                : "HD overlay: no visible targets with a D-hour window tonight");
+        }
+
         // Two-pass step-function rewrite. Inside the window: Y = floor
         // (horizontal bar). Single points immediately adjacent to the
         // window edges: Y = 0 (anchor for the vertical drop line). All
