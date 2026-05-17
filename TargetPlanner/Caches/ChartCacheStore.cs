@@ -348,6 +348,15 @@ namespace TargetPlanner.Caches
                 || ctx.Location.ExtinctionK != prev.Location.ExtinctionK
                 || ctx.Policy.FilterCenterNm != prev.Policy.FilterCenterNm;
 
+            if (Log.IsDiagEnabled("Cache"))
+            {
+                Log.Diag("Cache",
+                    $"EnsureAsync enter prevNull={prev == null} locChanged={locationChanged} " +
+                    $"tgtChanged={targetsChanged} hdmChanged={hdmChanged} dayModeChanged={dayModeChanged} " +
+                    $"brightnessChanged={brightnessChanged} targets={ctx.Targets?.Count ?? 0} " +
+                    $"dayKey.Count={dayKey.Count}");
+            }
+
             // 1. Re-key cache on geometry change. Skip the SetLocationAsync
             //    call entirely when LocationCacheEquivalent reports unchanged --
             //    SetLocationAsync's own ReferenceEquals fast path doesn't help
@@ -380,6 +389,14 @@ namespace TargetPlanner.Caches
             //    intended-but-incomplete state as "still stale", matching
             //    the cache's actual contents.
             lock (mGate) { mLastEnsureCtx = ctx; }
+
+            if (Log.IsDiagEnabled("Cache"))
+            {
+                int fitCount, dayCount, moonCount;
+                lock (mGate) { fitCount = mFits.Count; dayCount = mDay.Count; moonCount = mMoon.Count; }
+                Log.Diag("Cache",
+                    $"EnsureAsync exit mFits.Count={fitCount} mDay.Count={dayCount} mMoon.Count={moonCount}");
+            }
 
             return new ChartEvaluation
             {
@@ -582,6 +599,14 @@ namespace TargetPlanner.Caches
                         ComputeTonightFit(target, location, starting, horizon, duration, profile)));
 
                 TargetFitEntry entry = new TargetFitEntry(target, key, nights, tonight);
+
+                if (Log.IsDiagEnabled("Cache"))
+                {
+                    Log.Diag("Cache",
+                        $"BuildFit target={target.Name} hdmKey=(H={key.HorizonDeg},Dt={key.DurationTicks},FNm={key.FilterCenterNm}) " +
+                        $"durationSec={duration.TotalSeconds:F0} startingValid={starting.IsValid} " +
+                        $"tonightHasFloor={tonight.Floor.HasValue}");
+                }
 
                 lock (mGate)
                 {

@@ -355,6 +355,14 @@ namespace TargetPlanner.Charts
         public void Render(ChartContext ctx, IChartCacheStore cache, ChartEvaluation eval)
         {
             _ = eval; // Phase 4: accept but ignore; Phase 7 will wire short-circuit.
+            if (Log.IsDiagEnabled("Day"))
+            {
+                Log.Diag("Day",
+                    $"Render enter date={ctx?.Location.DateTime:yyyy-MM-dd HH:mm} " +
+                    $"loc=({ctx?.Location.Latitude:F3},{ctx?.Location.Longitude:F3}) " +
+                    $"targets={ctx?.Targets?.Count ?? 0} LocationChanged={eval?.LocationChanged} " +
+                    $"TargetsChanged={eval?.TargetsChanged} HdmChanged={eval?.HdmChanged}");
+            }
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
             if (ctx.Location == null) throw new ArgumentException("ctx.Location must not be null", nameof(ctx));
             if (ctx.Policy == null) throw new ArgumentException("ctx.Policy must not be null", nameof(ctx));
@@ -417,6 +425,7 @@ namespace TargetPlanner.Charts
             var seriesList = new List<ISeries>();
             if (mMoonSeries != null) seriesList.Add(mMoonSeries);
 
+            int dbgDayEntryNull = 0, dbgFitEntryNull = 0, dbgTonightFloorNull = 0, dbgWindowAdded = 0;
             for (int t = 0; t < targets.Count; t++)
             {
                 Target target = targets[t];
@@ -430,7 +439,7 @@ namespace TargetPlanner.Charts
                 // (modulo a raced location swap -- GetDayOrNull returns null in
                 // that case and the target is skipped silently).
                 TargetDayAltitudeEntry dayEntry = cache?.GetDayOrNull(target, dayKey);
-                if (dayEntry == null) continue;
+                if (dayEntry == null) { dbgDayEntryNull++; continue; }
                 IReadOnlyList<double> altitudes = dayEntry.AltitudesPerMinute;
 
                 var series = GetOrCreateTargetSeries(target, c);
@@ -440,7 +449,9 @@ namespace TargetPlanner.Charts
                 // BuildFitEntryAsync time); we read Start/End/Floor straight off
                 // it -- no UI-thread BestSession.For call, byte-identical to the
                 // pre-consolidation ad-hoc compute.
-                NightFit? tonight = cache?.GetFitOrNull(target, ctx.Hdm)?.Tonight;
+                var fitEntry = cache?.GetFitOrNull(target, ctx.Hdm);
+                if (fitEntry == null) dbgFitEntryNull++;
+                NightFit? tonight = fitEntry?.Tonight;
                 var window = tonight is { } tn ? GetModeWindow(tn, ctx.DayMode) : null;
                 if (window is { } w)
                 {
@@ -450,14 +461,33 @@ namespace TargetPlanner.Charts
                         w.endUtc.ToLocalTime().ToOADate(),
                         w.floor);
                     seriesList.Add(series);
+                    dbgWindowAdded++;
+                }
+                else if (fitEntry != null)
+                {
+                    dbgTonightFloorNull++;
                 }
 
                 newSeriesByTarget[target] = series;
+            }
+            if (Log.IsDiagEnabled("Day"))
+            {
+                Log.Diag("Day",
+                    $"Render target-filter targets={targets.Count} dayEntryNull={dbgDayEntryNull} " +
+                    $"fitEntryNull={dbgFitEntryNull} tonightFloorNull={dbgTonightFloorNull} added={dbgWindowAdded} " +
+                    $"hdmKey=(H={ctx.Hdm.HorizonDeg},Dt={ctx.Hdm.DurationTicks},FNm={ctx.Hdm.FilterCenterNm})");
             }
 
             mSeriesByTarget.Clear();
             foreach (var kv in newSeriesByTarget) mSeriesByTarget[kv.Key] = kv.Value;
             mChart.Series = seriesList;
+            if (Log.IsDiagEnabled("Day"))
+            {
+                Log.Diag("Day",
+                    $"Render exit mChart.Series.Count={seriesList.Count} moonPresent={mMoonSeries != null} " +
+                    $"moonValuesCount={(mMoonSeries?.Values as System.Collections.ICollection)?.Count ?? -1} " +
+                    $"moonFillAlpha={((mMoonSeries?.Fill as SolidColorPaint)?.Color.Alpha ?? 0)}");
+            }
             BuildLegendItems();
 
             // HD overlay reconciliation. With ClearAll skipped (above) when dayKey
@@ -750,18 +780,31 @@ namespace TargetPlanner.Charts
             // Mutate in place to preserve the ObservableCollection identity. Length
             // can shift when night length changes (different date / latitude); add
             // / remove to fit count.
+            int aboveHorizon = 0;
+            double minAlt = double.PositiveInfinity, maxAlt = double.NegativeInfinity;
             for (int i = 0; i < count; i++)
             {
                 DateTime point = chartStart.AddMinutes(i);
                 DateTime pointUtc = DateTime.SpecifyKind(
                     startUtc.AddMinutes(i), DateTimeKind.Utc);
                 double moonAlt = AstroUtil.GetMoonAltitude(pointUtc, observer);
+                if (moonAlt > 0) aboveHorizon++;
+                if (moonAlt < minAlt) minAlt = moonAlt;
+                if (moonAlt > maxAlt) maxAlt = moonAlt;
                 double? plotY = moonAlt < 0 ? (double?)null : moonAlt;
                 var p = new ObservablePoint(point.ToOADate(), plotY);
                 if (i < data.Count) data[i] = p;
                 else data.Add(p);
             }
             while (data.Count > count) data.RemoveAt(data.Count - 1);
+            if (Log.IsDiagEnabled("Day"))
+            {
+                Log.Diag("Day",
+                    $"BuildMoon illum={lunarIllumination:F3} alpha={alpha} count={count} " +
+                    $"aboveHorizon={aboveHorizon} minAlt={minAlt:F2} maxAlt={maxAlt:F2} " +
+                    $"chartStart={chartStart:yyyy-MM-dd HH:mm} startUtc={startUtc:yyyy-MM-dd HH:mm}Z " +
+                    $"obs=({observer.Latitude:F3},{observer.Longitude:F3},{observer.Elevation})");
+            }
         }
 
         private LineSeries<ObservablePoint> GetOrCreateTargetSeries(Target target, Color c)

@@ -174,7 +174,20 @@ namespace TargetPlanner.State
                     dayKey = ChartLayout.BuildDayWindow(night).Key;
                 }
 
+                if (Log.IsDiagEnabled("Coord"))
+                {
+                    Log.Diag("Coord",
+                        $"Pipeline enter activeArea={ctx.ActiveArea} dayKey.Count={dayKey.Count} " +
+                        $"date={ctx.Location.DateTime:yyyy-MM-dd HH:mm}");
+                }
                 ChartEvaluation eval = await mCache.EnsureAsync(ctx, dayKey);
+                if (Log.IsDiagEnabled("Coord"))
+                {
+                    Log.Diag("Coord",
+                        $"Pipeline eval LocationChanged={eval.LocationChanged} " +
+                        $"TargetsChanged={eval.TargetsChanged} HdmChanged={eval.HdmChanged} " +
+                        $"DayModeChanged={eval.DayModeChanged} Brightness={eval.BrightnessInputsChanged}");
+                }
 
                 // Generation guard: a newer Apply has come in while we awaited; bail.
                 if (gen != Volatile.Read(ref mGeneration)) return;
