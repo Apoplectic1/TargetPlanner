@@ -101,6 +101,23 @@ namespace TargetPlanner
         private System.Collections.Generic.Dictionary<Astronomy.Core.Targets.Target, System.Drawing.Color> mDupeSetColors =
             new System.Collections.Generic.Dictionary<Astronomy.Core.Targets.Target, System.Drawing.Color>();
 
+        // Targets last tagged "visible tonight" by a Button_VisibleTonight click.
+        // Keyed by Target identity so the tint follows the target across sort
+        // changes. Replaced (not unioned) on each Visible click; pruned to current
+        // KnownTargets on any KnownTargets change (IntersectWith in
+        // OnVmKnownTargetsChanged); cleared by right-click on the listbox. Dupe
+        // colors take precedence over this tint at paint time so manual dupe-
+        // hunting isn't masked by a Visible flag.
+        private readonly System.Collections.Generic.HashSet<Astronomy.Core.Targets.Target> mVisibleTaggedTargets =
+            new System.Collections.Generic.HashSet<Astronomy.Core.Targets.Target>();
+
+        // Muted-success-green tint painted into the checkbox interior by
+        // DupeAwareCheckedListBox for Visible-tonight rows. Independent of
+        // the dupe-set row tint (different paint surfaces) so both can show
+        // simultaneously on a row that is duped AND visible-tagged.
+        private static readonly System.Drawing.Color VisibleTintColor =
+            System.Drawing.Color.FromArgb(0x6E, 0xBE, 0x6E);
+
         // Pastel palette indexed by stable hash of (RoundedRa, RoundedDec, North)
         // so the same coord set lands on the same color across sort changes and
         // re-populates. Alpha is muted so listbox row text stays readable on the
@@ -469,6 +486,10 @@ Right-click anywhere on the chart to clear all overlays.";
             // so we expose the dupe-color lookup as a Func and the listbox calls
             // it on every row paint.
             CheckedListBox_SelectedTargets.RowBackground = GetDupeRowBackground;
+            CheckedListBox_SelectedTargets.CheckboxInteriorTint = GetCheckboxInteriorTint;
+
+            // Right-click on the listbox clears the Visible-tonight tint set.
+            CheckedListBox_SelectedTargets.MouseDown += OnSelectedTargetsMouseDown;
 
             // Duration spinner: bump Minimum off the Designer default of 0. The
             // library tolerates non-positive duration (BestSession.For etc. now
@@ -1936,6 +1957,13 @@ Right-click anywhere on the chart to clear all overlays.";
             // time KnownTargets changes (NINA load, Add, Remove).
             RecomputeDupeSetColors();
 
+            // Prune the Visible-tonight tint set to current KnownTargets. NINA
+            // reload yields zero overlap (new Target instances) -- effective wipe.
+            // Add: no-op (the new target wasn't in the set). Remove: drops the
+            // removed target. Listbox repaint follows from PopulateChecked-
+            // ListBoxFromTargets above.
+            mVisibleTaggedTargets.IntersectWith(mSelection.KnownTargets);
+
             // SetKnownTargets clears SelectedSingle when the prior selection isn't in the
             // new catalog (different Target instance equality across reloads). Re-establish
             // a default by picking the *first sorted* known target (matching what the
@@ -2070,6 +2098,30 @@ Right-click anywhere on the chart to clear all overlays.";
             Target row = TargetForRow(rowIndex);
             if (row == null) return null;
             return mDupeSetColors.TryGetValue(row, out var c) ? (System.Drawing.Color?)c : null;
+        }
+
+        // Checkbox-interior tint callback for the Visible-tonight tag. Returns
+        // VisibleTintColor for tagged rows; the listbox subclass paints a
+        // custom checkbox with that interior color so the tag shows on the
+        // glyph without touching the row background. Independent from the
+        // dupe-set row tint (different paint surfaces), so both signals are
+        // visible simultaneously on a row that's duped AND visible-tagged.
+        private System.Drawing.Color? GetCheckboxInteriorTint(int rowIndex)
+        {
+            Target row = TargetForRow(rowIndex);
+            if (row == null) return null;
+            return mVisibleTaggedTargets.Contains(row) ? (System.Drawing.Color?)VisibleTintColor : null;
+        }
+
+        // Right-click on the listbox: explicit "clear the Visible-tonight tint
+        // set" gesture. Left-click delegates to standard CheckedListBox check /
+        // selection behavior (this handler returns early on non-right).
+        private void OnSelectedTargetsMouseDown(object sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Right) return;
+            if (mVisibleTaggedTargets.Count == 0) return;
+            mVisibleTaggedTargets.Clear();
+            CheckedListBox_SelectedTargets?.Invalidate();
         }
 
         // Merge the current SelectedSingle (combo's resolved target -- could be a
@@ -2400,6 +2452,14 @@ Right-click anywhere on the chart to clear all overlays.";
                     t, pickedNightLocation, night, mathHorizon, minDuration))
                 .ToList();
             mSelection.SetCheckedSet(visible);
+
+            // Replace (not union) the Visible-tonight tint set. Persists across
+            // Clear All by design; cleared by another Visible click (this same
+            // path), KnownTargets change (IntersectWith in OnVmKnownTargetsChanged),
+            // or right-click on the listbox (OnSelectedTargetsMouseDown).
+            mVisibleTaggedTargets.Clear();
+            mVisibleTaggedTargets.UnionWith(visible);
+            CheckedListBox_SelectedTargets?.Invalidate();
         }
     }
 }
