@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-13 (architectural-review campaign + post-campaign re-review follow-ups + Gemini code-review triage + Location refactor Phase 1). Previously updated 2026-05-11 (XISF prep notes + AnyCPU drop), 2026-05-04 (.NET 10 migration). Originally captured 2026-04-19.
+Last updated 2026-05-17 (HD-overlay per-target toggle in global mode + sticky fast-path). Previously updated 2026-05-13 (architectural-review campaign + post-campaign re-review follow-ups + Gemini code-review triage + Location refactor Phase 1), 2026-05-11 (XISF prep notes + AnyCPU drop), 2026-05-04 (.NET 10 migration). Originally captured 2026-04-19.
 
 ## Currently open (priority order)
 
@@ -81,6 +81,15 @@ Design notes preserved for the future implementation:
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+### 2026-05-17 — HD overlay: per-target toggle inside global mode + sticky fast-path
+
+Two follow-up commits to `091aa56` (sticky-across-H/D/M-scrubs + strict global mode). The strict guard turned out to be too restrictive — the user wanted to opt individual targets out of a global apply without losing the auto-extend behaviour across scrubs:
+
+- **TP `b891bcd`** — per-target left-click re-enabled in HD-overlay global mode. New `OverlayController.mGlobalOptOuts: HashSet<LineSeries>` tracks per-target exceptions; `EnsureGlobalApplied` skips opt-outs so H/D/M scrubs don't re-overlay an opted-out target. Bidirectional (toggle-off adds to opt-outs, toggle-on removes). Status messages annotate with `(global -- excluded)` / `(global -- restored)` when the click happens in global mode so the user knows they're still in it. Drains cleanly: toggling off the last backup exits global mode and clears opt-outs; right-click apply-all clears opt-outs at start for a fresh global state. Considered deriving opt-outs from `(visible-fitting) \ mBackups` (no new field) but rejected — would conflate "user opted out" with "user just toggled off in per-target mode pre-global," defeating the auto-extend behaviour.
+- **TP `f1cf369`** — sticky fast-path for rapid re-toggle without mouse movement. After a toggle the curve is replaced by the step shape so the cursor no longer sits on a hit-testable curve; a second click at the same pixel would miss or grab a neighbour. `OverlayController.TryToggleAt` now takes pixel coords; when the new click pixel matches the last successful toggle's pixel exactly, the sticky target is re-toggled without a hit-test. **Pixel-exact match (no tolerance)** — any non-zero tolerance would create a dead zone around the sticky target where adjacent or overlapping curves can't be selected. A 1-pixel mouse nudge falls back to the normal hit-test. Sticky state cleared on `ClearAll` / `RestoreAll` / `ToggleAll` / `PruneStaleBackups` when the target goes stale / drain-to-empty in `TryToggleAt`. Plan + state-machine validation at `~/.claude/plans/in-a-recent-commit-snug-flame.md`.
+
+CLAUDE.md glossary entry for HD Overlay, ARCHITECTURE.md's day-chart click-semantics paragraph, and README.md's HD Overlay + Chart interactions sections updated in the same pass — they all referenced `mOverlay.RestoreAll()` for right-click, stale since `091aa56` swapped it to `ToggleAll`.
 
 ### 2026-05-13 — Per-site local horizon (.hrz) + UTC offset (Location refactor Phase 1)
 

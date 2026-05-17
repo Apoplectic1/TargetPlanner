@@ -32,15 +32,15 @@ Hover any of the three curves to see all three values for that night.
 
 ## Domain terms
 
-- **HD Overlay** — the Day-chart's best-window step function. Bounded by **H**orizon (the Y floor) and **D**uration (the minimum window length). Click a target's Day curve to overlay; click again to restore.
+- **HD Overlay** — the Day-chart's best-window step function. Bounded by **H**orizon (the Y floor) and **D**uration (the minimum window length). Click a target's Day curve to overlay; click again to restore. Right-click the chart to apply the overlay to every fitting target at once (or restore all if any are active) — apply-all enters "global mode" so newly-fitting targets pick up the overlay automatically when you scrub Horizon / Duration / MoonAvoidance. Per-target click still works in global mode and carves an exception for that target (toggle-off stays off across scrubs; click again to re-include).
 - **D-hour window** — a contiguous span of length ≥ Duration that stays above Horizon. The "best D-hour window" is the highest-quality placement of such a window inside tonight's visibility arc.
 - **Ceiling / Floor / Symmetric** — the three Sessions-chart curves (above).
 
 ## Chart interactions
 
 - **Left-click a legend item** — toggle that target's curves on/off.
-- **Left-click a Day curve** — overlay the HD step function (target's best window for tonight); a second click on the same curve restores it.
-- **Right-click anywhere on the chart** — restore every replaced curve at once.
+- **Left-click a Day curve** — overlay the HD step function (target's best window for tonight); a second click on the same curve restores it. Clicking again at the exact same pixel re-toggles the same target (no need to chase the curve after it's been replaced by the step shape).
+- **Right-click anywhere on the chart** — apply the overlay to every fitting target at once if none are active, otherwise restore every replaced curve. The "apply all" gesture enters global mode so newly-fitting targets auto-acquire the overlay across H/D/M scrubs.
 - **Hover any data point** — per-point tooltip with target, time/date, and value(s).
 
 ## Targets
