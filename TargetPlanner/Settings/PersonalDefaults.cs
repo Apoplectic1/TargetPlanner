@@ -35,6 +35,27 @@ namespace TargetPlanner.Settings
         public static IReadOnlyList<NamedLocationSetting> NamedLocations { get; private set; } =
             Array.Empty<NamedLocationSetting>();
 
+        // Pre-seeded checklist for the right-click-title-bar user-observation
+        // dialog (Forms/UserObservationDialog). The seed list captures recurring
+        // observation patterns we've hit during debugging; edit via
+        // personal-defaults.json to add project-specific items. Items appear in
+        // the same order in the dialog's CheckedListBox.
+        public static IReadOnlyList<string> UserObservationChecklist { get; private set; } =
+            new[]
+            {
+                "Moon missing from Day chart",
+                "Moon missing from Sky chart",
+                "Targets disappear when they shouldn't",
+                "Chart shows wrong/stale state",
+                "Chart blank when it shouldn't be",
+                "Wrong axis bounds (labels missing, gradient cut off)",
+                "Spinner or button doesn't respond",
+                "HD overlay stuck/broken",
+                "Form labels disagree with chart",
+                "Performance issue (slow scrub/render)",
+                "Other (see notes)",
+            };
+
         public static string FilePath { get; } = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "TargetPlanner", "personal-defaults.json");
@@ -63,6 +84,8 @@ namespace TargetPlanner.Settings
                 if (!string.IsNullOrWhiteSpace(d.NinaTargetsRoot)) NinaTargetsRoot = d.NinaTargetsRoot;
                 if (d.NamedLocations != null && d.NamedLocations.Count > 0)
                     NamedLocations = d.NamedLocations.AsReadOnly();
+                if (d.UserObservationChecklist != null && d.UserObservationChecklist.Count > 0)
+                    UserObservationChecklist = d.UserObservationChecklist.AsReadOnly();
             }
             catch (Exception ex)
             {
@@ -89,6 +112,7 @@ namespace TargetPlanner.Settings
             public double? DurationMinutes{ get; set; }
             public string NinaTargetsRoot { get; set; }
             public List<NamedLocationSetting> NamedLocations { get; set; }
+            public List<string> UserObservationChecklist { get; set; }
         }
     }
 }

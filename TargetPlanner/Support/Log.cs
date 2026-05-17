@@ -78,6 +78,25 @@ namespace TargetPlanner.Support
             Append("DIAG/" + category, message, null);
         }
 
+        /// <summary>Write a user-observation line (triggered by the title-bar
+        /// right-click dialog). Always written, regardless of diag category
+        /// filter. <paramref name="checkedItems"/> is the semicolon-joined
+        /// pre-seeded items the user ticked; <paramref name="notes"/> is
+        /// free-form text. Newlines / quotes in notes are escaped so the line
+        /// stays grep-friendly (one observation = one line).</summary>
+        public static void UserObservation(string checkedItems, string notes)
+        {
+            string escapedNotes = (notes ?? string.Empty)
+                .Replace("\\", "\\\\")
+                .Replace("\r\n", "\\n")
+                .Replace("\n", "\\n")
+                .Replace("\r", "\\n")
+                .Replace("\"", "\\\"");
+            string body = string.Format("checked=[{0}] notes=\"{1}\"",
+                checkedItems ?? string.Empty, escapedNotes);
+            Append("USER_OBS", body, null);
+        }
+
         private static void Append(string level, string message, Exception ex)
         {
             try
