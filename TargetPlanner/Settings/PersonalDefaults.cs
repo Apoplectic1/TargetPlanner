@@ -43,6 +43,7 @@ namespace TargetPlanner.Settings
         public static IReadOnlyList<string> UserObservationChecklist { get; private set; } =
             new[]
             {
+                "All okay (checkpoint)",
                 "Moon missing from Day chart",
                 "Moon missing from Sky chart",
                 "Targets disappear when they shouldn't",
