@@ -291,6 +291,13 @@ for several targets at once to compare and sequence windows.
 Left-click the same curve again to remove that overlay.
 Right-click anywhere on the chart to clear all overlays.";
 
+        private const string VisibleButtonTooltipText =
+@"Checks every target above the horizon for at least 15 minutes during
+tonight's session, computed from the Date/Time picker forward.
+
+Independent of H/D/M -- scrub the spinners freely; the candidate set
+is preserved.";
+
         private Panel Panel_AltitudeChart;
 
         private UIState mUIState;
@@ -442,6 +449,7 @@ Right-click anywhere on the chart to clear all overlays.";
             mToolTip.AutoPopDelay = 5000;
             mToolTip.InitialDelay = 2000;
             mToolTip.ReshowDelay = 2000;
+            mToolTip.SetToolTip(Button_VisibleTargets, VisibleButtonTooltipText);
 
             // Long-lived explanatory tooltip for the Sessions radio button. InitialDelay is
             // 5 seconds so only a deliberate hover reveals it (casual mouse-overs don't
