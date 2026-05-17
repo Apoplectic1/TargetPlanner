@@ -1027,6 +1027,7 @@ is preserved.";
 
         private void DatePicker_ValueChanged(object sender, EventArgs e)
         {
+            Log.Diag("UI", $"DatePicker.ValueChanged value={DatePicker.Value:yyyy-MM-dd}");
             UpdateLocalDateTimeEvents();
             // Immediate now-line update for live feedback during scrub. Coordinator's
             // post-apply hook re-runs UpdateNowLine on settle (cheap; just shifts a
@@ -1048,6 +1049,7 @@ is preserved.";
 
         private void TimePicker_ValueChanged(object sender, EventArgs e)
         {
+            Log.Diag("UI", $"TimePicker.ValueChanged value={TimePicker.Value:HH:mm}");
             UpdateLocalDateTimeEvents();
             if (mSubCharts != null)
                 foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mLocalDateTime.When);
@@ -1068,6 +1070,7 @@ is preserved.";
             if (e.KeyCode == Keys.Up) delta = 1;
             else if (e.KeyCode == Keys.Down) delta = -1;
             else return;
+            Log.Diag("UI", $"DatePicker.KeyDown key={e.KeyCode} delta={delta}d");
             DatePicker.Value = DatePicker.Value.AddDays(delta);
             e.Handled = true;
             e.SuppressKeyPress = true;
@@ -1095,6 +1098,7 @@ is preserved.";
             // async void: wrap entire body so a synchronous throw doesn't crash the process.
             try
             {
+                Log.Diag("UI", $"Button_Graph.Click selected={mSelection?.SelectedSingle?.Name ?? "<null>"}");
                 // Cancel any pending multi-graph trigger. A user click on Button_Graph is an
                 // explicit "I want single-target now" intent; without this stop, a checkbox
                 // toggle 200 ms ago would still tick the debounce 50 ms later and clobber
@@ -1271,9 +1275,23 @@ is preserved.";
             if (mSubCharts == null) return;
             if (ctx == null) return;
             if (!mSubCharts.TryGetValue(ctx.ActiveArea, out var sc)) return;
-            ShowOnlyAltitudeChart(sc.Control);
+            // Render BEFORE ShowOnly so the sub-chart's Series state is fully
+            // current at the moment WinForms fires the Visible=true paint cycle.
             sc.Render(ctx, mCache, eval);
+            ShowOnlyAltitudeChart(sc.Control);
             ResizeAltitudeChartArea(sc.IdealHeight);
+            // Force synchronous repaint. LC2's SKControl first-paint after
+            // Visible=true uses stale internal state from when the control
+            // was hidden -- specifically misses Fill-only LineSeries (the
+            // moon overlay), leaving it invisible until the next Visible
+            // cycle. Diagnosed by the Sky chart's moon overlay rendering
+            // fine across the same scrub sequence (it stays visible during
+            // Sky scrubs so LC2's cache is hot). Control.Refresh() forces
+            // a synchronous repaint after Visible=true which re-reads the
+            // Series state. Workaround at the dispatch layer rather than
+            // inside any individual sub-chart -- every sub-chart benefits
+            // from the same kick when it goes hidden -> visible.
+            sc.Control.Refresh();
         }
 
         // No-arg overload: reads the shared "current targets" from the coordinator
@@ -1340,6 +1358,7 @@ is preserved.";
         // Events, and reposition the chart's red now-line to the current X coordinate.
         private void Button_Now_Click(object sender, EventArgs e)
         {
+            Log.Diag("UI", "Button_Now.Click");
             mLocalDateTime = (DateTime.Now, TimeZoneInfo.Local);
 
             DatePicker.ValueChanged -= DatePicker_ValueChanged;
@@ -1846,6 +1865,7 @@ is preserved.";
         // new active area's data is current.
         private void RadioButton_Day_CheckedChanged(object sender, EventArgs e)
         {
+            Log.Diag("UI", $"RadioButton_Day.CheckedChanged checked={RadioButton_Day.Checked}");
             mUIState.DayChart = RadioButton_Day.Checked;
             if (CheckBox_Sky != null) CheckBox_Sky.Enabled = RadioButton_Day.Checked;
             if (!RadioButton_Day.Checked) return;
@@ -1854,6 +1874,7 @@ is preserved.";
 
         private void RadioButton_Year_CheckedChanged(object sender, EventArgs e)
         {
+            Log.Diag("UI", $"RadioButton_Year.CheckedChanged checked={RadioButton_Year.Checked}");
             mUIState.YearChart = RadioButton_Year.Checked;
             if (!RadioButton_Year.Checked) return;
             mCoordinator?.Apply(SnapshotCurrent());
@@ -1861,6 +1882,7 @@ is preserved.";
 
         private void RadioButton_Sessions_CheckedChanged(object sender, EventArgs e)
         {
+            Log.Diag("UI", $"RadioButton_Sessions.CheckedChanged checked={RadioButton_Sessions.Checked}");
             mUIState.SessionsChart = RadioButton_Sessions.Checked;
             if (!RadioButton_Sessions.Checked) return;
             mCoordinator?.Apply(SnapshotCurrent());
@@ -1875,6 +1897,7 @@ is preserved.";
         // which is what was about to be rendered anyway).
         private void CheckBox_Sky_CheckedChanged(object sender, EventArgs e)
         {
+            Log.Diag("UI", $"CheckBox_Sky.CheckedChanged checked={CheckBox_Sky.Checked}");
             mUIState.SkyChart = CheckBox_Sky.Checked;
             // Only dispatch when Day is the active radio -- toggling the
             // checkbox while Year or Sessions is selected would otherwise

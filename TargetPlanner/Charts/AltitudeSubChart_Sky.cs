@@ -132,6 +132,14 @@ namespace TargetPlanner.Charts
         private DateTime mLastAstronomicalDuskUtc;
         private DateTime mLastAstronomicalDawnUtc;
 
+        // Moon altitude overlay (filled area) -- mirrors Day's moon, but Y values
+        // mapped to Sky's [SkyAxisMinMag, SkyAxisMaxMag] plot range so the curve
+        // fits the magnitude axis. Visually overlays the K-S brightness curves
+        // with a translucent grey area showing moon-up time + altitude. The
+        // moon's K-S contribution is still baked into the per-target curves;
+        // this overlay is a presence/intensity indicator only.
+        private LineSeries<ObservablePoint> mMoonSeries;
+
         private readonly HoverTooltipController mHover;
 
         // Cached IdealHeight from the last layout pass; used to detect changes so
@@ -344,6 +352,11 @@ namespace TargetPlanner.Charts
             double lonEast   = location.LonEast();
             ObserverInfo observer = new ObserverInfo(latSigned, lonEast, location.Elevation);
 
+            // Moon altitude overlay -- shared across all targets; built before
+            // the per-target loop so it lands first in mChart.Series (ZIndex=-1
+            // also puts it behind the target curves).
+            BuildOrUpdateMoonSeries(location, chartStart, startUtc, count, night.LunarIlluminationFraction);
+
             // Compute K-S data for ALL passed targets so a future H/D/M scrub
             // that brings an unfit target back into fit can re-add its series
             // without recomputing K-S. Fit-tonight filter is applied to
@@ -354,6 +367,7 @@ namespace TargetPlanner.Charts
             // BestSession.For calls in the Sky render path.
             var newSeriesByTarget = new Dictionary<Target, LineSeries<ObservablePoint>>();
             var seriesList = new List<ISeries>();
+            if (mMoonSeries != null) seriesList.Add(mMoonSeries);
             for (int t = 0; t < targets.Count; t++)
             {
                 Target target = targets[t];
@@ -479,9 +493,67 @@ namespace TargetPlanner.Charts
             mTargetColors.Clear();
             mTooltipText.Clear();
             mFitSeries.Clear();
+            mMoonSeries = null;
             mLastCount = 0;
             mChart.Series = Array.Empty<ISeries>();
             mLegendPanel.Controls.Clear();
+        }
+
+        // Build (or recreate) the moon overlay for Sky. Same per-minute altitude
+        // sweep as Day, but Y values mapped to Sky's [SkyAxisMinMag, SkyAxisMaxMag]
+        // plot range: altitude=0 -> y_plot=SkyAxisMinMag (bottom = darkest mag),
+        // altitude=90 -> y_plot=SkyAxisMaxMag (top = brightest mag). Below-horizon
+        // points get null Y so the fill gaps where the moon is down.
+        //
+        // Diagnostic note: mirrors Day's fresh-recreate pattern so any LC2 paint
+        // quirk we're chasing for Day's moon can be compared directly here.
+        private void BuildOrUpdateMoonSeries(
+            Location location,
+            DateTime chartStart,
+            DateTime startUtc,
+            int count,
+            double lunarIllumination)
+        {
+            double latSigned = location.LatSigned();
+            double lonEast   = location.LonEast();
+            ObserverInfo observer = new ObserverInfo(latSigned, lonEast, location.Elevation);
+
+            byte alpha = (byte)Math.Min(250, Math.Max(0, (int)(lunarIllumination * 250.0)));
+
+            int aboveHorizon = 0;
+            const double yRange = SkyAxisMaxMag - SkyAxisMinMag;
+            var data = new ObservableCollection<ObservablePoint>();
+            for (int i = 0; i < count; i++)
+            {
+                DateTime point = chartStart.AddMinutes(i);
+                DateTime pointUtc = DateTime.SpecifyKind(
+                    startUtc.AddMinutes(i), DateTimeKind.Utc);
+                double moonAlt = AstroUtil.GetMoonAltitude(pointUtc, observer);
+                if (moonAlt > 0) aboveHorizon++;
+                double? plotY = moonAlt < 0
+                    ? (double?)null
+                    : SkyAxisMinMag + (moonAlt / 90.0) * yRange;
+                data.Add(new ObservablePoint(point.ToOADate(), plotY));
+            }
+
+            mMoonSeries = new LineSeries<ObservablePoint>
+            {
+                Name = "Moon",
+                Values = data,
+                Stroke = null,
+                Fill = new SolidColorPaint(new SKColor(209, 209, 209, alpha)),
+                GeometrySize = 0,
+                LineSmoothness = 0.4,
+                IsVisibleAtLegend = false,
+                ZIndex = -1,
+            };
+
+            if (Log.IsDiagEnabled("Sky"))
+            {
+                Log.Diag("Sky",
+                    $"BuildMoon illum={lunarIllumination:F3} alpha={alpha} count={count} " +
+                    $"aboveHorizon={aboveHorizon} chartStart={chartStart:yyyy-MM-dd HH:mm}");
+            }
         }
 
 

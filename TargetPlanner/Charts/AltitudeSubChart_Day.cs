@@ -738,9 +738,12 @@ namespace TargetPlanner.Charts
             mChart.Invalidate();
         }
 
-        // Build (or refresh) the shared Moon-Day filled area series. Moon altitude
-        // depends only on Location + time; alpha-scaled by the night's lunar
-        // illumination fraction.
+        // Build the shared Moon-Day filled area series. Recreate fresh every
+        // Render so LC2 sees a brand-new series instance -- simpler than the
+        // prior in-place-mutate path and avoids subtle reuse bugs. The
+        // first-Sky->Day moon-absent paint bug we chased here was actually a
+        // WinForms/SKControl paint-cycle issue fixed by Control.Refresh()
+        // in MainForm.RenderArea, not by anything in this series construction.
         private void BuildOrUpdateMoonSeries(
             Location location,
             DateTime chartStart,
@@ -752,36 +755,11 @@ namespace TargetPlanner.Charts
             double lonEast   = location.LonEast();
             ObserverInfo observer = new ObserverInfo(latSigned, lonEast, location.Elevation);
 
-            ObservableCollection<ObservablePoint> data;
-            if (mMoonSeries == null)
-            {
-                data = new ObservableCollection<ObservablePoint>();
-                mMoonSeries = new LineSeries<ObservablePoint>
-                {
-                    Name = "Moon",
-                    Values = data,
-                    Stroke = null,
-                    GeometrySize = 0,
-                    LineSmoothness = 0.4,
-                    IsVisibleAtLegend = false,
-                    ZIndex = -1,
-                };
-            }
-            else
-            {
-                data = mMoonSeries.Values as ObservableCollection<ObservablePoint>
-                    ?? new ObservableCollection<ObservablePoint>();
-                if (!ReferenceEquals(data, mMoonSeries.Values)) mMoonSeries.Values = data;
-            }
-
             byte alpha = (byte)Math.Min(250, Math.Max(0, (int)(lunarIllumination * 250.0)));
-            mMoonSeries.Fill = new SolidColorPaint(new SKColor(209, 209, 209, alpha));
 
-            // Mutate in place to preserve the ObservableCollection identity. Length
-            // can shift when night length changes (different date / latitude); add
-            // / remove to fit count.
             int aboveHorizon = 0;
             double minAlt = double.PositiveInfinity, maxAlt = double.NegativeInfinity;
+            var data = new ObservableCollection<ObservablePoint>();
             for (int i = 0; i < count; i++)
             {
                 DateTime point = chartStart.AddMinutes(i);
@@ -792,11 +770,21 @@ namespace TargetPlanner.Charts
                 if (moonAlt < minAlt) minAlt = moonAlt;
                 if (moonAlt > maxAlt) maxAlt = moonAlt;
                 double? plotY = moonAlt < 0 ? (double?)null : moonAlt;
-                var p = new ObservablePoint(point.ToOADate(), plotY);
-                if (i < data.Count) data[i] = p;
-                else data.Add(p);
+                data.Add(new ObservablePoint(point.ToOADate(), plotY));
             }
-            while (data.Count > count) data.RemoveAt(data.Count - 1);
+
+            mMoonSeries = new LineSeries<ObservablePoint>
+            {
+                Name = "Moon",
+                Values = data,
+                Stroke = null,
+                Fill = new SolidColorPaint(new SKColor(209, 209, 209, alpha)),
+                GeometrySize = 0,
+                LineSmoothness = 0.4,
+                IsVisibleAtLegend = false,
+                ZIndex = -1,
+            };
+
             if (Log.IsDiagEnabled("Day"))
             {
                 Log.Diag("Day",
