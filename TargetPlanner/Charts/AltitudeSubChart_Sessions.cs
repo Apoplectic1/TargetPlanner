@@ -154,6 +154,7 @@ namespace TargetPlanner.Charts
                 LegendPosition = LegendPosition.Hidden,
                 FindingStrategy = FindingStrategy.ExactMatch,
                 TooltipPosition = TooltipPosition.Hidden,
+                AnimationsSpeed = TimeSpan.Zero,
                 BackColor = ChartLayout.ChartBackground,
                 Dock = DockStyle.Top,
                 Height = ChartLayout.ChartFixedHeight,
