@@ -338,18 +338,6 @@ namespace TargetPlanner.Charts
             RecomputeLayout();
         }
 
-        // H/D/M-aware "refresh". Now a synchronous re-render from the cache;
-        // the coordinator's PrepareFitsAsync await ensures the new HdmKey's
-        // fits are built before this fires. Keeps the IAltitudeSubChart contract
-        // shape uniform with Day/Sky.
-        public void RefreshVisibility(ChartContext ctx, IChartCacheStore cache)
-        {
-            if (ctx == null || ctx.Location == null || mSeriesByTarget.Count == 0) return;
-            // Year ignores eval; pass FullChange so the Render path proceeds
-            // unchanged. RefreshVisibility itself is going away in Phase 6.
-            Render(ctx, cache, ChartEvaluation.FullChange(default, ctx.Hdm, ctx.DayMode));
-        }
-
         // Apply per-night Floor altitudes from the cached NightFit array to the
         // series' ObservablePoint Y values. Mutates the existing ObservableCollection
         // in place so series identity -- and the user's legend toggle state --

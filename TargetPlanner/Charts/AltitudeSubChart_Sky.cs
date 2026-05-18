@@ -95,8 +95,8 @@ namespace TargetPlanner.Charts
         private readonly Dictionary<Target, Color> mTargetColors
             = new Dictionary<Target, Color>();
 
-        // "Fit tonight" tracker for the legend filter. Populated by
-        // RefreshVisibility per HasFit per target, consulted by BuildLegendItems
+        // "Fit tonight" tracker for the legend filter. Populated by Render
+        // per HasFit per target, consulted by BuildLegendItems
         // to skip unfit targets so the legend only lists curves the user can
         // actually see (alpha-0 unfit curves stay in mChart.Series, but their
         // legend entries don't render). Mirrors Day's mTargetWindows.ContainsKey
@@ -424,58 +424,6 @@ namespace TargetPlanner.Charts
             BuildLegendItems();
 
             RecomputeLayout();
-        }
-
-        // Hide-on-no-fit visibility refresh. Mirrors AltitudeSubChart_Day's
-        // RefreshDayWindowsAndVisibility -- per-target BestSession.For tonight
-        // with the current Horizon / Duration / MoonAvoidanceProfile; if no
-        // D-hour window fits, the target's Sky stroke goes alpha 0 (invisible).
-        // The K-S magnitudes themselves are NOT cleared -- only the stroke
-        // alpha toggles -- so a subsequent scrub that re-admits the target
-        // restores the curve at its current K-S values without recomputation.
-        //
-        // Mirrors the legacy AltitudeSeries.RebuildDayTooltip behaviour:
-        // "The Sky brightness companion curve mirrors the hide-on-no-fit
-        //  (consistency: a target hidden by the Lorentzian fit-check shouldn't
-        //  have its sky-brightness curve still visible on the Sky area)."
-        public void RefreshVisibility(ChartContext ctx, IChartCacheStore cache)
-        {
-            if (ctx == null || ctx.Location == null || ctx.Policy == null || mSeriesByTarget.Count == 0) return;
-            Location location = ctx.Location;
-
-            NightWindow night = cache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(location);
-            if (!night.IsValid) return;
-
-            foreach (var kv in mSeriesByTarget)
-            {
-                Target target = kv.Key;
-                LineSeries<ObservablePoint> series = kv.Value;
-                if (!mTargetColors.TryGetValue(target, out Color c)) c = Color.White;
-
-                bool fits = cache?.GetFitOrNull(target, ctx.Hdm)?.Tonight.Floor.HasValue ?? false;
-                if (fits)
-                {
-                    ApplyTargetVisibility(series, c, true);
-                    mFitSeries.Add(series);
-                }
-                else
-                {
-                    mFitSeries.Remove(series);
-                }
-            }
-
-            // Rebuild mChart.Series + legend from mSeriesByTarget filtered on
-            // mFitSeries -- Day-style fit-tonight filter, no alpha-0 toggling.
-            // H/D/M scrubs that change a target's fit status add or remove its
-            // curve and legend entry together; Sky and Day stay in lockstep on
-            // which targets are visible.
-            var seriesList = new List<ISeries>();
-            foreach (var kv in mSeriesByTarget)
-            {
-                if (mFitSeries.Contains(kv.Value)) seriesList.Add(kv.Value);
-            }
-            mChart.Series = seriesList;
-            BuildLegendItems();
         }
 
         // Cheap path for Bortle / ExtinctionK / ActiveFilter scrubs that don't

@@ -374,17 +374,6 @@ namespace TargetPlanner.Charts
             RecomputeLayout();
         }
 
-        // H/D/M-aware "refresh". Synchronous re-render from the cache; coordinator's
-        // PrepareFitsAsync await guarantees the new HdmKey's fits are built before
-        // this fires. Contract shape stays uniform with Day/Sky.
-        public void RefreshVisibility(ChartContext ctx, IChartCacheStore cache)
-        {
-            if (ctx == null || ctx.Location == null || mCeilingByTarget.Count == 0) return;
-            // Sessions ignores eval; pass FullChange so the Render path proceeds
-            // unchanged. RefreshVisibility itself is going away in Phase 6.
-            Render(ctx, cache, ChartEvaluation.FullChange(default, ctx.Hdm, ctx.DayMode));
-        }
-
         private enum NightFitField { Ceiling, Floor, CenteredFloor }
 
         private static double? GetField(in NightFit fit, NightFitField field) => field switch

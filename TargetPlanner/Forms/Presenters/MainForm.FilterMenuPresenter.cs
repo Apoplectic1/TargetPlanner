@@ -330,18 +330,14 @@ namespace TargetPlanner
             BuildFiltersMenu();
             RefreshActiveFilterAfterDialogSave(priorActiveName);
 
-            // Trigger the visibility refresh explicitly. BuildFiltersMenu deliberately
-            // skips this (the construction-time caller can't safely run it -- see the
-            // comment block in BuildFiltersMenu); by the time OpenEditFiltersDialog runs,
-            // year caches are populated and the call is cheap.
-            if (mSubCharts != null)
-            {
-                ChartContext refreshCtx = SnapshotCurrent();
-                foreach (var sc in mSubCharts.Values)
-                {
-                    sc.RefreshVisibility(refreshCtx, mCache);
-                }
-            }
+            // Route the post-save refresh through the single-seam coordinator
+            // pipeline. RefreshActiveFilterAfterDialogSave's tail call to
+            // SetActiveFilter fires a coordinator Apply on the common path; the
+            // belt-and-suspenders Apply here covers the empty-library edge case
+            // (every filter deleted in the dialog) where RefreshActiveFilter
+            // takes the early null-return branch. The 150 ms internal debounce
+            // collapses any double-Apply into a single trailing-edge pipeline run.
+            mCoordinator?.Apply(SnapshotCurrent());
         }
 
         // Re-resolve mActiveFilter to a Filter instance in the post-dialog mFilterLibrary

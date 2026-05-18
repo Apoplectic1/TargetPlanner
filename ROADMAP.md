@@ -82,6 +82,14 @@ Design notes preserved for the future implementation:
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
 
+### 2026-05-17 — Post-collapse follow-up: stamp-race CAS + single-seam closure
+
+Small follow-up driven by the architecture-review pass at [`docs/design/2026-05-17-architecture-review.md`](docs/design/2026-05-17-architecture-review.md). Two items:
+
+- **`ChartCacheStore.EnsureAsync` CAS stamp guard.** Two concurrent pipelines (debounce tick firing while a prior `RunPipelineAsync` is still awaiting) could race at `mLastEnsureCtx = ctx`, leaving the older stamp in place. Today benign — sub-charts don't consume eval flags so the over-invalidating diff on the next call settles into idempotent per-key Prepare paths — but a latent trap for any future flag-consumer. The CAS (`if (ReferenceEquals(mLastEnsureCtx, prev)) mLastEnsureCtx = ctx;`) catches one direction; the residual case still over-invalidates (safe). Full-ordering would pipe coordinator `gen` into the cache and stamp by max-gen; deferred since current consumers don't need it.
+
+- **`RefreshVisibility` removed from `IAltitudeSubChart` + four implementations.** `FilterMenuPresenter.OpenEditFiltersDialog`'s post-save loop was the last caller. `RefreshActiveFilterAfterDialogSave → SetActiveFilter` already routes through `mCoordinator.Apply(SnapshotCurrent())`; the explicit `foreach sc.RefreshVisibility(...)` was redundant on the common path and bypassed the single-seam pipeline on the empty-library edge case. Replaced with a single belt-and-suspenders `mCoordinator?.Apply(SnapshotCurrent())` (debounce collapses the double-Apply on the common path) and deleted the interface method + ~120 lines of implementation across Day/Sky/Year/Sessions. Render now owns the full hide-on-no-fit / fit-re-evaluation path that RefreshVisibility used to mirror on Day/Sky.
+
 ### 2026-05-17 — Chart-pipeline SoC pipeline collapse + observation dialog + Library Saemundsson
 
 Multi-day push driven by the moon-missing-on-Sky→Day bug spiraling into a paradigm conversation: the coordinator's dispatch table had accreted special-case branches, every bug fix added another, and the user wanted a one-shot refactor that made the "do nothing" tests live in the data layer (cache) rather than the orchestration layer. Plan + per-phase notes at `~/.claude/plans/in-a-recent-commit-snug-flame.md`. In rough commit order:

@@ -95,8 +95,9 @@ namespace TargetPlanner.Charts
         // only targets whose strict transit-centered placement fits
         // (Tonight.CenteredFloor.HasValue) -- the Sessions-chart Symmetric
         // subset. Mode lives on ChartContext; MainForm projects it via
-        // SnapshotCurrent and the ChartCoordinator diff treats a DayMode flip
-        // as a lightweight RefreshVisibility trigger.
+        // SnapshotCurrent and a DayMode flip flows through the coordinator's
+        // Apply pipeline as a normal Render (cache eval surfaces
+        // DayModeChanged=true for any future short-circuit consumer).
         private readonly RadioButton mFloorRadio;
         private readonly RadioButton mTransitRadio;
         // Suppress DayChartModeChanged event during programmatic radio updates
@@ -109,8 +110,8 @@ namespace TargetPlanner.Charts
 
         /// <summary>Raised when the user clicks a different Floor/Meridian/Wall
         /// radio. MainForm subscribes and routes through
-        /// <c>mCoordinator.Apply(SnapshotCurrent())</c> so the diff sees the
-        /// DayMode change and dispatches RefreshVisibility on the active sub-chart.</summary>
+        /// <c>mCoordinator.Apply(SnapshotCurrent())</c> so the new DayMode
+        /// reaches the active sub-chart through the single Render seam.</summary>
         public event EventHandler DayChartModeChanged;
 
         // Most recent dayKey passed to a successful Render. Used to decide whether
@@ -444,8 +445,10 @@ namespace TargetPlanner.Charts
             // "Fit tonight only" filter for Day: targets without a D-hour window
             // tonight are excluded from mChart.Series and the legend entirely.
             // Their altitude data is still sampled into mSeriesByTarget so a
-            // subsequent H/D/M scrub that brings them back into fit can re-add
-            // them via RefreshVisibility without recomputing altitudes.
+            // subsequent H/D/M scrub that brings them back into fit re-admits
+            // them on the next Render without recomputing altitudes (the
+            // cached TargetDayAltitudeEntry is unchanged across H/D/M scrubs;
+            // only the per-target fit decision flips).
             var newSeriesByTarget = new Dictionary<Target, LineSeries<ObservablePoint>>();
             var seriesList = new List<ISeries>();
             if (mMoonSeries != null) seriesList.Add(mMoonSeries);
@@ -538,10 +541,9 @@ namespace TargetPlanner.Charts
         //
         // "Fit tonight only" filter: targets without an entry in mTargetWindows
         // (no D-hour window fits tonight under current H/D/M) are excluded from
-        // the legend entirely. Mirrors the mChart.Series filtering in Render
-        // and RefreshVisibility -- the chart and the legend agree on what's
-        // visible tonight, independent of which boxes are checked in
-        // CheckedListBox_SelectedTargets.
+        // the legend entirely. Mirrors the mChart.Series filtering in Render --
+        // the chart and the legend agree on what's visible tonight, independent
+        // of which boxes are checked in CheckedListBox_SelectedTargets.
         private void BuildLegendItems()
         {
             mLegendPanel.SuspendLayout();
@@ -603,79 +605,6 @@ namespace TargetPlanner.Charts
                 mLastIdealHeight = idealHeight;
                 IdealHeightChanged?.Invoke(this, EventArgs.Empty);
             }
-        }
-
-        // Recompute per-target BestSession windows and apply hide-on-no-fit to the
-        // existing series collection. Cheap path for Horizon / Duration / MoonAvoidance
-        // scrubs that don't change altitude geometry — only the per-target visibility
-        // and any active HD overlay rectangles. Caller must have run Render first;
-        // this method assumes mSeriesByTarget is already populated for the current
-        // target list.
-        public void RefreshVisibility(ChartContext ctx, IChartCacheStore cache)
-        {
-            if (ctx == null || ctx.Location == null || ctx.Policy == null || mSeriesByTarget.Count == 0) return;
-            Location location = ctx.Location;
-            double horizonFloor = ctx.Policy.TargetFloorDeg;
-
-            NightWindow night = cache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(location);
-            if (!night.IsValid) return;
-
-            UpdateHorizonLine(horizonFloor);
-
-            // Re-evaluate fit per target. mTargetWindows is the source of truth
-            // for "fits tonight"; the "fit tonight only" filter excludes any
-            // unfit target from mChart.Series and the legend. The coordinator's
-            // PrepareFitsAsync await before RefreshVisibility guarantees the new
-            // HdmKey's fits are built; we read tonight straight off the cache.
-            foreach (var kv in mSeriesByTarget)
-            {
-                Target target = kv.Key;
-                LineSeries<ObservablePoint> series = kv.Value;
-                if (!mTargetColors.TryGetValue(target, out Color c)) c = Color.White;
-
-                NightFit? tonight = cache?.GetFitOrNull(target, ctx.Hdm)?.Tonight;
-                var window = tonight is { } tn ? GetModeWindow(tn, ctx.DayMode) : null;
-                if (window is { } w)
-                {
-                    ApplyTargetVisibility(series, c, true);
-                    mTargetWindows[series] = (
-                        w.startUtc.ToLocalTime().ToOADate(),
-                        w.endUtc.ToLocalTime().ToOADate(),
-                        w.floor);
-                }
-                else
-                {
-                    mTargetWindows.Remove(series);
-                }
-            }
-
-            // Rebuild mChart.Series + legend from mSeriesByTarget filtered on
-            // fit-tonight (i.e., presence in mTargetWindows). A scrub that
-            // changes which targets fit propagates here; previously-fit targets
-            // that now miss disappear from the chart, previously-unfit targets
-            // that now hit reappear (with the altitude data sampled at Render
-            // time still present in their LineSeries).
-            var seriesList = new List<ISeries>();
-            if (mMoonSeries != null) seriesList.Add(mMoonSeries);
-            foreach (var kv in mSeriesByTarget)
-            {
-                if (mTargetWindows.ContainsKey(kv.Value))
-                    seriesList.Add(kv.Value);
-            }
-            mChart.Series = seriesList;
-            BuildLegendItems();
-
-            // Re-apply any active HD overlay rectangles against the refreshed windows.
-            // For series whose window vanished, the overlay restores from backup and
-            // releases the snapshot; series whose window shifted get the rectangle
-            // re-rendered against the new bounds.
-            mOverlay.RefreshActiveOverlays();
-            // In global mode, extend "show windows for all visible targets" intent
-            // to any newly-visible+fitting target (e.g. a target that didn't fit
-            // at the previous H/D/M but does at the new one). Without this, a fit
-            // shift mid-scrub would leave the newly-admitted target bare while
-            // every other target still wears its overlay.
-            if (mOverlay.IsGlobalMode) mOverlay.EnsureGlobalApplied();
         }
 
         // Hide via fully-transparent stroke (zero alpha) when no D-hour window fits

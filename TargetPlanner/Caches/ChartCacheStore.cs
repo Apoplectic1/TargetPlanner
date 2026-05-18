@@ -393,11 +393,33 @@ namespace TargetPlanner.Caches
             }
 
             // 3. Stamp ctx as last-applied for the NEXT EnsureAsync's diff.
+            //    CAS-style: only stamp if no concurrent EnsureAsync stamped a
+            //    different ctx while we awaited above. Without this guard, two
+            //    overlapping pipelines (coordinator generations N and N+1 both
+            //    in flight when the debounce tick fires twice) can race at the
+            //    stamp -- if N+1 stamps first then N stamps second, the cache
+            //    would advertise ctxN as the latest even though ctxN+1 is what
+            //    actually rendered (generation guard in the coordinator gates
+            //    render to the newest gen, but the cache stamp has no such
+            //    ordering). The CAS prevents the stale-clobbers-fresh
+            //    direction; the reverse (N stamps first, N+1's CAS then fails)
+            //    leaves the older stamp in place, which is still safe because
+            //    cache contents are correct either way (per-key Prepare is
+            //    idempotent) and the next EnsureAsync's eval flags will be
+            //    over-invalidating, not under-invalidating -- the caller does
+            //    extra work, never wrong work. A fully-ordered fix would pipe
+            //    coordinator generation into the cache; deferred since today's
+            //    sub-charts don't consume eval flags (Phase 7 reverted) and
+            //    over-invalidation is benign for any future flag consumer too.
+            //
             //    If any await above threw, mLastEnsureCtx stays at the prior
             //    value -- next call's eval reflects the bailed pipeline's
             //    intended-but-incomplete state as "still stale", matching
             //    the cache's actual contents.
-            lock (mGate) { mLastEnsureCtx = ctx; }
+            lock (mGate)
+            {
+                if (ReferenceEquals(mLastEnsureCtx, prev)) mLastEnsureCtx = ctx;
+            }
 
             if (Log.IsDiagEnabled("Cache"))
             {

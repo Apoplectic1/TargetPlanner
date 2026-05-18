@@ -10,9 +10,8 @@ namespace TargetPlanner.State
     /// <summary>
     /// Immutable snapshot of every input the chart pipeline reads. Built by
     /// <c>MainForm.SnapshotCurrent(...)</c> at one point in time and threaded
-    /// through the cache trigger logic and every sub-chart's <c>Render</c> /
-    /// <c>RefreshVisibility</c> call so downstream code can't observe state
-    /// drifting mid-render.
+    /// through the cache trigger logic and every sub-chart's <c>Render</c>
+    /// call so downstream code can't observe state drifting mid-render.
     /// </summary>
     /// <remarks>
     /// <para>

@@ -15,8 +15,8 @@ namespace TargetPlanner.Charts
     // instead of explicit per-chart wiring.
     //
     // The universal chart behavior contract (CLAUDE.md) is enforced at the
-    // type level here -- forgetting UpdateNowLine or RefreshVisibility on a
-    // new sub-chart is a compiler error, not a behavior drift.
+    // type level here -- forgetting UpdateNowLine on a new sub-chart is a
+    // compiler error, not a behavior drift.
     //
     // Per-chart specifics that don't fit the shared contract stay on the
     // concrete class and are accessed via a typed reference (currently only
@@ -48,28 +48,23 @@ namespace TargetPlanner.Charts
 
         // Synchronous full re-render. Each sub-chart preserves series identity
         // across calls via internal GetOrCreate paths so legend-toggle state
-        // survives a re-render. Render's tail calls RefreshVisibility(...) so
-        // the first paint already reflects the H/D/M state.
+        // survives a re-render. Render reads H/D/M-aware fit state from the
+        // cache (cache.GetFitOrNull(target, ctx.Hdm)) and applies
+        // hide-on-no-fit / overlay reconciliation inline, so the first paint
+        // already reflects the current H/D/M without a follow-up call.
         //
-        // Phase 1 of the orchestration-layer refactor: consolidates the prior
+        // Phase 1 of the orchestration-layer refactor consolidated the prior
         // 8-parameter signature behind a single ChartContext snapshot. The
-        // sub-chart reads ctx.Targets / ctx.Policy (moon profile, target floor,
-        // min duration, local horizon, filter center) / ctx.Location and
-        // derives DateTime from ctx.Location.DateTime.
+        // sub-chart reads ctx.Targets / ctx.Policy (moon profile, target
+        // floor, min duration, local horizon, filter center) / ctx.Location
+        // and derives DateTime from ctx.Location.DateTime.
         //
-        // Phase 4 adds the ChartEvaluation flow: the cache's pre-render diff
-        // arrives as <paramref name="eval"/>. Sub-charts accept the param
-        // today and may ignore it; Phase 7 wires per-sub-chart short-circuit
-        // logic against eval flags so unchanged-ctx Apply settles in sub-ms.
+        // The ChartEvaluation flow surfaces the cache's pre-render diff as
+        // <paramref name="eval"/>. Sub-charts accept the param today and may
+        // ignore it; a future per-sub-chart short-circuit can branch on eval
+        // flags so unchanged-ctx Apply settles in sub-ms (Phase 7's prior
+        // attempt was reverted on LC2 paint-instability grounds; see
+        // ARCHITECTURE.md).
         void Render(ChartContext ctx, IChartCacheStore cache, ChartEvaluation eval);
-
-        // H/D/M-aware visibility refresh per the universal contract. Day / Sky
-        // run synchronous BestSession.For probes and toggle stroke alpha;
-        // Year / Sessions delegate to Render (their fits live in the cache
-        // keyed on HdmKey, so the synchronous re-render reads the new HdmKey's
-        // fits directly from cache without any bg work). Cache argument is
-        // consumed by Day / Sky for NightCache.Starting and by Year / Sessions
-        // for the GetFitOrNull(target, ctx.Hdm) lookup.
-        void RefreshVisibility(ChartContext ctx, IChartCacheStore cache);
     }
 }

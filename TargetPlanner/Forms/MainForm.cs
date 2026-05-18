@@ -65,8 +65,8 @@ namespace TargetPlanner
         //   - mLC2Sky: typed reference for the Sky-specific quirks not in the
         //     interface (ActiveFilterCenterNm setter + RefreshSkyBrightness).
         //   - mMoonAvoidanceProfile / mActiveFilterCenterNm: state pushed into each
-        //     sub-chart's Render / RefreshVisibility call. Set by SetActiveFilter
-        //     and the Lorentzian / avoidance-checkbox handlers.
+        //     sub-chart's Render call (via ChartContext.Policy). Set by
+        //     SetActiveFilter and the Lorentzian / avoidance-checkbox handlers.
         // The "what targets is the active chart currently displaying" question is
         // answered by mCoordinator.LastAppliedTargets -- pre-stamped at pipeline
         // entry so concurrent Apply()s see the user's current intent rather than
@@ -213,8 +213,10 @@ namespace TargetPlanner
 
         // Active Day-chart placement-strategy mode (driven by the radios on
         // mLC2Day). SnapshotCurrent projects this into ChartContext.DayMode;
-        // the ChartCoordinator diff treats a flip as a RefreshVisibility trigger.
-        // Floor = current behavior (all fit-tonight targets).
+        // a flip flows through the coordinator's Apply pipeline as a normal
+        // Render (cache eval surfaces DayModeChanged=true for any future
+        // short-circuit consumer). Floor = current behavior (all fit-tonight
+        // targets).
         private TargetPlanner.State.DayChartMode mDayChartMode = TargetPlanner.State.DayChartMode.Floor;
 
         private ToolTip mToolTip;
@@ -638,9 +640,9 @@ is preserved.";
             // Day-chart placement-strategy radios (Floor / Meridian / Wall) live
             // inside the Day sub-chart's plot area. The radio CheckedChanged
             // fires this event; route through the coordinator's snapshot pipeline
-            // so the diff sees the DayMode flip and dispatches RefreshVisibility
-            // on the active sub-chart (no cache change -- the mode is a pure
-            // visibility filter on top of NightFit.CenteredFloor).
+            // so the new DayMode reaches the active sub-chart through the single
+            // Render seam (no cache change -- the mode is a pure visibility
+            // filter on top of NightFit.CenteredFloor).
             mLC2Day.DayChartModeChanged += (s, e) =>
             {
                 mDayChartMode = mLC2Day.Mode;
@@ -656,12 +658,12 @@ is preserved.";
             // Construct the coordinator after both mCache and mSubCharts exist
             // (it captures references via the resolver delegates). The
             // post-apply hook is the one place that runs side-effects which
-            // don't fit Render or RefreshVisibility:
+            // don't fit Render:
             //   - Astrometry labels (dawn/dusk/sun/moon altitude/phase/illumination).
             //   - Now-line position on every sub-chart (date/time scrubs that
             //     don't trigger a Render still need the red line to move).
             //   - Horizon-line position on every sub-chart (horizon scrubs that
-            //     refresh visibility-only need the green line to move).
+            //     would otherwise need a full Render just to move the green line).
             //   - Sky's K-S brightness re-walk (Bortle/Extinction/Filter scrubs).
             mCoordinator = new TargetPlanner.State.ChartCoordinator(
                 cache: mCache,
@@ -2162,9 +2164,9 @@ is preserved.";
 
         // Rebuild mTargetColorsByTarget from the current KnownTargets, Name-sorted.
         // Stable across sort changes (Reorder doesn't touch this), across radio
-        // switches (every sub-chart reads the same dict), and across HMD scrubs
-        // (RefreshVisibility doesn't reassign). Rebuilds only when KnownTargets
-        // changes (NINA load).
+        // switches (every sub-chart reads the same dict), and across HDM scrubs
+        // (Render doesn't reassign). Rebuilds only when KnownTargets changes
+        // (NINA load).
         private void RebuildTargetColors()
         {
             mTargetColorsByTarget.Clear();
