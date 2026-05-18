@@ -639,7 +639,7 @@ is preserved.";
             // Add actual Altitude Chart to Panel
             // Phase 3: instantiate the cache store first; the chart takes a reference so
             // every AltitudeSeries it spawns reads from the shared store.
-            mCache = new TargetPlanner.Caches.ChartCacheStore(mLocation);
+            mCache = new TargetPlanner.Caches.ChartCacheStore(mLocation, mObservation.Utc);
 
             // Phase 4 LC2 sub-charts. Indexed by area name so MainForm dispatches
             // picker / spinner / debounce / Graph-click traffic via foreach + dict

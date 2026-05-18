@@ -95,15 +95,17 @@ namespace TargetPlanner.Caches
         // same): NightCache's Starting window depends on the seed UTC and
         // becomes stale on any cross-day scrub; YearStartDay can flip on a
         // cross-month scrub. Both trigger SetLocationAsync(loc, utc) so the
-        // night cache rebuilds against the new anchor. DateTime.MinValue is
-        // the "never set" sentinel so the first EnsureAsync always triggers
-        // a SetLocationAsync regardless of the geometry check.
-        private DateTime mLastSetUtc = DateTime.MinValue;
+        // night cache rebuilds against the new anchor. Seeded at construction
+        // from the caller-supplied initialUtc so the warmup path
+        // (PrepareManyAsync called before any EnsureAsync) gets a usable seed
+        // for EnsureNightCacheAsync.
+        private DateTime mLastSetUtc;
 
-        public ChartCacheStore(Location initialLocation)
+        public ChartCacheStore(Location initialLocation, DateTime initialUtc)
         {
             if (initialLocation == null) throw new ArgumentNullException(nameof(initialLocation));
             mLocation = initialLocation;
+            mLastSetUtc = initialUtc;
         }
 
         public Location CurrentLocation
@@ -357,8 +359,12 @@ namespace TargetPlanner.Caches
             // SetLocationAsync rebuilds against the new anchor.
             DateTime prevUtc;
             lock (mGate) { prevUtc = mLastSetUtc; }
-            bool dateChanged = prevUtc == DateTime.MinValue
-                || prevUtc.Date != ctx.Observation.Utc.Date
+            // First EnsureAsync at a same-date ctor anchor doesn't need to
+            // SetLocationAsync (the cache is already keyed correctly via the
+            // ctor's seed). Only mark dateChanged when the date axis actually
+            // moved off the ctor anchor or a previous SetLocationAsync's anchor.
+            bool dateChanged =
+                prevUtc.Date != ctx.Observation.Utc.Date
                 || NightCache.ComputeYearStartDay(prevUtc)
                    != NightCache.ComputeYearStartDay(ctx.Observation.Utc);
 
