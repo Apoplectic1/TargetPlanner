@@ -1928,32 +1928,24 @@ is preserved.";
             mCoordinator?.Apply(SnapshotCurrent());
         }
 
-        // Right-click on the form's title bar opens (or focuses) the
-        // user-observation dialog. Modeless + TopMost so the user can interact
-        // with the main UI while it stays open; USER_OBS_START / END / CANCEL
-        // markers in tp.log bracket the user's actions chronologically.
-        // We suppress the default Windows system menu that right-clicking the
-        // title bar would otherwise show -- nobody uses it.
-        protected override void WndProc(ref Message m)
-        {
-            const int WM_NCRBUTTONDOWN = 0x00A4;
-            const int HTCAPTION = 2;
-            if (m.Msg == WM_NCRBUTTONDOWN && m.WParam.ToInt32() == HTCAPTION)
-            {
-                Forms.UserObservationDialog.ShowOrFocus(this, GetObservationContext);
-                return;
-            }
-            base.WndProc(ref m);
-        }
-
-        // Alt+M is the global mark hotkey for the user-observation dialog --
-        // works whether the dialog is focused (its &Mark accelerator handles it
-        // natively) or the chart / a spinner / anywhere in the main UI is
-        // focused (this handler forwards to the dialog). No-op when no
-        // observation window is open.
+        // Global hotkeys for the user-observation dialog:
+        //   Ctrl+N -- open (or focus) the observation dialog
+        //   Ctrl+M -- fire a mark inside the currently-open dialog (no-op
+        //             when none is open)
+        // Modeless + TopMost so the user can interact with the main UI while
+        // the dialog stays open; USER_OBS_START / USER_MARK / USER_OBS_END /
+        // USER_OBS_CANCEL markers in tp.log bracket the user's actions
+        // chronologically. Alt+M was the earlier mark binding -- changed to
+        // Ctrl+M because Alt is Windows's menu-accelerator prefix and Alt+M
+        // walks menu items rather than firing the hotkey.
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            if (keyData == (Keys.Alt | Keys.M))
+            if (keyData == (Keys.Control | Keys.N))
+            {
+                Forms.UserObservationDialog.ShowOrFocus(this, GetObservationContext);
+                return true;
+            }
+            if (keyData == (Keys.Control | Keys.M))
             {
                 if (Forms.UserObservationDialog.FireMarkFromHotkey()) return true;
             }

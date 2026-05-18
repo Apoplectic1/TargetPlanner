@@ -9,10 +9,10 @@ using TargetPlanner.Support;
 
 namespace TargetPlanner.Forms
 {
-    // Right-click-title-bar invoked debug dialog. Captures the user's in-the-
-    // moment observation -- a pre-seeded checklist of recurring patterns
+    // Ctrl+N invoked debug dialog. Captures the user's in-the-moment
+    // observation -- a pre-seeded checklist of recurring patterns
     // (PersonalDefaults.UserObservationChecklist) plus a free-form notes box,
-    // an Alt+M mark sub-button for mid-session timestamp pins, and an
+    // a Ctrl+M mark sub-button for mid-session timestamp pins, and an
     // auto-captured screenshot + context snapshot saved when the user clicks
     // OK -- and writes start/end markers to tp.log so the user's actions
     // while the dialog is open are chronologically bracketed.
@@ -128,7 +128,7 @@ namespace TargetPlanner.Forms
             };
             mMarkButton = new Button
             {
-                Text = "&Mark (Alt+M)",
+                Text = "Mark (Ctrl+M)",
                 Location = new Point(320, 338),
                 Size = new Size(90, 26),
             };
@@ -152,9 +152,10 @@ namespace TargetPlanner.Forms
 
             AcceptButton = mOk;
             CancelButton = mCancel;
-            // Dialog-level Alt+M is handled by the button's & accelerator on
-            // its Text. App-wide Alt+M (chart focused) flows through
-            // MainForm.ProcessCmdKey -> FireMarkFromHotkey() below.
+            // Ctrl+M when dialog focused: handled by our own ProcessCmdKey
+            // override below. Ctrl+M when main UI focused: MainForm's own
+            // ProcessCmdKey forwards via FireMarkFromHotkey(). Ctrl+N
+            // (open / focus dialog) is MainForm-only.
 
             Controls.Add(lblChecklist);
             Controls.Add(mChecklist);
@@ -189,13 +190,26 @@ namespace TargetPlanner.Forms
             dlg.Show(owner);
         }
 
-        // Called from MainForm.ProcessCmdKey when Alt+M is pressed while the
+        // Called from MainForm.ProcessCmdKey when Ctrl+M is pressed while the
         // main UI has focus. No-op when no observation window is open.
         public static bool FireMarkFromHotkey()
         {
             if (sCurrent == null || sCurrent.IsDisposed) return false;
             sCurrent.OnMarkClick(null, EventArgs.Empty);
             return true;
+        }
+
+        // Ctrl+M when the dialog itself is focused. MainForm.ProcessCmdKey
+        // doesn't fire for keys aimed at this separate form, so we handle
+        // them here. Returning true marks the key as consumed.
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == (Keys.Control | Keys.M))
+            {
+                OnMarkClick(null, EventArgs.Empty);
+                return true;
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
         }
 
         private void OnMarkClick(object sender, EventArgs e)
