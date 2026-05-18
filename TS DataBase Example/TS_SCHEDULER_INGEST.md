@@ -2,7 +2,7 @@
 
 How TargetPlanner (TP) will read targets from the NINA Target Scheduler plugin's (TSP) SQLite database (`schedulerdb.sqlite`) instead of (or in addition to) the existing NINA `.json` sequence-file ingest.
 
-This is **discovery + design**, not yet implementation. The broader Library / ISP / IS architectural dossier lives in [`SCHEDULER_DESIGN.md`](SCHEDULER_DESIGN.md); this file is scoped to the TP-side read feature. Source-of-truth for the schema is the EF entity classes under `..\TargetScheduler_Clone\nina.plugin.targetscheduler\NINA.Plugin.TargetScheduler\Database\Schema\`. The findings below were validated against a real snapshot at `TS DataBase Example\schedulerdb.sqlite` (10 projects, 102 targets, schema `PRAGMA user_version = 24`).
+This is **discovery + design**, not yet implementation. The broader Library / ISP / IS architectural dossier lives in [`SCHEDULER_DESIGN.md`](../SCHEDULER_DESIGN.md); this file is scoped to the TP-side read feature. Source-of-truth for the schema is the EF entity classes under `..\..\TargetScheduler_Clone\nina.plugin.targetscheduler\NINA.Plugin.TargetScheduler\Database\Schema\`. The findings below were validated against the sibling `schedulerdb.sqlite` snapshot in this directory (10 projects, 102 targets, schema `PRAGMA user_version = 24`).
 
 ---
 
@@ -168,7 +168,7 @@ Sentinel: `exposureplan.exposure = -1.0` means "use `exposuretemplate.defaultexp
 
 ## 6. Mapping to TP's `Astronomy.Core.Targets.Target`
 
-TP's existing `Target` type (`..\Library\Astronomy.Core\Targets\Target.cs`):
+TP's existing `Target` type (`..\..\Library\Astronomy.Core\Targets\Target.cs`):
 
 ```csharp
 public sealed class Target {

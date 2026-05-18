@@ -2,7 +2,7 @@
 
 **Status:** Sketched 2026-05-16, not yet implemented. Authoritative schema is **owned by IS** (the .NET 10 desktop app per `MEMORY.md → project_intervalscheduler`); ISP / ISS / XisfManager / TP read it, never write through it as a side channel. (XisfManager's image-grading write of `exposure_plan.accepted_count` is the one consumer-write carve-out and is treated as part of IS's contract.)
 
-This brief is the positive inversion of the antipatterns documented in [`../../TS_SCHEDULER_INGEST.md`](../../TS_SCHEDULER_INGEST.md) §10 ("What not to repeat"). Each section below names the TS antipattern it is replacing and the rule IS adopts instead. The aim is not a green-field clean-room rebuild of TS — it's a deliberate, narrow set of design rules that future migration scripts and future consumers can rely on without having to learn historical magic.
+This brief is the positive inversion of the antipatterns documented in [`../../TS DataBase Example/TS_SCHEDULER_INGEST.md`](../../TS%20DataBase%20Example/TS_SCHEDULER_INGEST.md) §10 ("What not to repeat"). Each section below names the TS antipattern it is replacing and the rule IS adopts instead. The aim is not a green-field clean-room rebuild of TS — it's a deliberate, narrow set of design rules that future migration scripts and future consumers can rely on without having to learn historical magic.
 
 ---
 
@@ -22,7 +22,7 @@ Out of scope:
 
 ## 2. Rules (the inversions)
 
-Each rule cites the TS antipattern in `TS_SCHEDULER_INGEST.md §10` it replaces.
+Each rule cites the TS antipattern in `TS DataBase Example/TS_SCHEDULER_INGEST.md §10` it replaces.
 
 ### R1 — One identity per row (replaces TS §4)
 
@@ -171,9 +171,9 @@ This is the biggest unresolved decision and has to be answered before any DDL is
 
 ## 6. References
 
-- [`../../TS_SCHEDULER_INGEST.md`](../../TS_SCHEDULER_INGEST.md) — TS schema discovery + the §10 critique this brief inverts.
+- [`../../TS DataBase Example/TS_SCHEDULER_INGEST.md`](../../TS%20DataBase%20Example/TS_SCHEDULER_INGEST.md) — TS schema discovery + the §10 critique this brief inverts.
 - `MEMORY.md → project_intervalscheduler` — the IS architecture context that puts IS in charge of the schema.
 - `MEMORY.md → reference_birdwatcher_imaging_pc` — where the canonical `scheduler.db` lives once IS is deployed.
 - `..\TargetScheduler_Clone\nina.plugin.targetscheduler\NINA.Plugin.TargetScheduler\Database\Schema\*.cs` — TS entity classes (semantic source of column meanings).
 - TSP migration scripts under `..\TargetScheduler_Clone\nina.plugin.targetscheduler\NINA.Plugin.TargetScheduler\Database\Initial\` and `Database\Migrate\` — the historical migration trail.
-- `E:\Projects\VisualStudio\Astronomy\XisfFileManager\XisfFileManager\TargetScheduler\` and `XisfFileManager\Data\TableMappers.cs` — XFM's shipped TS reader. The `ITableMapper<T>` interface + per-table mapper pattern over `Microsoft.Data.Sqlite` is the reference shape for IS consumer-side mappers (replace TS-schema-aware POCOs with IS-schema-aware ones; keep the interface). XFM's footguns documented inline in [`../../TS_SCHEDULER_INGEST.md`](../../TS_SCHEDULER_INGEST.md) §8 — fix them in IS readers from day one.
+- `E:\Projects\VisualStudio\Astronomy\XisfFileManager\XisfFileManager\TargetScheduler\` and `XisfFileManager\Data\TableMappers.cs` — XFM's shipped TS reader. The `ITableMapper<T>` interface + per-table mapper pattern over `Microsoft.Data.Sqlite` is the reference shape for IS consumer-side mappers (replace TS-schema-aware POCOs with IS-schema-aware ones; keep the interface). XFM's footguns documented inline in [`../../TS DataBase Example/TS_SCHEDULER_INGEST.md`](../../TS%20DataBase%20Example/TS_SCHEDULER_INGEST.md) §8 — fix them in IS readers from day one.
