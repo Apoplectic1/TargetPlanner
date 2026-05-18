@@ -120,14 +120,6 @@ namespace TargetPlanner.Charts
         // + refresh; different dayKey = altitude about to be replaced = wipe.
         private DayWindowKey mLastDayKey;
 
-        // Targets reference from the most recent successful Render. Used by the
-        // Phase-7 short-circuit predicate: when eval shows no Day-relevant
-        // change AND the same targets reference comes in, the chart's existing
-        // Series state is current and we can skip Render entirely. The
-        // post-apply hook (UpdateNowLine / UpdateHorizonLine / Refresh) still
-        // runs so live-tick state stays correct.
-        private IReadOnlyList<Target> mLastTargets;
-
         // Cached IdealHeight from the last layout pass; used to detect changes so
         // the IdealHeightChanged event only fires when the form actually needs to
         // resize.
@@ -529,7 +521,6 @@ namespace TargetPlanner.Charts
             mOverlay.RefreshActiveOverlays();
             if (mOverlay.IsGlobalMode) mOverlay.EnsureGlobalApplied();
             mLastDayKey = dayKey;
-            mLastTargets = ctx.Targets;
 
             RecomputeLayout();
         }

@@ -510,6 +510,12 @@ is preserved.";
             mSessionsRebuildDebounce?.Stop();
             mSessionsRebuildDebounce?.Dispose();
 
+            mFilterAutoSaveDebounce?.Stop();
+            mFilterAutoSaveDebounce?.Dispose();
+
+            mCheckedToggleDebounce?.Stop();
+            mCheckedToggleDebounce?.Dispose();
+
             mHorizonWatcher?.Dispose();
             mHorizonReloadDebounce?.Stop();
             mHorizonReloadDebounce?.Dispose();
@@ -614,7 +620,7 @@ is preserved.";
             // Add actual Altitude Chart to Panel
             // Phase 3: instantiate the cache store first; the chart takes a reference so
             // every AltitudeSeries it spawns reads from the shared store.
-            mCache = new TargetPlanner.Caches.ChartCacheStore(mLocation, SynchronizationContext.Current);
+            mCache = new TargetPlanner.Caches.ChartCacheStore(mLocation);
 
             // Phase 4 LC2 sub-charts. Indexed by area name so MainForm dispatches
             // picker / spinner / debounce / Graph-click traffic via foreach + dict

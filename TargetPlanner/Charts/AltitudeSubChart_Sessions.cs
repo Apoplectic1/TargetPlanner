@@ -77,9 +77,6 @@ namespace TargetPlanner.Charts
         private readonly Dictionary<Target, LineSeries<ObservablePoint>> mCeilingByTarget
             = new Dictionary<Target, LineSeries<ObservablePoint>>();
 
-        // Targets reference from the most recent successful Render. Phase-7
-        // short-circuit; see AltitudeSubChart_Day.mLastTargets for rationale.
-        private IReadOnlyList<Target> mLastTargets;
         private readonly Dictionary<Target, LineSeries<ObservablePoint>> mFloorByTarget
             = new Dictionary<Target, LineSeries<ObservablePoint>>();
         private readonly Dictionary<Target, LineSeries<ObservablePoint>> mCenteredByTarget
@@ -368,7 +365,6 @@ namespace TargetPlanner.Charts
             }
 
             mChart.Series = seriesList;
-            mLastTargets = ctx.Targets;
             BuildLegendItems();
 
             RecomputeLayout();

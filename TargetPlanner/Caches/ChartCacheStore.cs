@@ -44,7 +44,6 @@ namespace TargetPlanner.Caches
         private static readonly TimeSpan MoonSampleStep = TimeSpan.FromMinutes(10);
 
         private readonly object mGate = new object();
-        private readonly SynchronizationContext mUiContext;
 
         private Location mLocation;
         private NightCache mNightCache;
@@ -90,19 +89,10 @@ namespace TargetPlanner.Caches
         // so sub-charts take their full Render path). Set under mGate.
         private ChartContext mLastEnsureCtx;
 
-        public event EventHandler<TargetReadyEventArgs> TargetReady;
-        public event EventHandler<LocationChangedEventArgs> LocationChanged;
-
-        public ChartCacheStore(Location initialLocation, SynchronizationContext uiContext)
+        public ChartCacheStore(Location initialLocation)
         {
             if (initialLocation == null) throw new ArgumentNullException(nameof(initialLocation));
-            if (uiContext == null) throw new ArgumentNullException(
-                nameof(uiContext),
-                "ChartCacheStore must be constructed on a UI thread; pass SynchronizationContext.Current "
-                + "from the form constructor / InitializeDynamicControls. A null context would silently "
-                + "fall back to firing TargetReady on the build thread, breaking subscribers' UI marshalling.");
             mLocation = initialLocation;
-            mUiContext = uiContext;
         }
 
         public Location CurrentLocation
@@ -482,7 +472,6 @@ namespace TargetPlanner.Caches
             ICollection<Task<TargetFitEntry>> oldInFlightFits;
             ICollection<Task<TargetDayAltitudeEntry>> oldInFlightDay;
             ICollection<Task<MoonAltitudeEntry>> oldInFlightMoon;
-            Location oldLocation;
 
             lock (mGate)
             {
@@ -490,7 +479,6 @@ namespace TargetPlanner.Caches
                 // settings-driven calls.
                 if (object.ReferenceEquals(mLocation, newLocation)) return;
 
-                oldLocation = mLocation;
                 oldNightTask = mNightCacheTask;
                 oldInFlight = mInFlight.Values.ToList();
                 oldInFlightFits = mInFlightFits.Values.ToList();
@@ -514,46 +502,37 @@ namespace TargetPlanner.Caches
                 mInFlightMoon = new Dictionary<DayWindowKey, Task<MoonAltitudeEntry>>();
             }
 
-            // Fire LocationChanged immediately after the swap commits, before awaiting
-            // the in-flight unwind. Subscribers reading CurrentLocation see the new
-            // location and can blank UI / schedule re-renders without waiting on stale
-            // builds to settle.
-            FireLocationChanged(oldLocation, newLocation);
-
             // Wait for in-flight tasks (against the old location) to finish so callers
             // who await SetLocationAsync don't continue while stale work is still
-            // touching the threadpool. Stale-publish is harmless (the ReferenceEquals
-            // check drops them); we just want the wait for hygiene. Exceptions thrown
-            // by stale builds are logged but don't fail SetLocationAsync.
-            try
+            // touching the threadpool. Stale-publish is harmless (TryPublish's
+            // ReferenceEquals check drops them); we just want the wait for hygiene.
+            // Exceptions thrown by stale builds are logged via the local SafeAwait
+            // helper and don't fail SetLocationAsync. Concurrent vs sequential
+            // await doesn't matter -- the tasks are already running; we're only
+            // awaiting their completion.
+            static async Task SafeAwait(Task task, string warnContext)
             {
-                if (oldNightTask != null) await oldNightTask;
+                try { await task; }
+                catch (Exception ex) { Log.Warn(warnContext, ex); }
             }
-            catch (Exception ex) { Log.Warn("Stale NightCache build threw during SetLocationAsync", ex); }
 
+            List<Task> staleAwaits = new List<Task>();
+            if (oldNightTask != null)
+                staleAwaits.Add(SafeAwait(oldNightTask,
+                    "Stale NightCache build threw during SetLocationAsync"));
             foreach (Task<TargetCacheEntry> t in oldInFlight)
-            {
-                try { await t; }
-                catch (Exception ex) { Log.Warn("Stale per-target build threw during SetLocationAsync", ex); }
-            }
-
+                staleAwaits.Add(SafeAwait(t,
+                    "Stale per-target build threw during SetLocationAsync"));
             foreach (Task<TargetFitEntry> t in oldInFlightFits)
-            {
-                try { await t; }
-                catch (Exception ex) { Log.Warn("Stale per-(target, HdmKey) fit build threw during SetLocationAsync", ex); }
-            }
-
+                staleAwaits.Add(SafeAwait(t,
+                    "Stale per-(target, HdmKey) fit build threw during SetLocationAsync"));
             foreach (Task<TargetDayAltitudeEntry> t in oldInFlightDay)
-            {
-                try { await t; }
-                catch (Exception ex) { Log.Warn("Stale per-(target, DayWindowKey) altitude build threw during SetLocationAsync", ex); }
-            }
-
+                staleAwaits.Add(SafeAwait(t,
+                    "Stale per-(target, DayWindowKey) altitude build threw during SetLocationAsync"));
             foreach (Task<MoonAltitudeEntry> t in oldInFlightMoon)
-            {
-                try { await t; }
-                catch (Exception ex) { Log.Warn("Stale per-DayWindowKey moon altitude build threw during SetLocationAsync", ex); }
-            }
+                staleAwaits.Add(SafeAwait(t,
+                    "Stale per-DayWindowKey moon altitude build threw during SetLocationAsync"));
+            await Task.WhenAll(staleAwaits);
         }
 
         public void Dispose()
@@ -566,6 +545,43 @@ namespace TargetPlanner.Caches
 
         // -------------- internals --------------
 
+        // Publish a successfully-built entry into <paramref name="store"/> when the
+        // build's source location is still current. Removes from
+        // <paramref name="inFlight"/> on a match. Returns true on publish; false
+        // when a SetLocationAsync swap orphaned the build (caller discards the
+        // entry by simply not using the published copy -- the local entry is
+        // still returned to the immediate caller). Used by every BuildXxxAsync
+        // method so the lock + ReferenceEquals + publish + in-flight-remove
+        // pattern lives in exactly one place.
+        private bool TryPublish<TKey, TVal>(
+            Dictionary<TKey, TVal> store,
+            Dictionary<TKey, Task<TVal>> inFlight,
+            TKey key, TVal value, Location buildLocation)
+        {
+            lock (mGate)
+            {
+                if (!object.ReferenceEquals(mLocation, buildLocation)) return false;
+                store[key] = value;
+                inFlight.Remove(key);
+                return true;
+            }
+        }
+
+        // Drop a faulted task from <paramref name="inFlight"/> so the next
+        // GetOrBuildAsync starts fresh instead of re-awaiting the broken Task.
+        // Skipped when a SetLocationAsync swap already discarded our dict
+        // (the new dict doesn't contain our key anyway). Mirrors TryPublish's
+        // location guard.
+        private void DropOnFault<TKey, TVal>(
+            Dictionary<TKey, Task<TVal>> inFlight, TKey key, Location buildLocation)
+        {
+            lock (mGate)
+            {
+                if (object.ReferenceEquals(mLocation, buildLocation))
+                    inFlight.Remove(key);
+            }
+        }
+
         private async Task<TargetCacheEntry> BuildEntryAsync(Target target, Location location)
         {
             try
@@ -576,30 +592,12 @@ namespace TargetPlanner.Caches
                     () => ComputeYearDays(target, location, night));
 
                 TargetCacheEntry entry = new TargetCacheEntry(target, yearDays);
-
-                lock (mGate)
-                {
-                    // Discard if location changed mid-build (the publish would corrupt the new
-                    // location's cache).
-                    if (!object.ReferenceEquals(mLocation, location)) return entry;
-                    mEntries[target] = entry;
-                    mInFlight.Remove(target);
-                }
-
-                FireTargetReady(location, target, entry);
+                TryPublish(mEntries, mInFlight, target, entry, location);
                 return entry;
             }
             catch
             {
-                // Remove the failed task from in-flight so a subsequent GetOrBuildAsync starts
-                // fresh instead of re-awaiting the broken Task. Mirrors the success-path
-                // location guard above: if SetLocationAsync swapped mInFlight while we were
-                // building, the new dict doesn't contain us anyway -- leave it alone.
-                lock (mGate)
-                {
-                    if (object.ReferenceEquals(mLocation, location))
-                        mInFlight.Remove(target);
-                }
+                DropOnFault(mInFlight, target, location);
                 throw;
             }
         }
@@ -639,23 +637,12 @@ namespace TargetPlanner.Caches
                         $"tonightHasFloor={tonight.Floor.HasValue}");
                 }
 
-                lock (mGate)
-                {
-                    // Discard if location changed mid-build (the publish would corrupt the new
-                    // location's cache).
-                    if (!object.ReferenceEquals(mLocation, location)) return entry;
-                    mFits[(target, key)] = entry;
-                    mInFlightFits.Remove((target, key));
-                }
+                TryPublish(mFits, mInFlightFits, (target, key), entry, location);
                 return entry;
             }
             catch
             {
-                lock (mGate)
-                {
-                    if (object.ReferenceEquals(mLocation, location))
-                        mInFlightFits.Remove((target, key));
-                }
+                DropOnFault(mInFlightFits, (target, key), location);
                 throw;
             }
         }
@@ -675,24 +662,12 @@ namespace TargetPlanner.Caches
                     () => AltitudeCurve.Sample(target, location, startUtc, TimeSpan.FromMinutes(1), count));
 
                 TargetDayAltitudeEntry entry = new TargetDayAltitudeEntry(target, key, altitudes);
-
-                lock (mGate)
-                {
-                    // Discard if location changed mid-build (the publish would corrupt the new
-                    // location's cache).
-                    if (!object.ReferenceEquals(mLocation, location)) return entry;
-                    mDay[(target, key)] = entry;
-                    mInFlightDay.Remove((target, key));
-                }
+                TryPublish(mDay, mInFlightDay, (target, key), entry, location);
                 return entry;
             }
             catch
             {
-                lock (mGate)
-                {
-                    if (object.ReferenceEquals(mLocation, location))
-                        mInFlightDay.Remove((target, key));
-                }
+                DropOnFault(mInFlightDay, (target, key), location);
                 throw;
             }
         }
@@ -725,24 +700,12 @@ namespace TargetPlanner.Caches
                 });
 
                 MoonAltitudeEntry entry = new MoonAltitudeEntry(key, altitudes);
-
-                lock (mGate)
-                {
-                    // Discard if location changed mid-build (the publish would corrupt the new
-                    // location's cache).
-                    if (!object.ReferenceEquals(mLocation, location)) return entry;
-                    mMoon[key] = entry;
-                    mInFlightMoon.Remove(key);
-                }
+                TryPublish(mMoon, mInFlightMoon, key, entry, location);
                 return entry;
             }
             catch
             {
-                lock (mGate)
-                {
-                    if (object.ReferenceEquals(mLocation, location))
-                        mInFlightMoon.Remove(key);
-                }
+                DropOnFault(mInFlightMoon, key, location);
                 throw;
             }
         }
@@ -780,23 +743,6 @@ namespace TargetPlanner.Caches
 
                 return mNightCacheTask;
             }
-        }
-
-        private void FireTargetReady(Location location, Target target, TargetCacheEntry entry)
-        {
-            EventHandler<TargetReadyEventArgs> handler = TargetReady;
-            if (handler == null) return;
-            TargetReadyEventArgs args = new TargetReadyEventArgs(location, target, entry);
-            // mUiContext is non-null by ctor invariant -- subscribers always get UI marshalling.
-            mUiContext.Post(_ => handler(this, args), null);
-        }
-
-        private void FireLocationChanged(Location oldLocation, Location newLocation)
-        {
-            EventHandler<LocationChangedEventArgs> handler = LocationChanged;
-            if (handler == null) return;
-            LocationChangedEventArgs args = new LocationChangedEventArgs(oldLocation, newLocation);
-            mUiContext.Post(_ => handler(this, args), null);
         }
 
         // -------------- compute --------------

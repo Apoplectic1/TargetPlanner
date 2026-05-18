@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
 using System.Threading.Tasks;
 using Astronomy.Core.Horizons;
 using Astronomy.Core.Night;
@@ -24,9 +23,9 @@ namespace TargetPlanner.Caches
     /// <para>
     /// Threading: implementations run cache builds on the threadpool (<c>Task.Run</c>).
     /// Synchronous read accessors (<see cref="IsReady"/>, <see cref="GetOrNull"/>) are
-    /// lock-free for the consumer. The <see cref="TargetReady"/> event is marshalled
-    /// to the UI thread via the <see cref="SynchronizationContext"/> captured at store
-    /// construction.
+    /// lock-free for the consumer. Callers awaiting <c>*OrBuildAsync</c> or
+    /// <c>PrepareXxx</c> receive published entries on completion — no separate
+    /// event surface is required.
     /// </para>
     /// <para>
     /// Cancellation: the cache itself does not cancel in-flight builds; on a
@@ -148,48 +147,7 @@ namespace TargetPlanner.Caches
         /// In-flight builds against the old location run to completion and discard
         /// themselves at publish via the cache's internal location check. Subsequent
         /// <see cref="GetOrBuildAsync"/> / <see cref="PrepareManyAsync"/> calls build
-        /// against the new location. Fires <see cref="LocationChanged"/> after the swap
-        /// commits.</summary>
+        /// against the new location.</summary>
         Task SetLocationAsync(Location newLocation);
-
-        /// <summary>Fires after a <see cref="TargetCacheEntry"/> has been published.
-        /// Marshalled to the UI thread. <see cref="TargetReadyEventArgs.Location"/>
-        /// identifies the location the entry was built against — subscribers should
-        /// filter against <see cref="CurrentLocation"/> to skip stale-location ticks.
-        /// </summary>
-        event EventHandler<TargetReadyEventArgs> TargetReady;
-
-        /// <summary>Fires after <see cref="SetLocationAsync"/> commits the swap (and
-        /// before in-flight stale builds finish unwinding). Marshalled to the UI
-        /// thread. Subscribers can blank rendered state, drop pre-render decisions
-        /// keyed to the old location, or schedule a fresh render against the new
-        /// one.</summary>
-        event EventHandler<LocationChangedEventArgs> LocationChanged;
-    }
-
-    public sealed class TargetReadyEventArgs : EventArgs
-    {
-        public Location Location { get; }
-        public Target Target { get; }
-        public TargetCacheEntry Entry { get; }
-
-        public TargetReadyEventArgs(Location location, Target target, TargetCacheEntry entry)
-        {
-            Location = location;
-            Target   = target;
-            Entry    = entry;
-        }
-    }
-
-    public sealed class LocationChangedEventArgs : EventArgs
-    {
-        public Location OldLocation { get; }
-        public Location NewLocation { get; }
-
-        public LocationChangedEventArgs(Location oldLocation, Location newLocation)
-        {
-            OldLocation = oldLocation;
-            NewLocation = newLocation;
-        }
     }
 }

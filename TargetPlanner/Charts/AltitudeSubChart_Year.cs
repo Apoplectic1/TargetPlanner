@@ -64,10 +64,6 @@ namespace TargetPlanner.Charts
         private readonly Dictionary<Target, LineSeries<ObservablePoint>> mSeriesByTarget
             = new Dictionary<Target, LineSeries<ObservablePoint>>();
 
-        // Targets reference from the most recent successful Render. Phase-7
-        // short-circuit; see AltitudeSubChart_Day.mLastTargets for rationale.
-        private IReadOnlyList<Target> mLastTargets;
-
         private readonly Dictionary<Target, Color> mTargetColors
             = new Dictionary<Target, Color>();
 
@@ -332,7 +328,6 @@ namespace TargetPlanner.Charts
                 mTargetBySeries[kv.Value] = kv.Key;
             }
             mChart.Series = seriesList;
-            mLastTargets = ctx.Targets;
             BuildLegendItems();
 
             RecomputeLayout();

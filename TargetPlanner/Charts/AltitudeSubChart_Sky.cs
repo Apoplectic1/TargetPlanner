@@ -140,10 +140,6 @@ namespace TargetPlanner.Charts
         // this overlay is a presence/intensity indicator only.
         private LineSeries<ObservablePoint> mMoonSeries;
 
-        // Targets reference from the most recent successful Render. Phase-7
-        // short-circuit; see AltitudeSubChart_Day.mLastTargets for rationale.
-        private IReadOnlyList<Target> mLastTargets;
-
         private readonly HoverTooltipController mHover;
 
         // Cached IdealHeight from the last layout pass; used to detect changes so
@@ -420,7 +416,6 @@ namespace TargetPlanner.Charts
             mSeriesByTarget.Clear();
             foreach (var kv in newSeriesByTarget) mSeriesByTarget[kv.Key] = kv.Value;
             mChart.Series = seriesList;
-            mLastTargets = ctx.Targets;
             BuildLegendItems();
 
             RecomputeLayout();
