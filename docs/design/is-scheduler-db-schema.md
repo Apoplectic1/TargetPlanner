@@ -174,6 +174,6 @@ This is the biggest unresolved decision and has to be answered before any DDL is
 - [`../../TS DataBase Example/TS_SCHEDULER_INGEST.md`](../../TS%20DataBase%20Example/TS_SCHEDULER_INGEST.md) — TS schema discovery + the §10 critique this brief inverts.
 - `MEMORY.md → project_intervalscheduler` — the IS architecture context that puts IS in charge of the schema.
 - `MEMORY.md → reference_birdwatcher_imaging_pc` — where the canonical `scheduler.db` lives once IS is deployed.
-- `..\TargetScheduler_Clone\nina.plugin.targetscheduler\NINA.Plugin.TargetScheduler\Database\Schema\*.cs` — TS entity classes (semantic source of column meanings).
-- TSP migration scripts under `..\TargetScheduler_Clone\nina.plugin.targetscheduler\NINA.Plugin.TargetScheduler\Database\Initial\` and `Database\Migrate\` — the historical migration trail.
+- `..\..\..\TargetScheduler_Clone\nina.plugin.targetscheduler\NINA.Plugin.TargetScheduler\Database\Schema\*.cs` — TS entity classes (semantic source of column meanings).
+- TSP migration scripts under `..\..\..\TargetScheduler_Clone\nina.plugin.targetscheduler\NINA.Plugin.TargetScheduler\Database\Initial\` and `Database\Migrate\` — the historical migration trail.
 - `E:\Projects\VisualStudio\Astronomy\XisfFileManager\XisfFileManager\TargetScheduler\` and `XisfFileManager\Data\TableMappers.cs` — XFM's shipped TS reader. The `ITableMapper<T>` interface + per-table mapper pattern over `Microsoft.Data.Sqlite` is the reference shape for IS consumer-side mappers (replace TS-schema-aware POCOs with IS-schema-aware ones; keep the interface). XFM's footguns documented inline in [`../../TS DataBase Example/TS_SCHEDULER_INGEST.md`](../../TS%20DataBase%20Example/TS_SCHEDULER_INGEST.md) §8 — fix them in IS readers from day one.
