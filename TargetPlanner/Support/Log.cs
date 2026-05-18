@@ -93,21 +93,7 @@ namespace TargetPlanner.Support
                 id ?? string.Empty, build), null);
         }
 
-        /// <summary>Write a USER_MARK line correlated to an open observation
-        /// window. Triggered mid-session (Alt+M or the Mark button) to pin a
-        /// precise timestamp inside the START..END bracket; the optional
-        /// <paramref name="label"/> captures what happened at that exact
-        /// moment without waiting for the final OK notes.</summary>
-        public static void UserObservationMark(string id, string label)
-        {
-            string escapedLabel = (label ?? string.Empty)
-                .Replace("\\", "\\\\")
-                .Replace("\"", "\\\"");
-            Append("USER_MARK", string.Format("id={0} label=\"{1}\"",
-                id ?? string.Empty, escapedLabel), null);
-        }
-
-        /// <summary>Write the end of an observation window with the user's
+/// <summary>Write the end of an observation window with the user's
         /// checklist + notes + auto-captured context + screenshot path.
         /// <paramref name="id"/> matches the prior USER_OBS_START.
         /// <paramref name="ctx"/> is the formatted state snapshot

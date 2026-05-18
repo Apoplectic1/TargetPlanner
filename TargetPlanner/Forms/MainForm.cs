@@ -1928,26 +1928,16 @@ is preserved.";
             mCoordinator?.Apply(SnapshotCurrent());
         }
 
-        // Global hotkeys for the user-observation dialog:
-        //   Ctrl+N -- open (or focus) the observation dialog
-        //   Ctrl+M -- fire a mark inside the currently-open dialog (no-op
-        //             when none is open)
-        // Modeless + TopMost so the user can interact with the main UI while
-        // the dialog stays open; USER_OBS_START / USER_MARK / USER_OBS_END /
-        // USER_OBS_CANCEL markers in tp.log bracket the user's actions
-        // chronologically. Alt+M was the earlier mark binding -- changed to
-        // Ctrl+M because Alt is Windows's menu-accelerator prefix and Alt+M
-        // walks menu items rather than firing the hotkey.
+        // Ctrl+N opens (or focuses) the user-observation dialog. Modeless +
+        // TopMost so the user can interact with the main UI while the dialog
+        // stays open; USER_OBS_START / USER_OBS_END / USER_OBS_CANCEL
+        // markers in tp.log bracket the user's actions chronologically.
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
             if (keyData == (Keys.Control | Keys.N))
             {
                 Forms.UserObservationDialog.ShowOrFocus(this, GetObservationContext);
                 return true;
-            }
-            if (keyData == (Keys.Control | Keys.M))
-            {
-                if (Forms.UserObservationDialog.FireMarkFromHotkey()) return true;
             }
             return base.ProcessCmdKey(ref msg, keyData);
         }

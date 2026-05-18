@@ -11,30 +11,31 @@ namespace TargetPlanner.Forms
 {
     // Ctrl+N invoked debug dialog. Captures the user's in-the-moment
     // observation -- a pre-seeded checklist of recurring patterns
-    // (PersonalDefaults.UserObservationChecklist) plus a free-form notes box,
-    // a Ctrl+M mark sub-button for mid-session timestamp pins, and an
-    // auto-captured screenshot + context snapshot saved when the user clicks
-    // OK -- and writes start/end markers to tp.log so the user's actions
-    // while the dialog is open are chronologically bracketed.
+    // (PersonalDefaults.UserObservationChecklist), a free-form notes box, and
+    // an auto-captured screenshot + context snapshot saved when the user
+    // clicks OK -- and writes start/end markers to tp.log so the user's
+    // actions while the dialog is open are chronologically bracketed.
     //
     // Modeless + TopMost so the user can interact with the main chart while
-    // the dialog stays visible. The dialog's open period brackets the
-    // relevant UI / Coord / Cache / chart diag lines:
+    // the dialog stays open. The dialog's open period brackets the relevant
+    // UI / Coord / Cache / chart diag lines:
     //
     //   USER_OBS_START id=4f2a build=1.0.0+abc1234
     //   DIAG/UI CheckBox_Sky.CheckedChanged checked=True
-    //   USER_MARK id=4f2a label="moon vanished"
+    //   DIAG/Sky Render exit ...
     //   DIAG/UI CheckBox_Sky.CheckedChanged checked=False
     //   USER_OBS_END id=4f2a ctx=(area=Day, ...) screenshot=... checked=[...] notes="..."
     //
-    // grep id=4f2a tp.log surfaces the full investigation window. Marks and
-    // cancellations are also id-tagged so every event in the bracket is
-    // correlated.
+    // grep id=4f2a tp.log surfaces the full investigation window.
+    // Cancellation (Cancel button or close-X) writes USER_OBS_CANCEL with the
+    // same id so every START has a matching terminator.
+    //
+    // Singleton: re-pressing Ctrl+N while the dialog is already open focuses
+    // the existing instance (no second dialog, no second START marker).
     internal sealed class UserObservationDialog : Form
     {
         // Static instance tracker so re-trigger focuses the existing dialog
-        // instead of stacking, and Alt+M from the main form can fire mark on
-        // whatever dialog is currently open. Cleared on FormClosing.
+        // instead of stacking. Cleared on FormClosing.
         private static UserObservationDialog sCurrent;
 
         private readonly string mId;
@@ -42,8 +43,6 @@ namespace TargetPlanner.Forms
         private readonly Func<string> mContextProvider;
         private readonly CheckedListBox mChecklist;
         private readonly TextBox mNotes;
-        private readonly TextBox mMarkLabel;
-        private readonly Button mMarkButton;
         private readonly Button mOk;
         private readonly Button mCancel;
         // True when we logged END/CANCEL ourselves; suppresses the FormClosing
@@ -64,7 +63,7 @@ namespace TargetPlanner.Forms
             MaximizeBox = false;
             ShowInTaskbar = false;
             TopMost = true;
-            ClientSize = new Size(420, 430);
+            ClientSize = new Size(420, 380);
             Padding = new Padding(10);
 
             var lblChecklist = new Label
@@ -113,31 +112,10 @@ namespace TargetPlanner.Forms
                 }
             };
 
-            // Mark row: short label + button. Alt+M fires Mark whether
-            // anywhere in the app (MainForm.ProcessCmdKey forwards) or here.
-            var lblMark = new Label
-            {
-                Text = "Mark label:",
-                AutoSize = true,
-                Location = new Point(10, 343),
-            };
-            mMarkLabel = new TextBox
-            {
-                Location = new Point(85, 340),
-                Size = new Size(230, 22),
-            };
-            mMarkButton = new Button
-            {
-                Text = "Mark (Ctrl+M)",
-                Location = new Point(320, 338),
-                Size = new Size(90, 26),
-            };
-            mMarkButton.Click += OnMarkClick;
-
             mOk = new Button
             {
                 Text = "OK",
-                Location = new Point(255, 388),
+                Location = new Point(255, 340),
                 Size = new Size(75, 28),
             };
             mOk.Click += OnOkClick;
@@ -145,25 +123,18 @@ namespace TargetPlanner.Forms
             mCancel = new Button
             {
                 Text = "Cancel",
-                Location = new Point(335, 388),
+                Location = new Point(335, 340),
                 Size = new Size(75, 28),
             };
             mCancel.Click += OnCancelClick;
 
             AcceptButton = mOk;
             CancelButton = mCancel;
-            // Ctrl+M when dialog focused: handled by our own ProcessCmdKey
-            // override below. Ctrl+M when main UI focused: MainForm's own
-            // ProcessCmdKey forwards via FireMarkFromHotkey(). Ctrl+N
-            // (open / focus dialog) is MainForm-only.
 
             Controls.Add(lblChecklist);
             Controls.Add(mChecklist);
             Controls.Add(lblNotes);
             Controls.Add(mNotes);
-            Controls.Add(lblMark);
-            Controls.Add(mMarkLabel);
-            Controls.Add(mMarkButton);
             Controls.Add(mOk);
             Controls.Add(mCancel);
 
@@ -188,35 +159,6 @@ namespace TargetPlanner.Forms
             sCurrent = dlg;
             Log.UserObservationStart(dlg.mId);
             dlg.Show(owner);
-        }
-
-        // Called from MainForm.ProcessCmdKey when Ctrl+M is pressed while the
-        // main UI has focus. No-op when no observation window is open.
-        public static bool FireMarkFromHotkey()
-        {
-            if (sCurrent == null || sCurrent.IsDisposed) return false;
-            sCurrent.OnMarkClick(null, EventArgs.Empty);
-            return true;
-        }
-
-        // Ctrl+M when the dialog itself is focused. MainForm.ProcessCmdKey
-        // doesn't fire for keys aimed at this separate form, so we handle
-        // them here. Returning true marks the key as consumed.
-        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
-        {
-            if (keyData == (Keys.Control | Keys.M))
-            {
-                OnMarkClick(null, EventArgs.Empty);
-                return true;
-            }
-            return base.ProcessCmdKey(ref msg, keyData);
-        }
-
-        private void OnMarkClick(object sender, EventArgs e)
-        {
-            string label = mMarkLabel.Text;
-            Log.UserObservationMark(mId, label);
-            mMarkLabel.Clear();
         }
 
         private void OnOkClick(object sender, EventArgs e)
