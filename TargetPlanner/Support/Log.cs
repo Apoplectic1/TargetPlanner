@@ -29,11 +29,13 @@ namespace TargetPlanner.Support
         public static string FilePath => sPath;
 
         /// <summary>Rotate the current tp.log to tp.log.prev (overwriting any
-        /// previous rotation) and start a new empty log. Called once at app
-        /// startup so each run's diag trail is self-contained. One run back is
-        /// preserved in tp.log.prev for postmortem on the previous session.
-        /// Best-effort: any IO failure is silently swallowed (logging must not
-        /// cascade into hard errors).</summary>
+        /// previous rotation) and start a new empty log. Also rotates the
+        /// observation-screenshot directory: screenshots/ -> screenshots.prev/
+        /// so prev-run PNG paths referenced in tp.log.prev still resolve, and
+        /// the disk footprint stays bounded at one session back. Called once
+        /// at app startup so each run's diag trail + screenshots are self-
+        /// contained. Best-effort: any IO failure is silently swallowed
+        /// (logging must not cascade into hard errors).</summary>
         public static void StartNewSession()
         {
             try
@@ -51,6 +53,23 @@ namespace TargetPlanner.Support
                     File.WriteAllText(sPath,
                         string.Format("{0:o} INFO new session{1}",
                             DateTime.UtcNow, Environment.NewLine));
+
+                    // Rotate observation screenshots in the same shape as the
+                    // log: screenshots/ -> screenshots.prev/. References in
+                    // tp.log.prev still resolve via the .prev subdir; the
+                    // active session writes to a fresh screenshots/ created
+                    // on first save by UserObservationDialog.
+                    if (!string.IsNullOrEmpty(dir))
+                    {
+                        string shotsDir = Path.Combine(dir, "screenshots");
+                        string shotsPrev = Path.Combine(dir, "screenshots.prev");
+                        if (Directory.Exists(shotsDir))
+                        {
+                            if (Directory.Exists(shotsPrev))
+                                Directory.Delete(shotsPrev, recursive: true);
+                            Directory.Move(shotsDir, shotsPrev);
+                        }
+                    }
                 }
             }
             catch
