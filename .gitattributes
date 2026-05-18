@@ -1,0 +1,39 @@
+# Line-ending policy
+#
+# Silences the "LF will be replaced by CRLF" warnings that core.autocrlf=true
+# fires on Windows when files are committed with LF endings. With explicit
+# `eol=lf` here, git stores text files as LF in the repo and checks them out
+# as LF on every platform, so working-copy and repo endings always agree --
+# no normalization, no warning. .NET tooling, MSBuild, Visual Studio, and
+# all modern Windows editors handle LF fine.
+#
+# To re-align existing tracked files with this policy in a single sweep:
+#   git add --renormalize .
+#   git commit -m "Normalize line endings via .gitattributes"
+
+* text=auto eol=lf
+
+# Windows shell scripts: some older `cmd.exe` consumers require CRLF.
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+
+# POSIX shell scripts must always be LF (already the default, pinned
+# explicitly so a future addition can't accidentally CRLF-ify them).
+*.sh        text eol=lf
+
+# Binary file types -- skip text detection / line-ending conversion entirely.
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.ico       binary
+*.dll       binary
+*.exe       binary
+*.lib       binary
+*.exp       binary
+*.pdb       binary
+*.obj       binary
+*.sqlite    binary
+*.zip       binary
+*.7z        binary
+*.tar       binary
+*.gz        binary
