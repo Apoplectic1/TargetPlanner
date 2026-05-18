@@ -1940,10 +1940,53 @@ is preserved.";
             const int HTCAPTION = 2;
             if (m.Msg == WM_NCRBUTTONDOWN && m.WParam.ToInt32() == HTCAPTION)
             {
-                Forms.UserObservationDialog.ShowOrFocus(this);
+                Forms.UserObservationDialog.ShowOrFocus(this, GetObservationContext);
                 return;
             }
             base.WndProc(ref m);
+        }
+
+        // Alt+M is the global mark hotkey for the user-observation dialog --
+        // works whether the dialog is focused (its &Mark accelerator handles it
+        // natively) or the chart / a spinner / anywhere in the main UI is
+        // focused (this handler forwards to the dialog). No-op when no
+        // observation window is open.
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == (Keys.Alt | Keys.M))
+            {
+                if (Forms.UserObservationDialog.FireMarkFromHotkey()) return true;
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
+
+        // Builds the context snapshot string included in the USER_OBS_END
+        // line. Called by the observation dialog at OK time so the report
+        // carries the planner state without the user having to type it.
+        private string GetObservationContext()
+        {
+            try
+            {
+                IReadOnlyList<Target> targets =
+                    mCoordinator?.LastAppliedTargets ?? Array.Empty<Target>();
+#pragma warning disable CS0618 // Transitional projection: still reads .Horizon/.Duration off mLocation.
+                return string.Format(
+                    "area={0}, date={1:yyyy-MM-dd HH:mm}, n={2}, H={3:F0}, D={4:F0}m, filter={5:F0}nm, Bortle={6}, K={7:F2}",
+                    SelectedArea() ?? "?",
+                    mLocation.DateTime,
+                    targets.Count,
+                    mLocation.Horizon,
+                    mLocation.Duration.TotalMinutes,
+                    mActiveFilterCenterNm,
+                    mLocation.BortleClass,
+                    mLocation.ExtinctionK);
+#pragma warning restore CS0618
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("GetObservationContext threw", ex);
+                return "context unavailable";
+            }
         }
 
         // Hide every control in Panel_AltitudeChart except `target`. Used to

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 
 namespace TargetPlanner.Support
 {
@@ -87,14 +88,36 @@ namespace TargetPlanner.Support
         /// chronologically bracketed by start/end).</summary>
         public static void UserObservationStart(string id)
         {
-            Append("USER_OBS_START", "id=" + (id ?? string.Empty), null);
+            string build = TryGetBuildVersion();
+            Append("USER_OBS_START", string.Format("id={0} build={1}",
+                id ?? string.Empty, build), null);
+        }
+
+        /// <summary>Write a USER_MARK line correlated to an open observation
+        /// window. Triggered mid-session (Alt+M or the Mark button) to pin a
+        /// precise timestamp inside the START..END bracket; the optional
+        /// <paramref name="label"/> captures what happened at that exact
+        /// moment without waiting for the final OK notes.</summary>
+        public static void UserObservationMark(string id, string label)
+        {
+            string escapedLabel = (label ?? string.Empty)
+                .Replace("\\", "\\\\")
+                .Replace("\"", "\\\"");
+            Append("USER_MARK", string.Format("id={0} label=\"{1}\"",
+                id ?? string.Empty, escapedLabel), null);
         }
 
         /// <summary>Write the end of an observation window with the user's
-        /// checklist + notes. <paramref name="id"/> matches the prior
-        /// USER_OBS_START. Newlines / quotes in notes are escaped so the
-        /// line stays grep-friendly.</summary>
-        public static void UserObservationEnd(string id, string checkedItems, string notes)
+        /// checklist + notes + auto-captured context + screenshot path.
+        /// <paramref name="id"/> matches the prior USER_OBS_START.
+        /// <paramref name="ctx"/> is the formatted state snapshot
+        /// ("area=Day, date=..., n=44, H=30, ...") -- a free-form string the
+        /// caller assembles. <paramref name="screenshotPath"/> is the absolute
+        /// path to the saved screenshot PNG (empty when capture failed).
+        /// Newlines / quotes in notes are escaped so the line stays
+        /// grep-friendly (one observation = one line).</summary>
+        public static void UserObservationEnd(string id, string ctx, string checkedItems,
+            string notes, string screenshotPath)
         {
             string escapedNotes = (notes ?? string.Empty)
                 .Replace("\\", "\\\\")
@@ -102,8 +125,11 @@ namespace TargetPlanner.Support
                 .Replace("\n", "\\n")
                 .Replace("\r", "\\n")
                 .Replace("\"", "\\\"");
-            string body = string.Format("id={0} checked=[{1}] notes=\"{2}\"",
-                id ?? string.Empty, checkedItems ?? string.Empty, escapedNotes);
+            string body = string.Format(
+                "id={0} ctx=({1}) screenshot={2} checked=[{3}] notes=\"{4}\"",
+                id ?? string.Empty, ctx ?? string.Empty,
+                screenshotPath ?? string.Empty, checkedItems ?? string.Empty,
+                escapedNotes);
             Append("USER_OBS_END", body, null);
         }
 
@@ -139,6 +165,25 @@ namespace TargetPlanner.Support
         {
             string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             return Path.Combine(appData, "TargetPlanner", "tp.log");
+        }
+
+        // Reads AssemblyInformationalVersion (MinVer-stamped tag + git hash)
+        // from the entry assembly. Falls back to AssemblyVersion or "unknown"
+        // so logging never throws when the attribute isn't present (e.g. in
+        // unit tests or design-time scenarios).
+        private static string TryGetBuildVersion()
+        {
+            try
+            {
+                Assembly asm = Assembly.GetEntryAssembly();
+                string infoVer = asm?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+                if (!string.IsNullOrWhiteSpace(infoVer)) return infoVer;
+                return asm?.GetName().Version?.ToString() ?? "unknown";
+            }
+            catch
+            {
+                return "unknown";
+            }
         }
 
         private static HashSet<string> ResolveEnabledCategories()

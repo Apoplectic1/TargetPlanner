@@ -1,5 +1,7 @@
 using System;
 using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
 using System.Text;
 using System.Windows.Forms;
 using TargetPlanner.Settings;
@@ -9,36 +11,39 @@ namespace TargetPlanner.Forms
 {
     // Right-click-title-bar invoked debug dialog. Captures the user's in-the-
     // moment observation -- a pre-seeded checklist of recurring patterns
-    // (PersonalDefaults.UserObservationChecklist) plus a free-form notes box --
-    // and writes start/end markers to tp.log so the user's actions while the
-    // dialog is open are chronologically bracketed by the markers.
+    // (PersonalDefaults.UserObservationChecklist) plus a free-form notes box,
+    // an Alt+M mark sub-button for mid-session timestamp pins, and an
+    // auto-captured screenshot + context snapshot saved when the user clicks
+    // OK -- and writes start/end markers to tp.log so the user's actions
+    // while the dialog is open are chronologically bracketed.
     //
-    // Modeless + TopMost: user can interact with the main chart (toggle radios,
-    // scrub date, etc) while the dialog stays open and visible. The dialog's
-    // open period brackets the relevant UI / Coord / Cache / chart diag lines:
+    // Modeless + TopMost so the user can interact with the main chart while
+    // the dialog stays visible. The dialog's open period brackets the
+    // relevant UI / Coord / Cache / chart diag lines:
     //
-    //   USER_OBS_START id=4f2a
+    //   USER_OBS_START id=4f2a build=1.0.0+abc1234
     //   DIAG/UI CheckBox_Sky.CheckedChanged checked=True
-    //   DIAG/Sky Render exit ...
+    //   USER_MARK id=4f2a label="moon vanished"
     //   DIAG/UI CheckBox_Sky.CheckedChanged checked=False
-    //   USER_OBS_END id=4f2a checked=[Moon shifts] notes="..."
+    //   USER_OBS_END id=4f2a ctx=(area=Day, ...) screenshot=... checked=[...] notes="..."
     //
-    // Grep id=4f2a surfaces the full investigation window. USER_OBS_CANCEL
-    // replaces USER_OBS_END on Cancel or close-X so every START has a
-    // matching terminator.
-    //
-    // Singleton: re-right-clicking the title bar while the dialog is already
-    // open just focuses the existing instance (no second dialog, no second
-    // START marker).
+    // grep id=4f2a tp.log surfaces the full investigation window. Marks and
+    // cancellations are also id-tagged so every event in the bracket is
+    // correlated.
     internal sealed class UserObservationDialog : Form
     {
         // Static instance tracker so re-trigger focuses the existing dialog
-        // instead of stacking. Cleared on FormClosing.
+        // instead of stacking, and Alt+M from the main form can fire mark on
+        // whatever dialog is currently open. Cleared on FormClosing.
         private static UserObservationDialog sCurrent;
 
         private readonly string mId;
+        private readonly Form mOwnerForm;
+        private readonly Func<string> mContextProvider;
         private readonly CheckedListBox mChecklist;
         private readonly TextBox mNotes;
+        private readonly TextBox mMarkLabel;
+        private readonly Button mMarkButton;
         private readonly Button mOk;
         private readonly Button mCancel;
         // True when we logged END/CANCEL ourselves; suppresses the FormClosing
@@ -46,9 +51,11 @@ namespace TargetPlanner.Forms
         // handlers (which fire FormClosing themselves).
         private bool mTerminationLogged;
 
-        private UserObservationDialog()
+        private UserObservationDialog(Form ownerForm, Func<string> contextProvider)
         {
             mId = Guid.NewGuid().ToString("N").Substring(0, 4);
+            mOwnerForm = ownerForm;
+            mContextProvider = contextProvider ?? (() => string.Empty);
 
             Text = "Observation (id=" + mId + ")";
             FormBorderStyle = FormBorderStyle.SizableToolWindow;
@@ -57,7 +64,7 @@ namespace TargetPlanner.Forms
             MaximizeBox = false;
             ShowInTaskbar = false;
             TopMost = true;
-            ClientSize = new Size(420, 380);
+            ClientSize = new Size(420, 430);
             Padding = new Padding(10);
 
             var lblChecklist = new Label
@@ -106,10 +113,31 @@ namespace TargetPlanner.Forms
                 }
             };
 
+            // Mark row: short label + button. Alt+M fires Mark whether
+            // anywhere in the app (MainForm.ProcessCmdKey forwards) or here.
+            var lblMark = new Label
+            {
+                Text = "Mark label:",
+                AutoSize = true,
+                Location = new Point(10, 343),
+            };
+            mMarkLabel = new TextBox
+            {
+                Location = new Point(85, 340),
+                Size = new Size(230, 22),
+            };
+            mMarkButton = new Button
+            {
+                Text = "&Mark (Alt+M)",
+                Location = new Point(320, 338),
+                Size = new Size(90, 26),
+            };
+            mMarkButton.Click += OnMarkClick;
+
             mOk = new Button
             {
                 Text = "OK",
-                Location = new Point(255, 340),
+                Location = new Point(255, 388),
                 Size = new Size(75, 28),
             };
             mOk.Click += OnOkClick;
@@ -117,28 +145,34 @@ namespace TargetPlanner.Forms
             mCancel = new Button
             {
                 Text = "Cancel",
-                Location = new Point(335, 340),
+                Location = new Point(335, 388),
                 Size = new Size(75, 28),
             };
             mCancel.Click += OnCancelClick;
 
             AcceptButton = mOk;
             CancelButton = mCancel;
+            // Dialog-level Alt+M is handled by the button's & accelerator on
+            // its Text. App-wide Alt+M (chart focused) flows through
+            // MainForm.ProcessCmdKey -> FireMarkFromHotkey() below.
 
             Controls.Add(lblChecklist);
             Controls.Add(mChecklist);
             Controls.Add(lblNotes);
             Controls.Add(mNotes);
+            Controls.Add(lblMark);
+            Controls.Add(mMarkLabel);
+            Controls.Add(mMarkButton);
             Controls.Add(mOk);
             Controls.Add(mCancel);
 
             FormClosing += OnFormClosing;
         }
 
-        // Show modeless over the given owner. If a dialog is already open,
-        // bring it to front and focus it instead of opening a second one --
-        // there's only ever one observation window at a time.
-        public static void ShowOrFocus(IWin32Window owner)
+        // Show modeless over the given owner, or focus the existing instance
+        // if one is already open. The contextProvider is called at OK time
+        // to capture the current MainForm state for the USER_OBS_END line.
+        public static void ShowOrFocus(Form owner, Func<string> contextProvider)
         {
             if (sCurrent != null && !sCurrent.IsDisposed)
             {
@@ -149,14 +183,38 @@ namespace TargetPlanner.Forms
                 return;
             }
 
-            var dlg = new UserObservationDialog();
+            var dlg = new UserObservationDialog(owner, contextProvider);
             sCurrent = dlg;
             Log.UserObservationStart(dlg.mId);
             dlg.Show(owner);
         }
 
+        // Called from MainForm.ProcessCmdKey when Alt+M is pressed while the
+        // main UI has focus. No-op when no observation window is open.
+        public static bool FireMarkFromHotkey()
+        {
+            if (sCurrent == null || sCurrent.IsDisposed) return false;
+            sCurrent.OnMarkClick(null, EventArgs.Empty);
+            return true;
+        }
+
+        private void OnMarkClick(object sender, EventArgs e)
+        {
+            string label = mMarkLabel.Text;
+            Log.UserObservationMark(mId, label);
+            mMarkLabel.Clear();
+        }
+
         private void OnOkClick(object sender, EventArgs e)
         {
+            // Capture screenshot of the main form's current pixel state. Done
+            // BEFORE writing USER_OBS_END so the path is included in the line.
+            // Failure (disk full, bitmap throws, etc) leaves screenshot empty
+            // and the END line is still written -- the observation report
+            // still has value without the picture.
+            string screenshotPath = TryCaptureScreenshot();
+
+            // Collect checked items.
             var sb = new StringBuilder();
             bool first = true;
             foreach (object item in mChecklist.CheckedItems)
@@ -165,7 +223,13 @@ namespace TargetPlanner.Forms
                 sb.Append(item?.ToString() ?? string.Empty);
                 first = false;
             }
-            Log.UserObservationEnd(mId, sb.ToString(), mNotes.Text);
+
+            // Capture current ctx snapshot from MainForm.
+            string ctx = string.Empty;
+            try { ctx = mContextProvider() ?? string.Empty; }
+            catch (Exception ex) { Log.Warn("Observation contextProvider threw", ex); }
+
+            Log.UserObservationEnd(mId, ctx, sb.ToString(), mNotes.Text, screenshotPath ?? string.Empty);
             mTerminationLogged = true;
             Close();
         }
@@ -179,14 +243,48 @@ namespace TargetPlanner.Forms
 
         private void OnFormClosing(object sender, FormClosingEventArgs e)
         {
-            // User clicked the X (or Alt-F4) without OK/Cancel -- log a
-            // CANCEL so every START has a matching terminator.
             if (!mTerminationLogged)
             {
                 Log.UserObservationCancel(mId);
                 mTerminationLogged = true;
             }
             if (ReferenceEquals(sCurrent, this)) sCurrent = null;
+        }
+
+        // Capture the main form's screen pixels (full window bounds) and
+        // save as PNG under %APPDATA%\TargetPlanner\screenshots\.
+        // CopyFromScreen is used because LiveCharts2's SKControl paints via
+        // Skia and Control.DrawToBitmap returns blank for it -- the screen
+        // grab captures the actual rendered pixels regardless of the
+        // underlying paint mechanism.
+        private string TryCaptureScreenshot()
+        {
+            try
+            {
+                if (mOwnerForm == null || mOwnerForm.IsDisposed) return null;
+                string dir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "TargetPlanner", "screenshots");
+                Directory.CreateDirectory(dir);
+                string name = string.Format("obs-{0}-{1:yyyyMMddHHmmss}.png",
+                    mId, DateTime.UtcNow);
+                string path = Path.Combine(dir, name);
+                Rectangle bounds = mOwnerForm.Bounds;
+                using (var bmp = new Bitmap(bounds.Width, bounds.Height))
+                {
+                    using (var g = Graphics.FromImage(bmp))
+                    {
+                        g.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size);
+                    }
+                    bmp.Save(path, ImageFormat.Png);
+                }
+                return path;
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("Observation screenshot capture failed", ex);
+                return null;
+            }
         }
     }
 }
