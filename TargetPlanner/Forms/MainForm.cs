@@ -1928,11 +1928,11 @@ is preserved.";
             mCoordinator?.Apply(SnapshotCurrent());
         }
 
-        // Right-click on the form's title bar opens the user-observation
-        // dialog (Forms/UserObservationDialog). The dialog writes a USER_OBS
-        // line to tp.log with the ticked checklist items + free-form notes so
-        // visual observations align with the surrounding diag trail. We
-        // suppress the default Windows system menu that right-clicking the
+        // Right-click on the form's title bar opens (or focuses) the
+        // user-observation dialog. Modeless + TopMost so the user can interact
+        // with the main UI while it stays open; USER_OBS_START / END / CANCEL
+        // markers in tp.log bracket the user's actions chronologically.
+        // We suppress the default Windows system menu that right-clicking the
         // title bar would otherwise show -- nobody uses it.
         protected override void WndProc(ref Message m)
         {
@@ -1940,7 +1940,7 @@ is preserved.";
             const int HTCAPTION = 2;
             if (m.Msg == WM_NCRBUTTONDOWN && m.WParam.ToInt32() == HTCAPTION)
             {
-                Forms.UserObservationDialog.ShowAndLog(this);
+                Forms.UserObservationDialog.ShowOrFocus(this);
                 return;
             }
             base.WndProc(ref m);

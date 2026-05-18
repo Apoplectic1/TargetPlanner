@@ -78,13 +78,23 @@ namespace TargetPlanner.Support
             Append("DIAG/" + category, message, null);
         }
 
-        /// <summary>Write a user-observation line (triggered by the title-bar
-        /// right-click dialog). Always written, regardless of diag category
-        /// filter. <paramref name="checkedItems"/> is the semicolon-joined
-        /// pre-seeded items the user ticked; <paramref name="notes"/> is
-        /// free-form text. Newlines / quotes in notes are escaped so the line
-        /// stays grep-friendly (one observation = one line).</summary>
-        public static void UserObservation(string checkedItems, string notes)
+        /// <summary>Write a USER_OBS_START line marking the moment the user
+        /// opened the observation dialog. The dialog is modeless so the user
+        /// can interact with the main UI while it stays open; the matching
+        /// USER_OBS_END (or USER_OBS_CANCEL) line carries the same id so
+        /// grep id=&lt;short&gt; surfaces the full investigation window
+        /// (intervening UI / Coord / Cache / chart diag lines are
+        /// chronologically bracketed by start/end).</summary>
+        public static void UserObservationStart(string id)
+        {
+            Append("USER_OBS_START", "id=" + (id ?? string.Empty), null);
+        }
+
+        /// <summary>Write the end of an observation window with the user's
+        /// checklist + notes. <paramref name="id"/> matches the prior
+        /// USER_OBS_START. Newlines / quotes in notes are escaped so the
+        /// line stays grep-friendly.</summary>
+        public static void UserObservationEnd(string id, string checkedItems, string notes)
         {
             string escapedNotes = (notes ?? string.Empty)
                 .Replace("\\", "\\\\")
@@ -92,9 +102,17 @@ namespace TargetPlanner.Support
                 .Replace("\n", "\\n")
                 .Replace("\r", "\\n")
                 .Replace("\"", "\\\"");
-            string body = string.Format("checked=[{0}] notes=\"{1}\"",
-                checkedItems ?? string.Empty, escapedNotes);
-            Append("USER_OBS", body, null);
+            string body = string.Format("id={0} checked=[{1}] notes=\"{2}\"",
+                id ?? string.Empty, checkedItems ?? string.Empty, escapedNotes);
+            Append("USER_OBS_END", body, null);
+        }
+
+        /// <summary>Write a USER_OBS_CANCEL line for an observation window
+        /// the user abandoned (Cancel button or close-X). Every START gets
+        /// a matching END or CANCEL so the log is symmetrical.</summary>
+        public static void UserObservationCancel(string id)
+        {
+            Append("USER_OBS_CANCEL", "id=" + (id ?? string.Empty), null);
         }
 
         private static void Append(string level, string message, Exception ex)
