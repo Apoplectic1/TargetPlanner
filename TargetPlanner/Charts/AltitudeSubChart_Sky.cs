@@ -300,17 +300,9 @@ namespace TargetPlanner.Charts
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
             if (ctx.Location == null) throw new ArgumentException("ctx.Location must not be null", nameof(ctx));
             if (ctx.Policy == null) throw new ArgumentException("ctx.Policy must not be null", nameof(ctx));
-            // Phase 7 short-circuit. Sky cares about Location (dayKey, K-S
-            // bounds), Targets (per-target series), Hdm (fit gate via
-            // Tonight.Floor), and BrightnessInputs (K-S re-walk on Bortle /
-            // ExtinctionK / Filter scrubs). DayMode is Day-only.
-            if (eval != null && !eval.LocationChanged && !eval.TargetsChanged
-                && !eval.HdmChanged && !eval.BrightnessInputsChanged
-                && mLastTargets != null && ReferenceEquals(ctx.Targets, mLastTargets))
-            {
-                if (Log.IsDiagEnabled("Sky")) Log.Diag("Sky", "Render short-circuit (no relevant change)");
-                return;
-            }
+            // Phase 7's short-circuit-on-eval-flags was reverted; see
+            // AltitudeSubChart_Day.Render for rationale (LC2 visual instability
+            // across hidden->visible Control transitions).
 
             Location location = ctx.Location;
             IReadOnlyList<Target> targets = ctx.Targets;

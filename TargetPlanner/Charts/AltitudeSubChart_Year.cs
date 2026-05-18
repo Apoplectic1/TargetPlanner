@@ -250,16 +250,8 @@ namespace TargetPlanner.Charts
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
             if (ctx.Location == null) throw new ArgumentException("ctx.Location must not be null", nameof(ctx));
             if (ctx.Policy == null) throw new ArgumentException("ctx.Policy must not be null", nameof(ctx));
-            // Phase 7 short-circuit. Year cares about Location (year-of-nights),
-            // Targets (per-target series), Hdm (fit decisions per night). Day
-            // mode and brightness inputs don't affect Year.
-            if (eval != null && !eval.LocationChanged && !eval.TargetsChanged
-                && !eval.HdmChanged
-                && mLastTargets != null && ReferenceEquals(ctx.Targets, mLastTargets))
-            {
-                if (Log.IsDiagEnabled("Year")) Log.Diag("Year", "Render short-circuit (no relevant change)");
-                return;
-            }
+            // Phase 7's short-circuit-on-eval-flags was reverted; see
+            // AltitudeSubChart_Day.Render for rationale.
 
             Location location = ctx.Location;
             IReadOnlyList<Target> targets = ctx.Targets;

@@ -363,19 +363,14 @@ namespace TargetPlanner.Charts
         public void Render(ChartContext ctx, IChartCacheStore cache, ChartEvaluation eval)
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
-            // Phase 7 short-circuit: skip Render when no Day-relevant input
-            // changed since the last successful Render. Day cares about
-            // Location (dayKey, now-line, horizon-line, gradients), Targets
-            // (per-target series), Hdm (fit decisions), DayMode (Floor/Transit
-            // filter). Brightness inputs are Sky-only, so a Bortle scrub
-            // short-circuits Day correctly.
-            if (eval != null && !eval.LocationChanged && !eval.TargetsChanged
-                && !eval.HdmChanged && !eval.DayModeChanged
-                && mLastTargets != null && ReferenceEquals(ctx.Targets, mLastTargets))
-            {
-                if (Log.IsDiagEnabled("Day")) Log.Diag("Day", "Render short-circuit (no relevant change)");
-                return;
-            }
+            // Phase 7's short-circuit-on-eval-flags was reverted: LC2's paint
+            // behaviour across hidden->visible Control transitions isn't
+            // reliably stable even when Series/Values data is unchanged --
+            // moon position/shape would visibly shift across Sky->Day toggles
+            // even though the underlying data was identical. The perf saving
+            // wasn't worth the visual regression. Render runs unconditionally;
+            // sub-chart correctness now flows from cache-warm reads in the
+            // body, not from skipping work at the entrance.
             if (Log.IsDiagEnabled("Day"))
             {
                 Log.Diag("Day",
