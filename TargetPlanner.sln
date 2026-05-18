@@ -7,6 +7,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TargetPlanner", "TargetPlan
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Astronomy.Core", "..\Library\Astronomy.Core\Astronomy.Core.csproj", "{B7F2A9D4-3C18-4E5F-9A2B-6D8F1C3E7A52}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Astronomy.XISF", "..\Library\Astronomy.XISF\Astronomy.XISF.csproj", "{4E8A3B91-6C72-4D85-9B14-7F3D8E6C2A91}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Astronomy.NINA", "..\Library\Astronomy.NINA\Astronomy.NINA.csproj", "{C2A5D8E3-7F84-4B92-9D16-3E5A8C9B2D14}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -21,6 +25,14 @@ Global
 		{B7F2A9D4-3C18-4E5F-9A2B-6D8F1C3E7A52}.Debug|x64.Build.0 = Debug|x64
 		{B7F2A9D4-3C18-4E5F-9A2B-6D8F1C3E7A52}.Release|x64.ActiveCfg = Release|x64
 		{B7F2A9D4-3C18-4E5F-9A2B-6D8F1C3E7A52}.Release|x64.Build.0 = Release|x64
+		{4E8A3B91-6C72-4D85-9B14-7F3D8E6C2A91}.Debug|x64.ActiveCfg = Debug|x64
+		{4E8A3B91-6C72-4D85-9B14-7F3D8E6C2A91}.Debug|x64.Build.0 = Debug|x64
+		{4E8A3B91-6C72-4D85-9B14-7F3D8E6C2A91}.Release|x64.ActiveCfg = Release|x64
+		{4E8A3B91-6C72-4D85-9B14-7F3D8E6C2A91}.Release|x64.Build.0 = Release|x64
+		{C2A5D8E3-7F84-4B92-9D16-3E5A8C9B2D14}.Debug|x64.ActiveCfg = Debug|x64
+		{C2A5D8E3-7F84-4B92-9D16-3E5A8C9B2D14}.Debug|x64.Build.0 = Debug|x64
+		{C2A5D8E3-7F84-4B92-9D16-3E5A8C9B2D14}.Release|x64.ActiveCfg = Release|x64
+		{C2A5D8E3-7F84-4B92-9D16-3E5A8C9B2D14}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
