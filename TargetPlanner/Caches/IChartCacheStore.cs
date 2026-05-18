@@ -143,11 +143,12 @@ namespace TargetPlanner.Caches
         /// No-op when already published.</summary>
         Task PrepareMoonAsync(DayWindowKey key);
 
-        /// <summary>Drop every cached entry and switch to <paramref name="newLocation"/>.
-        /// In-flight builds against the old location run to completion and discard
+        /// <summary>Drop every cached entry and switch to <paramref name="newLocation"/>,
+        /// re-anchoring the NightCache against <paramref name="startingUtc"/>. In-flight
+        /// builds against the old (location, utc) pair run to completion and discard
         /// themselves at publish via the cache's internal location check. Subsequent
         /// <see cref="GetOrBuildAsync"/> / <see cref="PrepareManyAsync"/> calls build
-        /// against the new location.</summary>
-        Task SetLocationAsync(Location newLocation);
+        /// against the new state.</summary>
+        Task SetLocationAsync(Location newLocation, DateTime startingUtc);
     }
 }

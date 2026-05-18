@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Drawing;
 using Astronomy.Core.Horizons;
+using Astronomy.Core.Time;
 
 using Location = Astronomy.Core.Locations.Location;
 using Target   = Astronomy.Core.Targets.Target;
@@ -16,11 +17,13 @@ namespace TargetPlanner.State
     /// <remarks>
     /// <para>
     /// Composition: <see cref="Location"/> is pure site geometry (lat / lon /
-    /// elevation / time zone / Bortle / ExtinctionK / DateTime); <see cref="Policy"/>
+    /// elevation / time zone / Bortle / ExtinctionK / LocalHorizon); <see cref="Policy"/>
     /// is the per-session planning input (target floor / minimum duration / moon
-    /// profile / filter center / local horizon). The split lets a user scrub
-    /// imaging policy independently of site, and lets a future XISF / IS consumer
-    /// reuse <c>Location</c> without dragging UI-only fields with it.
+    /// profile / filter center / local horizon); <see cref="Observation"/> is the
+    /// per-session moment (UTC + zone). The three-way split lets the user scrub
+    /// imaging policy independently of site, scrub date/time independently of
+    /// policy, and lets a future XISF / IS consumer reuse <c>Location</c> without
+    /// dragging UI-only fields with it.
     /// </para>
     /// <para>
     /// C# <c>record</c> gives structural equality and the <c>with</c> expression
@@ -46,6 +49,7 @@ namespace TargetPlanner.State
         Location Location,
         IReadOnlyList<Target> Targets,
         PlanningPolicy Policy,
+        ObservationMoment Observation,
         string ActiveArea,
         IReadOnlyDictionary<Target, Color> TargetColors,
         DayChartMode DayMode = DayChartMode.Floor

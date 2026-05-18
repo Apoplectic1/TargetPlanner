@@ -1,4 +1,5 @@
 using System;
+using TargetPlanner.State;
 using Location = Astronomy.Core.Locations.Location;
 
 namespace TargetPlanner.Settings
@@ -14,8 +15,12 @@ namespace TargetPlanner.Settings
         public double Longitude { get; set; }
         public bool North { get; set; }
         public bool West { get; set; }
-        public double Horizon { get; set; }
-        public double DurationMinutes { get; set; }
+
+        // Per-site user planning preferences (target floor, minimum duration).
+        // Serialised as a nested JSON object so the in-memory record shape and
+        // the on-disk shape match. Null on a never-seen site triggers
+        // PlanningPreferences.Default at load.
+        public PlanningPreferencesDto Preferences { get; set; }
 
         // Observer ground elevation, meters above geoid. Default 0 keeps existing
         // settings.json files (which predate the field) deserializing without error.
@@ -47,23 +52,24 @@ namespace TargetPlanner.Settings
         // not "I'm in Eastern Time" -- DST transitions don't auto-shift this value.
         public double? UtcOffsetHours { get; set; }
 
-        public static NamedLocationSetting FromLocation(Location loc)
+        public static NamedLocationSetting FromState(
+            Location loc, PlanningPreferences preferences, string localHorizonPath)
         {
+            if (loc == null) throw new ArgumentNullException(nameof(loc));
+            if (preferences == null) throw new ArgumentNullException(nameof(preferences));
             return new NamedLocationSetting
             {
-                Name = loc.Name,
-                Latitude = loc.Latitude,
-                Longitude = loc.Longitude,
-                North = loc.North,
-                West = loc.West,
-#pragma warning disable CS0618 // Transitional persistence: NamedLocationSetting serializes Location.Horizon/.Duration scalars until PlanningPolicy owns per-site persistence.
-                Horizon = loc.Horizon,
-                DurationMinutes = loc.Duration.TotalMinutes,
-#pragma warning restore CS0618
-                Elevation      = loc.Elevation,
-                BortleClass    = loc.BortleClass,
-                ExtinctionK    = loc.ExtinctionK,
-                UtcOffsetHours = loc.TimeZoneInfo?.BaseUtcOffset.TotalHours,
+                Name             = loc.Name,
+                Latitude         = loc.Latitude,
+                Longitude        = loc.Longitude,
+                North            = loc.North,
+                West             = loc.West,
+                Preferences      = PlanningPreferencesDto.From(preferences),
+                Elevation        = loc.Elevation,
+                BortleClass      = loc.BortleClass,
+                ExtinctionK      = loc.ExtinctionK,
+                LocalHorizonPath = localHorizonPath,
+                UtcOffsetHours   = loc.TimeZoneInfo?.BaseUtcOffset.TotalHours,
             };
         }
 
@@ -73,15 +79,21 @@ namespace TargetPlanner.Settings
                 name:         Name,
                 latitude:     Latitude, north: North,
                 longitude:    Longitude, west:  West,
-                horizon:      Horizon,
-                duration:     TimeSpan.FromMinutes(DurationMinutes),
-                dateTime:     DateTime.Now,
                 timeZoneInfo: UtcOffsetHours.HasValue
                                   ? TimeZoneFromUtcOffsetHours(UtcOffsetHours.Value)
                                   : TimeZoneInfo.Local,
                 elevation:    Elevation,
                 bortleClass:  BortleClass <= 0 ? 5 : BortleClass,
                 extinctionK:  ExtinctionK <= 0 ? 0.28 : ExtinctionK);
+        }
+
+        // Hoist the per-site PlanningPreferences out of the persisted shape into
+        // the in-memory record. A null Preferences DTO (never-seen site)
+        // resolves to PlanningPreferences.Default so the spinners boot with
+        // sensible values rather than 0/0.
+        public PlanningPreferences ToPreferences()
+        {
+            return Preferences?.ToRecord() ?? PlanningPreferences.Default;
         }
 
         // Build a no-DST custom TimeZoneInfo for the given UTC offset in hours.
@@ -97,5 +109,26 @@ namespace TargetPlanner.Settings
             string label = "UTC" + sign + abs.Hours.ToString("D2") + ":" + abs.Minutes.ToString("D2");
             return TimeZoneInfo.CreateCustomTimeZone(label, offset, label, label);
         }
+    }
+
+    // Nested DTO mirroring PlanningPreferences. Kept separate from the record
+    // so Newtonsoft.Json can round-trip without needing a custom converter for
+    // the TimeSpan field -- TotalMinutes is a plain double, much friendlier to
+    // a human reading settings.json than the "00:04:00:00.0000000" TimeSpan
+    // default format.
+    public class PlanningPreferencesDto
+    {
+        public double TargetFloorDeg { get; set; }
+        public double MinDurationMinutes { get; set; }
+
+        public static PlanningPreferencesDto From(PlanningPreferences p) =>
+            new PlanningPreferencesDto
+            {
+                TargetFloorDeg     = p.TargetFloorDeg,
+                MinDurationMinutes = p.MinDuration.TotalMinutes,
+            };
+
+        public PlanningPreferences ToRecord() =>
+            new PlanningPreferences(TargetFloorDeg, TimeSpan.FromMinutes(MinDurationMinutes));
     }
 }

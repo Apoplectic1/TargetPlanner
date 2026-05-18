@@ -163,17 +163,17 @@ namespace TargetPlanner.State
             {
                 // Caller (this coordinator) computes the dayKey from the current
                 // night window so the cache stays Charts-agnostic. Always
-                // re-derive from ctx.Location -- using mCache.LocationNightCache
-                // here would pick up the PREVIOUS location's night on a date
-                // scrub (SetLocationAsync inside EnsureAsync hasn't run yet),
-                // and the resulting OLD dayKey would mismatch the sub-chart's
-                // post-SetLocation NEW dayKey -> every cache.GetDayOrNull /
-                // GetMoonOrNull returns null and targets disappear from Day.
-                // NightCalculator.ComputeNight is sub-millisecond Meeus math;
-                // recomputing per pipeline is cheap insurance against stale-key
-                // bugs.
+                // re-derive from ctx.Location + ctx.Observation.Utc -- using
+                // mCache.LocationNightCache here would pick up the PREVIOUS
+                // location's night on a date scrub (SetLocationAsync inside
+                // EnsureAsync hasn't run yet), and the resulting OLD dayKey
+                // would mismatch the sub-chart's post-SetLocation NEW dayKey
+                // -> every cache.GetDayOrNull / GetMoonOrNull returns null and
+                // targets disappear from Day. NightCalculator.ComputeNight is
+                // sub-millisecond Meeus math; recomputing per pipeline is
+                // cheap insurance against stale-key bugs.
                 DayWindowKey dayKey = default;
-                NightWindow night = NightCalculator.ComputeNight(ctx.Location);
+                NightWindow night = NightCalculator.ComputeNight(ctx.Location, ctx.Observation.Utc);
                 if (night.IsValid)
                 {
                     dayKey = ChartLayout.BuildDayWindow(night).Key;
@@ -183,7 +183,7 @@ namespace TargetPlanner.State
                 {
                     Log.Diag("Coord",
                         $"Pipeline enter activeArea={ctx.ActiveArea} dayKey.Count={dayKey.Count} " +
-                        $"date={ctx.Location.DateTime:yyyy-MM-dd HH:mm}");
+                        $"obs={ctx.Observation.Utc:yyyy-MM-dd HH:mm}Z");
                 }
                 ChartEvaluation eval = await mCache.EnsureAsync(ctx, dayKey);
                 if (Log.IsDiagEnabled("Coord"))

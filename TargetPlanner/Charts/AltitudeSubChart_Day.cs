@@ -367,7 +367,7 @@ namespace TargetPlanner.Charts
             if (Log.IsDiagEnabled("Day"))
             {
                 Log.Diag("Day",
-                    $"Render enter date={ctx.Location.DateTime:yyyy-MM-dd HH:mm} " +
+                    $"Render enter obs={ctx.Observation.Utc:yyyy-MM-dd HH:mm}Z " +
                     $"loc=({ctx.Location.Latitude:F3},{ctx.Location.Longitude:F3}) " +
                     $"targets={ctx.Targets?.Count ?? 0} LocationChanged={eval?.LocationChanged} " +
                     $"TargetsChanged={eval?.TargetsChanged} HdmChanged={eval?.HdmChanged}");
@@ -378,9 +378,9 @@ namespace TargetPlanner.Charts
             Location location = ctx.Location;
             IReadOnlyList<Target> targets = ctx.Targets;
             double horizonFloor = ctx.Policy.TargetFloorDeg;
-            DateTime now = location.DateTime;
+            DateTime now = ctx.Observation.Utc;
 
-            NightWindow night = cache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(location);
+            NightWindow night = cache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(location, now);
             if (!night.IsValid)
             {
                 ClearAll();

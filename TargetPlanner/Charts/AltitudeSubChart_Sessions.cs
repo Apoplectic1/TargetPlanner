@@ -267,7 +267,7 @@ namespace TargetPlanner.Charts
             // Green horizon line follows the scalar TargetFloor spinner; LocalHorizon's
             // polyline drives per-azimuth fit decisions in the cache, not the chart line.
             double horizonAlt = ctx.Policy.TargetFloorDeg;
-            DateTime now = location.DateTime;
+            DateTime now = ctx.Observation.Utc;
             HdmKey hdm = ctx.Hdm;
 
             UpdateHorizonLine(horizonAlt);

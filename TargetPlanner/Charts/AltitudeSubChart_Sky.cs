@@ -302,7 +302,7 @@ namespace TargetPlanner.Charts
 
             Location location = ctx.Location;
             IReadOnlyList<Target> targets = ctx.Targets;
-            DateTime now = location.DateTime;
+            DateTime now = ctx.Observation.Utc;
 
             // Sync ActiveFilterCenterNm from the snapshot before computing K-S.
             // ChartContext.Policy is the authoritative input; the property setter still
@@ -310,7 +310,7 @@ namespace TargetPlanner.Charts
             // SessionsRebuildDebounce_Tick path) which feed it directly.
             ActiveFilterCenterNm = ctx.Policy.FilterCenterNm;
 
-            NightWindow night = cache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(location);
+            NightWindow night = cache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(location, now);
             if (!night.IsValid)
             {
                 ClearAll();

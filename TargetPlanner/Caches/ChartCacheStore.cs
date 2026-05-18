@@ -89,6 +89,17 @@ namespace TargetPlanner.Caches
         // so sub-charts take their full Render path). Set under mGate.
         private ChartContext mLastEnsureCtx;
 
+        // ObservationMoment.Utc most recently passed through SetLocationAsync.
+        // Used by EnsureAsync to detect a date-change-without-geometry-change
+        // (the user scrubbed the date picker but the named location is the
+        // same): NightCache's Starting window depends on the seed UTC and
+        // becomes stale on any cross-day scrub; YearStartDay can flip on a
+        // cross-month scrub. Both trigger SetLocationAsync(loc, utc) so the
+        // night cache rebuilds against the new anchor. DateTime.MinValue is
+        // the "never set" sentinel so the first EnsureAsync always triggers
+        // a SetLocationAsync regardless of the geometry check.
+        private DateTime mLastSetUtc = DateTime.MinValue;
+
         public ChartCacheStore(Location initialLocation)
         {
             if (initialLocation == null) throw new ArgumentNullException(nameof(initialLocation));
@@ -338,21 +349,44 @@ namespace TargetPlanner.Caches
                 || ctx.Location.ExtinctionK != prev.Location.ExtinctionK
                 || ctx.Policy.FilterCenterNm != prev.Policy.FilterCenterNm;
 
+            // Detect date-change-without-geometry-change. NightCache's Starting
+            // window and YearStartDay both depend on the seed UTC; any cross-day
+            // scrub stales the Starting slot, any cross-month scrub stales the
+            // YearStartDay anchor (and thus the whole year-cache). Treat both
+            // as cache-busting events on par with a true geometry change so
+            // SetLocationAsync rebuilds against the new anchor.
+            DateTime prevUtc;
+            lock (mGate) { prevUtc = mLastSetUtc; }
+            bool dateChanged = prevUtc == DateTime.MinValue
+                || prevUtc.Date != ctx.Observation.Utc.Date
+                || NightCache.ComputeYearStartDay(prevUtc)
+                   != NightCache.ComputeYearStartDay(ctx.Observation.Utc);
+
             if (Log.IsDiagEnabled("Cache"))
             {
                 Log.Diag("Cache",
                     $"EnsureAsync enter prevNull={prev == null} locChanged={locationChanged} " +
-                    $"tgtChanged={targetsChanged} hdmChanged={hdmChanged} dayModeChanged={dayModeChanged} " +
-                    $"brightnessChanged={brightnessChanged} targets={ctx.Targets?.Count ?? 0} " +
-                    $"dayKey.Count={dayKey.Count}");
+                    $"dateChanged={dateChanged} tgtChanged={targetsChanged} hdmChanged={hdmChanged} " +
+                    $"dayModeChanged={dayModeChanged} brightnessChanged={brightnessChanged} " +
+                    $"targets={ctx.Targets?.Count ?? 0} dayKey.Count={dayKey.Count}");
             }
 
-            // 1. Re-key cache on geometry change. Skip the SetLocationAsync
-            //    call entirely when LocationCacheEquivalent reports unchanged --
-            //    SetLocationAsync's own ReferenceEquals fast path doesn't help
-            //    when the form re-creates Location instances on every UI tick
-            //    even for value-unchanged saves (NumericUpDown.ValueChanged etc).
-            if (locationChanged) await SetLocationAsync(ctx.Location);
+            // 1. Re-key cache on geometry or date change. Skip SetLocationAsync
+            //    entirely when both LocationCacheEquivalent and dateChanged report
+            //    unchanged -- SetLocationAsync's own ReferenceEquals fast path
+            //    doesn't help when the form re-creates Location instances on
+            //    every UI tick even for value-unchanged saves.
+            if (locationChanged || dateChanged)
+            {
+                await SetLocationAsync(ctx.Location, ctx.Observation.Utc);
+            }
+
+            // Surface date-change to downstream diff: a date-only scrub at the
+            // same site should still report LocationChanged=true to consumers
+            // (sub-charts and post-apply hooks) because the cache contents
+            // genuinely cleared. Keeps the public eval semantics aligned with
+            // what actually happened underneath.
+            locationChanged = locationChanged || dateChanged;
 
             // 2a. Moon altitudes are TARGET-INDEPENDENT (function of Location +
             //     night only). Prep unconditionally when dayKey is valid so
@@ -443,12 +477,14 @@ namespace TargetPlanner.Caches
         }
 
         // Value-equivalent comparison on the Location fields the cache itself
-        // keys against (geometry + DateTime.Date + year-start-day). Bortle /
-        // ExtinctionK / TimeZoneInfo are NOT included -- they don't affect cache
-        // contents (brightness inputs ride the separate BrightnessInputsChanged
-        // flag). Used by EnsureAsync so a ref-different / value-equivalent ctx
-        // (form re-creating Location on every NumericUpDown tick) doesn't trash
-        // the cache. Identical contract to the prior ChartCoordinator helper.
+        // keys against -- pure geometry (lat/lon/N/W/elevation) post-Phase-2.
+        // Date-anchored axes (NightCache.Starting / YearStartDay) are tracked
+        // separately via mLastSetUtc in EnsureAsync. Bortle / ExtinctionK /
+        // TimeZoneInfo are NOT included here -- brightness inputs ride the
+        // separate BrightnessInputsChanged flag; TZ identity doesn't affect
+        // cache contents either way. Used by EnsureAsync so a ref-different
+        // / value-equivalent ctx (form re-creating Location on every
+        // NumericUpDown tick) doesn't trash the cache.
         private static bool LocationCacheEquivalent(Location a, Location b)
         {
             if (object.ReferenceEquals(a, b)) return true;
@@ -457,13 +493,10 @@ namespace TargetPlanner.Caches
                 && a.Longitude == b.Longitude
                 && a.North == b.North
                 && a.West == b.West
-                && a.Elevation == b.Elevation
-                && a.DateTime.Date == b.DateTime.Date
-                && NightCache.ComputeYearStartDay(a.DateTime)
-                   == NightCache.ComputeYearStartDay(b.DateTime);
+                && a.Elevation == b.Elevation;
         }
 
-        public async Task SetLocationAsync(Location newLocation)
+        public async Task SetLocationAsync(Location newLocation, DateTime startingUtc)
         {
             if (newLocation == null) throw new ArgumentNullException(nameof(newLocation));
 
@@ -475,9 +508,12 @@ namespace TargetPlanner.Caches
 
             lock (mGate)
             {
-                // No-op if location is unchanged (reference equality); legitimate for repeated
-                // settings-driven calls.
-                if (object.ReferenceEquals(mLocation, newLocation)) return;
+                // No-op if location is unchanged (reference equality) AND the
+                // startingUtc anchor is the same; legitimate for repeated
+                // settings-driven calls. A pure date scrub at the same site
+                // proceeds with the rebuild because the anchor moved.
+                if (object.ReferenceEquals(mLocation, newLocation)
+                    && mLastSetUtc == startingUtc) return;
 
                 oldNightTask = mNightCacheTask;
                 oldInFlight = mInFlight.Values.ToList();
@@ -490,6 +526,7 @@ namespace TargetPlanner.Caches
                 // check in BuildEntryAsync / BuildFitEntryAsync / BuildDayEntryAsync /
                 // BuildMoonEntryAsync.
                 mLocation = newLocation;
+                mLastSetUtc = startingUtc;
                 mNightCache = null;
                 mNightCacheTask = null;
                 mEntries = new Dictionary<Target, TargetCacheEntry>();
@@ -721,12 +758,12 @@ namespace TargetPlanner.Caches
                     return mNightCacheTask;
 
                 Location loc = location;
+                DateTime seed = mLastSetUtc;
                 Task<NightCache> task = Task.Run(() =>
                 {
-                    DateTime seed = loc.DateTime;
                     DateTime startDay = NightCache.ComputeYearStartDay(seed);
                     int days = NightCache.ComputeYearDaysCount(seed);
-                    return new NightCache(loc, startDay, days);
+                    return new NightCache(loc, seed, startDay, days);
                 });
 
                 mNightCacheTask = task.ContinueWith(t =>
@@ -784,8 +821,8 @@ namespace TargetPlanner.Caches
                 entry.Dawn      = nw.AstronomicalDawn;
                 entry.SentinelX = entry.Dawn.AddMinutes(-1);
 
-                entry.AltDusk = AltAzCalculator.Of(target, location.With(dateTime: entry.Dusk)).Altitude;
-                entry.AltDawn = AltAzCalculator.Of(target, location.With(dateTime: entry.Dawn)).Altitude;
+                entry.AltDusk = AltAzCalculator.At(target, location, entry.Dusk).Altitude;
+                entry.AltDawn = AltAzCalculator.At(target, location, entry.Dawn).Altitude;
 
                 entry.LstDusk = SiderealTime.Local(entry.Dusk.ToUniversalTime(), lonDegEast);
                 entry.LstDawn = SiderealTime.Local(entry.Dawn.ToUniversalTime(), lonDegEast);

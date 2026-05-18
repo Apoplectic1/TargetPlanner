@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using Newtonsoft.Json;
+using TargetPlanner.State;
 using TargetPlanner.Support;
 using Location = Astronomy.Core.Locations.Location;
 
@@ -68,7 +69,7 @@ namespace TargetPlanner.Settings
         }
 
         // Merge built-in default named-locations into the user's saved list. Idempotent;
-        // matched by Name (case-insensitive). Three responsibilities:
+        // matched by Name (case-insensitive). Four responsibilities:
         //
         // 1. Append: a built-in not present in the existing list is appended so adding a
         //    new preset in a release (or in the developer's personal-defaults.json)
@@ -83,6 +84,13 @@ namespace TargetPlanner.Settings
         //    sky-brightness needs both fields; users upgrading from older settings.json
         //    files would otherwise see Bortle = 0 / k = 0 (physically nonsensical) on
         //    every name-matched builtin. User-set non-zero values are preserved.
+        //
+        // 4. Auto-fill Preferences: forward-flow seed of the per-site PlanningPreferences
+        //    record. A null Preferences on an existing entry adopts the builtin's
+        //    Preferences (which itself defaults to PlanningPreferences.Default when the
+        //    builtin doesn't carry one). User-set non-null Preferences are preserved.
+        //    Not a migration path -- per the no-backwards-compat rule, this is forward
+        //    extension of new presets into a settings.json that may pre-date the field.
         private static void MergeBuiltins(List<NamedLocationSetting> existing)
         {
             foreach (NamedLocationSetting builtin in BuildDefaultNamedLocations())
@@ -101,6 +109,8 @@ namespace TargetPlanner.Settings
                         match.BortleClass = builtin.BortleClass;
                     if (match.ExtinctionK == 0.0 && builtin.ExtinctionK != 0.0)
                         match.ExtinctionK = builtin.ExtinctionK;
+                    if (match.Preferences == null && builtin.Preferences != null)
+                        match.Preferences = builtin.Preferences;
                 }
             }
         }
@@ -132,7 +142,8 @@ namespace TargetPlanner.Settings
             foreach (NamedLocationSetting preset in PersonalDefaults.NamedLocations)
                 list.Add(Clone(preset));
             if (list.Count == 0)
-                list.Add(NamedLocationSetting.FromLocation(Location.Default));
+                list.Add(NamedLocationSetting.FromState(
+                    Location.Default, PlanningPreferences.Default, localHorizonPath: null));
             return list;
         }
 
@@ -148,8 +159,13 @@ namespace TargetPlanner.Settings
                 Longitude        = src.Longitude,
                 North            = src.North,
                 West             = src.West,
-                Horizon          = src.Horizon,
-                DurationMinutes  = src.DurationMinutes,
+                Preferences      = src.Preferences == null
+                    ? null
+                    : new PlanningPreferencesDto
+                    {
+                        TargetFloorDeg     = src.Preferences.TargetFloorDeg,
+                        MinDurationMinutes = src.Preferences.MinDurationMinutes,
+                    },
                 Elevation        = src.Elevation,
                 BortleClass      = src.BortleClass,
                 ExtinctionK      = src.ExtinctionK,

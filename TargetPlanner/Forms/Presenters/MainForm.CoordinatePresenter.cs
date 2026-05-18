@@ -92,10 +92,8 @@ namespace TargetPlanner
                 NumericUpDown_Extinction.ValueChanged     -= NumericUpDown_Extinction_ValueChanged;
                 ComboBox_Bortle.SelectedIndexChanged      -= ComboBox_Bortle_SelectedIndexChanged;
                 NumericUpDown_TimeZone.ValueChanged       -= NumericUpDown_TimeZone_ValueChanged;
-#pragma warning disable CS0618 // Transitional UI sync: spinners are model→UI mirrors of the persisted Location.Horizon/.Duration scalars.
-                NumericUpDown_TargetFloor.Value    = ClampToRange(NumericUpDown_TargetFloor,    (decimal)mLocation.Horizon);
-                NumericUpDown_TargetDuration.Value = ClampToRange(NumericUpDown_TargetDuration, (decimal)mLocation.Duration.TotalHours);
-#pragma warning restore CS0618
+                NumericUpDown_TargetFloor.Value    = ClampToRange(NumericUpDown_TargetFloor,    (decimal)mPlanningPreferences.TargetFloorDeg);
+                NumericUpDown_TargetDuration.Value = ClampToRange(NumericUpDown_TargetDuration, (decimal)mPlanningPreferences.MinDuration.TotalHours);
                 NumericUpDown_LocalElevation.Value = ClampToRange(NumericUpDown_LocalElevation, (decimal)mLocation.Elevation);
                 NumericUpDown_Extinction.Value     = ClampToRange(NumericUpDown_Extinction,     (decimal)mLocation.ExtinctionK);
                 int bortleIdx = mLocation.BortleClass - 1;

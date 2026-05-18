@@ -10,6 +10,7 @@ using Astronomy.Core.Horizons;
 using Astronomy.Core.Moon;
 using Astronomy.Core.Night;
 using Astronomy.Core.Sun;
+using Astronomy.Core.Time;
 using TargetPlanner.Filters;
 using TargetPlanner.Forms;
 using TargetPlanner.Horizons;
@@ -29,15 +30,27 @@ namespace TargetPlanner
     public partial class MainForm : Form
     {
         private Location mLocation;
-        private (DateTime When, TimeZoneInfo Zone) mLocalDateTime;
+        // Per-session observation moment (UTC + site zone). Replaces the legacy
+        // (DateTime When, TimeZoneInfo Zone) tuple field; matches AL's named-
+        // immutable-type convention so consumers thread the (Utc, Zone) pair
+        // around without losing the invariant that they travel together.
+        private ObservationMoment mObservation;
+
+        // Per-site user planning preferences (target floor degrees, minimum
+        // duration). Phase-2 successor to the now-removed Location.Horizon /
+        // .Duration scalars. Mutated by NumericUpDown_TargetFloor /
+        // NumericUpDown_TargetDuration handlers via `with` syntax; persisted
+        // per-NamedLocationSetting; flows into PlanningPolicy at SnapshotCurrent.
+        private PlanningPreferences mPlanningPreferences;
 
         // Per-site polyline horizon (NINA `.hrz`) when one is configured for the
         // active NamedLocationSetting and loads successfully; null otherwise (the
-        // scalar `mLocation.Horizon` floor path applies). Reloaded on site-pick
-        // and on FileSystemWatcher change events; threaded through
-        // PlanningPolicy.LocalHorizon by SnapshotCurrent so the chart and the
-        // fits cache pick it up. HdmKey reference-compares this so a swap
-        // (different file, hot-reload) invalidates the per-(target, HdmKey)
+        // scalar floor from mPlanningPreferences.TargetFloorDeg applies on its
+        // own). Reloaded on site-pick and on FileSystemWatcher change events;
+        // threaded through PlanningPolicy.LocalHorizon by SnapshotCurrent (via
+        // MaxOfHorizonProfile when a polyline + scalar both exist) so the chart
+        // and the fits cache pick it up. HdmKey reference-compares this so a
+        // swap (different file, hot-reload) invalidates the per-(target, HdmKey)
         // fits cache automatically.
         private IHorizonProfile mLocalHorizon;
 
@@ -367,10 +380,16 @@ is preserved.";
 
             mAppSettings = SettingsStore.Load();
 
-            mLocalDateTime = (DateTime.Now, TimeZoneInfo.Local);
+            mObservation = ObservationMoment.Now(TimeZoneInfo.Local);
             mLocation = PickStartupLocation();
+            // Per-site user preferences (target floor + minimum duration) for the
+            // boot location. PickStartupPreferences mirrors PickStartupLocation --
+            // both resolve from the same NamedLocationSetting entry so the spinner
+            // values, the chart horizon line, and the fits cache key all start
+            // consistent with the persisted shape.
+            mPlanningPreferences = PickStartupPreferences();
             // Polyline horizon for the boot location, if the matching NamedLocationSetting
-            // carries a LocalHorizonPath. Null result falls back to the scalar Horizon path
+            // carries a LocalHorizonPath. Null result falls back to the scalar floor path
             // through SnapshotCurrent. Looked up by name against mAppSettings.NamedLocations
             // since PickStartupLocation returns a Location with no path reference.
             mLocalHorizon = LoadLocalHorizonForCurrentLocation();
@@ -679,7 +698,7 @@ is preserved.";
                     RefreshAstrometryLabels();
                     foreach (var sc in mSubCharts.Values)
                     {
-                        sc.UpdateNowLine(ctx.Location.DateTime);
+                        sc.UpdateNowLine(ctx.Observation.Utc);
                         // Horizon line tracks the user's TargetFloor spinner -- a UI
                         // affordance for the scalar knob, not the LocalHorizon polyline
                         // (which can dip below the floor and drive per-azimuth fit
@@ -746,8 +765,9 @@ is preserved.";
 
         private void UpdateLocalDateTimeEvents()
         {
-            mLocalDateTime = (DatePicker.Value.Date + TimePicker.Value.TimeOfDay, TimeZoneInfo.Local);
-            mLocation = mLocation.With(dateTime: mLocalDateTime.When, timeZoneInfo: mLocalDateTime.Zone);
+            DateTime local = DatePicker.Value.Date + TimePicker.Value.TimeOfDay;
+            TimeZoneInfo zone = mLocation?.TimeZoneInfo ?? TimeZoneInfo.Local;
+            mObservation = ObservationMoment.FromLocal(local, zone);
             RefreshAstrometryLabels();
         }
 
@@ -763,9 +783,9 @@ is preserved.";
         // coordinator's post-apply hook.
         private void RefreshAstrometryLabels()
         {
+            DateTime utc = mObservation.Utc;
             NightWindow night = mCache?.LocationNightCache?.Starting
-                             ?? NightCalculator.ComputeNight(mLocation);
-            DateTime utc = mLocation.DateTime.ToUniversalTime();
+                             ?? NightCalculator.ComputeNight(mLocation, utc);
             double latSigned = mLocation.LatSigned();
             double lonEast   = mLocation.LonEast();
             ObserverInfo observer = new ObserverInfo(latSigned, lonEast, mLocation.Elevation);
@@ -847,15 +867,20 @@ is preserved.";
         {
             if (mSyncingLocationUI) return;
             double hours = (double)NumericUpDown_TimeZone.Value;
-            mLocation = mLocation.With(
-                timeZoneInfo: NamedLocationSetting.TimeZoneFromUtcOffsetHours(hours));
+            TimeZoneInfo zone = NamedLocationSetting.TimeZoneFromUtcOffsetHours(hours);
+            mLocation = mLocation.With(timeZoneInfo: zone);
+            // mObservation's Zone field is the same logical TZ as Location.TimeZoneInfo --
+            // keep them in lockstep so downstream consumers reading either see a
+            // consistent view. with-syntax preserves Utc; the wall-clock moment the
+            // user picked at the OLD offset is reinterpreted under the NEW offset.
+            mObservation = mObservation with { Zone = zone };
             OnLocationEdited(sender, e);
         }
 
         private void NumericUpDown_TargetDuration_ValueChanged(object sender, EventArgs e)
         {
             TimeSpan newDuration = TimeSpan.FromMinutes((double)NumericUpDown_TargetDuration.Value * 60.0);
-            mLocation = mLocation.With(duration: newDuration);
+            mPlanningPreferences = mPlanningPreferences with { MinDuration = newDuration };
             if (mCoordinator == null) return;
             // Coordinator's internal debounce coalesces rapid scrub ticks into one
             // pipeline run; pipeline diff catches Duration change as HDM-only and
@@ -866,7 +891,7 @@ is preserved.";
         private void NumericUpDown_TargetFloor_ValueChanged(object sender, EventArgs e)
         {
             double newHorizon = (double)NumericUpDown_TargetFloor.Value;
-            mLocation = mLocation.With(horizon: newHorizon);
+            mPlanningPreferences = mPlanningPreferences with { TargetFloorDeg = newHorizon };
             if (mCoordinator == null) return;
             // Horizon-line repositioning stays immediate -- it's one strip per chart
             // and the user wants instant feedback as they scrub. The per-target
@@ -992,25 +1017,20 @@ is preserved.";
             mLC2Sky.RefreshSkyBrightness(mCache, mLocation);
         }
 
-        // Compare the two locations on the fields that key the chart cache: Lat / Lon /
-        // hemisphere flags (geometry) plus the year-start-day (NightCache horizon). Horizon
-        // and Duration are scrub-only inputs to RenderSessionsSeries and don't invalidate the
-        // cache. DateTime within a single year-window is fine; only the year-start
-        // anchor matters (NightCache.ComputeYearStartDay drops the day-of-month and rounds
-        // to the start of the seed's month).
+        // Compare the two locations on the fields that key the chart cache: pure
+        // geometry (lat/lon/N/W/elevation). Post-Phase-2 the date axis lives on
+        // ObservationMoment and is tracked separately by ChartCacheStore via its
+        // mLastSetUtc shadow; this helper stays geometry-only so a site-keying
+        // scrub vs a date scrub vs a TZ scrub each take their own code path.
         private static bool LocationsCacheEquivalent(Location a, Location b)
         {
             if (object.ReferenceEquals(a, b)) return true;
             if (a == null || b == null) return false;
-            // Mirrors ChartCoordinator.LocationCacheEquivalent -- see that
-            // method's comment for why DateTime.Date is part of the equivalence.
             return a.Latitude  == b.Latitude
                 && a.Longitude == b.Longitude
                 && a.North     == b.North
                 && a.West      == b.West
-                && a.Elevation == b.Elevation
-                && a.DateTime.Date == b.DateTime.Date
-                && NightCache.ComputeYearStartDay(a.DateTime) == NightCache.ComputeYearStartDay(b.DateTime);
+                && a.Elevation == b.Elevation;
         }
 
         // Filter-library / moon-avoidance methods (BuildFiltersMenu,
@@ -1134,17 +1154,16 @@ is preserved.";
             // post-apply hook re-runs UpdateNowLine on settle (cheap; just shifts a
             // section's X position).
             if (mSubCharts != null)
-                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mLocalDateTime.When);
+                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mObservation.Utc);
             // Transit / Rise sort keys are time-dependent; Name is not. Skip the re-sort on
             // Name to avoid a pointless Items.Clear+re-add round-trip on every scrub tick.
             if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
                 ResortSelectedTargets();
-            // Coordinator: a date change (different DateTime.Date) trips the
-            // LocationCacheEquivalent diff -> SetLocationAsync -> full cache
-            // rebuild -> Render with fresh moon series, dusk/dawn, altitudes,
-            // and Tonight fits. Date-unchanged scrubs (TimePicker, sub-day
-            // mutations) skip the rebuild and just bounce through the post-
-            // apply hook for label + now-line sync.
+            // Coordinator: a date change trips the cache's mLastSetUtc diff ->
+            // SetLocationAsync -> full cache rebuild -> Render with fresh moon
+            // series, dusk/dawn, altitudes, and Tonight fits. Date-unchanged
+            // scrubs (TimePicker within the same UTC day) skip the rebuild and
+            // just bounce through the post-apply hook for label + now-line sync.
             mCoordinator?.Apply(SnapshotCurrent());
         }
 
@@ -1153,7 +1172,7 @@ is preserved.";
             Log.Diag("UI", $"TimePicker.ValueChanged value={TimePicker.Value:HH:mm}");
             UpdateLocalDateTimeEvents();
             if (mSubCharts != null)
-                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mLocalDateTime.When);
+                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mObservation.Utc);
             if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
                 ResortSelectedTargets();
             mCoordinator?.Apply(SnapshotCurrent());
@@ -1190,10 +1209,10 @@ is preserved.";
         // rule -- Button_Graph and the checked-set are independent views, switching
         // between them is the user's explicit action.
         //
-        // mLocation.DateTime is already kept in sync with the pickers via
-        // UpdateLocalDateTimeEvents (called from DatePicker/TimePicker ValueChanged and
-        // Button_Now_Click). Don't overwrite it with DateTime.Now here -- that was the
-        // pre-refactor assumption when the app was always "live now" by default.
+        // mObservation is kept in sync with the pickers via UpdateLocalDateTimeEvents
+        // (called from DatePicker/TimePicker ValueChanged and Button_Now_Click).
+        // Don't overwrite with ObservationMoment.Now here -- that was the pre-refactor
+        // assumption when the app was always "live now" by default.
         private async void Button_Graph_Click(object sender, EventArgs e)
         {
             // async void: wrap entire body so a synchronous throw doesn't crash the process.
@@ -1411,42 +1430,38 @@ is preserved.";
         }
 
         // Build a ChartContext snapshot from current MainForm state. Single point
-        // that reads mLocation / mMoonAvoidanceProfile / mActiveFilterCenterNm /
-        // SelectedArea() / mTargetColorsByTarget — adding a new chart input is one
-        // record-field addition here plus one additional read here, not a signature
-        // break across six files. Caller decides which target list to pass
+        // that reads mLocation / mObservation / mPlanningPreferences /
+        // mMoonAvoidanceProfile / mActiveFilterCenterNm / SelectedArea() /
+        // mTargetColorsByTarget — adding a new chart input is one record-field
+        // addition here plus one additional read here, not a signature break
+        // across six files. Caller decides which target list to pass
         // (single-target via SelectedSingle, multi via the checked set, or empty
         // for blanking).
         //
-        // PlanningPolicy is synthesized from mLocation.Horizon / .Duration plus the
-        // form-level moon profile + filter center. mLocation continues to persist
-        // these values via NamedLocationSetting; ChartContext carries only the
-        // policy projection (Library APIs never read Location.Horizon/.Duration).
-        // Once a per-site `.hrz` file is wired in PR-5, the scalar horizon factory
-        // gets swapped for the polyline path here and nothing downstream changes.
+        // PlanningPolicy is synthesized from mPlanningPreferences plus the form-
+        // level moon profile + filter center + mLocalHorizon. The polyline horizon
+        // (when configured + loaded for the active named location) composes with
+        // the scalar floor via MaxOfHorizonProfile so a target qualifies only
+        // when it clears whichever of the two is higher at the target's azimuth.
+        // Scalar-only sites skip the combinator and pass a bare ScalarHorizonProfile.
         private ChartContext SnapshotCurrent(IReadOnlyList<Target> targets)
         {
-#pragma warning disable CS0618 // Transitional projection: SnapshotCurrent reads the scalars off mLocation until PlanningPolicy owns persistence directly.
-            // Polyline horizon (when configured + loaded for the active named
-            // location) overrides the scalar Horizon for scheduling. TargetFloorDeg
-            // still carries the scalar for the chart's green horizon-line affordance;
-            // Phase 2 of the Location refactor brings the two together via a max-of-
-            // profile combinator. For Phase 1 the polyline wholly replaces the
-            // scheduling floor when present.
-            IHorizonProfile horizon = mLocalHorizon
-                ?? new ScalarHorizonProfile(mLocation.Horizon);
+            ScalarHorizonProfile scalar = new ScalarHorizonProfile(mPlanningPreferences.TargetFloorDeg);
+            IHorizonProfile horizon = mLocalHorizon == null
+                ? scalar
+                : new MaxOfHorizonProfile(mLocalHorizon, scalar);
             PlanningPolicy policy = new PlanningPolicy(
-                TargetFloorDeg:  mLocation.Horizon,
-                MinDuration:     mLocation.Duration,
+                TargetFloorDeg:  mPlanningPreferences.TargetFloorDeg,
+                MinDuration:     mPlanningPreferences.MinDuration,
                 MoonProfile:     mMoonAvoidanceProfile,
                 FilterCenterNm:  mActiveFilterCenterNm,
                 LocalHorizon:    horizon);
-#pragma warning restore CS0618
 
             return new ChartContext(
                 Location:     mLocation,
                 Targets:      targets ?? Array.Empty<Target>(),
                 Policy:       policy,
+                Observation:  mObservation,
                 ActiveArea:   SelectedArea(),
                 TargetColors: mTargetColorsByTarget,
                 DayMode:      mDayChartMode);
@@ -1460,19 +1475,21 @@ is preserved.";
         private void Button_Now_Click(object sender, EventArgs e)
         {
             Log.Diag("UI", "Button_Now.Click");
-            mLocalDateTime = (DateTime.Now, TimeZoneInfo.Local);
+            TimeZoneInfo zone = mLocation?.TimeZoneInfo ?? TimeZoneInfo.Local;
+            mObservation = ObservationMoment.Now(zone);
+            DateTime localNow = TimeZoneInfo.ConvertTimeFromUtc(mObservation.Utc, zone);
 
             DatePicker.ValueChanged -= DatePicker_ValueChanged;
             TimePicker.ValueChanged -= TimePicker_ValueChanged;
-            DatePicker.Value = mLocalDateTime.When;
-            TimePicker.Value = mLocalDateTime.When;
+            DatePicker.Value = localNow;
+            TimePicker.Value = localNow;
             DatePicker.ValueChanged += DatePicker_ValueChanged;
             TimePicker.ValueChanged += TimePicker_ValueChanged;
 
             UpdateLocalDateTimeEvents();
 
             if (mSubCharts != null)
-                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mLocalDateTime.When);
+                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mObservation.Utc);
 
             mCoordinator?.Apply(SnapshotCurrent());
         }
@@ -1501,10 +1518,15 @@ is preserved.";
             {
                 NamedLocationSetting named = mAppSettings.NamedLocations.Find(x => x.Name == name);
                 if (named == null) return;
-                // Preserve the current DateTime / TimeZoneInfo across the switch -- the user's
-                // date/time selection shouldn't reset when they swap locations.
-                Location loaded = named.ToLocation();
-                mLocation = loaded.With(dateTime: mLocation.DateTime, timeZoneInfo: mLocation.TimeZoneInfo);
+                // The user's observation moment is independent of site -- mObservation
+                // stays put across the swap. The picked site's own TimeZoneInfo
+                // becomes the new Location.TimeZoneInfo; if the user wants the
+                // picker to reinterpret the wall-clock time against the new zone
+                // they'll click Button_Now or re-pick the date/time.
+                mLocation = named.ToLocation();
+                // Per-site planning preferences come over with the site -- the
+                // Horizon/Duration spinners snap to the new site's values.
+                mPlanningPreferences = named.ToPreferences();
                 // Load the polyline horizon for the picked site, if configured. Null result
                 // (no path, missing file, parse failure) falls back through SnapshotCurrent
                 // to the scalar ScalarHorizonProfile(mLocation.Horizon) path; the loader
@@ -1570,6 +1592,25 @@ is preserved.";
             ConfigureHorizonWatcher(null);
             mAppSettings.LastSelectedLocationName = "Custom";
             // Not saving on every edit -- settings are persisted on form close.
+        }
+
+        // PickStartupPreferences -- companion to PickStartupLocation. Resolves
+        // the per-site PlanningPreferences from the same NamedLocationSetting
+        // entry PickStartupLocation picked so the spinner values, the chart
+        // horizon line, and the fits cache key all start consistent with the
+        // persisted shape. Falls through to PlanningPreferences.Default when
+        // no settings entry matches (fresh install / unknown personal-default
+        // LocationName).
+        private PlanningPreferences PickStartupPreferences()
+        {
+            NamedLocationSetting personalDefault = mAppSettings.NamedLocations.Find(x =>
+                string.Equals(x.Name, PersonalDefaults.LocationName, StringComparison.OrdinalIgnoreCase));
+            if (personalDefault != null) return personalDefault.ToPreferences();
+
+            if (mAppSettings.NamedLocations.Count > 0)
+                return mAppSettings.NamedLocations[0].ToPreferences();
+
+            return PlanningPreferences.Default;
         }
 
         private Location PickStartupLocation()
@@ -2031,18 +2072,16 @@ is preserved.";
             {
                 IReadOnlyList<Target> targets =
                     mCoordinator?.LastAppliedTargets ?? Array.Empty<Target>();
-#pragma warning disable CS0618 // Transitional projection: still reads .Horizon/.Duration off mLocation.
                 return string.Format(
-                    "area={0}, date={1:yyyy-MM-dd HH:mm}, n={2}, H={3:F0}, D={4:F0}m, filter={5:F0}nm, Bortle={6}, K={7:F2}",
+                    "area={0}, obs={1:yyyy-MM-dd HH:mm}Z, n={2}, H={3:F0}, D={4:F0}m, filter={5:F0}nm, Bortle={6}, K={7:F2}",
                     SelectedArea() ?? "?",
-                    mLocation.DateTime,
+                    mObservation.Utc,
                     targets.Count,
-                    mLocation.Horizon,
-                    mLocation.Duration.TotalMinutes,
+                    mPlanningPreferences.TargetFloorDeg,
+                    mPlanningPreferences.MinDuration.TotalMinutes,
                     mActiveFilterCenterNm,
                     mLocation.BortleClass,
                     mLocation.ExtinctionK);
-#pragma warning restore CS0618
             }
             catch (Exception ex)
             {
@@ -2600,10 +2639,11 @@ is preserved.";
             if (mLocation == null) return;
 
             DateTime tonightAnchor = DatePicker.Value.Date + TimePicker.Value.TimeOfDay;
-            Location pickedNightLocation = mLocation.With(dateTime: tonightAnchor);
+            ObservationMoment tonightObs = ObservationMoment.FromLocal(
+                tonightAnchor, mLocation?.TimeZoneInfo ?? TimeZoneInfo.Local);
 
             Astronomy.Core.Night.NightWindow night =
-                Astronomy.Core.Night.NightCalculator.ComputeNight(pickedNightLocation);
+                Astronomy.Core.Night.NightCalculator.ComputeNight(mLocation, tonightObs.Utc);
 
             // Clip the night window to "picker-time forward". A target that was above the
             // horizon early in the night but is already (and remains) below it by the picker
@@ -2649,7 +2689,7 @@ is preserved.";
 
             var visible = mSelection.KnownTargets
                 .Where(t => Astronomy.Core.Session.CoarseVisibility.IsAboveHorizonForAtLeast(
-                    t, pickedNightLocation, night, mathHorizon, minDuration))
+                    t, mLocation, night, mathHorizon, minDuration))
                 .ToList();
             mSelection.SetCheckedSet(visible);
 

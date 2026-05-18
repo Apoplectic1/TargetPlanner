@@ -23,8 +23,6 @@ namespace TargetPlanner.Settings
         public static double Elevation       { get; private set; } = 0.0;
         public static int    BortleClass     { get; private set; } = 5;
         public static double ExtinctionK     { get; private set; } = 0.28;
-        public static double Horizon         { get; private set; } = 30.0;
-        public static double DurationMinutes { get; private set; } = 240.0;
         public static string NinaTargetsRoot { get; private set; } =
             @"C:\Users\Public\Documents\NINA\Targets";
 
@@ -80,8 +78,6 @@ namespace TargetPlanner.Settings
                                                                    BortleClass     = d.BortleClass.Value;
                 if (d.ExtinctionK.HasValue && d.ExtinctionK.Value > 0)
                                                                    ExtinctionK     = d.ExtinctionK.Value;
-                if (d.Horizon.HasValue)                            Horizon         = d.Horizon.Value;
-                if (d.DurationMinutes.HasValue)                    DurationMinutes = d.DurationMinutes.Value;
                 if (!string.IsNullOrWhiteSpace(d.NinaTargetsRoot)) NinaTargetsRoot = d.NinaTargetsRoot;
                 if (d.NamedLocations != null && d.NamedLocations.Count > 0)
                     NamedLocations = d.NamedLocations.AsReadOnly();
@@ -109,8 +105,6 @@ namespace TargetPlanner.Settings
             public double? Elevation      { get; set; }
             public int?    BortleClass    { get; set; }
             public double? ExtinctionK    { get; set; }
-            public double? Horizon        { get; set; }
-            public double? DurationMinutes{ get; set; }
             public string NinaTargetsRoot { get; set; }
             public List<NamedLocationSetting> NamedLocations { get; set; }
             public List<string> UserObservationChecklist { get; set; }
