@@ -345,10 +345,12 @@ namespace TargetPlanner.Charts
             mHorizonLine.Yj = horizon;
         }
 
-        // Update the red now-line position in place.
+        // Update the red now-line position in place. X axis is machine-local
+        // time (chartStart/chartStop are .ToLocalTime'd), so convert here --
+        // ToOADate ignores Kind and would otherwise plot UTC ticks raw.
         public void UpdateNowLine(DateTime now)
         {
-            double oa = now.ToOADate();
+            double oa = now.ToLocalTime().ToOADate();
             mNowLine.Xi = oa;
             mNowLine.Xj = oa;
         }

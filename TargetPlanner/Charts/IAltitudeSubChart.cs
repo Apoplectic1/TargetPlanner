@@ -38,7 +38,9 @@ namespace TargetPlanner.Charts
 
         // Live update -- mutates the red now-line's X position in place.
         // Wired to fire from DatePicker / TimePicker / Button_Now without
-        // debounce; data series do NOT recompute.
+        // debounce; data series do NOT recompute. Callers pass UTC (the
+        // ObservationMoment.Utc carrier); implementations convert to
+        // machine-local before ToOADate, matching the chart's local-time axis.
         void UpdateNowLine(DateTime now);
 
         // Live update -- mutates the green horizon line's Y position in place.

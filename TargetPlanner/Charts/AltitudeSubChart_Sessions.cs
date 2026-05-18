@@ -214,9 +214,12 @@ namespace TargetPlanner.Charts
             mHorizonLine.Yj = horizon;
         }
 
+        // X axis is machine-local time, so convert -- ToOADate ignores Kind
+        // and would otherwise plot UTC ticks raw (sub-day shift, invisible at
+        // year scale but consistent with Day/Sky).
         public void UpdateNowLine(DateTime now)
         {
-            double oa = now.ToOADate();
+            double oa = now.ToLocalTime().ToOADate();
             mNowLine.Xi = oa;
             mNowLine.Xj = oa;
         }
