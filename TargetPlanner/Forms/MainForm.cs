@@ -410,6 +410,27 @@ is preserved.";
             // OnAboutClick below. Filters children (one per library filter) stay
             // dynamic and get populated by BuildFiltersMenu().
 
+            // Help -> Feedback: appended programmatically rather than via the
+            // Designer (which is don't-touch per project convention). Tooltip
+            // surfaces the Ctrl+N observation feature for discoverability.
+            // Single child opens the Logs folder in Explorer so the user can
+            // delete a session's notes (tp.log + screenshots/) with one
+            // selection or attach the captured PNGs to a bug report.
+            HelpToolStripMenuItem_MainForm.DropDownItems.Add(new ToolStripSeparator());
+            var feedbackItem = new ToolStripMenuItem("&Feedback")
+            {
+                ToolTipText =
+                    "Open the Logs folder containing diagnostic logs and screenshots " +
+                    "captured via Ctrl+N (the observation dialog). The dialog lets you " +
+                    "tick what you observed + write notes + auto-attaches a screenshot " +
+                    "and current planner state. One delete of the Logs folder clears " +
+                    "every captured note.",
+            };
+            var openNotesItem = new ToolStripMenuItem("&Open Notes Folder");
+            openNotesItem.Click += (s, e) => HandleOpenNotesFolderClick();
+            feedbackItem.DropDownItems.Add(openNotesItem);
+            HelpToolStripMenuItem_MainForm.DropDownItems.Add(feedbackItem);
+
             // Filters menu: load the per-filter library (or ship-defaults on first launch)
             // and build a mutually-exclusive radio group of menu items. Disabled is the
             // first-launch default; a click on any preset writes its values into
@@ -1000,6 +1021,34 @@ is preserved.";
                 dlg.ShowDialog(this);
         }
 
+        // Help -> Feedback -> Open Notes Folder. Ensures the Logs folder
+        // exists (it doesn't until the first Log.Append fires after rotation)
+        // so the user always gets a real Explorer window rather than a
+        // path-not-found error. Process.Start with UseShellExecute=true
+        // hands the path off to the OS shell, which opens the default folder
+        // viewer (Explorer on Windows).
+        private void HandleOpenNotesFolderClick()
+        {
+            try
+            {
+                string path = Log.NotesFolderPath;
+                System.IO.Directory.CreateDirectory(path);
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = path,
+                    UseShellExecute = true,
+                });
+            }
+            catch (Exception ex)
+            {
+                Log.Error("HandleOpenNotesFolderClick failed", ex);
+                MessageBox.Show(this,
+                    "Couldn't open the notes folder:\n\n" + ex.Message,
+                    "Open Notes Folder",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
         // File -> Clear All Data... handler. Confirms via YesNo MessageBox, deletes the
         // three persistent files in %APPDATA%\TargetPlanner, then offers a restart so the
         // next launch boots from defaults. tp.log is deleted last so any per-file delete
@@ -1014,7 +1063,7 @@ is preserved.";
                 "  • " + SettingsStore.FilePath + "\n" +
                 "  • " + FilterLibrary.DefaultPath + "\n" +
                 "  • " + LocalTargetStore.FilePath + "\n" +
-                "  • " + Log.FilePath + "\n\n" +
+                "  • " + Log.NotesFolderPath + " (entire folder: tp.log + screenshots + .prev)\n\n" +
                 "This cannot be undone.";
 
             DialogResult confirm = MessageBox.Show(this, body, "Clear All Data",
@@ -1024,7 +1073,7 @@ is preserved.";
             TryDeleteFile(SettingsStore.FilePath);
             TryDeleteFile(FilterLibrary.DefaultPath);
             TryDeleteFile(LocalTargetStore.FilePath);
-            TryDeleteFile(Log.FilePath);
+            TryDeleteDirectory(Log.NotesFolderPath);
 
             DialogResult restart = MessageBox.Show(this,
                 "Data cleared.\n\nRestart TargetPlanner now to load defaults?",
@@ -1042,6 +1091,19 @@ is preserved.";
             catch (Exception ex)
             {
                 Log.Error("ClearAllData: failed to delete '" + path + "'", ex);
+            }
+        }
+
+        private static void TryDeleteDirectory(string path)
+        {
+            try
+            {
+                if (System.IO.Directory.Exists(path))
+                    System.IO.Directory.Delete(path, recursive: true);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("ClearAllData: failed to delete directory '" + path + "'", ex);
             }
         }
 

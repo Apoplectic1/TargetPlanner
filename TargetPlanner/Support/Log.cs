@@ -28,6 +28,13 @@ namespace TargetPlanner.Support
         // Exposed so clear-all-data can delete it alongside settings.json / filters.json.
         public static string FilePath => sPath;
 
+        // Notes folder = the user-visible directory containing tp.log,
+        // tp.log.prev, screenshots/, screenshots.prev/. Single delete cleans
+        // every captured-observation artifact. Exposed for the Help -> Feedback
+        // -> Open Notes Folder menu item and as the parent dir for the
+        // UserObservationDialog screenshot save path.
+        public static string NotesFolderPath => Path.GetDirectoryName(sPath);
+
         /// <summary>Rotate the current tp.log to tp.log.prev (overwriting any
         /// previous rotation) and start a new empty log. Also rotates the
         /// observation-screenshot directory: screenshots/ -> screenshots.prev/
@@ -168,8 +175,12 @@ namespace TargetPlanner.Support
 
         private static string ComputePath()
         {
+            // Place tp.log + screenshots/ under a Logs/ subfolder so a single
+            // delete clears every captured-observation artifact. settings.json
+            // and other per-app state stay at the TargetPlanner/ root and are
+            // unaffected.
             string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            return Path.Combine(appData, "TargetPlanner", "tp.log");
+            return Path.Combine(appData, "TargetPlanner", "Logs", "tp.log");
         }
 
         // Reads AssemblyInformationalVersion (MinVer-stamped tag + git hash)

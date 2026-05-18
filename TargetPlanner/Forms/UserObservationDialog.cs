@@ -227,9 +227,7 @@ namespace TargetPlanner.Forms
             try
             {
                 if (mOwnerForm == null || mOwnerForm.IsDisposed) return null;
-                string dir = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "TargetPlanner", "screenshots");
+                string dir = Path.Combine(Log.NotesFolderPath, "screenshots");
                 Directory.CreateDirectory(dir);
                 string name = string.Format("obs-{0}-{1:yyyyMMddHHmmss}.png",
                     mId, DateTime.UtcNow);
