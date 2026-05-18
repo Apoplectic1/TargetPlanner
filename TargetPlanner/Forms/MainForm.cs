@@ -668,7 +668,7 @@ is preserved.";
             mCoordinator = new TargetPlanner.State.ChartCoordinator(
                 cache: mCache,
                 renderActiveArea: (ctx, eval) => RenderArea(ctx, eval),
-                postApplyHook: ctx =>
+                postApplyHook: (ctx, eval) =>
                 {
                     RefreshAstrometryLabels();
                     foreach (var sc in mSubCharts.Values)
@@ -680,7 +680,17 @@ is preserved.";
                         // decisions in the cache instead).
                         sc.UpdateHorizonLine(ctx.Policy.TargetFloorDeg);
                     }
-                    PushSkyKSInputs(ctx);
+                    // First ChartEvaluation flag consumer: skip the K-S re-walk
+                    // when no K-S input changed since the last Apply. Sky's Render
+                    // owns the K-S walk inline when Sky is the active sub-chart,
+                    // so this hook is only load-bearing for "Sky not active +
+                    // BrightnessInputs changed" (keep Sky's series current in the
+                    // background so a later switch to Sky doesn't show a stale
+                    // flash). Date/Location/Targets/Hdm scrubs without a
+                    // BrightnessInputs change either get a fresh walk from Sky's
+                    // Render (if Sky is active) or get a fresh walk the next
+                    // time Sky activates (Render is the authoritative refresh).
+                    if (eval.BrightnessInputsChanged) PushSkyKSInputs(ctx);
                 });
 
             // Establish a default sort mode authoritatively from code. The VS Designer has a

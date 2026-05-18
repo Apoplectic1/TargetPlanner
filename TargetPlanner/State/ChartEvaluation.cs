@@ -23,7 +23,15 @@ namespace TargetPlanner.State
     /// <c>ChartCacheStore.EnsureAsync(ctx)</c> which populates the flags from
     /// real per-axis diffs. Phase 6 collapses the coordinator's dispatch table
     /// in favour of the straight-line pipeline. Phase 7 wires per-sub-chart
-    /// short-circuit logic against the flags.
+    /// short-circuit logic against the flags (originally attempted then reverted
+    /// on LC2 paint-instability grounds — see ARCHITECTURE.md).
+    /// </para>
+    /// <para>
+    /// <b>Current consumers (2026-05-17 follow-up).</b> The coordinator's
+    /// post-apply hook gates <c>PushSkyKSInputs(ctx)</c> on
+    /// <see cref="BrightnessInputsChanged"/> — the first real flag consumer.
+    /// Sub-chart Render paths still read the key fields (DayKey/HdmKey/DayMode)
+    /// for cache lookups but do NOT short-circuit on the bool flags.
     /// </para>
     /// </remarks>
     public sealed record ChartEvaluation

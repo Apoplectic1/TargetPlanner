@@ -41,7 +41,7 @@ namespace TargetPlanner.State
     {
         private readonly IChartCacheStore mCache;
         private readonly Action<ChartContext, ChartEvaluation> mRenderActiveArea;
-        private readonly Action<ChartContext> mPostApplyHook;
+        private readonly Action<ChartContext, ChartEvaluation> mPostApplyHook;
 
         private readonly System.Windows.Forms.Timer mDebounce;
         // Monotonically increasing per-Apply counter. Each RunPipelineAsync captures
@@ -62,7 +62,7 @@ namespace TargetPlanner.State
         public ChartCoordinator(
             IChartCacheStore cache,
             Action<ChartContext, ChartEvaluation> renderActiveArea,
-            Action<ChartContext> postApplyHook,
+            Action<ChartContext, ChartEvaluation> postApplyHook,
             int debounceMs = 150)
         {
             mCache = cache ?? throw new ArgumentNullException(nameof(cache));
@@ -205,8 +205,11 @@ namespace TargetPlanner.State
                 mRenderActiveArea(ctx, eval);
 
                 // Post-apply hook for label refresh / line position updates /
-                // Sky K-S re-walk that don't fit the Render contract.
-                mPostApplyHook?.Invoke(ctx);
+                // Sky K-S re-walk that don't fit the Render contract. Hook
+                // receives the same ChartEvaluation Render saw, so consumers
+                // can gate expensive steps on the relevant axis flags
+                // (e.g. Sky K-S re-walk on eval.BrightnessInputsChanged).
+                mPostApplyHook?.Invoke(ctx, eval);
             }
             catch (Exception ex)
             {
