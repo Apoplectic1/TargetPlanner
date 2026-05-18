@@ -163,6 +163,15 @@ namespace TargetPlanner.Forms
 
         private void OnOkClick(object sender, EventArgs e)
         {
+            // Hide ourselves before screenshotting so the dialog (which is
+            // TopMost and typically overlaps part of the chart) doesn't end up
+            // in the captured PNG. Force the owner to repaint synchronously
+            // so the area the dialog was occluding gets re-rendered before
+            // the screen-grab. We're closing anyway, so leaving the dialog
+            // hidden is fine -- no need to Show() it back.
+            Hide();
+            if (mOwnerForm != null && !mOwnerForm.IsDisposed) mOwnerForm.Refresh();
+
             // Capture screenshot of the main form's current pixel state. Done
             // BEFORE writing USER_OBS_END so the path is included in the line.
             // Failure (disk full, bitmap throws, etc) leaves screenshot empty
