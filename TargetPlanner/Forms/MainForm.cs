@@ -1214,10 +1214,9 @@ is preserved.";
             TryDeleteFile(LocalTargetStore.FilePath);
             TryDeleteDirectory(Log.NotesFolderPath);
 
-            MessageBox.Show(this,
-                "Reset complete. TargetPlanner will close now.\n\nRelaunch to load defaults.",
-                "Defaults: Clear (factory reset)",
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            // Confirm prompt above already told the user TP will close; skip a
+            // second "Reset complete" dialog and just exit. Suppress flag stops
+            // FormClosing from re-saving settings.json over the just-deleted one.
             mSuppressFormClosingSave = true;
             Application.Exit();
         }
