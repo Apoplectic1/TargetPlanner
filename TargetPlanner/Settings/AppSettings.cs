@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Astronomy.NINA.Persistence;
 
 namespace TargetPlanner.Settings
 {
@@ -15,7 +16,7 @@ namespace TargetPlanner.Settings
         public const int CurrentVersion = 1;
 
         public int Version { get; set; } = CurrentVersion;
-        public List<NamedLocationSetting> NamedLocations { get; set; } = new List<NamedLocationSetting>();
+        public List<NamedSite> NamedLocations { get; set; } = new List<NamedSite>();
         public string LastSelectedLocationName { get; set; }
     }
 }

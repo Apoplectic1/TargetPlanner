@@ -11,6 +11,7 @@ using Astronomy.Core.Moon;
 using Astronomy.Core.Night;
 using Astronomy.Core.Sun;
 using Astronomy.Core.Time;
+using Astronomy.NINA.Persistence;
 using TargetPlanner.Filters;
 using TargetPlanner.Forms;
 using TargetPlanner.Horizons;
@@ -40,11 +41,11 @@ namespace TargetPlanner
         // duration). Phase-2 successor to the now-removed Location.Horizon /
         // .Duration scalars. Mutated by NumericUpDown_TargetFloor /
         // NumericUpDown_TargetDuration handlers via `with` syntax; persisted
-        // per-NamedLocationSetting; flows into PlanningPolicy at SnapshotCurrent.
+        // per-NamedSite; flows into PlanningPolicy at SnapshotCurrent.
         private PlanningPreferences mPlanningPreferences;
 
         // Per-site polyline horizon (NINA `.hrz`) when one is configured for the
-        // active NamedLocationSetting and loads successfully; null otherwise (the
+        // active NamedSite and loads successfully; null otherwise (the
         // scalar floor from mPlanningPreferences.TargetFloorDeg applies on its
         // own). Reloaded on site-pick and on FileSystemWatcher change events;
         // threaded through PlanningPolicy.LocalHorizon by SnapshotCurrent (via
@@ -384,11 +385,11 @@ is preserved.";
             mLocation = PickStartupLocation();
             // Per-site user preferences (target floor + minimum duration) for the
             // boot location. PickStartupPreferences mirrors PickStartupLocation --
-            // both resolve from the same NamedLocationSetting entry so the spinner
+            // both resolve from the same NamedSite entry so the spinner
             // values, the chart horizon line, and the fits cache key all start
             // consistent with the persisted shape.
             mPlanningPreferences = PickStartupPreferences();
-            // Polyline horizon for the boot location, if the matching NamedLocationSetting
+            // Polyline horizon for the boot location, if the matching NamedSite
             // carries a LocalHorizonPath. Null result falls back to the scalar floor path
             // through SnapshotCurrent. Looked up by name against mAppSettings.NamedLocations
             // since PickStartupLocation returns a Location with no path reference.
@@ -601,18 +602,24 @@ is preserved.";
             ComboBox_Bortle.SelectedIndexChanged += ComboBox_Bortle_SelectedIndexChanged;
             NumericUpDown_Extinction.ValueChanged += NumericUpDown_Extinction_ValueChanged;
 
-            // Wire NumericUpDown_TimeZone (whole-hour UTC offset, -12..+12 per Designer).
-            // Edits route through OnLocationEdited so the combo flips to "Custom" and the
-            // cache invalidation debounce restarts, matching Bortle/Extinction. The model
-            // side stores the offset on Location.TimeZoneInfo as a no-DST custom TZ built
-            // by NamedLocationSetting.TimeZoneFromUtcOffsetHours.
-            NumericUpDown_TimeZone.ValueChanged += NumericUpDown_TimeZone_ValueChanged;
+            // Wire ComboBox_TimeZone: bind the full list of system zones and route the
+            // user's pick through OnLocationEdited so the location combo flips to "Custom"
+            // and the cache invalidation debounce restarts, matching Bortle/Extinction.
+            // DataSource is set ONCE at boot -- a sorted snapshot of TimeZoneInfo.GetSystemTimeZones()
+            // (~140 entries on Windows, DisplayName-formatted as "(UTC-05:00) Eastern Time (US & Canada)").
+            // The resolved TimeZoneInfo carries DST rules, so consumer-side ConvertTime* calls
+            // (chart axes, picker, moon labels) are DST-aware across ST<->DST transitions
+            // without any caller-side date arithmetic.
+            ComboBox_TimeZone.DisplayMember = "DisplayName";
+            ComboBox_TimeZone.ValueMember   = "Id";
+            ComboBox_TimeZone.DataSource    = TimeZoneInfo.GetSystemTimeZones().ToList();
+            ComboBox_TimeZone.SelectedIndexChanged += ComboBox_TimeZone_SelectedIndexChanged;
 
             // Populate ComboBox_Location from settings, select the startup location, then
             // push mLocation's values into the lat/lon/N/W/Horizon/Duration inputs.
             ComboBox_Location.SelectedIndexChanged -= ComboBox_Location_SelectionIndexChanged;
             ComboBox_Location.Items.Clear();
-            foreach (NamedLocationSetting nl in mAppSettings.NamedLocations)
+            foreach (NamedSite nl in mAppSettings.NamedLocations)
                 ComboBox_Location.Items.Add(nl.Name);
             ComboBox_Location.Items.Add("Custom");
             if (ComboBox_Location.Items.Contains(mLocation.Name))
@@ -743,7 +750,7 @@ is preserved.";
             // Local-horizon hot-reload + initial label sync. The Button_BrowseHorizon
             // and Label_HorizonPath controls themselves are Designer-managed; this just
             // wires the FileSystemWatcher debounce timer and seeds the path label from
-            // the startup site's NamedLocationSetting.LocalHorizonPath.
+            // the startup site's NamedSite.LocalHorizonPath.
             InitializeLocalHorizonControls();
         }
 
@@ -867,21 +874,25 @@ is preserved.";
             OnLocationEdited(sender, e);
         }
 
-        // TimeZone spinner change: build a no-DST custom TimeZoneInfo from the offset
-        // hours and push it onto mLocation. Like the other site-characteristic edits
-        // (Bortle / Extinction), routes through OnLocationEdited so the combo flips
-        // to "Custom" and the cache invalidation debounce restarts. Programmatic
-        // syncs (SyncLocationUIFromModel) are gated by mSyncingLocationUI.
-        private void NumericUpDown_TimeZone_ValueChanged(object sender, EventArgs e)
+        // TimeZone combo change: pull the resolved TimeZoneInfo straight from the
+        // selected item and push it onto mLocation + mObservation. The combo's items
+        // are TimeZoneInfo instances (bound at boot from TimeZoneInfo.GetSystemTimeZones)
+        // so SelectedItem already carries DST-aware AdjustmentRules -- no resolver call
+        // here. Like the other site-characteristic edits (Bortle / Extinction), routes
+        // through OnLocationEdited so the location combo flips to "Custom" and the
+        // cache invalidation debounce restarts. Programmatic syncs are gated by
+        // mSyncingLocationUI.
+        private void ComboBox_TimeZone_SelectedIndexChanged(object sender, EventArgs e)
         {
             if (mSyncingLocationUI) return;
-            double hours = (double)NumericUpDown_TimeZone.Value;
-            TimeZoneInfo zone = NamedLocationSetting.TimeZoneFromUtcOffsetHours(hours);
+            if (ComboBox_TimeZone.SelectedItem is not TimeZoneInfo zone) return;
             mLocation = mLocation.With(timeZoneInfo: zone);
             // mObservation's Zone field is the same logical TZ as Location.TimeZoneInfo --
             // keep them in lockstep so downstream consumers reading either see a
             // consistent view. with-syntax preserves Utc; the wall-clock moment the
-            // user picked at the OLD offset is reinterpreted under the NEW offset.
+            // user picked under the OLD zone is reinterpreted under the NEW zone, which
+            // for DST-aware zones means the picker label shifts by the offset delta on
+            // either side of a DST boundary.
             mObservation = mObservation with { Zone = zone };
             OnLocationEdited(sender, e);
         }
@@ -1525,7 +1536,7 @@ is preserved.";
             }
             else
             {
-                NamedLocationSetting named = mAppSettings.NamedLocations.Find(x => x.Name == name);
+                NamedSite named = mAppSettings.NamedLocations.Find(x => x.Name == name);
                 if (named == null) return;
                 // The user's observation moment is independent of site -- mObservation
                 // stays put across the swap. The picked site's own TimeZoneInfo
@@ -1535,7 +1546,7 @@ is preserved.";
                 mLocation = named.ToLocation();
                 // Per-site planning preferences come over with the site -- the
                 // Horizon/Duration spinners snap to the new site's values.
-                mPlanningPreferences = named.ToPreferences();
+                mPlanningPreferences = PlanningPreferences.FromDto(named.Preferences);
                 // Load the polyline horizon for the picked site, if configured. Null result
                 // (no path, missing file, parse failure) falls back through SnapshotCurrent
                 // to the scalar ScalarHorizonProfile(mLocation.Horizon) path; the loader
@@ -1604,7 +1615,7 @@ is preserved.";
         }
 
         // PickStartupPreferences -- companion to PickStartupLocation. Resolves
-        // the per-site PlanningPreferences from the same NamedLocationSetting
+        // the per-site PlanningPreferences from the same NamedSite
         // entry PickStartupLocation picked so the spinner values, the chart
         // horizon line, and the fits cache key all start consistent with the
         // persisted shape. Falls through to PlanningPreferences.Default when
@@ -1612,12 +1623,12 @@ is preserved.";
         // LocationName).
         private PlanningPreferences PickStartupPreferences()
         {
-            NamedLocationSetting personalDefault = mAppSettings.NamedLocations.Find(x =>
+            NamedSite personalDefault = mAppSettings.NamedLocations.Find(x =>
                 string.Equals(x.Name, PersonalDefaults.LocationName, StringComparison.OrdinalIgnoreCase));
-            if (personalDefault != null) return personalDefault.ToPreferences();
+            if (personalDefault != null) return PlanningPreferences.FromDto(personalDefault.Preferences);
 
             if (mAppSettings.NamedLocations.Count > 0)
-                return mAppSettings.NamedLocations[0].ToPreferences();
+                return PlanningPreferences.FromDto(mAppSettings.NamedLocations[0].Preferences);
 
             return PlanningPreferences.Default;
         }
@@ -1630,7 +1641,7 @@ is preserved.";
             // pick (so we can persist it), but it no longer drives the start-up state --
             // a fresh launch always lands on the personal-default location unless it's
             // missing from settings.
-            NamedLocationSetting personalDefault = mAppSettings.NamedLocations.Find(x =>
+            NamedSite personalDefault = mAppSettings.NamedLocations.Find(x =>
                 string.Equals(x.Name, PersonalDefaults.LocationName, StringComparison.OrdinalIgnoreCase));
             if (personalDefault != null) return personalDefault.ToLocation();
 
@@ -1651,7 +1662,7 @@ is preserved.";
         {
             if (mLocation == null || string.Equals(mLocation.Name, "Custom", StringComparison.Ordinal))
                 return null;
-            NamedLocationSetting named = mAppSettings?.NamedLocations?.Find(x =>
+            NamedSite named = mAppSettings?.NamedLocations?.Find(x =>
                 string.Equals(x.Name, mLocation.Name, StringComparison.OrdinalIgnoreCase));
             return HrzFileLoader.Load(named?.LocalHorizonPath);
         }
@@ -1662,7 +1673,7 @@ is preserved.";
         {
             if (mLocation == null || string.Equals(mLocation.Name, "Custom", StringComparison.Ordinal))
                 return null;
-            NamedLocationSetting named = mAppSettings?.NamedLocations?.Find(x =>
+            NamedSite named = mAppSettings?.NamedLocations?.Find(x =>
                 string.Equals(x.Name, mLocation.Name, StringComparison.OrdinalIgnoreCase));
             return named?.LocalHorizonPath;
         }
@@ -1748,7 +1759,7 @@ is preserved.";
         }
 
         // Browse button click handler. Opens an OpenFileDialog filtered to *.hrz,
-        // persists the selected path to NamedLocationSetting for the active named
+        // persists the selected path to NamedSite for the active named
         // location, reloads the polyline + re-renders via the coordinator. No-op
         // (informational message) when the active location is Custom -- the
         // polyline is per-named-site so Custom has nowhere to persist the path.
@@ -1781,7 +1792,7 @@ is preserved.";
 
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
 
-                NamedLocationSetting named = mAppSettings.NamedLocations.Find(x =>
+                NamedSite named = mAppSettings.NamedLocations.Find(x =>
                     string.Equals(x.Name, mLocation.Name, StringComparison.OrdinalIgnoreCase));
                 if (named == null) return;
                 named.LocalHorizonPath = dlg.FileName;

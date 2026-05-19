@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 
 using Target = Astronomy.Core.Targets.Target;
 
@@ -91,7 +92,7 @@ namespace TargetPlanner
                 NumericUpDown_LocalElevation.ValueChanged -= NumericUpDown_LocalElevation_ValueChanged;
                 NumericUpDown_Extinction.ValueChanged     -= NumericUpDown_Extinction_ValueChanged;
                 ComboBox_Bortle.SelectedIndexChanged      -= ComboBox_Bortle_SelectedIndexChanged;
-                NumericUpDown_TimeZone.ValueChanged       -= NumericUpDown_TimeZone_ValueChanged;
+                ComboBox_TimeZone.SelectedIndexChanged    -= ComboBox_TimeZone_SelectedIndexChanged;
                 NumericUpDown_TargetFloor.Value    = ClampToRange(NumericUpDown_TargetFloor,    (decimal)mPlanningPreferences.TargetFloorDeg);
                 NumericUpDown_TargetDuration.Value = ClampToRange(NumericUpDown_TargetDuration, (decimal)mPlanningPreferences.MinDuration.TotalHours);
                 NumericUpDown_LocalElevation.Value = ClampToRange(NumericUpDown_LocalElevation, (decimal)mLocation.Elevation);
@@ -99,20 +100,24 @@ namespace TargetPlanner
                 int bortleIdx = mLocation.BortleClass - 1;
                 if (bortleIdx >= 0 && bortleIdx < ComboBox_Bortle.Items.Count)
                     ComboBox_Bortle.SelectedIndex = bortleIdx;
-                // TimeZone spinner mirrors the active TZ's BaseUtcOffset hours. The TZ on
-                // Location was built as a no-DST custom zone (TimeZoneFromUtcOffsetHours),
-                // so BaseUtcOffset is the canonical persisted value -- a round-trip
-                // through the spinner shows the exact integer the user set.
+                // TimeZone combo: select the item whose Id matches the active zone's Id.
+                // FirstOrDefault returns null when the persisted zone isn't on this machine
+                // (uninstalled zone, name typo, fresh-build first boot with TimeZoneId=null
+                // resolving to TimeZoneInfo.Local which usually matches one of the items
+                // anyway). Null clears selection; user can pick from the combo to fix.
                 if (mLocation.TimeZoneInfo != null)
-                    NumericUpDown_TimeZone.Value = ClampToRange(
-                        NumericUpDown_TimeZone,
-                        (decimal)mLocation.TimeZoneInfo.BaseUtcOffset.TotalHours);
+                {
+                    string activeId = mLocation.TimeZoneInfo.Id;
+                    ComboBox_TimeZone.SelectedItem = ComboBox_TimeZone.Items
+                        .OfType<TimeZoneInfo>()
+                        .FirstOrDefault(z => string.Equals(z.Id, activeId, StringComparison.Ordinal));
+                }
                 NumericUpDown_TargetFloor.ValueChanged    += NumericUpDown_TargetFloor_ValueChanged;
                 NumericUpDown_TargetDuration.ValueChanged += NumericUpDown_TargetDuration_ValueChanged;
                 NumericUpDown_LocalElevation.ValueChanged += NumericUpDown_LocalElevation_ValueChanged;
                 NumericUpDown_Extinction.ValueChanged     += NumericUpDown_Extinction_ValueChanged;
                 ComboBox_Bortle.SelectedIndexChanged      += ComboBox_Bortle_SelectedIndexChanged;
-                NumericUpDown_TimeZone.ValueChanged       += NumericUpDown_TimeZone_ValueChanged;
+                ComboBox_TimeZone.SelectedIndexChanged    += ComboBox_TimeZone_SelectedIndexChanged;
             }
             finally { mSyncingLocationUI = false; }
         }

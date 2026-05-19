@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Astronomy.NINA.Persistence;
 using Newtonsoft.Json;
 using TargetPlanner.Support;
 
@@ -30,8 +31,8 @@ namespace TargetPlanner.Settings
         // default; SettingsStore.BuildDefaultNamedLocations seeds from this when present
         // and falls back to a single Location.Default entry when empty so a fresh public
         // install still has at least one (neutral) location in the dropdown.
-        public static IReadOnlyList<NamedLocationSetting> NamedLocations { get; private set; } =
-            Array.Empty<NamedLocationSetting>();
+        public static IReadOnlyList<NamedSite> NamedLocations { get; private set; } =
+            Array.Empty<NamedSite>();
 
         // Pre-seeded checklist for the right-click-title-bar user-observation
         // dialog (Forms/UserObservationDialog). The seed list captures recurring
@@ -95,8 +96,8 @@ namespace TargetPlanner.Settings
 
         // Newtonsoft DTO. Nullable scalars distinguish "field omitted" from "field set to 0",
         // so a partial JSON file overrides exactly the fields it specifies and inherits the
-        // public-safe values for the rest. NamedLocations reuses the existing
-        // NamedLocationSetting shape so the DTO matches settings.json's structure 1:1.
+        // public-safe values for the rest. NamedLocations reuses the cross-app NamedSite
+        // shape so personal-defaults.json's structure matches settings.json's 1:1.
         private class Dto
         {
             public string LocationName    { get; set; }
@@ -106,7 +107,7 @@ namespace TargetPlanner.Settings
             public int?    BortleClass    { get; set; }
             public double? ExtinctionK    { get; set; }
             public string NinaTargetsRoot { get; set; }
-            public List<NamedLocationSetting> NamedLocations { get; set; }
+            public List<NamedSite> NamedLocations { get; set; }
             public List<string> UserObservationChecklist { get; set; }
         }
     }

@@ -31,7 +31,7 @@
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             GroupBox_Local = new System.Windows.Forms.GroupBox();
             GroupBox_Location = new System.Windows.Forms.GroupBox();
-            NumericUpDown_TimeZone = new System.Windows.Forms.NumericUpDown();
+            ComboBox_TimeZone = new System.Windows.Forms.ComboBox();
             Label_TimeZone = new System.Windows.Forms.Label();
             Button_BrowseLocalHorizon = new System.Windows.Forms.Button();
             Label_HorizonPath = new System.Windows.Forms.Label();
@@ -144,7 +144,6 @@
             ProgressBar_MultiTargetProcessing = new System.Windows.Forms.ProgressBar();
             GroupBox_Local.SuspendLayout();
             GroupBox_Location.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)NumericUpDown_TimeZone).BeginInit();
             ((System.ComponentModel.ISupportInitialize)NumericUpDown_Extinction).BeginInit();
             ((System.ComponentModel.ISupportInitialize)NumericUpDown_LocalElevation).BeginInit();
             ((System.ComponentModel.ISupportInitialize)NumericUpDown_LatitudeMinutes).BeginInit();
@@ -188,7 +187,7 @@
             // 
             // GroupBox_Location
             // 
-            GroupBox_Location.Controls.Add(NumericUpDown_TimeZone);
+            GroupBox_Location.Controls.Add(ComboBox_TimeZone);
             GroupBox_Location.Controls.Add(Label_TimeZone);
             GroupBox_Location.Controls.Add(Button_BrowseLocalHorizon);
             GroupBox_Location.Controls.Add(Label_HorizonPath);
@@ -225,25 +224,24 @@
             GroupBox_Location.TabIndex = 30;
             GroupBox_Location.TabStop = false;
             GroupBox_Location.Text = "Location";
-            // 
-            // NumericUpDown_TimeZone
-            // 
-            NumericUpDown_TimeZone.Location = new System.Drawing.Point(366, 19);
-            NumericUpDown_TimeZone.Maximum = new decimal(new int[] { 12, 0, 0, 0 });
-            NumericUpDown_TimeZone.Minimum = new decimal(new int[] { 12, 0, 0, int.MinValue });
-            NumericUpDown_TimeZone.Name = "NumericUpDown_TimeZone";
-            NumericUpDown_TimeZone.Size = new System.Drawing.Size(50, 23);
-            NumericUpDown_TimeZone.TabIndex = 48;
-            NumericUpDown_TimeZone.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            // 
+            //
+            // ComboBox_TimeZone
+            //
+            ComboBox_TimeZone.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            ComboBox_TimeZone.FormattingEnabled = true;
+            ComboBox_TimeZone.Location = new System.Drawing.Point(366, 19);
+            ComboBox_TimeZone.Name = "ComboBox_TimeZone";
+            ComboBox_TimeZone.Size = new System.Drawing.Size(170, 23);
+            ComboBox_TimeZone.TabIndex = 48;
+            //
             // Label_TimeZone
-            // 
+            //
             Label_TimeZone.AutoSize = true;
-            Label_TimeZone.Location = new System.Drawing.Point(332, 23);
+            Label_TimeZone.Location = new System.Drawing.Point(296, 23);
             Label_TimeZone.Name = "Label_TimeZone";
-            Label_TimeZone.Size = new System.Drawing.Size(32, 15);
+            Label_TimeZone.Size = new System.Drawing.Size(64, 15);
             Label_TimeZone.TabIndex = 45;
-            Label_TimeZone.Text = "UTC:";
+            Label_TimeZone.Text = "Time Zone:";
             // 
             // Button_BrowseLocalHorizon
             // 
@@ -1523,7 +1521,6 @@
             GroupBox_Local.ResumeLayout(false);
             GroupBox_Location.ResumeLayout(false);
             GroupBox_Location.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)NumericUpDown_TimeZone).EndInit();
             ((System.ComponentModel.ISupportInitialize)NumericUpDown_Extinction).EndInit();
             ((System.ComponentModel.ISupportInitialize)NumericUpDown_LocalElevation).EndInit();
             ((System.ComponentModel.ISupportInitialize)NumericUpDown_LatitudeMinutes).EndInit();
@@ -1674,7 +1671,7 @@
         private System.Windows.Forms.Label Label_TimeZone;
         private System.Windows.Forms.Button Button_BrowseLocalHorizon;
         private System.Windows.Forms.Label Label_HorizonPath;
-        private System.Windows.Forms.NumericUpDown NumericUpDown_TimeZone;
+        private System.Windows.Forms.ComboBox ComboBox_TimeZone;
     }
 }
 

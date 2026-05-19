@@ -65,6 +65,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Library\Astronomy.Core\Astronomy.Core.csproj" />
+    <ProjectReference Include="..\..\Library\Astronomy.NINA\Astronomy.NINA.csproj" />
   </ItemGroup>
 
   <!-- Preserve generator metadata so VS regenerates Resources.Designer.cs / Settings.Designer.cs

@@ -16,7 +16,7 @@ namespace TargetPlanner.Horizons
     /// Best-effort: any parse / IO failure is logged to <c>tp.log</c> and the method
     /// returns <see langword="null"/>, letting the caller fall back to the scalar
     /// <see cref="ScalarHorizonProfile"/> path. Used by the site-pick + FileSystemWatcher
-    /// hot-reload flow in MainForm to materialize <c>NamedLocationSetting.LocalHorizonPath</c>
+    /// hot-reload flow in MainForm to materialize <c>NamedSite.LocalHorizonPath</c>
     /// into a profile that flows through <c>PlanningPolicy.LocalHorizon</c>.
     /// </remarks>
     internal static class HrzFileLoader

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Astronomy.NINA.Persistence;
 using Newtonsoft.Json;
 using TargetPlanner.State;
 using TargetPlanner.Support;
@@ -85,17 +86,23 @@ namespace TargetPlanner.Settings
         //    files would otherwise see Bortle = 0 / k = 0 (physically nonsensical) on
         //    every name-matched builtin. User-set non-zero values are preserved.
         //
-        // 4. Auto-fill Preferences: forward-flow seed of the per-site PlanningPreferences
-        //    record. A null Preferences on an existing entry adopts the builtin's
+        // 4. Auto-fill Preferences: forward-flow seed of the per-site planning prefs
+        //    DTO. A null Preferences on an existing entry adopts the builtin's
         //    Preferences (which itself defaults to PlanningPreferences.Default when the
         //    builtin doesn't carry one). User-set non-null Preferences are preserved.
         //    Not a migration path -- per the no-backwards-compat rule, this is forward
         //    extension of new presets into a settings.json that may pre-date the field.
-        private static void MergeBuiltins(List<NamedLocationSetting> existing)
+        //
+        // NOTE: TimeZoneId is deliberately NOT auto-filled here. The named-TZ refactor
+        // (2026-05-19) made TZ a user-managed per-site choice; the user re-picks via
+        // ComboBox_TimeZone once per existing site. PersonalDefaults seeds the canonical
+        // TZ on PP / Hillsborough for fresh installs, but a stale settings.json's null
+        // TimeZoneId resolves to TimeZoneInfo.Local until the user picks deliberately.
+        private static void MergeBuiltins(List<NamedSite> existing)
         {
-            foreach (NamedLocationSetting builtin in BuildDefaultNamedLocations())
+            foreach (NamedSite builtin in BuildDefaultNamedLocations())
             {
-                NamedLocationSetting match = existing.Find(e =>
+                NamedSite match = existing.Find(e =>
                     string.Equals(e.Name, builtin.Name, StringComparison.OrdinalIgnoreCase));
                 if (match == null)
                 {
@@ -136,23 +143,23 @@ namespace TargetPlanner.Settings
         // %LocalAppData%\TargetPlanner\personal-defaults.json -- supplies the presets when
         // present; otherwise we fall back to a single neutral Location.Default entry so the
         // public-binary case still has something selectable in the location dropdown.
-        private static List<NamedLocationSetting> BuildDefaultNamedLocations()
+        private static List<NamedSite> BuildDefaultNamedLocations()
         {
-            var list = new List<NamedLocationSetting>();
-            foreach (NamedLocationSetting preset in PersonalDefaults.NamedLocations)
+            var list = new List<NamedSite>();
+            foreach (NamedSite preset in PersonalDefaults.NamedLocations)
                 list.Add(Clone(preset));
             if (list.Count == 0)
-                list.Add(NamedLocationSetting.FromState(
-                    Location.Default, PlanningPreferences.Default, localHorizonPath: null));
+                list.Add(NamedSite.FromLocation(
+                    Location.Default, PlanningPreferences.Default.ToDto(), localHorizonPath: null));
             return list;
         }
 
-        // PersonalDefaults exposes its presets as IReadOnlyList<NamedLocationSetting>; we
-        // copy each entry so the settings.json round-trip can mutate freely without
-        // bleeding back into the static personal-defaults snapshot.
-        private static NamedLocationSetting Clone(NamedLocationSetting src)
+        // PersonalDefaults exposes its presets as IReadOnlyList<NamedSite>; we copy each
+        // entry so the settings.json round-trip can mutate freely without bleeding back
+        // into the static personal-defaults snapshot.
+        private static NamedSite Clone(NamedSite src)
         {
-            return new NamedLocationSetting
+            return new NamedSite
             {
                 Name             = src.Name,
                 Latitude         = src.Latitude,
@@ -170,7 +177,7 @@ namespace TargetPlanner.Settings
                 BortleClass      = src.BortleClass,
                 ExtinctionK      = src.ExtinctionK,
                 LocalHorizonPath = src.LocalHorizonPath,
-                UtcOffsetHours   = src.UtcOffsetHours,
+                TimeZoneId       = src.TimeZoneId,
             };
         }
     }
