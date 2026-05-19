@@ -190,13 +190,13 @@ namespace TargetPlanner.Charts
             mHorizonLine.Yj = horizon;
         }
 
-        // Update the red now-line position in place. X axis is machine-local
+        // Update the red now-line position in place. X axis is location-zone
         // time, so convert -- ToOADate ignores Kind and would otherwise plot
         // UTC ticks raw (sub-day shift, invisible at year scale but consistent
         // with Day/Sky).
-        public void UpdateNowLine(DateTime now)
+        public void UpdateNowLine(DateTime now, TimeZoneInfo zone)
         {
-            double oa = now.ToLocalTime().ToOADate();
+            double oa = TimeZoneInfo.ConvertTimeFromUtc(now, zone).ToOADate();
             mNowLine.Xi = oa;
             mNowLine.Xj = oa;
         }
@@ -261,7 +261,7 @@ namespace TargetPlanner.Charts
             HdmKey hdm = ctx.Hdm;
 
             UpdateHorizonLine(horizonAlt);
-            UpdateNowLine(now);
+            UpdateNowLine(now, ctx.Observation.Zone);
 
             mLastCtx = ctx;
             mLastCache = cache;

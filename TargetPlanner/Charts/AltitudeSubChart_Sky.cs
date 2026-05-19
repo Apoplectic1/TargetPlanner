@@ -263,12 +263,13 @@ namespace TargetPlanner.Charts
             mChart.SizeChanged += OnChartSizeChanged;
         }
 
-        // Update the red now-line position in place. X axis is machine-local
-        // time (chartStart/chartStop are .ToLocalTime'd), so convert here --
-        // ToOADate ignores Kind and would otherwise plot UTC ticks raw.
-        public void UpdateNowLine(DateTime now)
+        // Update the red now-line position in place. X axis is location-zone
+        // time (chartStart/chartStop are TimeZoneInfo.ConvertTimeFromUtc'd),
+        // so convert via the same zone -- ToOADate ignores Kind and would
+        // otherwise plot UTC ticks raw.
+        public void UpdateNowLine(DateTime now, TimeZoneInfo zone)
         {
-            double oa = now.ToLocalTime().ToOADate();
+            double oa = TimeZoneInfo.ConvertTimeFromUtc(now, zone).ToOADate();
             mNowLine.Xi = oa;
             mNowLine.Xj = oa;
         }
@@ -319,12 +320,13 @@ namespace TargetPlanner.Charts
                 return;
             }
 
-            DateTime duskLocal = night.AstronomicalDusk.ToLocalTime();
-            DateTime dawnLocal = night.AstronomicalDawn.ToLocalTime();
+            TimeZoneInfo zone = ctx.Observation.Zone;
+            DateTime duskLocal = TimeZoneInfo.ConvertTimeFromUtc(night.AstronomicalDusk, zone);
+            DateTime dawnLocal = TimeZoneInfo.ConvertTimeFromUtc(night.AstronomicalDawn, zone);
             // Use ChartLayout.BuildDayWindow so the DayWindowKey we read from
             // the moon cache matches the one EnsureAsync used to build the
             // entry. Day and Sky share the same dayKey for the same night.
-            var dayWindow = ChartLayout.BuildDayWindow(night);
+            var dayWindow = ChartLayout.BuildDayWindow(night, zone);
             DateTime chartStart = dayWindow.ChartStart;
             DateTime chartStop = dayWindow.ChartStop;
             DateTime startUtc = dayWindow.StartUtc;
@@ -347,7 +349,7 @@ namespace TargetPlanner.Charts
             mXAxis.MaxLimit = chartStop.ToOADate() + ChartLayout.LabelEdgeEpsilonDays;
 
             UpdateGradientSections(chartStart, duskLocal, dawnLocal, chartStop);
-            UpdateNowLine(now);
+            UpdateNowLine(now, zone);
 
             mTargetColors.Clear();
             mFitSeries.Clear();

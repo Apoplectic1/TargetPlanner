@@ -698,7 +698,7 @@ is preserved.";
                     RefreshAstrometryLabels();
                     foreach (var sc in mSubCharts.Values)
                     {
-                        sc.UpdateNowLine(ctx.Observation.Utc);
+                        sc.UpdateNowLine(ctx.Observation.Utc, ctx.Observation.Zone);
                         // Horizon line tracks the user's TargetFloor spinner -- a UI
                         // affordance for the scalar knob, not the LocalHorizon polyline
                         // (which can dip below the floor and drive per-azimuth fit
@@ -784,16 +784,12 @@ is preserved.";
         private void RefreshAstrometryLabels()
         {
             DateTime utc = mObservation.Utc;
+            TimeZoneInfo zone = mObservation.Zone;
             NightWindow night = mCache?.LocationNightCache?.Starting
                              ?? NightCalculator.ComputeNight(mLocation, utc);
             double latSigned = mLocation.LatSigned();
             double lonEast   = mLocation.LonEast();
             ObserverInfo observer = new ObserverInfo(latSigned, lonEast, mLocation.Elevation);
-
-            DateTime duskLocal = night.AstronomicalDusk != DateTime.MinValue
-                ? night.AstronomicalDusk.ToLocalTime() : DateTime.MinValue;
-            DateTime dawnLocal = night.AstronomicalDawn != DateTime.MinValue
-                ? night.AstronomicalDawn.ToLocalTime() : DateTime.MinValue;
 
             double sunAlt = SunPosition.AltAzAt(mLocation, utc).Altitude;
             double moonAlt = AstroUtil.GetMoonAltitude(utc, observer);
@@ -805,20 +801,28 @@ is preserved.";
             RiseAndSetEvent moonRs = AstroUtil.GetMoonRiseAndSetForNight(
                 night.AstronomicalDusk, night.AstronomicalDawn,
                 latSigned, lonEast, mLocation.Elevation);
-            DateTime moonRise = moonRs.Rise.HasValue
-                ? moonRs.Rise.Value.ToLocalTime() : DateTime.MinValue;
-            DateTime moonSet = moonRs.Set.HasValue
-                ? moonRs.Set.Value.ToLocalTime() : DateTime.MinValue;
 
-            Label_AstronomicalDuskValue.Text = duskLocal.ToShortTimeString();
-            Label_AstronomicalDawnValue.Text = dawnLocal.ToShortTimeString();
+            Label_AstronomicalDuskValue.Text = FormatZoned(night.AstronomicalDusk, zone);
+            Label_AstronomicalDawnValue.Text = FormatZoned(night.AstronomicalDawn, zone);
             Label_SunAltitudeValue.Text = sunAlt.ToString("F0") + "\u00B0";
             Label_LunarAltitudeValue.Text = moonAlt.ToString("F0") + "\u00B0";
             Label_LunarIlluminationFractionValue.Text = (night.LunarIlluminationFraction * 100).ToString("F0") + "%";
             Label_LunarPhaseValue.Text = moonPhase;
-            Label_MoonRiseValue.Text = moonRise.ToShortTimeString();
-            Label_MoonSetValue.Text = moonSet.ToShortTimeString();
+            Label_MoonRiseValue.Text = FormatZoned(moonRs.Rise, zone);
+            Label_MoonSetValue.Text  = FormatZoned(moonRs.Set,  zone);
         }
+
+        // Format a UTC instant as a wall-clock short time in the observer's zone.
+        // "--:--" placeholder for the no-event case (polar summer Sun events;
+        // moon below the horizon for the whole bracket-night search window) so
+        // the label doesn't silently read "12:00 AM" from a MinValue sentinel.
+        private static string FormatZoned(DateTime? utc, TimeZoneInfo zone)
+            => utc.HasValue ? FormatZoned(utc.Value, zone) : "--:--";
+
+        private static string FormatZoned(DateTime utc, TimeZoneInfo zone)
+            => utc == DateTime.MinValue
+                ? "--:--"
+                : TimeZoneInfo.ConvertTimeFromUtc(utc, zone).ToShortTimeString();
 
         // Coordinate-input callbacks (OnLatitudeEdited / OnLongitudeEdited /
         // OnRightAscensionEdited / OnDeclinationEdited) plus ComboTextOrFallback
@@ -1159,7 +1163,7 @@ is preserved.";
             // post-apply hook re-runs UpdateNowLine on settle (cheap; just shifts a
             // section's X position).
             if (mSubCharts != null)
-                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mObservation.Utc);
+                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mObservation.Utc, mObservation.Zone);
             // Transit / Rise sort keys are time-dependent; Name is not. Skip the re-sort on
             // Name to avoid a pointless Items.Clear+re-add round-trip on every scrub tick.
             if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
@@ -1177,7 +1181,7 @@ is preserved.";
             Log.Diag("UI", $"TimePicker.ValueChanged value={TimePicker.Value:HH:mm}");
             UpdateLocalDateTimeEvents();
             if (mSubCharts != null)
-                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mObservation.Utc);
+                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mObservation.Utc, mObservation.Zone);
             if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
                 ResortSelectedTargets();
             mCoordinator?.Apply(SnapshotCurrent());
@@ -1494,7 +1498,7 @@ is preserved.";
             UpdateLocalDateTimeEvents();
 
             if (mSubCharts != null)
-                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mObservation.Utc);
+                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mObservation.Utc, mObservation.Zone);
 
             mCoordinator?.Apply(SnapshotCurrent());
         }

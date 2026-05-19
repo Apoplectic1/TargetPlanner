@@ -176,7 +176,7 @@ namespace TargetPlanner.State
                 NightWindow night = NightCalculator.ComputeNight(ctx.Location, ctx.Observation.Utc);
                 if (night.IsValid)
                 {
-                    dayKey = ChartLayout.BuildDayWindow(night).Key;
+                    dayKey = ChartLayout.BuildDayWindow(night, ctx.Observation.Zone).Key;
                 }
 
                 if (Log.IsDiagEnabled("Coord"))

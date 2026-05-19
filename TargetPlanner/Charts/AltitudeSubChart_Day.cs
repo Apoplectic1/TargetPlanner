@@ -345,12 +345,13 @@ namespace TargetPlanner.Charts
             mHorizonLine.Yj = horizon;
         }
 
-        // Update the red now-line position in place. X axis is machine-local
-        // time (chartStart/chartStop are .ToLocalTime'd), so convert here --
-        // ToOADate ignores Kind and would otherwise plot UTC ticks raw.
-        public void UpdateNowLine(DateTime now)
+        // Update the red now-line position in place. X axis is location-zone
+        // time (chartStart/chartStop are TimeZoneInfo.ConvertTimeFromUtc'd),
+        // so convert via the same zone -- ToOADate ignores Kind and would
+        // otherwise plot UTC ticks raw.
+        public void UpdateNowLine(DateTime now, TimeZoneInfo zone)
         {
-            double oa = now.ToLocalTime().ToOADate();
+            double oa = TimeZoneInfo.ConvertTimeFromUtc(now, zone).ToOADate();
             mNowLine.Xi = oa;
             mNowLine.Xj = oa;
         }
@@ -389,14 +390,15 @@ namespace TargetPlanner.Charts
                 return;
             }
 
-            var dayWindow = ChartLayout.BuildDayWindow(night);
+            TimeZoneInfo zone = ctx.Observation.Zone;
+            var dayWindow = ChartLayout.BuildDayWindow(night, zone);
             DateTime chartStart = dayWindow.ChartStart;
             DateTime chartStop = dayWindow.ChartStop;
             DateTime startUtc = dayWindow.StartUtc;
             int count = dayWindow.Count;
             DayWindowKey dayKey = dayWindow.Key;
-            DateTime duskLocal = night.AstronomicalDusk.ToLocalTime();
-            DateTime dawnLocal = night.AstronomicalDawn.ToLocalTime();
+            DateTime duskLocal = TimeZoneInfo.ConvertTimeFromUtc(night.AstronomicalDusk, zone);
+            DateTime dawnLocal = TimeZoneInfo.ConvertTimeFromUtc(night.AstronomicalDawn, zone);
 
             // Lock X axis to the night bounds so the HD overlay's null Y values
             // can't trigger LC2's auto-zoom-to-non-null-span behavior. MinLimit
@@ -408,7 +410,7 @@ namespace TargetPlanner.Charts
             mXAxis.MaxLimit = chartStop.ToOADate() + ChartLayout.LabelEdgeEpsilonDays;
 
             UpdateGradientSections(chartStart, duskLocal, dawnLocal, chartStop);
-            UpdateNowLine(now);
+            UpdateNowLine(now, zone);
             // Green horizon line follows the scalar TargetFloor spinner, not the polyline's
             // minimum sample -- the polyline drives per-azimuth fit decisions in the cache.
             UpdateHorizonLine(horizonFloor);
@@ -479,8 +481,8 @@ namespace TargetPlanner.Charts
                 {
                     ApplyTargetVisibility(series, c, true);
                     mTargetWindows[series] = (
-                        w.startUtc.ToLocalTime().ToOADate(),
-                        w.endUtc.ToLocalTime().ToOADate(),
+                        TimeZoneInfo.ConvertTimeFromUtc(w.startUtc, zone).ToOADate(),
+                        TimeZoneInfo.ConvertTimeFromUtc(w.endUtc, zone).ToOADate(),
                         w.floor);
                     seriesList.Add(series);
                     dbgWindowAdded++;

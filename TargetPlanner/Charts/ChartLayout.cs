@@ -150,24 +150,25 @@ namespace TargetPlanner.Charts
 
         /// <summary>
         /// Convert a <see cref="NightWindow"/> to the Day chart's minute-spaced
-        /// sampling window: rounded local-time chart bounds + the UTC start +
-        /// total minute count + a cache key that uniquely identifies the
-        /// resulting altitude curve. The coordinator's pipeline and
-        /// <c>AltitudeSubChart_Day.Render</c> both call this so the
-        /// <see cref="DayWindowKey"/> they pass to the cache is guaranteed
-        /// identical.
+        /// sampling window: rounded chart bounds in the location's
+        /// <paramref name="zone"/> + the UTC start + total minute count +
+        /// a cache key that uniquely identifies the resulting altitude curve.
+        /// The coordinator's pipeline and <c>AltitudeSubChart_Day.Render</c>
+        /// both call this so the <see cref="DayWindowKey"/> they pass to the
+        /// cache is guaranteed identical.
         /// </summary>
         public static (DayWindowKey Key, DateTime ChartStart, DateTime ChartStop,
                        DateTime StartUtc, int Count)
-            BuildDayWindow(NightWindow night)
+            BuildDayWindow(NightWindow night, TimeZoneInfo zone)
         {
-            DateTime duskLocal = night.AstronomicalDusk.ToLocalTime();
-            DateTime dawnLocal = night.AstronomicalDawn.ToLocalTime();
+            DateTime duskLocal = TimeZoneInfo.ConvertTimeFromUtc(night.AstronomicalDusk, zone);
+            DateTime dawnLocal = TimeZoneInfo.ConvertTimeFromUtc(night.AstronomicalDawn, zone);
             DateTime chartStart = DayChartStart(duskLocal);
             DateTime chartStop = DayChartStop(dawnLocal);
             int totalMins = Convert.ToInt32(Math.Round((chartStop - chartStart).TotalMinutes));
             int count = totalMins + 1;
-            DateTime startUtc = DateTime.SpecifyKind(chartStart, DateTimeKind.Local).ToUniversalTime();
+            DateTime startUtc = TimeZoneInfo.ConvertTimeToUtc(
+                DateTime.SpecifyKind(chartStart, DateTimeKind.Unspecified), zone);
             DayWindowKey key = new DayWindowKey
             {
                 ChartStartUtcTicks = startUtc.Ticks,
