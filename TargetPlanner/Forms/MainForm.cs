@@ -798,8 +798,13 @@ is preserved.";
             double sunAlt = SunPosition.AltAzAt(mLocation, utc).Altitude;
             double moonAlt = AstroUtil.GetMoonAltitude(utc, observer);
             string moonPhase = AstroUtil.GetMoonPhaseName(utc);
-            RiseAndSetEvent moonRs = AstroUtil.GetMoonRiseAndSet(
-                utc, latSigned, lonEast, mLocation.Elevation);
+            // Bracket-by-night so the displayed rise/set match the chart's
+            // dusk->dawn window. GetMoonRiseAndSet (UTC-calendar-day search)
+            // returned the prior local evening's set for non-UTC observers --
+            // see Library AstroUtil.GetMoonRiseAndSetForNight remarks.
+            RiseAndSetEvent moonRs = AstroUtil.GetMoonRiseAndSetForNight(
+                night.AstronomicalDusk, night.AstronomicalDawn,
+                latSigned, lonEast, mLocation.Elevation);
             DateTime moonRise = moonRs.Rise.HasValue
                 ? moonRs.Rise.Value.ToLocalTime() : DateTime.MinValue;
             DateTime moonSet = moonRs.Set.HasValue
