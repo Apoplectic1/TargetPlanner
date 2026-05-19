@@ -19,11 +19,6 @@ namespace TargetPlanner.Settings
     public static class PersonalDefaults
     {
         public static string LocationName    { get; private set; } = "Custom";
-        public static double Latitude        { get; private set; } = 40.0;
-        public static double Longitude       { get; private set; } = 75.0;   // West-positive
-        public static double Elevation       { get; private set; } = 0.0;
-        public static int    BortleClass     { get; private set; } = 5;
-        public static double ExtinctionK     { get; private set; } = 0.28;
         public static string NinaTargetsRoot { get; private set; } =
             @"C:\Users\Public\Documents\NINA\Targets";
 
@@ -72,13 +67,6 @@ namespace TargetPlanner.Settings
                 if (d == null) return;
 
                 if (!string.IsNullOrWhiteSpace(d.LocationName))    LocationName    = d.LocationName;
-                if (d.Latitude.HasValue)                           Latitude        = d.Latitude.Value;
-                if (d.Longitude.HasValue)                          Longitude       = d.Longitude.Value;
-                if (d.Elevation.HasValue)                          Elevation       = d.Elevation.Value;
-                if (d.BortleClass.HasValue && d.BortleClass.Value > 0)
-                                                                   BortleClass     = d.BortleClass.Value;
-                if (d.ExtinctionK.HasValue && d.ExtinctionK.Value > 0)
-                                                                   ExtinctionK     = d.ExtinctionK.Value;
                 if (!string.IsNullOrWhiteSpace(d.NinaTargetsRoot)) NinaTargetsRoot = d.NinaTargetsRoot;
                 if (d.NamedLocations != null && d.NamedLocations.Count > 0)
                     NamedLocations = d.NamedLocations.AsReadOnly();
@@ -101,11 +89,6 @@ namespace TargetPlanner.Settings
         private class Dto
         {
             public string LocationName    { get; set; }
-            public double? Latitude       { get; set; }
-            public double? Longitude      { get; set; }
-            public double? Elevation      { get; set; }
-            public int?    BortleClass    { get; set; }
-            public double? ExtinctionK    { get; set; }
             public string NinaTargetsRoot { get; set; }
             public List<NamedSite> NamedLocations { get; set; }
             public List<string> UserObservationChecklist { get; set; }
