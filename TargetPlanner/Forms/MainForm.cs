@@ -428,9 +428,9 @@ is preserved.";
             // factory-reset gesture -- wipes settings.json + filters.json +
             // local-targets.json + Logs/ after confirmation, then exits the app
             // so the next launch boots from PersonalDefaults.BuildSeedSettings.
-            var defaultsItem    = new ToolStripMenuItem("&Defaults");
-            var editItem        = new ToolStripMenuItem("&Edit settings.json");
-            var clearItem       = new ToolStripMenuItem("&Clear (factory reset)...");
+            var defaultsItem    = new ToolStripMenuItem("&User Defaults");
+            var editItem        = new ToolStripMenuItem("&Edit settings.json (add/remove)");
+            var clearItem       = new ToolStripMenuItem("&Clear All (reset all defaults)");
             editItem.Click  += (s, e) => HandleEditDefaultsClick();
             clearItem.Click += (s, e) => HandleClearDefaultsClick();
             defaultsItem.DropDownItems.Add(editItem);
@@ -876,6 +876,7 @@ is preserved.";
         // invalidation debounce restarts -- same path the lat/lon handlers take.
         private void NumericUpDown_LocalElevation_ValueChanged(object sender, EventArgs e)
         {
+            Log.Diag("UI", $"NumericUpDown_LocalElevation.ValueChanged value={NumericUpDown_LocalElevation.Value}");
             mLocation = mLocation.With(elevation: (double)NumericUpDown_LocalElevation.Value);
             OnLocationEdited(sender, e);
         }
@@ -888,6 +889,7 @@ is preserved.";
         {
             int b = ComboBox_Bortle.SelectedIndex + 1;  // index 0 -> Bortle 1
             if (b < 1 || b > 9) return;
+            Log.Diag("UI", $"ComboBox_Bortle.SelectedIndexChanged class={b}");
             double k = Astronomy.Core.Brightness.Bortle.DefaultExtinctionK500(b);
             mLocation = mLocation.With(bortleClass: b, extinctionK: k);
 
@@ -904,6 +906,7 @@ is preserved.";
         // better than the Bortle table does).
         private void NumericUpDown_Extinction_ValueChanged(object sender, EventArgs e)
         {
+            Log.Diag("UI", $"NumericUpDown_Extinction.ValueChanged value={NumericUpDown_Extinction.Value}");
             mLocation = mLocation.With(extinctionK: (double)NumericUpDown_Extinction.Value);
             OnLocationEdited(sender, e);
         }
@@ -920,6 +923,7 @@ is preserved.";
         {
             if (mSyncingLocationUI) return;
             if (ComboBox_TimeZone.SelectedItem is not TimeZoneInfo zone) return;
+            Log.Diag("UI", $"ComboBox_TimeZone.SelectedIndexChanged id={zone.Id}");
             mLocation = mLocation.With(timeZoneInfo: zone);
             // mObservation's Zone field is the same logical TZ as Location.TimeZoneInfo --
             // keep them in lockstep so downstream consumers reading either see a
@@ -933,6 +937,7 @@ is preserved.";
 
         private void NumericUpDown_TargetDuration_ValueChanged(object sender, EventArgs e)
         {
+            Log.Diag("UI", $"NumericUpDown_TargetDuration.ValueChanged hours={NumericUpDown_TargetDuration.Value}");
             TimeSpan newDuration = TimeSpan.FromMinutes((double)NumericUpDown_TargetDuration.Value * 60.0);
             mPlanningPreferences = mPlanningPreferences with { MinDuration = newDuration };
             PersistPlanningPreferencesToActiveSite();
@@ -946,6 +951,7 @@ is preserved.";
         private void NumericUpDown_TargetFloor_ValueChanged(object sender, EventArgs e)
         {
             double newHorizon = (double)NumericUpDown_TargetFloor.Value;
+            Log.Diag("UI", $"NumericUpDown_TargetFloor.ValueChanged deg={newHorizon}");
             mPlanningPreferences = mPlanningPreferences with { TargetFloorDeg = newHorizon };
             PersistPlanningPreferencesToActiveSite();
             if (mCoordinator == null) return;
@@ -1132,6 +1138,7 @@ is preserved.";
         // in MainForm.Designer.cs.
         private async void OnCheckUpdatesClick(object sender, EventArgs e)
         {
+            Log.Diag("UI", "Menu Help.CheckUpdates.Click");
             await UpdateService.CheckManuallyAsync(this);
         }
 
@@ -1139,6 +1146,7 @@ is preserved.";
         // MainForm.Designer.cs.
         private void OnAboutClick(object sender, EventArgs e)
         {
+            Log.Diag("UI", "Menu Help.About.Click");
             using (var dlg = new AboutDialog())
                 dlg.ShowDialog(this);
         }
@@ -1151,6 +1159,7 @@ is preserved.";
         // viewer (Explorer on Windows).
         private void HandleOpenNotesFolderClick()
         {
+            Log.Diag("UI", "Menu Help.Feedback.OpenNotesFolder.Click");
             try
             {
                 string path = Log.NotesFolderPath;
@@ -1185,6 +1194,7 @@ is preserved.";
         //      leisure and relaunches TP to load their changes.
         private void HandleEditDefaultsClick()
         {
+            Log.Diag("UI", "Menu File.Defaults.Edit.Click");
             DialogResult confirm = MessageBox.Show(this,
                 "Open settings.json in your default editor?\n\n" +
                 "TargetPlanner will close so your edits save cleanly.\n" +
@@ -1230,6 +1240,7 @@ is preserved.";
         // through subsequent saves would partially undo the wipe.
         private void HandleClearDefaultsClick()
         {
+            Log.Diag("UI", "Menu File.Defaults.Clear.Click");
             string body =
                 "Factory reset TargetPlanner?\n\n" +
                 "This deletes:\n" +
@@ -1492,6 +1503,7 @@ is preserved.";
         // Comparer sort, mirroring CheckedToggleDebounce_Tick.
         private async void Button_CheckedTargets_Click(object sender, EventArgs e)
         {
+            Log.Diag("UI", $"Button_CheckedTargets.Click checkedCount={CheckedListBox_SelectedTargets.CheckedItems.Count}");
             mCheckedToggleDebounce?.Stop();
 
             var targets = new List<Target>();
@@ -1635,6 +1647,7 @@ is preserved.";
         {
             if (ComboBox_Location.SelectedItem == null) return;
             string name = ComboBox_Location.SelectedItem.ToString();
+            Log.Diag("UI", $"ComboBox_Location.SelectionIndexChanged name={name}");
 
             if (name == "Custom")
             {
@@ -1879,6 +1892,7 @@ is preserved.";
         // polyline is per-named-site so Custom has nowhere to persist the path.
         private void Button_BrowseHorizon_Click(object sender, EventArgs e)
         {
+            Log.Diag("UI", "Button_BrowseHorizon.Click");
             if (mLocation == null || string.Equals(mLocation.Name, "Custom", StringComparison.Ordinal))
             {
                 MessageBox.Show(this,
@@ -1941,6 +1955,7 @@ is preserved.";
         }
         private void Button_BrowseTargetList_Click(object sender, EventArgs e)
         {
+            Log.Diag("UI", "Button_BrowseTargetList.Click");
             // Stock WinForms FolderBrowserDialog already uses the Vista IFileDialog UI
             // by default on .NET 6+. Single-folder selection only -- the multi-select
             // hack the legacy LocalLib.OpenFolderDialog provided was a nice-to-have that
@@ -2504,6 +2519,7 @@ is preserved.";
         private void Button_AddTarget_Click(object sender, EventArgs e)
         {
             Target t = mSelection?.SelectedSingle;
+            Log.Diag("UI", $"Button_AddTarget.Click target={t?.Name ?? "<null>"}");
             if (t == null) { ShowTransientMessage("No Target"); return; }
 
             bool wasNew = mSelection.AddKnownTarget(t);
@@ -2536,6 +2552,7 @@ is preserved.";
         private void Button_RemoveTarget_Click(object sender, EventArgs e)
         {
             Target t = mSelection?.SelectedSingle;
+            Log.Diag("UI", $"Button_RemoveTarget.Click target={t?.Name ?? "<null>"}");
             if (t == null) { ShowTransientMessage("No Target"); return; }
 
             bool wasInLocal = mLocalTargets.Remove(t);
@@ -2597,6 +2614,7 @@ is preserved.";
             Target t = TargetForRow(e.Index);
             if (t == null) return;
             bool isChecked = e.NewValue == CheckState.Checked;
+            Log.Diag("UI", $"CheckedListBox_SelectedTargets.ItemCheck target={t.Name} checked={isChecked}");
             mSelection.SetChecked(t, isChecked);
         }
 
@@ -2740,6 +2758,7 @@ is preserved.";
             string selectedTargetName = ComboBox_SelectTarget.Text;
             Target found = mSelection.KnownTargets.FirstOrDefault(t => t.Name == selectedTargetName);
             if (found == null) return;
+            Log.Diag("UI", $"ComboBox_SelectTarget.SelectedIndexChanged target={found.Name}");
             mSelection.SetSelectedSingle(found);
         }
 
@@ -2751,11 +2770,13 @@ is preserved.";
         // those targets later hits the warm cache instantly.
         private void Button_ClearAllTargets_Click(object sender, EventArgs e)
         {
+            Log.Diag("UI", "Button_ClearAllTargets.Click");
             mSelection.SetAllChecked(false);
         }
 
         private void Button_SelectAllTargets_Click(object sender, EventArgs e)
         {
+            Log.Diag("UI", "Button_SelectAllTargets.Click");
             mSelection.SetAllChecked(true);
         }
 
@@ -2769,6 +2790,7 @@ is preserved.";
         // "DatePicker.Value.Date + TimePicker.Value.TimeOfDay" pattern.
         private void Button_VisibleTonight_Click(object sender, EventArgs e)
         {
+            Log.Diag("UI", "Button_VisibleTonight.Click");
             if (mSelection == null || mSelection.KnownTargets.Count == 0) return;
             if (mLocation == null) return;
 

@@ -228,6 +228,7 @@ namespace TargetPlanner
         // combo text on the new first item.
         private void ComboBox_SortTargets_SelectedIndexChanged(object sender, EventArgs e)
         {
+            Log.Diag("UI", $"ComboBox_SortTargets.SelectedIndexChanged sort={ComboBox_SortTargets.SelectedItem ?? "<null>"}");
             ResortSelectedTargets(autoSelectFirstInCombo: true);
         }
     }

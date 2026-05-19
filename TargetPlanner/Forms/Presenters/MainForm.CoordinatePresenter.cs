@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using TargetPlanner.Support;
 
 using Target = Astronomy.Core.Targets.Target;
 
@@ -29,6 +30,7 @@ namespace TargetPlanner
         // "Custom" on any geographic change; RA/Dec do not affect the location combo.
         private void OnLatitudeEdited(object sender, EventArgs e)
         {
+            Log.Diag("UI", $"Latitude.Edited mag={mLatitudeInput.Magnitude:F6} N={mLatitudeInput.Positive}");
             mLocation = mLocation.With(
                 latitude: Math.Round(mLatitudeInput.Magnitude, 6),
                 north:    mLatitudeInput.Positive);
@@ -37,6 +39,7 @@ namespace TargetPlanner
 
         private void OnLongitudeEdited(object sender, EventArgs e)
         {
+            Log.Diag("UI", $"Longitude.Edited mag={mLongitudeInput.Magnitude:F6} W={mLongitudeInput.Positive}");
             mLocation = mLocation.With(
                 longitude: Math.Round(mLongitudeInput.Magnitude, 6),
                 west:      mLongitudeInput.Positive);

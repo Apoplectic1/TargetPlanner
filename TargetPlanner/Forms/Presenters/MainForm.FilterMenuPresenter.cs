@@ -59,6 +59,7 @@ namespace TargetPlanner
                 ToolStripMenuItem capturedItem = item;
                 item.Click += (s, e) =>
                 {
+                    Log.Diag("UI", $"Menu Filters.{capturedName}.Click");
                     TpFilter live = mFilterLibrary != null ? mFilterLibrary.Find(capturedName) : null;
                     if (live != null) SetActiveFilter(live);
                 };
