@@ -101,6 +101,14 @@ namespace TargetPlanner.Charts
             Color.FromArgb(150, 220, 150),  // sage
         };
 
+        // Minimum gradient width in minutes (= 0.1 hour). When the natural
+        // dusk/dawn gradient between the integer-hour edge and dusk/dawn would
+        // be thinner than this, the chart bound steps another hour outward so
+        // the gradient band remains visible. Lower values keep the chart tight
+        // around the actual night at the cost of occasionally-thin gradients;
+        // higher values widen the chart more often.
+        private const int MinGradientMinutes = 6;
+
         // Night-grid bounds for the single-night charts (Day, Sky). Both pad
         // outward from dusk/dawn to the nearest enclosing integer hour so dusk
         // and dawn never coincide with an X-axis edge label.
@@ -111,24 +119,21 @@ namespace TargetPlanner.Charts
         // outward.
         //
         // Visual minimum: if the resulting gradient (start->dusk or dawn->stop)
-        // would be < 30 min, step out one more hour so the dusk-to-fully-dark
-        // (and dawn-from-fully-dark) gradient remains readable. Each side is
-        // evaluated independently -- both ends can expand on the same night if
-        // both gradients fall below the threshold. The 60-minute case (dusk/
-        // dawn exactly on the hour, already handled by the >= / <= rule above)
-        // is left alone -- 60 min is well above the threshold.
+        // would be < MinGradientMinutes, step out one more hour so the
+        // dusk-to-fully-dark (and dawn-from-fully-dark) gradient remains
+        // readable. Each side is evaluated independently -- both ends can
+        // expand on the same night if both gradients fall below the threshold.
         public static DateTime DayChartStart(DateTime duskLocal)
         {
             // Floor to the top of the current hour, preserving DateTimeKind.
             DateTime topOfHour = new DateTime(duskLocal.Year, duskLocal.Month, duskLocal.Day,
                                               duskLocal.Hour, 0, 0, duskLocal.Kind);
 
-            // 30+ minutes past the hour: keep the current hour as start so the
-            // dusk gradient is >= 30 min wide.
-            if (duskLocal.Minute >= 30) return topOfHour;
+            // duskLocal.Minute is the gradient width on the dusk side: keep the
+            // current hour as start when the gradient is at least the threshold.
+            if (duskLocal.Minute >= MinGradientMinutes) return topOfHour;
 
-            // Less than 30 minutes past the hour: gradient would be too thin,
-            // so roll back an hour to widen it (gradient becomes 60+ min).
+            // Gradient too thin, roll back an hour to widen it.
             return topOfHour.AddHours(-1);
         }
 
@@ -139,12 +144,11 @@ namespace TargetPlanner.Charts
                                               dawnLocal.Hour, 0, 0, dawnLocal.Kind);
             DateTime nextHour = topOfHour.AddHours(1);
 
-            // 30 minutes or less past the hour: the natural next-hour stop gives
-            // a dawn gradient >= 30 min wide; use it.
-            if (dawnLocal.Minute <= 30) return nextHour;
+            // (60 - dawnLocal.Minute) is the gradient width on the dawn side:
+            // use nextHour as stop when the gradient meets the threshold.
+            if (dawnLocal.Minute <= 60 - MinGradientMinutes) return nextHour;
 
-            // More than 30 minutes past the hour: natural gradient would be < 30
-            // min wide, so roll forward another hour to widen it.
+            // Gradient too thin, roll forward an hour to widen it.
             return nextHour.AddHours(1);
         }
 
