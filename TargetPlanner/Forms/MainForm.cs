@@ -523,16 +523,19 @@ is preserved.";
             // save of TP's in-memory state.
             if (!mSuppressFormClosingSave)
             {
-                // Commit any pending NumericUpDown / TextBox edits that the user
-                // typed but hasn't yet blurred. WinForms NumericUpDown only fires
-                // ValueChanged on focus-loss / spinner click / arrow key -- typing
-                // "60" + immediately closing TP leaves the underlying Value at
-                // the previous number and ValueChanged never fires. ValidateChildren
-                // walks every child and triggers their Validating/LostFocus path,
-                // which commits the typed text to Value -- and that fires the
-                // ValueChanged handlers (e.g. NumericUpDown_TargetFloor_ValueChanged)
-                // which mirror the change into mPlanningPreferences and the active
-                // NamedSite's Preferences DTO before the save below.
+                // Commit any pending NumericUpDown / TextBox edits the user typed
+                // but hasn't yet blurred. WinForms NumericUpDown's text-to-Value
+                // conversion happens in its OnLeave override -- triggered by focus
+                // loss, NOT by Validating. ValidateChildren fires Validating only,
+                // so it's not enough; we need actual focus loss on the currently
+                // focused control. Setting ActiveControl = null synchronously fires
+                // Leave / LostFocus on the previously-active control, which forces
+                // NumericUpDown to parse Text -> Value, which fires ValueChanged ->
+                // the spinner handler -> PersistPlanningPreferencesToActiveSite.
+                // ValidateChildren follows as defence for any custom Validating
+                // handlers, but the Active->null is what fixes the typed-not-blurred
+                // case.
+                ActiveControl = null;
                 ValidateChildren();
                 SettingsStore.Save(mAppSettings);
             }
