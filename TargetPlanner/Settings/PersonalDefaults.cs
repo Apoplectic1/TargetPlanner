@@ -69,13 +69,7 @@ namespace TargetPlanner.Settings
                 if (!string.IsNullOrWhiteSpace(d.LocationName))    LocationName    = d.LocationName;
                 if (!string.IsNullOrWhiteSpace(d.NinaTargetsRoot)) NinaTargetsRoot = d.NinaTargetsRoot;
                 if (d.NamedLocations != null && d.NamedLocations.Count > 0)
-                {
-                    // Self-heal negative-magnitude-with-paired-flag hand-edits
-                    // (e.g. Longitude=-105 + West=true) so the shape stays
-                    // consistent with the AL convention before any consumer reads it.
-                    foreach (NamedSite s in d.NamedLocations) s.Normalize();
                     NamedLocations = d.NamedLocations.AsReadOnly();
-                }
                 if (d.UserObservationChecklist != null && d.UserObservationChecklist.Count > 0)
                     UserObservationChecklist = d.UserObservationChecklist.AsReadOnly();
             }
