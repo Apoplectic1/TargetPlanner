@@ -62,6 +62,14 @@ Design notes preserved for the future implementation:
 - LC2 multi-axis stability risk (GitHub #470 / #1883) — Phase 0 prototype recommended (~2-3 hours) before committing: verify dual-axis rendering, axis-visibility toggle, section rendering across both axes, and `ScalePixelsToData` semantics with a hidden axis. Falls back cleanly to single-axis-swap design (Option B, less elegant but safer) if multi-axis is flaky.
 - Estimated total: ~2-2.5 days when picked up.
 
+**Future-flagged TP / cross-app convention — named-TZ refactor for DST awareness.** `NamedLocationSetting.UtcOffsetHours` persists a fixed offset (the comment at `NamedLocationSetting.cs:50` is explicit: "site-bound simplification: a constant offset, no DST. The TP user picks 'I'm at UTC-5', not 'I'm in Eastern Time' -- DST transitions don't auto-shift this value"). For DST-observing sites that means the saved offset is wrong half the year — Penns Park saved as -5 (EST) is correct Nov-Mar but stale Mar-Nov when the local clock is on EDT (-4). Current workaround: bump the spinner seasonally. The transient `CheckBox_WallClock` experiment in this session (commits `2c97725` / `6d84245`, added then reverted) was a wrong-shaped attempt at this — picker can't display NY clock for a Denver site without putting moon transit at the wrong tick.
+
+The right fix: replace the offset double with a Windows TZ ID string (`"Eastern Standard Time"`, `"Mountain Standard Time"`, etc.) on `NamedLocationSetting`. Look up via `TimeZoneInfo.FindSystemTimeZoneById` at runtime; the resolved `TimeZoneInfo` auto-handles DST. Spinner becomes a dropdown of system zone IDs (or a free-text + validation). The existing `Location.TimeZoneInfo` field is already the right shape; only the persistence + UI surface change.
+
+Cross-cuts the IS / ISP / XisfManager portfolio — once the user's other apps consume `Astronomy.NINA.Target` and start scheduling, every consumer hits the same "what zone is this site in" question. A shared convention living on `Astronomy.NINA` (or even `Astronomy.Core.Locations.Location` itself) avoids each app reinventing it. Single-app refactor in TP is straightforward (~half day); the value compounds when the second consumer materialises.
+
+Trigger to pick up: next DST transition that the user notices (Nov 1 2026 fall-back or Mar 14 2027 spring-forward), or the first Phase C TPP migration commit that touches `NamedLocationSetting`'s shape.
+
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
