@@ -17,16 +17,5 @@ namespace TargetPlanner.Settings
         public int Version { get; set; } = CurrentVersion;
         public List<NamedLocationSetting> NamedLocations { get; set; } = new List<NamedLocationSetting>();
         public string LastSelectedLocationName { get; set; }
-
-        // CheckBox_WallClock state -- "Use Site Wall Clock". True means the
-        // selected location's TimeZoneInfo drives picker / chart-axis / label
-        // display; false falls back to the machine's local zone (TimeZoneInfo.Local).
-        // Defaults to true so a fresh install matches the post-2026-05-18 chart-
-        // pipeline-on-Location-zone shipping behavior. Additive field: a missing
-        // value in settings.json deserialises as default(bool) = false, which would
-        // INVERT the intended default -- callers therefore initialise via the
-        // CheckBox's Designer-set Checked state at boot rather than trusting the
-        // deserialised value when the key was absent (see MainForm boot path).
-        public bool UseSiteWallClock { get; set; } = true;
     }
 }

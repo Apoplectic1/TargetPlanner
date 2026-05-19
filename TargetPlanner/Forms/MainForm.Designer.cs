@@ -31,7 +31,6 @@
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             GroupBox_Local = new System.Windows.Forms.GroupBox();
             GroupBox_Location = new System.Windows.Forms.GroupBox();
-            CheckBox_WallClock = new System.Windows.Forms.CheckBox();
             NumericUpDown_TimeZone = new System.Windows.Forms.NumericUpDown();
             Label_TimeZone = new System.Windows.Forms.Label();
             Button_BrowseLocalHorizon = new System.Windows.Forms.Button();
@@ -189,7 +188,6 @@
             // 
             // GroupBox_Location
             // 
-            GroupBox_Location.Controls.Add(CheckBox_WallClock);
             GroupBox_Location.Controls.Add(NumericUpDown_TimeZone);
             GroupBox_Location.Controls.Add(Label_TimeZone);
             GroupBox_Location.Controls.Add(Button_BrowseLocalHorizon);
@@ -228,22 +226,9 @@
             GroupBox_Location.TabStop = false;
             GroupBox_Location.Text = "Location";
             // 
-            // CheckBox_WallClock
-            // 
-            CheckBox_WallClock.AutoSize = true;
-            CheckBox_WallClock.Checked = true;
-            CheckBox_WallClock.CheckState = System.Windows.Forms.CheckState.Checked;
-            CheckBox_WallClock.Location = new System.Drawing.Point(374, 21);
-            CheckBox_WallClock.Name = "CheckBox_WallClock";
-            CheckBox_WallClock.Size = new System.Drawing.Size(126, 19);
-            CheckBox_WallClock.TabIndex = 49;
-            CheckBox_WallClock.Text = "Use Site Wall Clock";
-            CheckBox_WallClock.UseVisualStyleBackColor = true;
-            CheckBox_WallClock.CheckedChanged += CheckBox_WallClock_CheckedChanged;
-            // 
             // NumericUpDown_TimeZone
             // 
-            NumericUpDown_TimeZone.Location = new System.Drawing.Point(299, 19);
+            NumericUpDown_TimeZone.Location = new System.Drawing.Point(366, 19);
             NumericUpDown_TimeZone.Maximum = new decimal(new int[] { 12, 0, 0, 0 });
             NumericUpDown_TimeZone.Minimum = new decimal(new int[] { 12, 0, 0, int.MinValue });
             NumericUpDown_TimeZone.Name = "NumericUpDown_TimeZone";
@@ -254,7 +239,7 @@
             // Label_TimeZone
             // 
             Label_TimeZone.AutoSize = true;
-            Label_TimeZone.Location = new System.Drawing.Point(265, 23);
+            Label_TimeZone.Location = new System.Drawing.Point(332, 23);
             Label_TimeZone.Name = "Label_TimeZone";
             Label_TimeZone.Size = new System.Drawing.Size(32, 15);
             Label_TimeZone.TabIndex = 45;
@@ -370,7 +355,7 @@
             // Label_Location
             // 
             Label_Location.AutoSize = true;
-            Label_Location.Location = new System.Drawing.Point(51, 23);
+            Label_Location.Location = new System.Drawing.Point(118, 23);
             Label_Location.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             Label_Location.Name = "Label_Location";
             Label_Location.Size = new System.Drawing.Size(56, 15);
@@ -380,7 +365,7 @@
             // ComboBox_Location
             // 
             ComboBox_Location.FormattingEnabled = true;
-            ComboBox_Location.Location = new System.Drawing.Point(110, 19);
+            ComboBox_Location.Location = new System.Drawing.Point(177, 19);
             ComboBox_Location.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             ComboBox_Location.Name = "ComboBox_Location";
             ComboBox_Location.Size = new System.Drawing.Size(140, 23);
@@ -1690,7 +1675,6 @@
         private System.Windows.Forms.Button Button_BrowseLocalHorizon;
         private System.Windows.Forms.Label Label_HorizonPath;
         private System.Windows.Forms.NumericUpDown NumericUpDown_TimeZone;
-        private System.Windows.Forms.CheckBox CheckBox_WallClock;
     }
 }
 
