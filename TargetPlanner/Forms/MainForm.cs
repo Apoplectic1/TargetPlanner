@@ -169,6 +169,12 @@ namespace TargetPlanner
         // instead of trying to touch the form after Dispose.
         private readonly CancellationTokenSource mFormClosingCts = new CancellationTokenSource();
 
+        // Suppresses the FormClosing settings.json save so a Defaults > Edit
+        // (where the user is about to hand-edit the file) or Defaults > Clear
+        // (where we just deleted the file) doesn't get its work clobbered by
+        // an exit-time save of TP's in-memory AppSettings.
+        private bool mSuppressFormClosingSave;
+
         // Phase 2 of the orchestration-layer refactor: ChartCoordinator centralizes
         // the diff-and-dispatch pipeline. UI handlers in this form build a
         // ChartContext snapshot via SnapshotCurrent(...) and hand it to the
@@ -511,7 +517,12 @@ is preserved.";
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            SettingsStore.Save(mAppSettings);
+            // Defaults > Edit and Defaults > Clear both set mSuppressFormClosingSave
+            // before triggering Application.Exit() so the user's hand-edits (Edit)
+            // or freshly-deleted file (Clear) aren't overwritten by an exit-time
+            // save of TP's in-memory state.
+            if (!mSuppressFormClosingSave)
+                SettingsStore.Save(mAppSettings);
 
             // Dispose long-lived resources the form owns. Without this, the ToolTip leaks
             // a native handle.
@@ -1125,29 +1136,41 @@ is preserved.";
             }
         }
 
-        // File -> Defaults -> Edit settings.json. Launches the OS-default editor
-        // on the active settings.json. No auto-reload: user restarts TP to pick
-        // up changes. If settings.json is missing for some reason (mid-Clear, or
-        // a manual delete), we re-seed first so Process.Start has a real file to
-        // open. UseShellExecute=true so Windows resolves the .json association.
+        // File -> Defaults -> Edit settings.json. Closes TP after launching the
+        // OS-default editor so an exit-time SettingsStore.Save can't clobber the
+        // user's hand-edits.
+        //
+        // Sequence:
+        //   1. Confirm prompt (cancellable -- user can back out before commitment).
+        //   2. Flush current in-memory AppSettings to settings.json so the editor
+        //      opens the freshest view of TP's state.
+        //   3. Launch the editor (Process.Start UseShellExecute=true so Windows
+        //      resolves the .json association).
+        //   4. Set mSuppressFormClosingSave + Application.Exit. The user edits at
+        //      leisure and relaunches TP to load their changes.
         private void HandleEditDefaultsClick()
         {
+            DialogResult confirm = MessageBox.Show(this,
+                "Open settings.json in your default editor?\n\n" +
+                "TargetPlanner will close so your edits save cleanly.\n" +
+                "Relaunch TargetPlanner when you're done editing.",
+                "Edit settings.json",
+                MessageBoxButtons.OKCancel, MessageBoxIcon.Information, MessageBoxDefaultButton.Button1);
+            if (confirm != DialogResult.OK) return;
+
             try
             {
-                if (!System.IO.File.Exists(SettingsStore.FilePath))
-                    SettingsStore.Save(PersonalDefaults.BuildSeedSettings());
+                // Flush current in-memory state so the editor sees TP's latest
+                // view -- e.g. a site swap since boot that hadn't been persisted
+                // by a different code path. Defensive; most save call-sites
+                // already keep settings.json current.
+                SettingsStore.Save(mAppSettings);
 
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = SettingsStore.FilePath,
                     UseShellExecute = true,
                 });
-
-                MessageBox.Show(this,
-                    "settings.json opened in your default editor.\n\n" +
-                    "Save your edits, then restart TargetPlanner to load them.",
-                    "Edit settings.json",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
@@ -1156,7 +1179,11 @@ is preserved.";
                     "Could not open the editor.\n\n" + ex.Message,
                     "Edit settings.json",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
             }
+
+            mSuppressFormClosingSave = true;
+            Application.Exit();
         }
 
         // File -> Defaults -> Clear (factory reset)... Confirms via YesNo, deletes
@@ -1191,6 +1218,7 @@ is preserved.";
                 "Reset complete. TargetPlanner will close now.\n\nRelaunch to load defaults.",
                 "Defaults: Clear (factory reset)",
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
+            mSuppressFormClosingSave = true;
             Application.Exit();
         }
 
