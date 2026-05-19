@@ -1008,6 +1008,17 @@ is preserved.";
             mSelection.SetAllChecked(false);
             mCheckedToggleDebounce?.Stop();
 
+            // Drop the Visible-Tonight tint set too. Those tags were computed against
+            // the prior site's visibility window; the new site's "visible tonight" is
+            // a different set entirely, so the tinted checkbox interiors would be
+            // misleading until the user re-clicks Button_VisibleTonight. Same gesture
+            // as the listbox's right-click clear, just tied to the location swap.
+            if (mVisibleTaggedTargets.Count > 0)
+            {
+                mVisibleTaggedTargets.Clear();
+                CheckedListBox_SelectedTargets?.Invalidate();
+            }
+
             // Explicit empty targets so the active area re-renders blank under the
             // new location. The no-arg SnapshotCurrent() would inherit the prior
             // last-applied target list (i.e., the old location's targets) -- not
