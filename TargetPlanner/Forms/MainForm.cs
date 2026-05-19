@@ -919,6 +919,7 @@ is preserved.";
         {
             TimeSpan newDuration = TimeSpan.FromMinutes((double)NumericUpDown_TargetDuration.Value * 60.0);
             mPlanningPreferences = mPlanningPreferences with { MinDuration = newDuration };
+            PersistPlanningPreferencesToActiveSite();
             if (mCoordinator == null) return;
             // Coordinator's internal debounce coalesces rapid scrub ticks into one
             // pipeline run; pipeline diff catches Duration change as HDM-only and
@@ -930,6 +931,7 @@ is preserved.";
         {
             double newHorizon = (double)NumericUpDown_TargetFloor.Value;
             mPlanningPreferences = mPlanningPreferences with { TargetFloorDeg = newHorizon };
+            PersistPlanningPreferencesToActiveSite();
             if (mCoordinator == null) return;
             // Horizon-line repositioning stays immediate -- it's one strip per chart
             // and the user wants instant feedback as they scrub. The per-target
@@ -938,6 +940,23 @@ is preserved.";
             if (mSubCharts != null)
                 foreach (var sc in mSubCharts.Values) sc.UpdateHorizonLine(newHorizon);
             mCoordinator.Apply(SnapshotCurrent());
+        }
+
+        // Mirror mPlanningPreferences back onto the active NamedSite's Preferences
+        // DTO so SettingsStore.Save (FormClosing or any other path) persists the
+        // user's spinner edit. mPlanningPreferences alone is in-memory state that
+        // isn't part of mAppSettings.NamedLocations, so without this mirror the
+        // saved settings.json carries stale per-site defaults. Skips when the
+        // user is on "Custom" or any name not in mAppSettings (preference edits
+        // outside a named site have nowhere to persist; the user is in free-edit
+        // mode and would need to add the site first).
+        private void PersistPlanningPreferencesToActiveSite()
+        {
+            if (mLocation == null || mAppSettings?.NamedLocations == null) return;
+            NamedSite active = mAppSettings.NamedLocations.Find(x =>
+                string.Equals(x.Name, mLocation.Name, StringComparison.OrdinalIgnoreCase));
+            if (active == null) return;
+            active.Preferences = mPlanningPreferences.ToDto();
         }
 
         // Lazily-constructed shared Timer debouncing OnLocationEdited (lat/lon/elev/
