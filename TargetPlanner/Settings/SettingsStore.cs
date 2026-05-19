@@ -47,7 +47,17 @@ namespace TargetPlanner.Settings
                             if (settings.NamedLocations == null || settings.NamedLocations.Count == 0)
                                 settings.NamedLocations = BuildDefaultNamedLocations();
                             else
+                            {
+                                // "Custom" is a reserved sentinel in ComboBox_Location for the
+                                // free-edit mode; saved sites named "Custom" are historical
+                                // artifacts (Location.Default fallback when an early-version
+                                // settings.json had no presets) and would render as a duplicate
+                                // dropdown entry alongside the sentinel. Strip on load so the
+                                // runtime list contains only real sites.
+                                settings.NamedLocations.RemoveAll(s =>
+                                    string.Equals(s.Name, "Custom", StringComparison.OrdinalIgnoreCase));
                                 MergeBuiltins(settings.NamedLocations);
+                            }
                             return settings;
                         }
                     }
