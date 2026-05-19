@@ -488,6 +488,7 @@ is preserved.";
             mToolTip.InitialDelay = 2000;
             mToolTip.ReshowDelay = 2000;
             mToolTip.SetToolTip(Button_VisibleTargets, VisibleButtonTooltipText);
+            mToolTip.SetToolTip(CheckBox_WallClock, "wall clock at the observing site");
 
             // Long-lived explanatory tooltip for the Sessions radio button. InitialDelay is
             // 5 seconds so only a deliberate hover reveals it (casual mouse-overs don't
@@ -623,6 +624,22 @@ is preserved.";
 
             SyncLocationUIFromModel();
             SyncTargetUIFromModel();
+
+            // Restore "Use Site Wall Clock" state from settings. Designer-set
+            // default is Checked=true; the deserialised UseSiteWallClock value
+            // is the user's persisted choice. Wrap the assignment in the sync
+            // guard so the CheckedChanged handler doesn't re-Save / Apply
+            // before the chart pipeline exists. ApplyEffectiveZone then
+            // re-stamps mObservation.Zone from EffectiveZone() and syncs the
+            // picker to the chosen zone's wall clock -- explicit visual jump
+            // at boot when the site zone differs from the machine zone.
+            if (CheckBox_WallClock != null && mAppSettings != null)
+            {
+                mSyncingLocationUI = true;
+                try { CheckBox_WallClock.Checked = mAppSettings.UseSiteWallClock; }
+                finally { mSyncingLocationUI = false; }
+            }
+            ApplyEffectiveZone();
 
             // Add Panel that the chart sub-charts will appear in to GroupBox.
             // Top = 48 leaves an 8 px gap between the radio cluster above and the
@@ -766,9 +783,51 @@ is preserved.";
         private void UpdateLocalDateTimeEvents()
         {
             DateTime local = DatePicker.Value.Date + TimePicker.Value.TimeOfDay;
-            TimeZoneInfo zone = mLocation?.TimeZoneInfo ?? TimeZoneInfo.Local;
+            TimeZoneInfo zone = EffectiveZone();
             mObservation = ObservationMoment.FromLocal(local, zone);
             RefreshAstrometryLabels();
+        }
+
+        // Single source of truth for "what zone should the picker / chart axis /
+        // labels display in right now?" Driven by CheckBox_WallClock: checked
+        // (default) means the selected location's saved TimeZoneInfo (the no-DST
+        // custom zone from NumericUpDown_TimeZone); unchecked falls back to the
+        // machine's local zone. Both pre-form-load (CheckBox_WallClock not yet
+        // realised) and missing-location cases fall through to TimeZoneInfo.Local.
+        private TimeZoneInfo EffectiveZone()
+            => (CheckBox_WallClock?.Checked ?? true)
+                ? (mLocation?.TimeZoneInfo ?? TimeZoneInfo.Local)
+                : TimeZoneInfo.Local;
+
+        // Push mObservation.Utc into the date/time pickers, expressed at the
+        // current EffectiveZone. Suppresses ValueChanged so the round-trip
+        // doesn't re-fire UpdateLocalDateTimeEvents (which would rebuild
+        // mObservation, possibly drifting on Kind=Unspecified round-trip noise).
+        // Mirrors the Button_Now_Click idiom so a zone-switch (CheckBox_WallClock
+        // toggle, TZ-spinner edit, site swap) leaves the picker visually in sync
+        // with the chart axis.
+        private void SyncPickerFromObservation()
+        {
+            if (DatePicker == null || TimePicker == null) return;
+            DateTime localAtZone = TimeZoneInfo.ConvertTimeFromUtc(
+                mObservation.Utc, EffectiveZone());
+            DatePicker.ValueChanged -= DatePicker_ValueChanged;
+            TimePicker.ValueChanged -= TimePicker_ValueChanged;
+            DatePicker.Value = localAtZone;
+            TimePicker.Value = localAtZone;
+            DatePicker.ValueChanged += DatePicker_ValueChanged;
+            TimePicker.ValueChanged += TimePicker_ValueChanged;
+        }
+
+        // Re-stamp mObservation.Zone from EffectiveZone (Utc preserved, with-
+        // syntax), refresh the picker to match, and push the new effective zone
+        // through the chart pipeline. Callers: CheckBox_WallClock toggle, TZ
+        // spinner edit (when WallClock is checked), site swap.
+        private void ApplyEffectiveZone()
+        {
+            TimeZoneInfo zone = EffectiveZone();
+            mObservation = mObservation with { Zone = zone };
+            SyncPickerFromObservation();
         }
 
         // Push every astrometry-derived label. Reads NightWindow from the cache
@@ -878,11 +937,13 @@ is preserved.";
             double hours = (double)NumericUpDown_TimeZone.Value;
             TimeZoneInfo zone = NamedLocationSetting.TimeZoneFromUtcOffsetHours(hours);
             mLocation = mLocation.With(timeZoneInfo: zone);
-            // mObservation's Zone field is the same logical TZ as Location.TimeZoneInfo --
-            // keep them in lockstep so downstream consumers reading either see a
-            // consistent view. with-syntax preserves Utc; the wall-clock moment the
-            // user picked at the OLD offset is reinterpreted under the NEW offset.
-            mObservation = mObservation with { Zone = zone };
+            // When WallClock is checked the spinner drives the displayed zone;
+            // ApplyEffectiveZone re-stamps mObservation.Zone (Utc preserved) and
+            // re-syncs the picker to the new offset. When unchecked the spinner
+            // is site metadata only: mObservation.Zone stays = TimeZoneInfo.Local
+            // and the picker/chart don't shift.
+            if (CheckBox_WallClock?.Checked == true)
+                ApplyEffectiveZone();
             OnLocationEdited(sender, e);
         }
 
@@ -1484,7 +1545,7 @@ is preserved.";
         private void Button_Now_Click(object sender, EventArgs e)
         {
             Log.Diag("UI", "Button_Now.Click");
-            TimeZoneInfo zone = mLocation?.TimeZoneInfo ?? TimeZoneInfo.Local;
+            TimeZoneInfo zone = EffectiveZone();
             mObservation = ObservationMoment.Now(zone);
             DateTime localNow = TimeZoneInfo.ConvertTimeFromUtc(mObservation.Utc, zone);
 
@@ -1548,6 +1609,17 @@ is preserved.";
 
             mAppSettings.LastSelectedLocationName = name;
             SettingsStore.Save(mAppSettings);
+
+            // If WallClock is checked, the swapped-in site's TimeZoneInfo is
+            // now the EffectiveZone. Re-stamp mObservation (Utc preserved) so
+            // the chart pipeline reads the new zone, and re-sync the picker
+            // to the new zone's wall clock interpretation. Skipping this
+            // would leave mObservation.Zone pinned to the prior site -- the
+            // chart axis would render the new night at the OLD site's offset.
+            // When unchecked, mObservation.Zone stays = TimeZoneInfo.Local
+            // and the picker is left alone.
+            if (CheckBox_WallClock?.Checked == true)
+                ApplyEffectiveZone();
 
             // Symmetric reset path: clear checked set, blank chart, drop+rekey cache.
             // The coordinator's post-apply hook (RefreshAstrometryLabels) refreshes
@@ -2055,6 +2127,27 @@ is preserved.";
             // re-render those areas with an unchanged ActiveArea (Year /
             // Sessions don't read CheckBox_Sky). Cheap to gate here.
             if (RadioButton_Day == null || !RadioButton_Day.Checked) return;
+            mCoordinator?.Apply(SnapshotCurrent());
+        }
+
+        // "Use Site Wall Clock" toggle. Checked (default) = picker / chart axis /
+        // labels follow the selected location's TimeZoneInfo (no-DST custom zone
+        // from the TZ spinner). Unchecked = follow TimeZoneInfo.Local (machine
+        // wall clock, DST-aware). ApplyEffectiveZone preserves mObservation.Utc
+        // and re-stamps Zone; SyncPickerFromObservation makes the visual shift
+        // explicit so the user sees the zone change. The chart pipeline gets
+        // re-rendered through the coordinator -- DayWindowKey.ChartStartUtcTicks
+        // rebases on the new zone, invalidating the day-altitude / moon caches.
+        private void CheckBox_WallClock_CheckedChanged(object sender, EventArgs e)
+        {
+            if (mSyncingLocationUI) return;
+            Log.Diag("UI", $"CheckBox_WallClock.CheckedChanged checked={CheckBox_WallClock.Checked}");
+            if (mAppSettings != null)
+            {
+                mAppSettings.UseSiteWallClock = CheckBox_WallClock.Checked;
+                SettingsStore.Save(mAppSettings);
+            }
+            ApplyEffectiveZone();
             mCoordinator?.Apply(SnapshotCurrent());
         }
 
