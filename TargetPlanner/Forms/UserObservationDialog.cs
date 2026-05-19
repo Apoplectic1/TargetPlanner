@@ -2,19 +2,14 @@ using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
-using System.Text;
 using System.Windows.Forms;
-using TargetPlanner.Settings;
 using TargetPlanner.Support;
 
 namespace TargetPlanner.Forms
 {
-    // Ctrl+N invoked debug dialog. Captures the user's in-the-moment
-    // observation -- a pre-seeded checklist of recurring patterns
-    // (PersonalDefaults.UserObservationChecklist), a free-form notes box, and
-    // an auto-captured screenshot + context snapshot saved when the user
-    // clicks OK -- and writes start/end markers to tp.log so the user's
-    // actions while the dialog is open are chronologically bracketed.
+    // Ctrl+N invoked debug dialog. Single free-form notes field; OK captures the
+    // notes plus a screenshot + context snapshot, writes USER_OBS_END to tp.log
+    // with start/end markers bracketing the user's actions while open.
     //
     // Modeless + TopMost so the user can interact with the main chart while
     // the dialog stays open. The dialog's open period brackets the relevant
@@ -23,12 +18,14 @@ namespace TargetPlanner.Forms
     //   USER_OBS_START id=4f2a build=1.0.0+abc1234
     //   DIAG/UI CheckBox_Sky.CheckedChanged checked=True
     //   DIAG/Sky Render exit ...
-    //   DIAG/UI CheckBox_Sky.CheckedChanged checked=False
-    //   USER_OBS_END id=4f2a ctx=(area=Day, ...) screenshot=... checked=[...] notes="..."
+    //   USER_OBS_END id=4f2a ctx=(area=Day, ...) screenshot=... notes="..."
     //
     // grep id=4f2a tp.log surfaces the full investigation window.
     // Cancellation (Cancel button or close-X) writes USER_OBS_CANCEL with the
     // same id so every START has a matching terminator.
+    //
+    // Empty / whitespace-only notes is the "all-okay checkpoint" gesture: the
+    // log line carries notes="(checkpoint)" so grep finds those moments cleanly.
     //
     // Singleton: re-pressing Ctrl+N while the dialog is already open focuses
     // the existing instance (no second dialog, no second START marker).
@@ -41,7 +38,6 @@ namespace TargetPlanner.Forms
         private readonly string mId;
         private readonly Form mOwnerForm;
         private readonly Func<string> mContextProvider;
-        private readonly CheckedListBox mChecklist;
         private readonly TextBox mNotes;
         private readonly Button mOk;
         private readonly Button mCancel;
@@ -63,39 +59,20 @@ namespace TargetPlanner.Forms
             MaximizeBox = false;
             ShowInTaskbar = false;
             TopMost = true;
-            ClientSize = new Size(420, 380);
+            ClientSize = new Size(420, 220);
             Padding = new Padding(10);
 
-            var lblChecklist = new Label
+            var lblNotes = new Label
             {
-                Text = "Check what you observed:",
+                Text = "Notes (free-form, Ctrl+Enter for newline). Leave blank for a checkpoint:",
                 AutoSize = true,
                 Location = new Point(10, 10),
             };
 
-            mChecklist = new CheckedListBox
-            {
-                Location = new Point(10, 30),
-                Size = new Size(400, 180),
-                CheckOnClick = true,
-                IntegralHeight = false,
-            };
-            foreach (string item in PersonalDefaults.UserObservationChecklist)
-            {
-                mChecklist.Items.Add(item, false);
-            }
-
-            var lblNotes = new Label
-            {
-                Text = "Notes (free-form, Ctrl+Enter for newline):",
-                AutoSize = true,
-                Location = new Point(10, 220),
-            };
-
             mNotes = new TextBox
             {
-                Location = new Point(10, 240),
-                Size = new Size(400, 90),
+                Location = new Point(10, 30),
+                Size = new Size(400, 140),
                 Multiline = true,
                 AcceptsReturn = false,
                 ScrollBars = ScrollBars.Vertical,
@@ -115,7 +92,7 @@ namespace TargetPlanner.Forms
             mOk = new Button
             {
                 Text = "OK",
-                Location = new Point(255, 340),
+                Location = new Point(255, 180),
                 Size = new Size(75, 28),
             };
             mOk.Click += OnOkClick;
@@ -123,7 +100,7 @@ namespace TargetPlanner.Forms
             mCancel = new Button
             {
                 Text = "Cancel",
-                Location = new Point(335, 340),
+                Location = new Point(335, 180),
                 Size = new Size(75, 28),
             };
             mCancel.Click += OnCancelClick;
@@ -131,8 +108,6 @@ namespace TargetPlanner.Forms
             AcceptButton = mOk;
             CancelButton = mCancel;
 
-            Controls.Add(lblChecklist);
-            Controls.Add(mChecklist);
             Controls.Add(lblNotes);
             Controls.Add(mNotes);
             Controls.Add(mOk);
@@ -179,22 +154,12 @@ namespace TargetPlanner.Forms
             // still has value without the picture.
             string screenshotPath = TryCaptureScreenshot();
 
-            // Collect checked items.
-            var sb = new StringBuilder();
-            bool first = true;
-            foreach (object item in mChecklist.CheckedItems)
-            {
-                if (!first) sb.Append("; ");
-                sb.Append(item?.ToString() ?? string.Empty);
-                first = false;
-            }
-
             // Capture current ctx snapshot from MainForm.
             string ctx = string.Empty;
             try { ctx = mContextProvider() ?? string.Empty; }
             catch (Exception ex) { Log.Warn("Observation contextProvider threw", ex); }
 
-            Log.UserObservationEnd(mId, ctx, sb.ToString(), mNotes.Text, screenshotPath ?? string.Empty);
+            Log.UserObservationEnd(mId, ctx, mNotes.Text, screenshotPath ?? string.Empty);
             mTerminationLogged = true;
             Close();
         }

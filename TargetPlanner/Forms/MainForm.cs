@@ -66,10 +66,9 @@ namespace TargetPlanner
         private bool mUpdatingUiFromVm;
 
         // Root folder the NINA target loader walks at startup and the Browse-Target-List
-        // dialog opens to. Sourced from PersonalDefaults so the public binary ships with
-        // a neutral fallback (%PUBLIC%\Documents\NINA\Targets) and the developer's actual
-        // imaging-PC path lives in their gitignored personal-defaults.json.
-        private static string NinaTargetsRootPath => PersonalDefaults.NinaTargetsRoot;
+        // dialog opens to. Sourced from mAppSettings.NinaTargetsRoot (settings.json),
+        // seeded from PersonalDefaults on first run. User can edit via Defaults > Edit.
+        private string NinaTargetsRootPath => mAppSettings?.NinaTargetsRoot;
 
         // Active chart-area state (post-PR4e: legacy AltitudeChart deleted; this state
         // used to live on it). MainForm owns:
@@ -417,12 +416,20 @@ is preserved.";
             // attaches for dev builds).
             Text = "TargetPlanner v" + GetDisplayVersion();
 
-            // File menu: extend the Designer-resident "File" menu with a Clear All Data
-            // entry. Wipes the three persistent files in %APPDATA%\TargetPlanner (settings,
-            // filters, log) and offers a restart so the next launch boots from defaults.
-            var clearDataItem = new ToolStripMenuItem("&Clear All Data...");
-            clearDataItem.Click += (s, e) => HandleClearAllDataClick();
-            FileToolStripMenuItem_MainForm.DropDownItems.Add(clearDataItem);
+            // File menu: extend the Designer-resident "File" menu with a Defaults
+            // submenu. Edit launches the OS-default editor on settings.json (no
+            // auto-reload; user restarts TP to pick up changes). Clear is a
+            // factory-reset gesture -- wipes settings.json + filters.json +
+            // local-targets.json + Logs/ after confirmation, then exits the app
+            // so the next launch boots from PersonalDefaults.BuildSeedSettings.
+            var defaultsItem    = new ToolStripMenuItem("&Defaults");
+            var editItem        = new ToolStripMenuItem("&Edit settings.json");
+            var clearItem       = new ToolStripMenuItem("&Clear (factory reset)...");
+            editItem.Click  += (s, e) => HandleEditDefaultsClick();
+            clearItem.Click += (s, e) => HandleClearDefaultsClick();
+            defaultsItem.DropDownItems.Add(editItem);
+            defaultsItem.DropDownItems.Add(clearItem);
+            FileToolStripMenuItem_MainForm.DropDownItems.Add(defaultsItem);
 
             // Help and Filters top-level menu items + the Help children
             // (Check for Updates / About) are now Designer-resident -- see
@@ -1118,24 +1125,60 @@ is preserved.";
             }
         }
 
-        // File -> Clear All Data... handler. Confirms via YesNo MessageBox, deletes the
-        // three persistent files in %APPDATA%\TargetPlanner, then offers a restart so the
-        // next launch boots from defaults. tp.log is deleted last so any per-file delete
-        // errors get captured before the log file itself goes away. If the user declines
-        // the restart, in-memory state is unchanged and any subsequent SettingsStore.Save /
-        // FilterLibrary.Save call will recreate the corresponding file with current state.
-        private void HandleClearAllDataClick()
+        // File -> Defaults -> Edit settings.json. Launches the OS-default editor
+        // on the active settings.json. No auto-reload: user restarts TP to pick
+        // up changes. If settings.json is missing for some reason (mid-Clear, or
+        // a manual delete), we re-seed first so Process.Start has a real file to
+        // open. UseShellExecute=true so Windows resolves the .json association.
+        private void HandleEditDefaultsClick()
+        {
+            try
+            {
+                if (!System.IO.File.Exists(SettingsStore.FilePath))
+                    SettingsStore.Save(PersonalDefaults.BuildSeedSettings());
+
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = SettingsStore.FilePath,
+                    UseShellExecute = true,
+                });
+
+                MessageBox.Show(this,
+                    "settings.json opened in your default editor.\n\n" +
+                    "Save your edits, then restart TargetPlanner to load them.",
+                    "Edit settings.json",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("EditDefaults: failed to open '" + SettingsStore.FilePath + "'", ex);
+                MessageBox.Show(this,
+                    "Could not open the editor.\n\n" + ex.Message,
+                    "Edit settings.json",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        // File -> Defaults -> Clear (factory reset)... Confirms via YesNo, deletes
+        // settings.json + filters.json + local-targets.json + the Logs/ directory
+        // recursively, then exits the application so the next launch boots from
+        // PersonalDefaults.BuildSeedSettings(). tp.log is part of Logs/ so it goes
+        // last (the per-file deletes log their failures first). Exit is forced --
+        // the user explicitly asked for a reset; reading old in-memory state
+        // through subsequent saves would partially undo the wipe.
+        private void HandleClearDefaultsClick()
         {
             string body =
-                "Clear all TargetPlanner data?\n\n" +
+                "Factory reset TargetPlanner?\n\n" +
                 "This deletes:\n" +
-                "  • " + SettingsStore.FilePath + "\n" +
-                "  • " + FilterLibrary.DefaultPath + "\n" +
-                "  • " + LocalTargetStore.FilePath + "\n" +
-                "  • " + Log.NotesFolderPath + " (entire folder: tp.log + screenshots + .prev)\n\n" +
+                "  - " + SettingsStore.FilePath + "\n" +
+                "  - " + FilterLibrary.DefaultPath + "\n" +
+                "  - " + LocalTargetStore.FilePath + "\n" +
+                "  - " + Log.NotesFolderPath + " (entire folder: tp.log + screenshots + .prev)\n\n" +
+                "TargetPlanner will close after the reset; relaunch to boot from defaults.\n\n" +
                 "This cannot be undone.";
 
-            DialogResult confirm = MessageBox.Show(this, body, "Clear All Data",
+            DialogResult confirm = MessageBox.Show(this, body, "Defaults: Clear (factory reset)",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
             if (confirm != DialogResult.Yes) return;
 
@@ -1144,11 +1187,11 @@ is preserved.";
             TryDeleteFile(LocalTargetStore.FilePath);
             TryDeleteDirectory(Log.NotesFolderPath);
 
-            DialogResult restart = MessageBox.Show(this,
-                "Data cleared.\n\nRestart TargetPlanner now to load defaults?",
-                "Clear All Data",
-                MessageBoxButtons.YesNo, MessageBoxIcon.Information, MessageBoxDefaultButton.Button1);
-            if (restart == DialogResult.Yes) Application.Restart();
+            MessageBox.Show(this,
+                "Reset complete. TargetPlanner will close now.\n\nRelaunch to load defaults.",
+                "Defaults: Clear (factory reset)",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            Application.Exit();
         }
 
         private static void TryDeleteFile(string path)
@@ -1159,7 +1202,7 @@ is preserved.";
             }
             catch (Exception ex)
             {
-                Log.Error("ClearAllData: failed to delete '" + path + "'", ex);
+                Log.Error("ClearDefaults: failed to delete '" + path + "'", ex);
             }
         }
 
@@ -1172,7 +1215,7 @@ is preserved.";
             }
             catch (Exception ex)
             {
-                Log.Error("ClearAllData: failed to delete directory '" + path + "'", ex);
+                Log.Error("ClearDefaults: failed to delete directory '" + path + "'", ex);
             }
         }
 
@@ -1626,17 +1669,17 @@ is preserved.";
         }
 
         // PickStartupPreferences -- companion to PickStartupLocation. Resolves
-        // the per-site PlanningPreferences from the same NamedSite
-        // entry PickStartupLocation picked so the spinner values, the chart
-        // horizon line, and the fits cache key all start consistent with the
-        // persisted shape. Falls through to PlanningPreferences.Default when
-        // no settings entry matches (fresh install / unknown personal-default
-        // LocationName).
+        // the per-site PlanningPreferences from the same NamedSite entry
+        // PickStartupLocation picked so the spinner values, the chart horizon
+        // line, and the fits cache key all start consistent with the persisted
+        // shape. Falls through to PlanningPreferences.Default when no settings
+        // entry matches the last-selected name (e.g. the user renamed the site
+        // out from under settings.json).
         private PlanningPreferences PickStartupPreferences()
         {
-            NamedSite personalDefault = mAppSettings.NamedLocations.Find(x =>
-                string.Equals(x.Name, PersonalDefaults.LocationName, StringComparison.OrdinalIgnoreCase));
-            if (personalDefault != null) return PlanningPreferences.FromDto(personalDefault.Preferences);
+            NamedSite lastPicked = mAppSettings.NamedLocations.Find(x =>
+                string.Equals(x.Name, mAppSettings.LastSelectedLocationName, StringComparison.OrdinalIgnoreCase));
+            if (lastPicked != null) return PlanningPreferences.FromDto(lastPicked.Preferences);
 
             if (mAppSettings.NamedLocations.Count > 0)
                 return PlanningPreferences.FromDto(mAppSettings.NamedLocations[0].Preferences);
@@ -1646,15 +1689,13 @@ is preserved.";
 
         private Location PickStartupLocation()
         {
-            // Boot default: the named location from PersonalDefaults when present in the
-            // saved list, regardless of the last in-session selection.
-            // mAppSettings.LastSelectedLocationName still tracks the most recent combo
-            // pick (so we can persist it), but it no longer drives the start-up state --
-            // a fresh launch always lands on the personal-default location unless it's
-            // missing from settings.
-            NamedSite personalDefault = mAppSettings.NamedLocations.Find(x =>
-                string.Equals(x.Name, PersonalDefaults.LocationName, StringComparison.OrdinalIgnoreCase));
-            if (personalDefault != null) return personalDefault.ToLocation();
+            // Boot default: the LastSelectedLocationName from settings.json.
+            // PersonalDefaults seeds this to "Penns Park" on first run, then
+            // ComboBox_Location_SelectionIndexChanged overwrites it each pick
+            // so the next launch lands on the user's most recently-active site.
+            NamedSite lastPicked = mAppSettings.NamedLocations.Find(x =>
+                string.Equals(x.Name, mAppSettings.LastSelectedLocationName, StringComparison.OrdinalIgnoreCase));
+            if (lastPicked != null) return lastPicked.ToLocation();
 
             if (mAppSettings.NamedLocations.Count > 0)
                 return mAppSettings.NamedLocations[0].ToLocation();

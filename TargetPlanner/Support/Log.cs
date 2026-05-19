@@ -128,20 +128,31 @@ namespace TargetPlanner.Support
         /// path to the saved screenshot PNG (empty when capture failed).
         /// Newlines / quotes in notes are escaped so the line stays
         /// grep-friendly (one observation = one line).</summary>
-        public static void UserObservationEnd(string id, string ctx, string checkedItems,
+        public static void UserObservationEnd(string id, string ctx,
             string notes, string screenshotPath)
         {
-            string escapedNotes = (notes ?? string.Empty)
-                .Replace("\\", "\\\\")
-                .Replace("\r\n", "\\n")
-                .Replace("\n", "\\n")
-                .Replace("\r", "\\n")
-                .Replace("\"", "\\\"");
+            // Empty / whitespace-only notes means the user clicked OK without
+            // typing anything: the dialog convention is "all-okay checkpoint."
+            // Encode that as a literal "(checkpoint)" marker so grep finds
+            // checkpoint moments without needing to interpret an empty string.
+            string body_notes;
+            if (string.IsNullOrWhiteSpace(notes))
+            {
+                body_notes = "(checkpoint)";
+            }
+            else
+            {
+                body_notes = notes
+                    .Replace("\\", "\\\\")
+                    .Replace("\r\n", "\\n")
+                    .Replace("\n", "\\n")
+                    .Replace("\r", "\\n")
+                    .Replace("\"", "\\\"");
+            }
             string body = string.Format(
-                "id={0} ctx=({1}) screenshot={2} checked=[{3}] notes=\"{4}\"",
+                "id={0} ctx=({1}) screenshot={2} notes=\"{3}\"",
                 id ?? string.Empty, ctx ?? string.Empty,
-                screenshotPath ?? string.Empty, checkedItems ?? string.Empty,
-                escapedNotes);
+                screenshotPath ?? string.Empty, body_notes);
             Append("USER_OBS_END", body, null);
         }
 
