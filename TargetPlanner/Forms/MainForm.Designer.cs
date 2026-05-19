@@ -224,22 +224,22 @@
             GroupBox_Location.TabIndex = 30;
             GroupBox_Location.TabStop = false;
             GroupBox_Location.Text = "Location";
-            //
+            // 
             // ComboBox_TimeZone
-            //
+            // 
             ComboBox_TimeZone.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             ComboBox_TimeZone.FormattingEnabled = true;
-            ComboBox_TimeZone.Location = new System.Drawing.Point(366, 19);
+            ComboBox_TimeZone.Location = new System.Drawing.Point(291, 19);
             ComboBox_TimeZone.Name = "ComboBox_TimeZone";
-            ComboBox_TimeZone.Size = new System.Drawing.Size(170, 23);
+            ComboBox_TimeZone.Size = new System.Drawing.Size(242, 23);
             ComboBox_TimeZone.TabIndex = 48;
-            //
+            // 
             // Label_TimeZone
-            //
+            // 
             Label_TimeZone.AutoSize = true;
-            Label_TimeZone.Location = new System.Drawing.Point(296, 23);
+            Label_TimeZone.Location = new System.Drawing.Point(221, 23);
             Label_TimeZone.Name = "Label_TimeZone";
-            Label_TimeZone.Size = new System.Drawing.Size(64, 15);
+            Label_TimeZone.Size = new System.Drawing.Size(67, 15);
             Label_TimeZone.TabIndex = 45;
             Label_TimeZone.Text = "Time Zone:";
             // 
@@ -353,7 +353,7 @@
             // Label_Location
             // 
             Label_Location.AutoSize = true;
-            Label_Location.Location = new System.Drawing.Point(118, 23);
+            Label_Location.Location = new System.Drawing.Point(14, 23);
             Label_Location.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             Label_Location.Name = "Label_Location";
             Label_Location.Size = new System.Drawing.Size(56, 15);
@@ -363,7 +363,7 @@
             // ComboBox_Location
             // 
             ComboBox_Location.FormattingEnabled = true;
-            ComboBox_Location.Location = new System.Drawing.Point(177, 19);
+            ComboBox_Location.Location = new System.Drawing.Point(73, 19);
             ComboBox_Location.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             ComboBox_Location.Name = "ComboBox_Location";
             ComboBox_Location.Size = new System.Drawing.Size(140, 23);
