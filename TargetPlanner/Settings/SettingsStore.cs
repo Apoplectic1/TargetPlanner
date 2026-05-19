@@ -56,6 +56,10 @@ namespace TargetPlanner.Settings
                                 // runtime list contains only real sites.
                                 settings.NamedLocations.RemoveAll(s =>
                                     string.Equals(s.Name, "Custom", StringComparison.OrdinalIgnoreCase));
+                                // Self-heal negative-magnitude-with-paired-flag hand-edits so the
+                                // persisted shape matches the AL convention before any downstream
+                                // consumer (ToLocation, MergeBuiltins by-name match, etc.) reads it.
+                                foreach (NamedSite s in settings.NamedLocations) s.Normalize();
                                 MergeBuiltins(settings.NamedLocations);
                             }
                             return settings;
