@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-19 (named-TZ refactor shipped via Astronomy.NINA.Persistence.NamedSite + ComboBox_TimeZone; settings.json collapse — personal-defaults.json dropped, factory seed in C#, Defaults > Edit/Clear menu; persistence-fix sweep — Target Floor mirror, ActiveControl-commit, FormClosing-save suppression; observation dialog simplified to notes-only; UI logging expanded to ~25 discrete-event handlers). Previously updated 2026-05-18 (observation-dialog feedback id=7abd: Now-line UTC bug + Moon Rise/Set bracket-by-night + chart pipeline on Location zone), 2026-05-18 (multi-library refactor: Astronomy.XISF Tier 1 extracted + Astronomy.NINA Phases A+B shipped on the Library side; TP sln pre-staged with sibling visibility — Phase C migration is the next TP-side work), 2026-05-18 (Location refactor Phase 2: Library `Location` strip + TP-side decoupling), 2026-05-17 (chart-pipeline SoC pipeline collapse + observation dialog + Library Saemundsson consolidation; HD-overlay per-target toggle in global mode + sticky fast-path), 2026-05-13 (architectural-review campaign + post-campaign re-review follow-ups + Gemini code-review triage + Location refactor Phase 1), 2026-05-11 (XISF prep notes + AnyCPU drop), 2026-05-04 (.NET 10 migration). Originally captured 2026-04-19.
+Last updated 2026-05-19 (Fix L — Day/Sky chart X-axis made UTC-internal so axis labels are DST-correct across spring-forward / fall-back transitions; verified). Previously updated 2026-05-19 (named-TZ refactor shipped via Astronomy.NINA.Persistence.NamedSite + ComboBox_TimeZone; settings.json collapse — personal-defaults.json dropped, factory seed in C#, Defaults > Edit/Clear menu; persistence-fix sweep — Target Floor mirror, ActiveControl-commit, FormClosing-save suppression; observation dialog simplified to notes-only; UI logging expanded to ~25 discrete-event handlers). Previously updated 2026-05-18 (observation-dialog feedback id=7abd: Now-line UTC bug + Moon Rise/Set bracket-by-night + chart pipeline on Location zone), 2026-05-18 (multi-library refactor: Astronomy.XISF Tier 1 extracted + Astronomy.NINA Phases A+B shipped on the Library side; TP sln pre-staged with sibling visibility — Phase C migration is the next TP-side work), 2026-05-18 (Location refactor Phase 2: Library `Location` strip + TP-side decoupling), 2026-05-17 (chart-pipeline SoC pipeline collapse + observation dialog + Library Saemundsson consolidation; HD-overlay per-target toggle in global mode + sticky fast-path), 2026-05-13 (architectural-review campaign + post-campaign re-review follow-ups + Gemini code-review triage + Location refactor Phase 1), 2026-05-11 (XISF prep notes + AnyCPU drop), 2026-05-04 (.NET 10 migration). Originally captured 2026-04-19.
 
 ## Currently open (priority order)
 
@@ -65,6 +65,41 @@ Design notes preserved for the future implementation:
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+### 2026-05-19 — Fix L: UTC-internal Day/Sky chart X-axis (DST-correct labels)
+
+Follow-on to the named-TZ refactor. With DST-aware zones in place, the Day and
+Sky single-night charts surfaced a latent axis bug (observation id=b4d1, Oct 31
+2026 / PP): on a night crossing a DST transition the post-transition X-axis
+labels read 1 h ahead of real local clock.
+
+Root cause — two time frames mixed on the X-axis: per-minute data points
+positioned in "chart-clock" (wall-clock arithmetic from a local `chartStart`),
+while gradient sections / now-line / HD-overlay endpoints positioned in
+"real-local-clock" (`ConvertTimeFromUtc`). On a non-DST night the frames
+coincide so the bug was invisible. Separately, `ChartLayout.BuildDayWindow`
+computed `count` (per-minute sample count) from the wall-clock span, but the
+data is sampled at UTC instants — so a fall-back night was 60 samples short
+(true UTC span is 1 h longer than the wall-clock face) and the dawn gradient
+landed off-chart.
+
+Fix (commit `b17a074`): the Day/Sky X-axis is now fully **UTC-internal** — every
+plotted X is the OADate of a UTC instant; the axis Labeler (`AxisTimeLabel`) is
+the single seam that converts to the site wall clock via
+`TimeZoneInfo.ConvertTimeFromUtc`, DST rules evaluated per-instant. UTC is
+monotonic so the altitude curve stays smooth (no doubled-back curve, no data
+gap); a fall-back night naturally shows a duplicated "1:00 AM" tick and a
+spring-forward night skips "2:00 AM" — the correct, intended signal of the
+transition. `BuildDayWindow` gains an `EndUtc` tuple member and computes `count`
+from the UTC span via the new `LocalChartHourToUtc` helper (non-DST nights:
+identical `count` + `DayWindowKey`, no cache re-key). Day's HD-overlay window
+tuple, Day's hover tooltip (custom `curveTooltipFormatter`), and Sky's
+per-minute tooltip strings all moved into the UTC frame; Sky's K-S twilight gate
+was already UTC-vs-UTC and untouched. Year / Sessions charts (day-grained X
+axis) and the Library are untouched — the whole defect and fix live in TP
+display code. Plan archived at `~/.claude/plans/lets-plan-for-fix-linked-journal.md`.
+
+User-verified on fall-back / spring-forward / Mountain-zone nights.
 
 ### 2026-05-19 — Named-TZ refactor + settings.json collapse + persistence-fix sweep + UI logging detail
 
