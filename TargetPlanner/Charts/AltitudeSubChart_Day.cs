@@ -67,6 +67,15 @@ namespace TargetPlanner.Charts
         private readonly RectangularSection mNowLine;
         private readonly RectangularSection mHorizonLine;
 
+        // Site time zone for the current Render, captured so the X-axis Labeler
+        // (created once in the ctor) and the hover-tooltip formatter can convert
+        // a UTC-OADate axis value to real local clock. The X-axis is UTC-internal
+        // -- every plotted X is the OADate of a UTC instant -- and this zone is
+        // the single seam where UTC becomes a displayed wall-clock label, so DST
+        // transitions resolve correctly per-instant. Null before the first
+        // Render; consumers fall back to a raw (zone-blind) format then.
+        private TimeZoneInfo mAxisZone;
+
         // Per-target series keyed by Target. Series identity preserved across
         // renders; ObservableCollection mutation drives the reactive redraw.
         private readonly Dictionary<Target, LineSeries<ObservablePoint>> mSeriesByTarget
@@ -143,7 +152,14 @@ namespace TargetPlanner.Charts
         {
             mXAxis = new Axis
             {
-                Labeler = v => DateTime.FromOADate(v).ToString("h:mm tt"),
+                // The X-axis is UTC-internal: every plotted X is the OADate of a
+                // UTC instant. The Labeler is the single seam that converts back
+                // to the site's wall clock for display -- ConvertTimeFromUtc
+                // evaluates DST rules per-instant, so a fall-back night shows a
+                // duplicated hour label and a spring-forward night skips one.
+                // mAxisZone is null until the first Render; fall back to a
+                // zone-blind format for any Labeler call during early LC2 layout.
+                Labeler = AxisTimeLabel,
                 UnitWidth = TimeSpan.FromHours(1).TotalDays,
                 MinStep = TimeSpan.FromHours(1).TotalDays,
                 // ForceStepToMin disables LC2's adaptive label-skip density logic,
@@ -241,10 +257,16 @@ namespace TargetPlanner.Charts
                     ? ((double, double, double)?)w
                     : null,
                 _ => { });
+            // Custom curve tooltip so the hover time reads the site's wall clock.
+            // HoverTooltipController.DefaultInterpolatedTooltip formats hoverX
+            // (a UTC OADate, since the X axis is UTC-internal) zone-blind, which
+            // would be 1 h off after a DST transition; AxisTimeLabel does the
+            // ConvertTimeFromUtc the axis Labeler does.
             mHover = new HoverTooltipController(
                 mChart,
                 () => mSeriesByTarget.Values,
-                curveTooltipFormatter: null,
+                curveTooltipFormatter: (series, data, hoverX, hoverY, interpY, segmentStart) =>
+                    $"{series.Name}\n{AxisTimeLabel(hoverX)}\nAltitude: {interpY:F1}°",
                 debounceMs: 300);
 
             mChart.MouseDown += OnChartMouseDown;
@@ -345,13 +367,26 @@ namespace TargetPlanner.Charts
             mHorizonLine.Yj = horizon;
         }
 
-        // Update the red now-line position in place. X axis is location-zone
-        // time (chartStart/chartStop are TimeZoneInfo.ConvertTimeFromUtc'd),
-        // so convert via the same zone -- ToOADate ignores Kind and would
-        // otherwise plot UTC ticks raw.
+        // X-axis Labeler: the axis value is the OADate of a UTC instant; convert
+        // to the site's wall clock via mAxisZone. Null zone (pre-first-Render) ->
+        // raw zone-blind format. The interface contract for IAltitudeSubChart's
+        // time axis is now "UTC-internal, labels resolved via the site zone".
+        private string AxisTimeLabel(double v)
+        {
+            TimeZoneInfo zone = mAxisZone;
+            if (zone == null) return DateTime.FromOADate(v).ToString("h:mm tt");
+            DateTime utc = DateTime.SpecifyKind(DateTime.FromOADate(v), DateTimeKind.Utc);
+            return TimeZoneInfo.ConvertTimeFromUtc(utc, zone).ToString("h:mm tt");
+        }
+
+        // Update the red now-line position in place. The X axis is UTC-internal
+        // so the now instant (already UTC) plots as its own OADate directly --
+        // ToOADate ignores Kind. zone is unused here (the Labeler does the
+        // wall-clock conversion); kept for the IAltitudeSubChart signature.
         public void UpdateNowLine(DateTime now, TimeZoneInfo zone)
         {
-            double oa = TimeZoneInfo.ConvertTimeFromUtc(now, zone).ToOADate();
+            _ = zone;
+            double oa = now.ToOADate();
             mNowLine.Xi = oa;
             mNowLine.Xj = oa;
         }
@@ -391,25 +426,28 @@ namespace TargetPlanner.Charts
             }
 
             TimeZoneInfo zone = ctx.Observation.Zone;
+            mAxisZone = zone;
             var dayWindow = ChartLayout.BuildDayWindow(night, zone);
-            DateTime chartStart = dayWindow.ChartStart;
-            DateTime chartStop = dayWindow.ChartStop;
             DateTime startUtc = dayWindow.StartUtc;
+            DateTime endUtc = dayWindow.EndUtc;
             int count = dayWindow.Count;
             DayWindowKey dayKey = dayWindow.Key;
-            DateTime duskLocal = TimeZoneInfo.ConvertTimeFromUtc(night.AstronomicalDusk, zone);
-            DateTime dawnLocal = TimeZoneInfo.ConvertTimeFromUtc(night.AstronomicalDawn, zone);
 
             // Lock X axis to the night bounds so the HD overlay's null Y values
-            // can't trigger LC2's auto-zoom-to-non-null-span behavior. MinLimit
-            // / MaxLimit are nudged outward by ChartLayout.LabelEdgeEpsilonDays
-            // (1 ms) so LC2's Ceil-based first-tick math reliably places the
-            // edge tick at MinLimit's hour rather than occasionally rounding up
-            // by a full step and silently dropping the edge label.
-            mXAxis.MinLimit = chartStart.ToOADate() - ChartLayout.LabelEdgeEpsilonDays;
-            mXAxis.MaxLimit = chartStop.ToOADate() + ChartLayout.LabelEdgeEpsilonDays;
+            // can't trigger LC2's auto-zoom-to-non-null-span behavior. The axis
+            // is UTC-internal -- bounds are the OADate of the UTC start/end
+            // instants. MinLimit / MaxLimit are nudged outward by
+            // ChartLayout.LabelEdgeEpsilonDays (1 ms) so LC2's Ceil-based
+            // first-tick math reliably places the edge tick at MinLimit's hour
+            // rather than occasionally rounding up by a full step and silently
+            // dropping the edge label.
+            mXAxis.MinLimit = startUtc.ToOADate() - ChartLayout.LabelEdgeEpsilonDays;
+            mXAxis.MaxLimit = endUtc.ToOADate() + ChartLayout.LabelEdgeEpsilonDays;
 
-            UpdateGradientSections(chartStart, duskLocal, dawnLocal, chartStop);
+            // Gradient sections are UTC-anchored: dusk gradient spans
+            // [startUtc, AstronomicalDusk], dawn gradient [AstronomicalDawn, endUtc].
+            UpdateGradientSections(startUtc, night.AstronomicalDusk,
+                                   night.AstronomicalDawn, endUtc);
             UpdateNowLine(now, zone);
             // Green horizon line follows the scalar TargetFloor spinner, not the polyline's
             // minimum sample -- the polyline drives per-azimuth fit decisions in the cache.
@@ -436,7 +474,7 @@ namespace TargetPlanner.Charts
                 Log.Warn($"Day moon cache miss; inline fallback (dayKey.Count={count}, cached={moonAltitudes?.Count ?? -1})");
                 moonAltitudes = ComputeMoonAltitudesInline(location, startUtc, count);
             }
-            BuildOrUpdateMoonSeries(moonAltitudes, chartStart, count, night.LunarIlluminationFraction);
+            BuildOrUpdateMoonSeries(moonAltitudes, startUtc, count, night.LunarIlluminationFraction);
 
             // "Fit tonight only" filter for Day: targets without a D-hour window
             // tonight are excluded from mChart.Series and the legend entirely.
@@ -467,7 +505,7 @@ namespace TargetPlanner.Charts
                 IReadOnlyList<double> altitudes = dayEntry.AltitudesPerMinute;
 
                 var series = GetOrCreateTargetSeries(target, c);
-                FillTargetSeriesData(series, chartStart, count, altitudes);
+                FillTargetSeriesData(series, startUtc, count, altitudes);
 
                 // Tonight's fit lives on TargetFitEntry.Tonight (computed once at
                 // BuildFitEntryAsync time); we read Start/End/Floor straight off
@@ -480,9 +518,13 @@ namespace TargetPlanner.Charts
                 if (window is { } w)
                 {
                     ApplyTargetVisibility(series, c, true);
+                    // UTC-internal axis: window endpoints plot as their own UTC
+                    // OADate. OverlayController compares these bounds against the
+                    // per-minute data-point Xs (also UTC OADate), so the frames
+                    // match without any zone conversion here.
                     mTargetWindows[series] = (
-                        TimeZoneInfo.ConvertTimeFromUtc(w.startUtc, zone).ToOADate(),
-                        TimeZoneInfo.ConvertTimeFromUtc(w.endUtc, zone).ToOADate(),
+                        w.startUtc.ToOADate(),
+                        w.endUtc.ToOADate(),
                         w.floor);
                     seriesList.Add(series);
                     dbgWindowAdded++;
@@ -626,22 +668,24 @@ namespace TargetPlanner.Charts
 
         // Recreate gradient Fills sized to the actual dusk/dawn widths. LC2 caches
         // shaders per-Section; calling this every Render keeps the gradient correctly
-        // sized when the night window changes (Location / DateTime edits).
+        // sized when the night window changes (Location / DateTime edits). All four
+        // bounds are UTC instants (the X axis is UTC-internal); the gradient math
+        // is purely relative fractions so the frame doesn't matter here.
         private void UpdateGradientSections(
-            DateTime chartStart, DateTime duskLocal, DateTime dawnLocal, DateTime chartStop)
+            DateTime startUtc, DateTime duskUtc, DateTime dawnUtc, DateTime endUtc)
         {
-            mDuskSection.Xi = chartStart.ToOADate();
-            mDuskSection.Xj = duskLocal.ToOADate();
-            mDawnSection.Xi = dawnLocal.ToOADate();
-            mDawnSection.Xj = chartStop.ToOADate();
+            mDuskSection.Xi = startUtc.ToOADate();
+            mDuskSection.Xj = duskUtc.ToOADate();
+            mDawnSection.Xi = dawnUtc.ToOADate();
+            mDawnSection.Xj = endUtc.ToOADate();
 
             // SKPoint coords for RectangularSection.Fill gradients are normalized
             // to the chart's plot area (NOT the section's bounds). So a section
             // of width W out of total night width T gets gradient endpoints from
             // 0 to W/T (dusk: opaque-left → faded-right) or 1-W/T to 1 (dawn).
-            double total = (chartStop - chartStart).TotalMinutes;
-            float duskFrac = (float)((duskLocal - chartStart).TotalMinutes / total);
-            float dawnFrac = (float)((chartStop - dawnLocal).TotalMinutes / total);
+            double total = (endUtc - startUtc).TotalMinutes;
+            float duskFrac = (float)((duskUtc - startUtc).TotalMinutes / total);
+            float dawnFrac = (float)((endUtc - dawnUtc).TotalMinutes / total);
             mDuskSection.Fill = new LinearGradientPaint(
                 new[] { YellowOpaque, YellowFaded },
                 new SKPoint(0f, 0.5f),
@@ -656,15 +700,16 @@ namespace TargetPlanner.Charts
         {
             // LC2 caches the gradient shader at first paint; horizontal resize
             // would otherwise leave the dawn gradient progressively cut off.
-            // Re-assigning Fill forces a fresh shader resolve.
+            // Re-assigning Fill forces a fresh shader resolve. The section Xi/Xj
+            // round-trip is frame-consistent (UTC OADate in, UTC OADate out).
             if (!mDuskSection.Xi.HasValue || !mDuskSection.Xj.HasValue
                 || !mDawnSection.Xi.HasValue || !mDawnSection.Xj.HasValue) return;
             if (mDuskSection.Xi.Value == 0 && mDuskSection.Xj.Value == 0) return;  // pre-render
-            DateTime chartStart = DateTime.FromOADate(mDuskSection.Xi.Value);
-            DateTime duskLocal  = DateTime.FromOADate(mDuskSection.Xj.Value);
-            DateTime dawnLocal  = DateTime.FromOADate(mDawnSection.Xi.Value);
-            DateTime chartStop  = DateTime.FromOADate(mDawnSection.Xj.Value);
-            UpdateGradientSections(chartStart, duskLocal, dawnLocal, chartStop);
+            DateTime startUtc = DateTime.FromOADate(mDuskSection.Xi.Value);
+            DateTime duskUtc  = DateTime.FromOADate(mDuskSection.Xj.Value);
+            DateTime dawnUtc  = DateTime.FromOADate(mDawnSection.Xi.Value);
+            DateTime endUtc   = DateTime.FromOADate(mDawnSection.Xj.Value);
+            UpdateGradientSections(startUtc, duskUtc, dawnUtc, endUtc);
         }
 
         private void OnChartMouseDown(object sender, MouseEventArgs e)
@@ -700,7 +745,7 @@ namespace TargetPlanner.Charts
         // MainForm.RenderArea, not by anything in this series construction.
         private void BuildOrUpdateMoonSeries(
             IReadOnlyList<double> altitudes,
-            DateTime chartStart,
+            DateTime startUtc,
             int count,
             double lunarIllumination)
         {
@@ -716,8 +761,10 @@ namespace TargetPlanner.Charts
                 if (moonAlt < minAlt) minAlt = moonAlt;
                 if (moonAlt > maxAlt) maxAlt = moonAlt;
                 double? plotY = moonAlt < 0 ? (double?)null : moonAlt;
-                DateTime point = chartStart.AddMinutes(i);
-                data.Add(new ObservablePoint(point.ToOADate(), plotY));
+                // UTC-internal X axis: sample i is at startUtc + i minutes;
+                // plot it at that UTC instant's OADate.
+                DateTime pointUtc = startUtc.AddMinutes(i);
+                data.Add(new ObservablePoint(pointUtc.ToOADate(), plotY));
             }
 
             mMoonSeries = new LineSeries<ObservablePoint>
@@ -737,7 +784,7 @@ namespace TargetPlanner.Charts
                 Log.Diag("Day",
                     $"BuildMoon illum={lunarIllumination:F3} alpha={alpha} count={count} " +
                     $"aboveHorizon={aboveHorizon} minAlt={minAlt:F2} maxAlt={maxAlt:F2} " +
-                    $"chartStart={chartStart:yyyy-MM-dd HH:mm}");
+                    $"startUtc={startUtc:yyyy-MM-dd HH:mm}Z");
             }
         }
 
@@ -777,7 +824,7 @@ namespace TargetPlanner.Charts
 
         private static void FillTargetSeriesData(
             LineSeries<ObservablePoint> series,
-            DateTime chartStart,
+            DateTime startUtc,
             int count,
             IReadOnlyList<double> altitudes)
         {
@@ -791,7 +838,8 @@ namespace TargetPlanner.Charts
             {
                 double alt = altitudes[i];
                 double? plotY = alt < 0 ? (double?)null : alt;
-                var p = new ObservablePoint(chartStart.AddMinutes(i).ToOADate(), plotY);
+                // UTC-internal X axis: sample i is at startUtc + i minutes.
+                var p = new ObservablePoint(startUtc.AddMinutes(i).ToOADate(), plotY);
                 if (i < data.Count) data[i] = p;
                 else data.Add(p);
             }

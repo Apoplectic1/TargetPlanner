@@ -155,30 +155,58 @@ namespace TargetPlanner.Charts
         /// <summary>
         /// Convert a <see cref="NightWindow"/> to the Day chart's minute-spaced
         /// sampling window: rounded chart bounds in the location's
-        /// <paramref name="zone"/> + the UTC start + total minute count +
-        /// a cache key that uniquely identifies the resulting altitude curve.
-        /// The coordinator's pipeline and <c>AltitudeSubChart_Day.Render</c>
+        /// <paramref name="zone"/> + the UTC start/end instants + total minute
+        /// count + a cache key that uniquely identifies the resulting altitude
+        /// curve. The coordinator's pipeline and <c>AltitudeSubChart_Day.Render</c>
         /// both call this so the <see cref="DayWindowKey"/> they pass to the
         /// cache is guaranteed identical.
         /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <c>Count</c> is derived from the UTC span (<c>EndUtc - StartUtc</c>),
+        /// NOT the wall-clock span (<c>ChartStop - ChartStart</c>). On a night
+        /// that crosses a DST transition the two differ by 60 minutes -- a
+        /// fall-back night is one real hour longer than its wall-clock face
+        /// suggests, a spring-forward night one hour shorter. The Day/Sky charts
+        /// plot per-minute samples at UTC instants, so the UTC span is the
+        /// correct sample count; the wall-clock span would drop (or duplicate)
+        /// the transition hour. On non-DST nights the two spans are identical so
+        /// <c>Count</c> -- and therefore the <see cref="DayWindowKey"/> -- is
+        /// unchanged from the pre-DST-fix behaviour.
+        /// </para>
+        /// </remarks>
         public static (DayWindowKey Key, DateTime ChartStart, DateTime ChartStop,
-                       DateTime StartUtc, int Count)
+                       DateTime StartUtc, DateTime EndUtc, int Count)
             BuildDayWindow(NightWindow night, TimeZoneInfo zone)
         {
             DateTime duskLocal = TimeZoneInfo.ConvertTimeFromUtc(night.AstronomicalDusk, zone);
             DateTime dawnLocal = TimeZoneInfo.ConvertTimeFromUtc(night.AstronomicalDawn, zone);
             DateTime chartStart = DayChartStart(duskLocal);
             DateTime chartStop = DayChartStop(dawnLocal);
-            int totalMins = Convert.ToInt32(Math.Round((chartStop - chartStart).TotalMinutes));
-            int count = totalMins + 1;
-            DateTime startUtc = TimeZoneInfo.ConvertTimeToUtc(
-                DateTime.SpecifyKind(chartStart, DateTimeKind.Unspecified), zone);
+            DateTime startUtc = LocalChartHourToUtc(chartStart, zone);
+            DateTime endUtc = LocalChartHourToUtc(chartStop, zone);
+            int count = Convert.ToInt32(Math.Round((endUtc - startUtc).TotalMinutes)) + 1;
             DayWindowKey key = new DayWindowKey
             {
                 ChartStartUtcTicks = startUtc.Ticks,
                 Count = count,
             };
-            return (key, chartStart, chartStop, startUtc, count);
+            return (key, chartStart, chartStop, startUtc, endUtc, count);
+        }
+
+        // Convert a whole-hour local chart bound to its UTC instant. chartStart /
+        // chartStop are evening / morning hours, so in practice they never land
+        // inside the spring-forward gap (02:00-02:59 local) -- but ConvertTimeToUtc
+        // throws ArgumentException on an invalid local time, and BuildDayWindow is
+        // on the render hot path, so the IsInvalidTime nudge is cheap insurance.
+        // Fall-back ambiguous times do NOT throw (ConvertTimeToUtc resolves them
+        // deterministically to standard time), so no ambiguity guard is needed.
+        private static DateTime LocalChartHourToUtc(DateTime localHour, TimeZoneInfo zone)
+        {
+            DateTime unspec = DateTime.SpecifyKind(localHour, DateTimeKind.Unspecified);
+            if (zone.IsInvalidTime(unspec))
+                unspec = unspec.AddHours(1);
+            return TimeZoneInfo.ConvertTimeToUtc(unspec, zone);
         }
 
         // Look up <paramref name="target"/>'s color from <paramref name="colorMap"/>
