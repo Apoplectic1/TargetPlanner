@@ -13,23 +13,25 @@ using Target = Astronomy.Core.Targets.Target;
 namespace TargetPlanner
 {
     // Target-loading concern: every path that brings targets into the form --
-    // the three Load/Browse button handlers, the image-library / NINA-.json /
-    // type-detecting-browse orchestration, the never-throw pure-loader wrappers,
-    // the fallback folder pickers, and the post-load chart-cache warmup. Split
-    // out of MainForm.cs so the form file stays navigable; this is a partial-
-    // class file split rather than a Presenter-object extraction -- same
-    // rationale as SortPresenter / CoordinatePresenter: the methods orchestrate
-    // the VM, the cache, several controls and mAppSettings, and constructor-
-    // injecting all of that is more ceremony than the move is worth.
+    // the three Load/Browse button handlers, drag-and-drop onto the target list,
+    // the image-library / NINA-.json / type-detecting-browse orchestration, the
+    // never-throw pure-loader wrappers, the fallback folder pickers, and the
+    // post-load chart-cache warmup. Split out of MainForm.cs so the form file
+    // stays navigable; this is a partial-class file split rather than a
+    // Presenter-object extraction -- same rationale as SortPresenter /
+    // CoordinatePresenter: the methods orchestrate the VM, the cache, several
+    // controls and mAppSettings, and constructor-injecting all of that is more
+    // ceremony than the move is worth.
     //
     // Entry points: startup calls GetImageLibraryTargets(offerFallbackBrowse:
     // false) from InitializeDynamicControls; the three Button_*_Click handlers
-    // are Designer-wired.
+    // are Designer-wired; the target-list drag-drop events are wired in
+    // InitializeDynamicControls.
     public partial class MainForm
     {
-        // Root folder the NINA target loader walks at startup and the Browse-Target-List
-        // dialog opens to. Sourced from mAppSettings.NinaTargetsRoot (settings.json),
-        // seeded from PersonalDefaults on first run. User can edit via Defaults > Edit.
+        // Root folder the "Load NINA Sequencer Targets" button (GetJsonTargets)
+        // walks. Sourced from mAppSettings.NinaTargetsRoot (settings.json), seeded
+        // from PersonalDefaults on first run. User can edit via Defaults > Edit.
         private string NinaTargetsRootPath => mAppSettings?.NinaTargetsRoot;
 
         // Root folder the image-library scanner walks on "Load Image Library".
@@ -343,8 +345,8 @@ namespace TargetPlanner
         // Graph clicks find caches already built. Fire-and-forget; a re-load just
         // starts a new warmup over the same target set -- the cache de-dupes per
         // target so already-built entries are no-ops. Errors are swallowed: this
-        // is best-effort warmup, not load-bearing. Shared by both target-load
-        // paths (NINA .json via GetNinaTargets + image library).
+        // is best-effort warmup, not load-bearing. Shared by every target-load
+        // path -- image library, NINA, Browse, and drag-drop.
         //
         // Two phases: PrepareManyAsync builds the per-target yearDays, then
         // PrepareFitsAsync builds per-(target, HdmKey) fits against the current
