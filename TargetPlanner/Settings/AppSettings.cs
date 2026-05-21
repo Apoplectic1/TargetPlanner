@@ -29,5 +29,10 @@ namespace TargetPlanner.Settings
         // JSONs. Null on a stale settings.json predating this field; Pattern C
         // fills from PersonalDefaults on load.
         public string NinaTargetsRoot { get; set; }
+
+        // Filesystem root the image-library scanner walks on "Load Image
+        // Library". Null on a stale settings.json predating this field; Pattern C
+        // fills from PersonalDefaults on load.
+        public string ImageLibraryRoot { get; set; }
     }
 }

@@ -70,6 +70,11 @@ namespace TargetPlanner
         // seeded from PersonalDefaults on first run. User can edit via Defaults > Edit.
         private string NinaTargetsRootPath => mAppSettings?.NinaTargetsRoot;
 
+        // Root folder the image-library scanner walks on "Load Image Library".
+        // Sourced from mAppSettings.ImageLibraryRoot (settings.json), seeded from
+        // PersonalDefaults on first run. User can edit via Defaults > Edit.
+        private string ImageLibraryRootPath => mAppSettings?.ImageLibraryRoot;
+
         // Active chart-area state (post-PR4e: legacy AltitudeChart deleted; this state
         // used to live on it). MainForm owns:
         //   - mSubCharts: keyed by area ("Day"/"Sky"/"Year"/"Sessions"), each value
@@ -1958,6 +1963,15 @@ is preserved.";
             }
         }
 
+        private void Button_LoadImageLibrary_Click(object sender, EventArgs e)
+        {
+            Log.Diag("UI", "Button_LoadImageLibrary.Click");
+            // No folder picker -- the image library is one fixed location; the
+            // load always scans the configured ImageLibraryRoot (edit it via
+            // Defaults > Edit settings.json).
+            _ = GetImageLibraryTargets();
+        }
+
         private async Task GetNinaTargets(string[] folderSelectedPaths)
         {
             // The previous KnownTargets is replaced wholesale at the end of this method
@@ -2027,18 +2041,63 @@ is preserved.";
             // PopulateCheckedListBoxFromTargets, which read the new VM state.
             mSelection.SetKnownTargets(allLoaded);
 
-            // Phase 3: kick off background pre-population of the chart cache so subsequent
-            // Graph clicks find caches already built. Fire-and-forget; a re-Browse just
-            // starts a new warmup over the same (and possibly larger) target set -- the
-            // cache de-dupes per target so already-built entries are no-ops. Errors
-            // swallowed -- this is a best-effort warmup, not load-bearing.
-            //
-            // Two phases of warmup: PrepareManyAsync builds the per-target yearDays
-            // (~1-2 sec for 44 targets); PrepareFitsAsync builds per-(target, HdmKey)
-            // fits against the current H/D/M (~few sec). Both run in the same Task.Run
-            // so the second phase awaits the first naturally; the user's first
-            // Sessions / Year click hits a warm cache and renders instantly.
-            ChartContext warmupCtx = SnapshotCurrent(allLoaded);
+            // Warm the chart cache so the user's first Sessions / Year click hits
+            // built entries. Best-effort, fire-and-forget -- see StartCacheWarmup.
+            StartCacheWarmup(allLoaded);
+        }
+
+        private async Task GetImageLibraryTargets()
+        {
+            // Image-library lens (see Phase C plan): scan the user's .xisf
+            // library via Astronomy.NINA's ImageLibraryScanner, replace the
+            // known-target set wholesale, warm the cache. Unlike GetNinaTargets
+            // this does NOT append mLocalTargets -- an image-library load is a
+            // clean full replace, not additive.
+            List<Target> loaded;
+            UseWaitCursor = true;
+            try
+            {
+                loaded = await TargetPlanner.ImageLibrary.ImageLibraryLoader.LoadAsync(
+                    ImageLibraryRootPath, mFormClosingCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                return;  // form closing mid-scan; expected
+            }
+            catch (Exception ex)
+            {
+                Log.Error("GetImageLibraryTargets failed", ex);
+                MessageBox.Show(ex.Message, "Image library load failed",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            finally
+            {
+                UseWaitCursor = false;
+            }
+
+            // Push the new known-target list to the VM. KnownTargetsChanged fires
+            // once; OnVmKnownTargetsChanged repopulates ComboBox_SelectTarget +
+            // CheckedListBox_SelectedTargets, colors and dupe-sets -- the same
+            // source-agnostic refresh path the NINA load uses.
+            mSelection.SetKnownTargets(loaded);
+            StartCacheWarmup(loaded);
+        }
+
+        // Kicks off background pre-population of the chart cache so subsequent
+        // Graph clicks find caches already built. Fire-and-forget; a re-load just
+        // starts a new warmup over the same target set -- the cache de-dupes per
+        // target so already-built entries are no-ops. Errors are swallowed: this
+        // is best-effort warmup, not load-bearing. Shared by both target-load
+        // paths (NINA .json via GetNinaTargets + image library).
+        //
+        // Two phases: PrepareManyAsync builds the per-target yearDays, then
+        // PrepareFitsAsync builds per-(target, HdmKey) fits against the current
+        // H/D/M. Both run in one Task.Run so the second awaits the first; the
+        // user's first Sessions / Year click hits a warm cache.
+        private void StartCacheWarmup(List<Target> targets)
+        {
+            ChartContext warmupCtx = SnapshotCurrent(targets);
             HdmKey hdm = warmupCtx.Hdm;
             CancellationToken formCt = mFormClosingCts.Token;
             _ = Task.Run(async () =>
@@ -2063,8 +2122,8 @@ is preserved.";
 
                 async Task WarmupAsync()
                 {
-                    await mCache.PrepareManyAsync(allLoaded);
-                    await mCache.PrepareFitsAsync(allLoaded, hdm);
+                    await mCache.PrepareManyAsync(targets);
+                    await mCache.PrepareFitsAsync(targets, hdm);
                 }
             });
         }

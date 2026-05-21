@@ -115,6 +115,7 @@
             ComboBox_SortTargets = new System.Windows.Forms.ComboBox();
             CheckedListBox_SelectedTargets = new TargetPlanner.Forms.DupeAwareCheckedListBox();
             Button_BrowseTargetList = new System.Windows.Forms.Button();
+            Button_LoadImageLibrary = new System.Windows.Forms.Button();
             GroupBox_Target = new System.Windows.Forms.GroupBox();
             Button_RemoveTarget = new System.Windows.Forms.Button();
             Button_AddTarget = new System.Windows.Forms.Button();
@@ -1169,6 +1170,17 @@
             Button_BrowseTargetList.Text = "Browse";
             Button_BrowseTargetList.UseVisualStyleBackColor = true;
             Button_BrowseTargetList.Click += Button_BrowseTargetList_Click;
+            //
+            // Button_LoadImageLibrary
+            //
+            Button_LoadImageLibrary.Location = new System.Drawing.Point(26, 55);
+            Button_LoadImageLibrary.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            Button_LoadImageLibrary.Name = "Button_LoadImageLibrary";
+            Button_LoadImageLibrary.Size = new System.Drawing.Size(140, 27);
+            Button_LoadImageLibrary.TabIndex = 1;
+            Button_LoadImageLibrary.Text = "Load Image Library";
+            Button_LoadImageLibrary.UseVisualStyleBackColor = true;
+            Button_LoadImageLibrary.Click += Button_LoadImageLibrary_Click;
             // 
             // GroupBox_Target
             // 
@@ -1196,6 +1208,7 @@
             GroupBox_Target.Controls.Add(NumericUpDown_RaSeconds);
             GroupBox_Target.Controls.Add(TextBox_RightAscension);
             GroupBox_Target.Controls.Add(Button_BrowseTargetList);
+            GroupBox_Target.Controls.Add(Button_LoadImageLibrary);
             GroupBox_Target.Controls.Add(Label_LocalHorizon);
             GroupBox_Target.Controls.Add(NumericUpDown_RaHours);
             GroupBox_Target.Controls.Add(Button_SelectAllTargets);
@@ -1612,6 +1625,7 @@
         private System.Windows.Forms.Label Label_Location;
         private System.Windows.Forms.ComboBox ComboBox_Location;
         private System.Windows.Forms.Button Button_BrowseTargetList;
+        private System.Windows.Forms.Button Button_LoadImageLibrary;
         private TargetPlanner.Forms.DupeAwareCheckedListBox CheckedListBox_SelectedTargets;
         private System.Windows.Forms.ComboBox ComboBox_SortTargets;
         private System.Windows.Forms.Label Label_SortBy;

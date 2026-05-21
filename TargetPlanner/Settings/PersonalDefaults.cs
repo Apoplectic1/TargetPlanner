@@ -30,6 +30,7 @@ namespace TargetPlanner.Settings
                 Version                  = AppSettings.CurrentVersion,
                 LastSelectedLocationName = "Penns Park",
                 NinaTargetsRoot          = @"E:\Photography\Astro Photography\Captures\Nina\Targets",
+                ImageLibraryRoot         = @"E:\Photography\Astro Photography\Processing",
                 NamedLocations           = new List<NamedSite>
                 {
                     new NamedSite

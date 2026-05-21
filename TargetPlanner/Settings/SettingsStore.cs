@@ -52,6 +52,8 @@ namespace TargetPlanner.Settings
                     AppSettings seed = PersonalDefaults.BuildSeedSettings();
                     if (string.IsNullOrEmpty(settings.NinaTargetsRoot))
                         settings.NinaTargetsRoot = seed.NinaTargetsRoot;
+                    if (string.IsNullOrEmpty(settings.ImageLibraryRoot))
+                        settings.ImageLibraryRoot = seed.ImageLibraryRoot;
                     if (settings.NamedLocations == null || settings.NamedLocations.Count == 0)
                         settings.NamedLocations = seed.NamedLocations;
                     else
