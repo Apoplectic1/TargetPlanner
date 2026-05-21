@@ -739,7 +739,7 @@ is preserved.";
                     RefreshAstrometryLabels();
                     foreach (var sc in mSubCharts.Values)
                     {
-                        sc.UpdateNowLine(ctx.Observation.Utc, ctx.Observation.Zone);
+                        sc.UpdateNowLine(ctx.Observation.Utc);
                         // Horizon line tracks the user's TargetFloor spinner -- a UI
                         // affordance for the scalar knob, not the LocalHorizon polyline
                         // (which can dip below the floor and drive per-azimuth fit
@@ -1301,7 +1301,7 @@ is preserved.";
             // post-apply hook re-runs UpdateNowLine on settle (cheap; just shifts a
             // section's X position).
             if (mSubCharts != null)
-                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mObservation.Utc, mObservation.Zone);
+                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mObservation.Utc);
             // Transit / Rise sort keys are time-dependent; Name is not. Skip the re-sort on
             // Name to avoid a pointless Items.Clear+re-add round-trip on every scrub tick.
             if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
@@ -1319,7 +1319,7 @@ is preserved.";
             Log.Diag("UI", $"TimePicker.ValueChanged value={TimePicker.Value:HH:mm}");
             UpdateLocalDateTimeEvents();
             if (mSubCharts != null)
-                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mObservation.Utc, mObservation.Zone);
+                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mObservation.Utc);
             if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
                 ResortSelectedTargets();
             mCoordinator?.Apply(SnapshotCurrent());
@@ -1637,7 +1637,7 @@ is preserved.";
             UpdateLocalDateTimeEvents();
 
             if (mSubCharts != null)
-                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mObservation.Utc, mObservation.Zone);
+                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mObservation.Utc);
 
             mCoordinator?.Apply(SnapshotCurrent());
         }

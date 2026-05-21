@@ -381,12 +381,10 @@ namespace TargetPlanner.Charts
 
         // Update the red now-line position in place. The X axis is UTC-internal
         // so the now instant (already UTC) plots as its own OADate directly --
-        // ToOADate ignores Kind. zone is unused here (the Labeler does the
-        // wall-clock conversion); kept for the IAltitudeSubChart signature.
-        public void UpdateNowLine(DateTime now, TimeZoneInfo zone)
+        // ToOADate ignores Kind.
+        public void UpdateNowLine(DateTime nowUtc)
         {
-            _ = zone;
-            double oa = now.ToOADate();
+            double oa = nowUtc.ToOADate();
             mNowLine.Xi = oa;
             mNowLine.Xj = oa;
         }
@@ -448,7 +446,7 @@ namespace TargetPlanner.Charts
             // [startUtc, AstronomicalDusk], dawn gradient [AstronomicalDawn, endUtc].
             UpdateGradientSections(startUtc, night.AstronomicalDusk,
                                    night.AstronomicalDawn, endUtc);
-            UpdateNowLine(now, zone);
+            UpdateNowLine(now);
             // Green horizon line follows the scalar TargetFloor spinner, not the polyline's
             // minimum sample -- the polyline drives per-azimuth fit decisions in the cache.
             UpdateHorizonLine(horizonFloor);

@@ -214,12 +214,12 @@ namespace TargetPlanner.Charts
             mHorizonLine.Yj = horizon;
         }
 
-        // X axis is location-zone time, so convert -- ToOADate ignores Kind
-        // and would otherwise plot UTC ticks raw (sub-day shift, invisible at
-        // year scale but consistent with Day/Sky).
-        public void UpdateNowLine(DateTime now, TimeZoneInfo zone)
+        // Update the red now-line position in place. The X axis is UTC-internal
+        // -- per-night points plot at SentinelX (a UTC instant) ToOADate -- so
+        // the now instant (already UTC) plots as its own OADate directly.
+        public void UpdateNowLine(DateTime nowUtc)
         {
-            double oa = TimeZoneInfo.ConvertTimeFromUtc(now, zone).ToOADate();
+            double oa = nowUtc.ToOADate();
             mNowLine.Xi = oa;
             mNowLine.Xj = oa;
         }
@@ -274,7 +274,7 @@ namespace TargetPlanner.Charts
             HdmKey hdm = ctx.Hdm;
 
             UpdateHorizonLine(horizonAlt);
-            UpdateNowLine(now, ctx.Observation.Zone);
+            UpdateNowLine(now);
 
             mLastCtx = ctx;
             mLastCache = cache;
