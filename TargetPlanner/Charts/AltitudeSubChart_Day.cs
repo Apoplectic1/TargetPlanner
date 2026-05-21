@@ -52,7 +52,7 @@ namespace TargetPlanner.Charts
         public Control Control { get; }
         private readonly Panel mContainer;
         private readonly CartesianChart mChart;
-        private readonly FlowLayoutPanel mLegendPanel;
+        private readonly ChartLegendPanel mLegend;
 
         // Chart-furniture state preserved across Render calls. Sections /
         // Axes objects are mutated in place; only Series can be re-listed.
@@ -124,24 +124,15 @@ namespace TargetPlanner.Charts
         // + refresh; different dayKey = altitude about to be replaced = wipe.
         private DayWindowKey mLastDayKey;
 
-        // Cached IdealHeight from the last layout pass; used to detect changes so
-        // the IdealHeightChanged event only fires when the form actually needs to
-        // resize.
-        private int mLastIdealHeight = -1;
-
         // Raised when the chart's IdealHeight changes (legend wrap count moved).
         // MainForm subscribes and resizes Panel_AltitudeChart + GroupBox_Altitude +
         // Form by the delta so the plot area stays in a fixed pixel position
-        // regardless of target count.
+        // regardless of target count. Forwarded from mLegend (wired in the ctor).
         public event EventHandler IdealHeightChanged;
 
-        // Total Container height = fixed chart height + the FlowLayoutPanel's
-        // preferred height for its current legend items. Legend panel grows in
-        // height as targets are added (FlowLayoutPanel auto-wraps).
-        // With FlowLayoutPanel.Dock=Top + AutoSize=true, the panel's Height
-        // auto-tracks its content after each layout pass. Container.IdealHeight
-        // is just chart fixed height + that current Height.
-        public int IdealHeight => ChartLayout.ChartFixedHeight + mLegendPanel.Height;
+        // Fixed chart height + the legend's current wrapped height -- owned by
+        // ChartLegendPanel.
+        public int IdealHeight => mLegend.IdealHeight;
 
         public AltitudeSubChart_Day()
         {
@@ -185,18 +176,8 @@ namespace TargetPlanner.Charts
                 ChartLayout.LeftChromePx, ChartLayout.TopChromePx,
                 ChartLayout.RightChromePx, ChartLayout.XAxisLabelHeightPx);
 
-            mLegendPanel = new FlowLayoutPanel
-            {
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = true,
-                AutoSize = true,
-                AutoSizeMode = AutoSizeMode.GrowAndShrink,
-                Dock = DockStyle.Top,
-                BackColor = ChartLayout.ChartBackground,
-                Padding = new Padding(
-                    ChartLayout.LeftChromePx, ChartLayout.LegendTopPaddingPx,
-                    ChartLayout.RightChromePx, ChartLayout.LegendBottomPaddingPx),
-            };
+            mLegend = new ChartLegendPanel(mChart);
+            mLegend.IdealHeightChanged += (s, e) => IdealHeightChanged?.Invoke(this, EventArgs.Empty);
 
             mContainer = new Panel
             {
@@ -206,7 +187,7 @@ namespace TargetPlanner.Charts
             // Order matters for Dock=Top stacking: the LAST control added docks
             // FIRST. Add legend first (lower z-order), then chart (higher z-order)
             // so chart claims the top region and legend docks below it.
-            mContainer.Controls.Add(mLegendPanel);
+            mContainer.Controls.Add(mLegend.Panel);
             mContainer.Controls.Add(mChart);
             Control = mContainer;
 
@@ -517,81 +498,28 @@ namespace TargetPlanner.Charts
             mOverlay.RefreshActiveOverlays();
             if (mOverlay.IsGlobalMode) mOverlay.EnsureGlobalApplied();
             mLastDayKey = dayKey;
-
-            RecomputeLayout();
         }
 
-        // Rebuild the external legend FlowLayoutPanel from the current target
-        // series collection. Each item is a small Panel with a color marker +
-        // target-name Label; click toggles the corresponding LineSeries.IsVisible.
-        // FlowLayoutPanel auto-wraps to multiple rows as the legend grows.
-        //
+        // Rebuild the external legend from the current target series.
         // "Fit tonight only" filter: targets without an entry in mTargetWindows
-        // (no D-hour window fits tonight under current H/D/M) are excluded from
-        // the legend entirely. Mirrors the mChart.Series filtering in Render --
+        // (no D-hour window fits tonight under current H/D/M) are excluded, so
         // the chart and the legend agree on what's visible tonight, independent
         // of which boxes are checked in CheckedListBox_SelectedTargets.
         private void BuildLegendItems()
         {
-            mLegendPanel.SuspendLayout();
-            mLegendPanel.Controls.Clear();
+            var entries = new List<ChartLegendPanel.LegendEntry>();
             foreach (var kv in mSeriesByTarget)
             {
                 Target target = kv.Key;
                 LineSeries<ObservablePoint> series = kv.Value;
                 if (!mTargetWindows.ContainsKey(series)) continue;
                 Color color = mTargetColors.TryGetValue(target, out var c) ? c : Color.LightGray;
-                mLegendPanel.Controls.Add(MakeLegendItem(series, target, color));
+                entries.Add(new ChartLegendPanel.LegendEntry(
+                    target.Name, color,
+                    () => series.IsVisible,
+                    () => series.IsVisible = !series.IsVisible));
             }
-            mLegendPanel.ResumeLayout(performLayout: true);
-        }
-
-        private Control MakeLegendItem(
-            LineSeries<ObservablePoint> series, Target target, Color color)
-        {
-            const int markerWidth = 18;
-            const int markerHeight = 4;
-            const int markerLabelGap = 6;
-
-            var label = new Label
-            {
-                AutoSize = true,
-                ForeColor = Color.LightGray,
-                BackColor = ChartLayout.ChartBackground,
-                Padding = new Padding(markerWidth + markerLabelGap, 2, 12, 2),
-                Margin = new Padding(0, 0, 4, 2),
-                Text = target.Name,
-                Cursor = Cursors.Hand,
-            };
-            label.Paint += (s, e) =>
-            {
-                int y = (label.Height - markerHeight) / 2;
-                using (var brush = new SolidBrush(color))
-                {
-                    e.Graphics.FillRectangle(brush, 0, y, markerWidth, markerHeight);
-                }
-            };
-            label.Click += (s, e) =>
-            {
-                series.IsVisible = !series.IsVisible;
-                label.ForeColor = series.IsVisible ? Color.LightGray : Color.DimGray;
-                // Reassigning Series forces LC2 to re-iterate and re-evaluate
-                // IsVisible. Plain Invalidate() repaints the cached layout but
-                // doesn't pick up IsVisible changes on existing series.
-                mChart.Series = mChart.Series.ToList();
-                mChart.Invalidate();
-            };
-            return label;
-        }
-
-        private void RecomputeLayout()
-        {
-            int idealHeight = IdealHeight;
-            if (idealHeight != mLastIdealHeight)
-            {
-                mLastIdealHeight = idealHeight;
-                IdealHeightChanged?.Invoke(this, EventArgs.Empty);
-            }
+            mLegend.SetItems(entries);
         }
 
         // Hide via fully-transparent stroke (zero alpha) when no D-hour window fits
@@ -613,7 +541,7 @@ namespace TargetPlanner.Charts
             mSeriesByTarget.Clear();
             mMoonSeries = null;
             mChart.Series = Array.Empty<ISeries>();
-            mLegendPanel.Controls.Clear();
+            mLegend.Clear();
         }
 
         private void OnChartMouseDown(object sender, MouseEventArgs e)

@@ -54,7 +54,7 @@ namespace TargetPlanner.Charts
         public Control Control { get; }
         private readonly Panel mContainer;
         private readonly CartesianChart mChart;
-        private readonly FlowLayoutPanel mLegendPanel;
+        private readonly ChartLegendPanel mLegend;
 
         private readonly Axis mXAxis;
         private readonly Axis mYAxis;
@@ -90,10 +90,9 @@ namespace TargetPlanner.Charts
 
         private readonly HoverTooltipController mHover;
 
-        private int mLastIdealHeight = -1;
         public event EventHandler IdealHeightChanged;
 
-        public int IdealHeight => ChartLayout.ChartFixedHeight + mLegendPanel.Height;
+        public int IdealHeight => mLegend.IdealHeight;
 
         public AltitudeSubChart_Year()
         {
@@ -134,25 +133,15 @@ namespace TargetPlanner.Charts
                 ChartLayout.LeftChromePx, ChartLayout.TopChromePx,
                 ChartLayout.RightChromePx, ChartLayout.XAxisLabelHeightPx);
 
-            mLegendPanel = new FlowLayoutPanel
-            {
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = true,
-                AutoSize = true,
-                AutoSizeMode = AutoSizeMode.GrowAndShrink,
-                Dock = DockStyle.Top,
-                BackColor = ChartLayout.ChartBackground,
-                Padding = new Padding(
-                    ChartLayout.LeftChromePx, ChartLayout.LegendTopPaddingPx,
-                    ChartLayout.RightChromePx, ChartLayout.LegendBottomPaddingPx),
-            };
+            mLegend = new ChartLegendPanel(mChart);
+            mLegend.IdealHeightChanged += (s, e) => IdealHeightChanged?.Invoke(this, EventArgs.Empty);
 
             mContainer = new Panel
             {
                 BackColor = ChartLayout.ChartBackground,
                 Dock = DockStyle.Fill,
             };
-            mContainer.Controls.Add(mLegendPanel);
+            mContainer.Controls.Add(mLegend.Panel);
             mContainer.Controls.Add(mChart);
             Control = mContainer;
 
@@ -315,8 +304,6 @@ namespace TargetPlanner.Charts
             }
             mChart.Series = seriesList;
             BuildLegendItems();
-
-            RecomputeLayout();
         }
 
         // Apply per-night Floor altitudes from the cached NightFit array to the
@@ -360,63 +347,23 @@ namespace TargetPlanner.Charts
             };
         }
 
+        // Rebuild the external legend from the current target series. Year
+        // shows every target (no fit filter -- the year sweep is informative
+        // for all of them).
         private void BuildLegendItems()
         {
-            mLegendPanel.SuspendLayout();
-            mLegendPanel.Controls.Clear();
+            var entries = new List<ChartLegendPanel.LegendEntry>();
             foreach (var kv in mSeriesByTarget)
             {
                 Target target = kv.Key;
                 LineSeries<ObservablePoint> series = kv.Value;
                 Color color = mTargetColors.TryGetValue(target, out var c) ? c : Color.LightGray;
-                mLegendPanel.Controls.Add(MakeLegendItem(series, target, color));
+                entries.Add(new ChartLegendPanel.LegendEntry(
+                    target.Name, color,
+                    () => series.IsVisible,
+                    () => series.IsVisible = !series.IsVisible));
             }
-            mLegendPanel.ResumeLayout(performLayout: true);
-        }
-
-        private Control MakeLegendItem(
-            LineSeries<ObservablePoint> series, Target target, Color color)
-        {
-            const int markerWidth = 18;
-            const int markerHeight = 4;
-            const int markerLabelGap = 6;
-
-            var label = new Label
-            {
-                AutoSize = true,
-                ForeColor = series.IsVisible ? Color.LightGray : Color.DimGray,
-                BackColor = ChartLayout.ChartBackground,
-                Padding = new Padding(markerWidth + markerLabelGap, 2, 12, 2),
-                Margin = new Padding(0, 0, 4, 2),
-                Text = target.Name,
-                Cursor = Cursors.Hand,
-            };
-            label.Paint += (s, e) =>
-            {
-                int y = (label.Height - markerHeight) / 2;
-                using (var brush = new SolidBrush(color))
-                {
-                    e.Graphics.FillRectangle(brush, 0, y, markerWidth, markerHeight);
-                }
-            };
-            label.Click += (s, e) =>
-            {
-                series.IsVisible = !series.IsVisible;
-                label.ForeColor = series.IsVisible ? Color.LightGray : Color.DimGray;
-                mChart.Series = mChart.Series.ToList();
-                mChart.Invalidate();
-            };
-            return label;
-        }
-
-        private void RecomputeLayout()
-        {
-            int idealHeight = IdealHeight;
-            if (idealHeight != mLastIdealHeight)
-            {
-                mLastIdealHeight = idealHeight;
-                IdealHeightChanged?.Invoke(this, EventArgs.Empty);
-            }
+            mLegend.SetItems(entries);
         }
 
         public void Dispose()
