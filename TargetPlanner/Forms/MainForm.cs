@@ -578,8 +578,6 @@ is preserved.";
 
         public void InitializeDynamicControls()
         {
-            string[] folderSelectedPaths = { NinaTargetsRootPath };
-
             // Wire the dupe-set tint callback. The DupeAwareCheckedListBox owns
             // the paint path (CheckedListBox swallows the standard DrawItem event),
             // so we expose the dupe-color lookup as a Func and the listbox calls
@@ -774,8 +772,9 @@ is preserved.";
                 ComboBox_SortTargets.SelectedIndex = 0;
             }
 
-            // Fire-and-forget; GetNinaTargets owns its own try/catch for diagnostics.
-            _ = GetNinaTargets(folderSelectedPaths);
+            // Fire-and-forget. Startup auto-loads the image library (no fallback
+            // browse, no dialog -- a missing/empty root just logs and boots empty).
+            _ = GetImageLibraryTargets(offerFallbackBrowse: false);
 
             // Wire VM bindings after the CoordinateInput helpers and the sub-chart dict exist.
             // The ComboBox starts blank; OnVmKnownTargetsChanged populates it after NINA
@@ -1966,10 +1965,17 @@ is preserved.";
         private void Button_LoadImageLibrary_Click(object sender, EventArgs e)
         {
             Log.Diag("UI", "Button_LoadImageLibrary.Click");
-            // No folder picker -- the image library is one fixed location; the
-            // load always scans the configured ImageLibraryRoot (edit it via
-            // Defaults > Edit settings.json).
-            _ = GetImageLibraryTargets();
+            // Scans the configured ImageLibraryRoot; if it yields nothing, falls
+            // back to a folder browse whose result is persisted as the new root.
+            _ = GetImageLibraryTargets(offerFallbackBrowse: true);
+        }
+
+        private void Button_LoadJsonTargets_Click(object sender, EventArgs e)
+        {
+            Log.Diag("UI", "Button_LoadJsonTargets.Click");
+            // Scans the configured NinaTargetsRoot; same fallback-browse-and-persist
+            // behavior as the image-library button.
+            _ = GetJsonTargets(offerFallbackBrowse: true);
         }
 
         private async Task GetNinaTargets(string[] folderSelectedPaths)
@@ -2046,42 +2052,133 @@ is preserved.";
             StartCacheWarmup(allLoaded);
         }
 
-        private async Task GetImageLibraryTargets()
+        // Loads targets from the image library and replaces the known-target set.
+        // offerFallbackBrowse=false on startup (a missing/empty/failed root logs
+        // and boots empty); =true for the button press (fall back to a folder
+        // browse whose result is persisted as the new ImageLibraryRoot).
+        private async Task GetImageLibraryTargets(bool offerFallbackBrowse)
         {
-            // Image-library lens (see Phase C plan): scan the user's .xisf
-            // library via Astronomy.NINA's ImageLibraryScanner, replace the
-            // known-target set wholesale, warm the cache. Unlike GetNinaTargets
-            // this does NOT append mLocalTargets -- an image-library load is a
-            // clean full replace, not additive.
-            List<Target> loaded;
+            Log.Diag("UI", $"GetImageLibraryTargets offerFallback={offerFallbackBrowse}");
             UseWaitCursor = true;
             try
             {
-                loaded = await TargetPlanner.ImageLibrary.ImageLibraryLoader.LoadAsync(
-                    ImageLibraryRootPath, mFormClosingCts.Token);
+                List<Target> loaded = await LoadImageLibraryAsync(ImageLibraryRootPath);
+                if (loaded.Count == 0 && offerFallbackBrowse)
+                {
+                    string picked = PromptForFolder(
+                        "Image library not found -- locate your image-library folder",
+                        ImageLibraryRootPath);
+                    if (!string.IsNullOrEmpty(picked))
+                    {
+                        loaded = await LoadImageLibraryAsync(picked);
+                        if (loaded.Count > 0)
+                        {
+                            mAppSettings.ImageLibraryRoot = picked;
+                            SettingsStore.Save(mAppSettings);
+                        }
+                    }
+                }
+                mSelection.SetKnownTargets(loaded);
+                StartCacheWarmup(loaded);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) { /* form closing mid-scan; expected */ }
+            catch (Exception ex) { Log.Error("GetImageLibraryTargets failed", ex); }
+            finally { UseWaitCursor = false; }
+        }
+
+        // Image-library scan that never throws (cancellation aside): returns an
+        // empty list, logged, when the root is unset/missing or the scan fails.
+        private async Task<List<Target>> LoadImageLibraryAsync(string root)
+        {
+            if (string.IsNullOrWhiteSpace(root))
             {
-                return;  // form closing mid-scan; expected
+                Log.Warn("LoadImageLibraryAsync: image library root is not set.");
+                return new List<Target>();
+            }
+            try
+            {
+                return await TargetPlanner.ImageLibrary.ImageLibraryLoader.LoadAsync(
+                    root, mFormClosingCts.Token);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Log.Error($"Image library scan failed at '{root}'", ex);
+                return new List<Target>();
+            }
+        }
+
+        // Loads NINA .json targets from NinaTargetsRoot and replaces the known-
+        // target set -- the NINA-lens counterpart of GetImageLibraryTargets.
+        // offerFallbackBrowse falls back to a folder browse whose result is
+        // persisted as the new NinaTargetsRoot. Always a button action.
+        private async Task GetJsonTargets(bool offerFallbackBrowse)
+        {
+            Log.Diag("UI", $"GetJsonTargets offerFallback={offerFallbackBrowse}");
+            UseWaitCursor = true;
+            try
+            {
+                List<Target> loaded = await LoadNinaTargetsAsync(NinaTargetsRootPath);
+                if (loaded.Count == 0 && offerFallbackBrowse)
+                {
+                    string picked = PromptForFolder(
+                        "No NINA targets found -- locate your NINA sequence-files folder",
+                        NinaTargetsRootPath);
+                    if (!string.IsNullOrEmpty(picked))
+                    {
+                        loaded = await LoadNinaTargetsAsync(picked);
+                        if (loaded.Count > 0)
+                        {
+                            mAppSettings.NinaTargetsRoot = picked;
+                            SettingsStore.Save(mAppSettings);
+                        }
+                    }
+                }
+                // Locally-added targets are additive on top of NINA -- append them
+                // so a reload doesn't wipe them (existing NINA-load behavior).
+                foreach (Target lt in mLocalTargets) loaded.Add(lt);
+                mSelection.SetKnownTargets(loaded);
+                StartCacheWarmup(loaded);
+            }
+            catch (Exception ex) { Log.Error("GetJsonTargets failed", ex); }
+            finally { UseWaitCursor = false; }
+        }
+
+        // NINA .json folder walk that never throws: returns an empty list, logged,
+        // when the folder is unset/missing or the walk fails. The walk (file
+        // enumeration + JSON parse) runs on a background thread.
+        private async Task<List<Target>> LoadNinaTargetsAsync(string folder)
+        {
+            if (string.IsNullOrWhiteSpace(folder))
+            {
+                Log.Warn("LoadNinaTargetsAsync: NINA targets root is not set.");
+                return new List<Target>();
+            }
+            try
+            {
+                return await Task.Run(
+                    () => TargetPlanner.Nina.TargetLoader.Load(folder, null));
             }
             catch (Exception ex)
             {
-                Log.Error("GetImageLibraryTargets failed", ex);
-                MessageBox.Show(ex.Message, "Image library load failed",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                Log.Error($"NINA target load failed at '{folder}'", ex);
+                return new List<Target>();
             }
-            finally
-            {
-                UseWaitCursor = false;
-            }
+        }
 
-            // Push the new known-target list to the VM. KnownTargetsChanged fires
-            // once; OnVmKnownTargetsChanged repopulates ComboBox_SelectTarget +
-            // CheckedListBox_SelectedTargets, colors and dupe-sets -- the same
-            // source-agnostic refresh path the NINA load uses.
-            mSelection.SetKnownTargets(loaded);
-            StartCacheWarmup(loaded);
+        // Folder picker shared by the Load buttons' fallback browse. Returns the
+        // chosen directory, or string.Empty if the user cancelled.
+        private string PromptForFolder(string description, string initialDir)
+        {
+            using var dialog = new FolderBrowserDialog
+            {
+                Description = description,
+                UseDescriptionForTitle = true,
+                InitialDirectory = initialDir ?? string.Empty,
+                ShowNewFolderButton = false,
+            };
+            return dialog.ShowDialog(this) == DialogResult.OK
+                ? dialog.SelectedPath
+                : string.Empty;
         }
 
         // Kicks off background pre-population of the chart cache so subsequent

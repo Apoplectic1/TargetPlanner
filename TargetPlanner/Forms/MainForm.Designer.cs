@@ -117,6 +117,7 @@
             CheckedListBox_SelectedTargets = new TargetPlanner.Forms.DupeAwareCheckedListBox();
             Button_BrowseTargetList = new System.Windows.Forms.Button();
             Button_LoadImageLibrary = new System.Windows.Forms.Button();
+            Button_LoadJsonTargets = new System.Windows.Forms.Button();
             GroupBox_Target = new System.Windows.Forms.GroupBox();
             Button_RemoveTarget = new System.Windows.Forms.Button();
             Button_AddTarget = new System.Windows.Forms.Button();
@@ -1193,6 +1194,17 @@
             Button_LoadImageLibrary.Text = "Load Image Library Targets";
             Button_LoadImageLibrary.UseVisualStyleBackColor = true;
             Button_LoadImageLibrary.Click += Button_LoadImageLibrary_Click;
+            //
+            // Button_LoadJsonTargets
+            //
+            Button_LoadJsonTargets.Location = new System.Drawing.Point(235, 55);
+            Button_LoadJsonTargets.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            Button_LoadJsonTargets.Name = "Button_LoadJsonTargets";
+            Button_LoadJsonTargets.Size = new System.Drawing.Size(203, 27);
+            Button_LoadJsonTargets.TabIndex = 2;
+            Button_LoadJsonTargets.Text = "Load NINA Sequencer Targets";
+            Button_LoadJsonTargets.UseVisualStyleBackColor = true;
+            Button_LoadJsonTargets.Click += Button_LoadJsonTargets_Click;
             // 
             // GroupBox_Target
             // 
@@ -1221,6 +1233,7 @@
             GroupBox_Target.Controls.Add(TextBox_RightAscension);
             GroupBox_Target.Controls.Add(Button_BrowseTargetList);
             GroupBox_Target.Controls.Add(Button_LoadImageLibrary);
+            GroupBox_Target.Controls.Add(Button_LoadJsonTargets);
             GroupBox_Target.Controls.Add(Label_LocalHorizon);
             GroupBox_Target.Controls.Add(NumericUpDown_RaHours);
             GroupBox_Target.Controls.Add(Button_SelectAllTargets);
@@ -1639,6 +1652,7 @@
         private System.Windows.Forms.ComboBox ComboBox_Location;
         private System.Windows.Forms.Button Button_BrowseTargetList;
         private System.Windows.Forms.Button Button_LoadImageLibrary;
+        private System.Windows.Forms.Button Button_LoadJsonTargets;
         private TargetPlanner.Forms.DupeAwareCheckedListBox CheckedListBox_SelectedTargets;
         private System.Windows.Forms.ComboBox ComboBox_SortTargets;
         private System.Windows.Forms.Label Label_SortBy;
