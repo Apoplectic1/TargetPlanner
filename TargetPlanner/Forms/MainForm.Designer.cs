@@ -111,7 +111,6 @@
             Button_SelectAllTargets = new System.Windows.Forms.Button();
             Button_UncheckAll = new System.Windows.Forms.Button();
             Button_ClearAllTargets = new System.Windows.Forms.Button();
-            ProgressBar_ProcessObject = new System.Windows.Forms.ProgressBar();
             Label_SortBy = new System.Windows.Forms.Label();
             ComboBox_SortTargets = new System.Windows.Forms.ComboBox();
             CheckedListBox_SelectedTargets = new TargetPlanner.Forms.DupeAwareCheckedListBox();
@@ -1117,25 +1116,17 @@
             Button_UncheckAll.Text = "Uncheck All";
             Button_UncheckAll.UseVisualStyleBackColor = true;
             Button_UncheckAll.Click += Button_UncheckAll_Click;
-            //
+            // 
             // Button_ClearAllTargets
-            //
-            Button_ClearAllTargets.Location = new System.Drawing.Point(444, 55);
+            // 
+            Button_ClearAllTargets.Location = new System.Drawing.Point(489, 24);
             Button_ClearAllTargets.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             Button_ClearAllTargets.Name = "Button_ClearAllTargets";
-            Button_ClearAllTargets.Size = new System.Drawing.Size(140, 27);
+            Button_ClearAllTargets.Size = new System.Drawing.Size(122, 27);
             Button_ClearAllTargets.TabIndex = 10;
             Button_ClearAllTargets.Text = "Clear All Targets";
             Button_ClearAllTargets.UseVisualStyleBackColor = true;
             Button_ClearAllTargets.Click += Button_ClearAllTargets_Click;
-            // 
-            // ProgressBar_ProcessObject
-            // 
-            ProgressBar_ProcessObject.Location = new System.Drawing.Point(131, 25);
-            ProgressBar_ProcessObject.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            ProgressBar_ProcessObject.Name = "ProgressBar_ProcessObject";
-            ProgressBar_ProcessObject.Size = new System.Drawing.Size(475, 21);
-            ProgressBar_ProcessObject.TabIndex = 7;
             // 
             // Label_SortBy
             // 
@@ -1175,7 +1166,7 @@
             // 
             // Button_BrowseTargetList
             // 
-            Button_BrowseTargetList.Location = new System.Drawing.Point(26, 22);
+            Button_BrowseTargetList.Location = new System.Drawing.Point(379, 24);
             Button_BrowseTargetList.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             Button_BrowseTargetList.Name = "Button_BrowseTargetList";
             Button_BrowseTargetList.Size = new System.Drawing.Size(98, 27);
@@ -1186,21 +1177,21 @@
             // 
             // Button_LoadImageLibrary
             // 
-            Button_LoadImageLibrary.Location = new System.Drawing.Point(26, 55);
+            Button_LoadImageLibrary.Location = new System.Drawing.Point(10, 24);
             Button_LoadImageLibrary.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             Button_LoadImageLibrary.Name = "Button_LoadImageLibrary";
-            Button_LoadImageLibrary.Size = new System.Drawing.Size(203, 27);
+            Button_LoadImageLibrary.Size = new System.Drawing.Size(171, 27);
             Button_LoadImageLibrary.TabIndex = 1;
             Button_LoadImageLibrary.Text = "Load Image Library Targets";
             Button_LoadImageLibrary.UseVisualStyleBackColor = true;
             Button_LoadImageLibrary.Click += Button_LoadImageLibrary_Click;
-            //
+            // 
             // Button_LoadJsonTargets
-            //
-            Button_LoadJsonTargets.Location = new System.Drawing.Point(235, 55);
+            // 
+            Button_LoadJsonTargets.Location = new System.Drawing.Point(193, 24);
             Button_LoadJsonTargets.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             Button_LoadJsonTargets.Name = "Button_LoadJsonTargets";
-            Button_LoadJsonTargets.Size = new System.Drawing.Size(203, 27);
+            Button_LoadJsonTargets.Size = new System.Drawing.Size(174, 27);
             Button_LoadJsonTargets.TabIndex = 2;
             Button_LoadJsonTargets.Text = "Load NINA Sequencer Targets";
             Button_LoadJsonTargets.UseVisualStyleBackColor = true;
@@ -1246,7 +1237,6 @@
             GroupBox_Target.Controls.Add(Button_ClearAllTargets);
             GroupBox_Target.Controls.Add(Label_SortBy);
             GroupBox_Target.Controls.Add(NumericUpDown_TargetDuration);
-            GroupBox_Target.Controls.Add(ProgressBar_ProcessObject);
             GroupBox_Target.Controls.Add(TextBox_Declination);
             GroupBox_Target.Location = new System.Drawing.Point(623, 35);
             GroupBox_Target.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
@@ -1683,7 +1673,6 @@
         private System.Windows.Forms.Button Button_UncheckAll;
         private System.Windows.Forms.Button Button_ClearAllTargets;
         private System.Windows.Forms.ProgressBar ProgressBar_MultiTargetProcessing;
-        private System.Windows.Forms.ProgressBar ProgressBar_ProcessObject;
         private System.Windows.Forms.Button Button_VisibleTargets;
         private System.Windows.Forms.GroupBox GroupBox_MoonAvoidance;
         private System.Windows.Forms.CheckBox CheckBox_Moon_AvoidanceEnable;
