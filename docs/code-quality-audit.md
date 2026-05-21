@@ -35,23 +35,23 @@ Re-grep each "zero call sites" claim at fix time before deleting. Leaf namespace
 - [x] **`ShowCheckBoxObjectToolTip`: dropped the per-mouse-move ToolTip-delay
   re-assignment** — the values are set once in `MainForm_Load`.
 
-## Tier 2 — Small dedup (S-effort, low-risk)
+## Tier 2 — Small dedup ✅ SHIPPED 2026-05-19 (commit `b60ef97`)
 
-- [ ] **`HarvestCheckedTargets()` helper.** `CheckedToggleDebounce_Tick` (`MainForm.cs:1484-1490`)
-  and `Button_CheckedTargets_Click` (`1509-1515`) carry the identical 5-line
-  "harvest checked targets in display order" loop.
-- [ ] **`OnAvoidanceEnableChanged` → call `BuildProfileFromControls()`**
-  (`MainForm.FilterMenuPresenter.cs:444-453`) — it inlines a byte-for-byte copy of the
-  canonical helper 40 lines below.
-- [ ] **`ClearSiteHorizonState()` helper** — the `mLocalHorizon = null; UpdateHorizonPathLabel();
-  ConfigureHorizonWatcher(null);` triple appears 3× (`MainForm.cs` ~1652-1664, ~1730-1741).
-- [ ] **`DayWindowKey.ChartStartUtc` computed property** — both consumers
-  (`ChartCacheStore.cs:701, 727`) re-wrap `ChartStartUtcTicks` via
-  `new DateTime(..., DateTimeKind.Utc)`. Add `DateTime ChartStartUtc =>
-  new(ChartStartUtcTicks, DateTimeKind.Utc);`; equality/hash stay on the `long`.
-- [ ] **`OverlayController`: `ClearAll` → delegate to `PruneStaleBackups`** (they share
-  the whole reset epilogue); co-locate `MaxClickDistanceDeg` (5°) and
-  `HoverTooltipController.MaxHoverDistanceDeg` (1.5°) with a comment on why they differ.
+- [x] **`HarvestCheckedTargets()` helper** — extracted; `CheckedToggleDebounce_Tick`
+  and `Button_CheckedTargets_Click` both call it instead of inlining the loop.
+- [x] **`OnAvoidanceEnableChanged` → `BuildProfileFromControls()`** — the inline
+  6-control-read copy replaced with the existing helper call.
+- [x] **`ApplySiteHorizon(path)` helper** — folded the `mLocalHorizon` /
+  `UpdateHorizonPathLabel` / `ConfigureHorizonWatcher` triple from all three
+  horizon sites (2 clear + 1 load) into one helper. Broader than the originally
+  scoped `ClearSiteHorizonState` — covers the named-site load path too.
+- [x] **`DayWindowKey.ChartStartUtc` computed property** — added; the two
+  `ChartCacheStore` consumers read it instead of re-wrapping the ticks.
+- [x] **`OverlayController.ClearAll` → delegates to `PruneStaleBackups(empty)`** —
+  one source of truth for the reset field-list. The two distance constants got
+  cross-reference comments (deliberately different tolerances: 5° click vs 1.5°
+  hover) rather than a physical move to `ChartLayout`, which would have split
+  each constant from its owner class.
 
 ## Tier 3 — Slim `ChartEvaluation` (Phase-7-revert residue; M, low-risk)
 
