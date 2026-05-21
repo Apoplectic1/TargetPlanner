@@ -1,13 +1,13 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-19 (Fix L — Day/Sky chart X-axis made UTC-internal so axis labels are DST-correct across spring-forward / fall-back transitions; verified). Previously updated 2026-05-19 (named-TZ refactor shipped via Astronomy.NINA.Persistence.NamedSite + ComboBox_TimeZone; settings.json collapse — personal-defaults.json dropped, factory seed in C#, Defaults > Edit/Clear menu; persistence-fix sweep — Target Floor mirror, ActiveControl-commit, FormClosing-save suppression; observation dialog simplified to notes-only; UI logging expanded to ~25 discrete-event handlers). Previously updated 2026-05-18 (observation-dialog feedback id=7abd: Now-line UTC bug + Moon Rise/Set bracket-by-night + chart pipeline on Location zone), 2026-05-18 (multi-library refactor: Astronomy.XISF Tier 1 extracted + Astronomy.NINA Phases A+B shipped on the Library side; TP sln pre-staged with sibling visibility — Phase C migration is the next TP-side work), 2026-05-18 (Location refactor Phase 2: Library `Location` strip + TP-side decoupling), 2026-05-17 (chart-pipeline SoC pipeline collapse + observation dialog + Library Saemundsson consolidation; HD-overlay per-target toggle in global mode + sticky fast-path), 2026-05-13 (architectural-review campaign + post-campaign re-review follow-ups + Gemini code-review triage + Location refactor Phase 1), 2026-05-11 (XISF prep notes + AnyCPU drop), 2026-05-04 (.NET 10 migration). Originally captured 2026-04-19.
+Last updated 2026-05-21 (Phase C re-scoped — image library shipped as a minimal bare-target source; rich-type migration + Sky-chart filters deferred to TPP/TPS). Previously updated 2026-05-19 (Fix L — Day/Sky chart X-axis made UTC-internal so axis labels are DST-correct across spring-forward / fall-back transitions; verified). Previously updated 2026-05-19 (named-TZ refactor shipped via Astronomy.NINA.Persistence.NamedSite + ComboBox_TimeZone; settings.json collapse — personal-defaults.json dropped, factory seed in C#, Defaults > Edit/Clear menu; persistence-fix sweep — Target Floor mirror, ActiveControl-commit, FormClosing-save suppression; observation dialog simplified to notes-only; UI logging expanded to ~25 discrete-event handlers). Previously updated 2026-05-18 (observation-dialog feedback id=7abd: Now-line UTC bug + Moon Rise/Set bracket-by-night + chart pipeline on Location zone), 2026-05-18 (multi-library refactor: Astronomy.XISF Tier 1 extracted + Astronomy.NINA Phases A+B shipped on the Library side; TP sln pre-staged with sibling visibility — Phase C migration is the next TP-side work), 2026-05-18 (Location refactor Phase 2: Library `Location` strip + TP-side decoupling), 2026-05-17 (chart-pipeline SoC pipeline collapse + observation dialog + Library Saemundsson consolidation; HD-overlay per-target toggle in global mode + sticky fast-path), 2026-05-13 (architectural-review campaign + post-campaign re-review follow-ups + Gemini code-review triage + Location refactor Phase 1), 2026-05-11 (XISF prep notes + AnyCPU drop), 2026-05-04 (.NET 10 migration). Originally captured 2026-04-19.
 
 ## Currently open (priority order)
 
 Migrated from CLAUDE.md so the agent-facing reference stays lean. Order is rough recommendation, not a commitment.
 
 1. **Code-quality / SoC audit follow-through** — a 2026-05-19 three-agent read-only sweep of `Forms/` + `State/` + `Caches/` + `Charts/` produced a prioritized dead-code + duplication backlog (all three agents independently confirmed **zero dispatch-bypass paths** — the `ChartCoordinator` pipeline is clean). Full checklist at [`docs/code-quality-audit.md`](docs/code-quality-audit.md). **Tier 1 shipped 2026-05-19** (commits `e64c9e0` + `54bc9f6`): `UIState` deleted, `ChartEvaluation.FullChange`/`AnyChange` + `IChartCacheStore.IsReady` + the dead `PushSkyKSInputs()` overload removed, `OverlayController`'s status callback wired live to `Log.Diag("Overlay")`, `HoverTooltipController`'s dead `hoverY` param dropped. **Tier 2 shipped 2026-05-19** (commit `b60ef97`): `HarvestCheckedTargets` + `ApplySiteHorizon` helpers, `OnAvoidanceEnableChanged` → `BuildProfileFromControls`, `DayWindowKey.ChartStartUtc`, `OverlayController.ClearAll` delegation. **Tier 3 shipped 2026-05-19** (commit `3fbd772`): `ChartEvaluation` slimmed to its one live field (`BrightnessInputsChanged`); the dead `ChartEvaluation eval` parameter dropped from `IAltitudeSubChart.Render`. **Tier 4 shipped 2026-05-19** (commits `4b4981c` / `53227f0` / `cfbd45c` / `b03fe3b`): the Charts mirror-pair extractions — `DuskDawnGradient` + `MoonOverlay` (Day/Sky), `ChartLayout` axis factories, `ChartLegendPanel` (all four). **Tier 5 shipped 2026-05-19** (commits `f912e71` / `7973dca`): `ComputeOneFit` + the generic `CacheAxis<TKey,TVal>` collapsing the four cache axes (yearDays / fits / day / moon) into one ~120-line-lighter machinery. **Tier 6 shipped 2026-05-19** (commits `7aa941d` / `fa85123`): the `ComputeDiff` extract from `EnsureAsync` + the `Render`-body cross-chart dedup (`SwapSeriesDict` / `MoonOverlay.FetchOrCompute` / `ApplyMonthGrid`); Tier 6's other two audit items (Day `mLastDayKey` → `eval` flag, the `RestartSessionsRebuildDebounce` move) were inspected and declined as net-negative — both would add code + coupling. **All six audit tiers complete** — remaining lower-priority / cross-file cleanups stay tracked in [`docs/code-quality-audit.md`](docs/code-quality-audit.md).
-2. **Phase C — TPP migration to `Astronomy.NINA.Target`** — the biggest TP-visible next chunk. Library side shipped 2026-05-18 (Astronomy.XISF Tier 1 + Astronomy.NINA Phases A+B). TP currently consumes `Astronomy.Core.Targets.Target`; Phase C swaps every callsite to `Astronomy.NINA.Target` (wraps the old type via `.Geometry`), adds image-library scan as a new target source alongside NINA `.json` sequences (`PersonalDefaults.ImageLibraryRoot` → `Astronomy.NINA.Xisf.ImageLibraryScanner.ScanAsync(...).ToTargets()`), and surfaces per-target Filter on the Sky chart (color tint by FilterKind + legend badge + per-target K-S filter bandwidth). Files affected: `Forms/MainForm.cs`/`Designer.cs`, `State/TargetSelection.cs`/`ChartContext.cs`/`ChartCoordinator.cs`, `Charts/*.cs`, `Caches/ChartCacheStore.cs`, `Nina/TargetLoader.cs`, `Settings/LocalTargetStore.cs`. The plan file at `~/.claude/plans/what-is-next-from-crispy-garden.md` has the full breakdown including the strategic frame (TPP today + TPS later for scheduling), composition shape, migration approach, and 8 open implementation-time questions. **Phase D** (`InputTargetAdapter` bidirectional to NINA's `InputTarget`) is queued behind C; introduces the `NINA.Plugin` NuGet dep and unblocks future NINA sequence-JSON export.
+2. **Rich-Target migration onto `Astronomy.NINA.Target` (TPP/TPS-era)** — deferred. Phase C was re-scoped (see Recently shipped, 2026-05-21): the image library shipped as a minimal *bare-target* source via `ImageLibrary/ImageLibraryLoader.cs`, handled identically to NINA `.json`. The remaining originally-Phase-C work — swapping every `Astronomy.Core.Targets.Target` callsite onto the rich `Astronomy.NINA.Target` (wraps the old type via `.Geometry`) and surfacing per-target Filter on the Sky chart (tint / legend badge / per-target K-S bandwidth) — is now TPP/TPS-era. Do it when the scheduler mode actually needs the richness and the young `Astronomy.NINA.Target` shape has settled; migrating now would be churn against a moving type for zero current benefit. Original full breakdown (strategic frame, composition shape, migration approach) at `~/.claude/plans/what-is-next-from-crispy-garden.md`. **Phase D** (`InputTargetAdapter` bidirectional to NINA's `InputTarget`) introduces the `NINA.Plugin` NuGet dep and unblocks future NINA sequence-JSON export; queued behind the migration.
 3. **TP UI surfaces for `SessionSolvers`** — Library API fully shipped: `LongestDuration` / `LongestDurationIn` / `LowestHorizon` for transit-centered-or-wall-pushed placement, plus `LongestDurationCentered` / `LongestDurationCenteredIn` / `LowestHorizonCentered` for strict-centered (Symmetric-curve) placement. TP needs to surface them somewhere user-visible — tooltips, right-click menu, info panel? Needs UX design before implementation.
 4. **IS / ISP work** — current major thrust per memory; the four-phase IntervalScheduler pipeline is the strategic next axis. Note Phase C's TPS scope (multi-filter scheduling mode inside TP) is the user-chosen prototype vehicle for ISP-shaped work; the cross-app IS desktop tool is a separate longer-term question, status TBD.
 5. **Velopack version bump** — `0.0.1298` → `0.0.1589+`. Dry-run a release cycle (`vpk pack` + `vpk release` + self-update install) on net10 before shipping; the auto-update flow hasn't been smoke-tested at the current pinned version on net10.
@@ -66,6 +66,46 @@ Design notes preserved for the future implementation:
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+### 2026-05-21 — Phase C re-scoped: image library as a target source
+
+Phase C was originally a three-part "C1-C3" (migrate TP onto the rich
+`Astronomy.NINA.Target`, add the image library as a source, surface per-target
+filters on the Sky chart). A measured smoke scan plus a design pass re-scoped it
+down to one minimal feature.
+
+**Measurement.** A full scan of the user's real image library — 14,015 `.xisf`
+frames across 70 targets — takes **1.4 s**, 0 parse failures
+(`Astronomy.NINA.Xisf.ImageLibraryScanner`, gated smoke test). On-demand
+scanning is fast enough that no database / cache is needed: the `.xisf` files
+are the source of truth, and the scan regenerates everything each run. A
+persistent DB would only ever be a home for *goals* (authored intent, not on
+disk) — a TPP/TPS feature.
+
+**Shipped (commit `fbfd3d9`).** A "Load Image Library" button gives TP a second
+target source alongside NINA `.json`. `ImageLibrary/ImageLibraryLoader.cs` calls
+`ImageLibraryScanner.ScanAsync` and down-converts each `TargetReport` to a bare
+`Astronomy.Core.Targets.Target` (name + RA + Dec) — library targets are handled
+identically to `.json` targets. `AppSettings.ImageLibraryRoot` (seeded in
+`PersonalDefaults`, Pattern-C self-heal in `SettingsStore`) resolves via
+`MainForm.ImageLibraryRootPath`; `GetImageLibraryTargets` wholesale-replaces the
+known-target set with no sidecar append (an image-library load is a clean full
+replace). `StartCacheWarmup` was extracted from `GetNinaTargets` and is now
+shared by both load paths. The Designer button was hand-placed in
+`GroupBox_Target` — final position is a VS-designer reposition.
+
+**Data model.** The image library and NINA `.json` are two independent target
+*lenses* (backward fact vs. forward intent); each load wholesale-replaces the
+set — they are never merged. Plan-vs-actual reconciliation is a future TPP/TPS
+concern.
+
+**Deferred to TPP/TPS** (no longer Phase C): the rich-type migration onto
+`Astronomy.NINA.Target` and Sky-chart filter surfacing. The Library foundation
+(`Astronomy.NINA` rich types + scanner) shipped in Phases A/B, so deferring TP's
+consumption of the richness costs nothing.
+
+Build-clean (0/0); the new button, the load action, and the populated target
+list need human visual verification.
 
 ### 2026-05-19 — Fix L: UTC-internal Day/Sky chart X-axis (DST-correct labels)
 
