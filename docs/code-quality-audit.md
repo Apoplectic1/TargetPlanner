@@ -16,35 +16,24 @@ Re-grep each "zero call sites" claim at fix time before deleting. Leaf namespace
 
 ---
 
-## Tier 1 — Dead-code sweep (do first; all S-effort, low-risk; ~1 day total)
+## Tier 1 — Dead-code sweep ✅ SHIPPED 2026-05-19 (commits `e64c9e0` + `54bc9f6`)
 
-- [ ] **Delete the `UIState` class — write-only dead state.** `Support/UIState.cs` (whole
-  file), `mUIState` field + 4 handler assignments (`MainForm.cs:320, 791-805, 2160,
-  2169, 2177, 2192`) + the ctor `new UIState()` + `UpdateUI()`. Nothing reads
-  `mUIState`; `SelectedArea()` derives the active area live from the radios. Verify the
-  boot-time textbox writes in `UpdateUI()` are covered by `SyncLocationUIFromModel` /
-  `SyncTargetUIFromModel` before deleting `UpdateUI`.
-- [ ] **Delete `ChartEvaluation.FullChange`** (`State/ChartEvaluation.cs:81-92`) — Phase-4
-  transitional scaffold, zero call sites; `EnsureAsync` builds the record inline.
-- [ ] **Delete `ChartEvaluation.AnyChange`** (`ChartEvaluation.cs:70`) — zero call sites.
-- [ ] **Delete `IChartCacheStore.IsReady`** (`IChartCacheStore.cs:64`, `ChartCacheStore.cs:121-125`)
-  — zero call sites; `GetOrNull != null` covers any future readiness probe.
-- [ ] **Delete the no-arg `PushSkyKSInputs()` overload** (`MainForm.cs:1103-1108`) — zero
-  call sites; only the `ChartContext`-arg overload is used. (Found by two agents.)
-- [ ] **`OverlayController`: make `RestoreAll` private + wire the dead status callback.**
-  `RestoreAll` (`OverlayController.cs:257-273`) has no external callers — only
-  `ToggleAll` reaches it. The `reportStatus` callback is wired `_ => { }` from
-  `AltitudeSubChart_Day.cs:259`, so ~7 diagnostic status strings are computed and
-  discarded. Route the callback into `Log.Diag("Overlay", ...)` (the strings have
-  real debug value) and make `RestoreAll` private. Fix the stale class doc that says
-  right-click dispatches to `RestoreAll` (it dispatches to `ToggleAll`).
-- [ ] **`HoverTooltipController`: drop the dead `hoverY` delegate param.** The
-  `CurveTooltipFormatter` delegate (`HoverTooltipController.cs:31`) passes `hoverY`;
-  none of the four formatters use it (6 args → 5). Replace `mShownSeries` with a
-  plain `bool mTooltipVisible` (the series reference is only used as a non-null guard).
-- [ ] **`ShowCheckBoxObjectToolTip`: drop the per-mouse-move ToolTip-delay re-assignment**
-  (`MainForm.cs:2145-2147`) — `AutoPopDelay/InitialDelay/ReshowDelay` are already set
-  once in `MainForm_Load:501-503`; re-setting them on every row change is redundant.
+- [x] **Deleted the `UIState` class** — `Support/UIState.cs` removed; `mUIState` field,
+  ctor init, the 4 view-radio-handler writes, and the `UpdateUI()` call + method all
+  removed. The write-only class's boot textbox writes were already re-done by
+  `SyncLocationUIFromModel` / `SyncTargetUIFromModel` (verified).
+- [x] **Deleted `ChartEvaluation.FullChange`** — Phase-4 transitional scaffold.
+- [x] **Deleted `ChartEvaluation.AnyChange`** — zero call sites.
+- [x] **Deleted `IChartCacheStore.IsReady`** — interface + `ChartCacheStore` impl.
+- [x] **Deleted the no-arg `PushSkyKSInputs()` overload** — zero callers.
+- [x] **`OverlayController`: `RestoreAll` → private + status callback wired live.**
+  `RestoreAll` is now private; the Day chart wires `reportStatus` to
+  `Log.Diag("Overlay", ...)` so the 7 HD-overlay diagnostic strings land in `tp.log`;
+  the stale class doc (right-click → `ToggleAll`, not `RestoreAll`) is fixed.
+- [x] **`HoverTooltipController`: dropped the dead `hoverY` delegate param** (6 → 5 args)
+  and replaced `mShownSeries` with a plain `bool mTooltipVisible`.
+- [x] **`ShowCheckBoxObjectToolTip`: dropped the per-mouse-move ToolTip-delay
+  re-assignment** — the values are set once in `MainForm_Load`.
 
 ## Tier 2 — Small dedup (S-effort, low-risk)
 
