@@ -101,29 +101,31 @@ extractions removed them without the separately-future-flagged Day+Sky merge.
   `IHorizonProfile horizon` arg from `PrepareFitsAsync` and the four now-internal
   `Get*OrBuildAsync` methods from `IChartCacheStore`. Net ~120 lines removed.
 
-## Tier 6 — SoC restructure (do after Tier 4 helpers land)
+## Tier 6 — SoC restructure ✅ SHIPPED 2026-05-19 (`7aa941d` / `fa85123`)
 
-- [ ] **Extract `ComputeDiff` from `EnsureAsync`** (M, low) — `EnsureAsync`
-  (`ChartCacheStore.cs:333-473`) does staleness-diffing AND prep-orchestration in one
-  140-line method. Pull out a pure `ComputeDiff(prev, ctx, prevUtc, dayKey) →
-  ChartEvaluation`; `EnsureAsync` stays the orchestrator. Pairs with Tier 3.
-- [ ] **Day's `mLastDayKey`/`dayKeyChanged` → consume a cache-provided flag** (M, med) —
-  Day (`AltitudeSubChart_Day.cs:130,460-461,567`) shadows `mLastDayKey` to re-derive
-  "did the altitude data change?" — staleness the cache already owns. Have the cache
-  set a `DayKeyChanged` bool on `ChartEvaluation`; Day reads it. This is a *legitimate*
-  `eval`-flag consumer (gates HD-overlay backup bookkeeping, not paint — sidesteps the
-  LC2 paint-instability that killed Phase 7), and it makes the `eval` param genuinely
-  live, retroactively justifying keeping it on `Render`.
-- [ ] **Slim the `Render` bodies** (L, med — do last) — each sub-chart's `Render` is a
-  60-178-line procedure mixing 6+ concerns. Once Tier-4 helpers exist, each `Render`
-  shrinks to: resolve window → update furniture → per-target loop → commit. Don't
-  attempt a shared `RenderBase` template-method (the four per-target loops genuinely
-  differ); just extract the non-looping scaffolding. Add a `SwapSeriesDict` helper for
-  the repeated `newDict → Clear → copy` dance.
-- [ ] **`RestartSessionsRebuildDebounce`** (M, med — documented wart, lower priority) —
-  `MainForm.cs:994-1039` is a second debounce timer in front of the coordinator's own
-  150 ms debounce; it exists only to gate one `LocationsCacheEquivalent` keying
-  decision. Consider moving the keying check to a coordinator post-apply callback.
+Two of the four items shipped; two were re-evaluated against the post-Tier-3/4/5
+code and **declined** — both would have added code + coupling, not removed it.
+
+- [x] **`ComputeDiff` extracted from `EnsureAsync`** — new pure
+  `ComputeDiff(prev, ctx, prevUtc) → CacheDiff` static + a `CacheDiff` record
+  struct; `EnsureAsync` is now a clean orchestrator (capture snapshot → diff →
+  SetLocation/Prepare → CAS-stamp → return).
+- [x] **`Render`-body cross-chart dedup** — extracted the three byte-identical
+  scaffolding blocks: `ChartLayout.SwapSeriesDict<TVal>` (the persistent-dict
+  swap, all four sub-charts), `MoonOverlay.FetchOrCompute` (the Day/Sky moon
+  cache-fetch + fallback), `ChartLayout.ApplyMonthGrid` (the Year/Sessions
+  month-grid block). The per-target loop bodies stay per-chart — no `RenderBase`.
+- [~] **Day's `mLastDayKey` → cache `eval` flag — DECLINED.** The premise went
+  stale: Tier 3 deliberately removed `ChartEvaluation` from `IAltitudeSubChart.
+  Render`. Re-threading it onto all four sub-charts to serve Day's self-contained
+  4-line `mLastDayKey` shadow is net *more* code and re-special-cases `Render` —
+  against the SoC directive. The shadow stays where it is: local to its one
+  consumer, correct, self-documented.
+- [~] **`RestartSessionsRebuildDebounce` → coordinator callback — DECLINED.**
+  Inspection showed it can't move cleanly: the debounce is a legitimate
+  trailing-edge gate for a *UI-level* reset (`ResetForLocationChange` clears the
+  target selection), and relocating it needs either a global coordinator-debounce
+  bump or a debounce-inside-the-hook — no net simplification. Left as-is.
 
 ## Lower-priority / cross-file
 
