@@ -54,11 +54,11 @@ Two selection modes:
 
 ## Locations
 
-A combo of named locations drives lat / lon / elevation and the per-location sky-brightness inputs. A fresh install ships with a single neutral **Custom** preset (40°N, 75°W); add your own sites in-app and they persist to `%AppData%\TargetPlanner\settings.json`.
+A combo of named locations drives lat / lon / elevation, time zone, and the per-location sky-brightness inputs. The combo is backed by `%AppData%\TargetPlanner\settings.json` — the single file holding all user state — seeded on a fresh install from the built-in presets in `PersonalDefaults.BuildSeedSettings()`.
 
-Developers running from source can drop a `personal-defaults.json` into `%LocalAppData%\TargetPlanner\` to seed additional presets at boot — see [`docs/design/personal-defaults-and-settings.md`](docs/design/personal-defaults-and-settings.md). The file is gitignored and never enters the repo.
+Edit the saved sites — add, remove, retune — via **File ▸ Defaults ▸ Edit settings.json**, which opens the file in your default editor; relaunch TargetPlanner to load the changes. **File ▸ Defaults ▸ Clear (factory reset)** wipes settings.json — plus filters, local targets, and logs — back to the seed.
 
-The **Custom** slot also holds in-progress edits when you scrub the lat / lon / elevation / Bortle / extinction controls without saving.
+The **Custom** slot holds in-progress edits when you scrub the lat / lon / elevation / Bortle / extinction controls without saving.
 
 Per-location fields:
 - **Latitude / Longitude / Elevation** — the observer position.
@@ -124,12 +124,12 @@ Or open `TargetPlanner.sln` in Visual Studio and F5.
 
 ## Defaults
 
-The shipping defaults are intentionally neutral — public-safe placeholders, with the author's actual values resolved at runtime from a gitignored `personal-defaults.json` (see [Locations](#locations) and [`docs/design/personal-defaults-and-settings.md`](docs/design/personal-defaults-and-settings.md)):
+First-run defaults are seeded into `settings.json` from `PersonalDefaults.BuildSeedSettings()` — a C# factory (see [Locations](#locations)):
 
 - Default target: **M31**.
-- Default location: resolved from `PersonalDefaults.LocationName`; ships as a neutral **Custom** preset (40°N, 75°W). Boots here regardless of last-selected location.
+- Default location: the last-selected site (`settings.json`'s `LastSelectedLocationName`, seeded on first run). TargetPlanner relaunches onto whatever site you last picked.
 - Default selection in Multi mode: **none checked** after a NINA load.
-- NINA targets root: resolved from `PersonalDefaults.NinaTargetsRoot`; ships as `%PUBLIC%\Documents\NINA\Targets` (`MainForm.NinaTargetsRootPath` is the single read-site).
+- NINA targets root: `settings.json`'s `NinaTargetsRoot`, seeded on first run; `MainForm.NinaTargetsRootPath` is the single read-site.
 
 ## More documentation
 

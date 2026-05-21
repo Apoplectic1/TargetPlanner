@@ -1,6 +1,20 @@
 # Personal defaults + user settings architecture
 
-**Status:** Designed 2026-04-26, not yet implemented.
+**Status: SUPERSEDED 2026-05-19.** This document describes the three-layer
+defaults model (hardcoded C# constants → gitignored `personal-defaults.json` →
+`settings.json`) that shipped 2026-05-08 and was collapsed on 2026-05-19. The
+`personal-defaults.json` layer was dropped: `settings.json` is now the single
+user-state file, seeded on first run from the `PersonalDefaults.BuildSeedSettings()`
+C# factory, with "Pattern C" fill for additive-schema migration. The collapse
+was driven by sync confusion — edits to `personal-defaults.json` didn't
+propagate to existing `settings.json` entries under the old `MergeBuiltins`
+zero-fill rule. Current architecture: see the "Defaults resolve at runtime,
+two layers deep" bullet in `CLAUDE.md`. This file is kept for the historical
+design rationale only.
+
+---
+
+**Original status:** Designed 2026-04-26, not yet implemented.
 
 ## Problem
 
