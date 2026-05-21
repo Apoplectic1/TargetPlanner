@@ -345,12 +345,6 @@ is preserved.";
         // identified as stale later.
         private int mChartBuildGeneration;
 
-        // Parallel generation counter for GetNinaTargets. Incremented on each target-list load
-        // so that a stale "reset-to-zero" continuation from a prior (still-holding-at-100%)
-        // run doesn't wipe the new run's partial bar when Browse is triggered again during
-        // the 1-second hold.
-        private int mProcessObjectGeneration;
-
         // Debounce for the Horizon / Duration spinners. Each ValueChanged restarts the
         // timer (stop + start), so rapid scrubs coalesce into one trailing-edge
         // RebuildSessionsData on the Tick. Horizon-line positioning stays immediate in the
@@ -1938,28 +1932,7 @@ is preserved.";
         private void Button_BrowseTargetList_Click(object sender, EventArgs e)
         {
             Log.Diag("UI", "Button_BrowseTargetList.Click");
-            // Stock WinForms FolderBrowserDialog already uses the Vista IFileDialog UI
-            // by default on .NET 6+. Single-folder selection only -- the multi-select
-            // hack the legacy LocalLib.OpenFolderDialog provided was a nice-to-have that
-            // didn't survive the .NET-Framework -> .NET 10 migration (relied on
-            // reflection over System.Windows.Forms internal types). GetNinaTargets
-            // accepts a string[] and iterates; passing a single-element array works.
-            using var dialog = new FolderBrowserDialog
-            {
-                Description = "NINA Target Folder Browser",
-                UseDescriptionForTitle = true,
-                InitialDirectory = NinaTargetsRootPath,
-                ShowNewFolderButton = false,
-            };
-
-            if (dialog.ShowDialog(this) == DialogResult.OK)
-            {
-                // SetKnownTargets resets Checked to empty (default-none-checked), which
-                // fires CheckedSetChanged -> debounce -> blank multi-graph after 250 ms.
-                // The user opts in target-by-target via the listbox; no Mode setup
-                // needed.
-                _ = GetNinaTargets(new[] { dialog.SelectedPath });
-            }
+            _ = GetBrowsedTargets();
         }
 
         private void Button_LoadImageLibrary_Click(object sender, EventArgs e)
@@ -1978,78 +1951,105 @@ is preserved.";
             _ = GetJsonTargets(offerFallbackBrowse: true);
         }
 
-        private async Task GetNinaTargets(string[] folderSelectedPaths)
+        // One-off type-detecting browse: opens a folder-capable file dialog, works
+        // out whether the chosen path is a .json/.xisf file or a NINA/image-library
+        // directory, loads accordingly, and replaces the known-target set. Unlike
+        // the Load buttons it does NOT persist the path and does NOT append the
+        // local-targets sidecar -- a clean one-off view of exactly what was browsed.
+        private async Task GetBrowsedTargets()
         {
-            // The previous KnownTargets is replaced wholesale at the end of this method
-            // via mSelection.SetKnownTargets(allLoaded). The VM event handlers
-            // (OnVmKnownTargetsChanged) repopulate ComboBox_SelectTarget +
-            // CheckedListBox_SelectedTargets atomically. We don't manually clear those
-            // controls here -- doing so would fire spurious SelectedIndexChanged /
-            // ItemCheck events that round-trip through the VM with stale state.
+            string path = PromptForFileOrFolder();
+            if (string.IsNullOrEmpty(path)) return;
+            Log.Diag("UI", $"Browse selected: {path}");
 
-            int thisGeneration = ++mProcessObjectGeneration;
-
-            var progressHandler = new Progress<(int Current, int Total)>(value =>
-            {
-                ProgressBar_ProcessObject.Maximum = value.Total;
-                ProgressBar_ProcessObject.Value = value.Current;
-            });
-
-            var progress = progressHandler as IProgress<(int Current, int Total)>;
-
-            ProgressBar_ProcessObject.Value = 0;
-
-            var allLoaded = new List<Target>();
+            UseWaitCursor = true;
             try
             {
-                foreach (string folder in folderSelectedPaths)
+                List<Target> loaded = await LoadBrowsedPathAsync(path);
+                if (loaded.Count == 0)
                 {
-                    List<Target> loaded = null;
-                    await Task.Run(() =>
-                    {
-                        loaded = TargetPlanner.Nina.TargetLoader.Load(folder, progress);
-                    });
-
-                    if (loaded != null) allLoaded.AddRange(loaded);
-                    ProgressBar_ProcessObject.Value = ProgressBar_ProcessObject.Maximum;
+                    MessageBox.Show(
+                        "No NINA .json or image-library targets were found at:\n\n" + path,
+                        "Nothing to load", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
                 }
+                mSelection.SetKnownTargets(loaded);
+                StartCacheWarmup(loaded);
+            }
+            catch (OperationCanceledException) { /* form closing mid-load; expected */ }
+            catch (Exception ex) { Log.Error("Browse load failed", ex); }
+            finally { UseWaitCursor = false; }
+        }
 
-                // Success path: hold the filled bar for 1 s, then clear to zero. Instant clear
-                // on error stays (see catch below) so failure feels snappy rather than animated.
-                // Generation-guarded so a re-browse during the hold doesn't wipe the new run.
-                // Discard suppresses CS4014 -- the continuation is intentionally fire-and-forget
-                // (marshaled to the UI thread via FromCurrentSynchronizationContext).
-                _ = Task.Delay(1000).ContinueWith(
-                    _2 =>
-                    {
-                        if (thisGeneration != mProcessObjectGeneration) return;
-                        ProgressBar_ProcessObject.Value = 0;
-                    },
-                    TaskScheduler.FromCurrentSynchronizationContext());
+        // Classifies a browsed path and loads targets from it. A file dispatches by
+        // extension (.json -> one NINA target, .xisf -> one image-library target);
+        // a directory is an image-library root when LooksLikeImageLibraryRoot
+        // matches the <Catalog>/Captures/ convention, otherwise a NINA .json folder.
+        private async Task<List<Target>> LoadBrowsedPathAsync(string path)
+        {
+            if (File.Exists(path))
+            {
+                string ext = Path.GetExtension(path);
+                if (string.Equals(ext, ".json", StringComparison.OrdinalIgnoreCase))
+                    return TargetPlanner.Nina.TargetLoader.LoadFile(path);
+                if (string.Equals(ext, ".xisf", StringComparison.OrdinalIgnoreCase))
+                    return await TargetPlanner.ImageLibrary.ImageLibraryLoader.LoadFileAsync(
+                        path, mFormClosingCts.Token);
+                return new List<Target>();
+            }
+            if (Directory.Exists(path))
+            {
+                return LooksLikeImageLibraryRoot(path)
+                    ? await LoadImageLibraryAsync(path)
+                    : await LoadNinaTargetsAsync(path);
+            }
+            return new List<Target>();
+        }
+
+        // Folder-capable file picker: the user selects a .json/.xisf file, or
+        // navigates into a directory and clicks Open (the dialog's relaxed
+        // validation lets a folder come back as the path). Returns a real file or
+        // directory path, or string.Empty if cancelled / unresolvable.
+        private string PromptForFileOrFolder()
+        {
+            using var dialog = new OpenFileDialog
+            {
+                Title = "Browse to a target file or folder",
+                Filter = "Target files (*.json;*.xisf)|*.json;*.xisf|All files (*.*)|*.*",
+                InitialDirectory = ImageLibraryRootPath ?? string.Empty,
+                CheckFileExists = false,
+                CheckPathExists = true,
+                ValidateNames = false,
+                FileName = "(pick a file, or open a folder)",
+            };
+            if (dialog.ShowDialog(this) != DialogResult.OK) return string.Empty;
+
+            string raw = dialog.FileName;
+            if (File.Exists(raw) || Directory.Exists(raw)) return raw;
+            // Folder-pick path: the user navigated into a folder, so FileName is
+            // <folder>\<sentinel>; the containing directory is what they meant.
+            string dir = Path.GetDirectoryName(raw) ?? string.Empty;
+            return Directory.Exists(dir) ? dir : string.Empty;
+        }
+
+        // True when a directory looks like an image-library root: at least one
+        // immediate child directory has a "Captures" subfolder -- the convention
+        // ImageLibraryScanner walks (<Catalog>/Captures/<Camera>/<Filter>/).
+        private static bool LooksLikeImageLibraryRoot(string dir)
+        {
+            try
+            {
+                foreach (string child in Directory.EnumerateDirectories(dir))
+                {
+                    if (Directory.Exists(Path.Combine(child, "Captures")))
+                        return true;
+                }
             }
             catch (Exception ex)
             {
-                // Log the full exception (stack + type) to tp.log before surfacing a shorter
-                // user-facing MessageBox; the bare catch used to swallow the stack entirely.
-                Log.Error("GetNinaTargets failed", ex);
-                MessageBox.Show(ex.Message, "Target load failed", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                ProgressBar_ProcessObject.Value = 0;
+                Log.Warn($"LooksLikeImageLibraryRoot: enumerate failed at '{dir}': {ex.Message}");
             }
-
-            // Locally-added targets are additive on top of NINA. Append them so a NINA
-            // reload doesn't wipe them. PopulateCheckedListBoxFromTargets re-sorts via
-            // SortedTargets, so append order is irrelevant for display.
-            foreach (Target lt in mLocalTargets) allLoaded.Add(lt);
-
-            // Push the new known-target list to the VM. KnownTargetsChanged fires once;
-            // OnVmKnownTargetsChanged repopulates ComboBox_SelectTarget +
-            // CheckedListBox_SelectedTargets via PopulateTargetComboFromTargets +
-            // PopulateCheckedListBoxFromTargets, which read the new VM state.
-            mSelection.SetKnownTargets(allLoaded);
-
-            // Warm the chart cache so the user's first Sessions / Year click hits
-            // built entries. Best-effort, fire-and-forget -- see StartCacheWarmup.
-            StartCacheWarmup(allLoaded);
+            return false;
         }
 
         // Loads targets from the image library and replaces the known-target set.

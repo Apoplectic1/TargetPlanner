@@ -1,7 +1,10 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Astronomy.NINA.Xisf;
+using Astronomy.XISF;
 using TargetPlanner.Support;
 
 using Target = Astronomy.Core.Targets.Target;
@@ -51,6 +54,47 @@ namespace TargetPlanner.ImageLibrary
                     + $"skipped during scan of '{root}' (XISF parse failures).");
             }
 
+            return result;
+        }
+
+        // Reads a single .xisf file's FITS header and builds one bare Target from
+        // it. Returns a 0-or-1-element list -- empty when the file is missing or
+        // its header lacks RA/DEC (logged). The rich per-frame data is dropped at
+        // the boundary, same as LoadAsync.
+        public static async Task<List<Target>> LoadFileAsync(string xisfPath, CancellationToken ct)
+        {
+            var result = new List<Target>();
+            if (string.IsNullOrWhiteSpace(xisfPath) || !File.Exists(xisfPath))
+                return result;
+            try
+            {
+                XisfHeader header =
+                    await XisfHeaderReader.ReadAsync(xisfPath, ct).ConfigureAwait(false);
+                double? raDeg = header.RaDegrees;
+                double? decDeg = header.DecDegrees;
+                if (raDeg is null || decDeg is null)
+                {
+                    Log.Warn($"ImageLibraryLoader.LoadFileAsync: '{xisfPath}' "
+                        + "has no RA/DEC header keyword; skipped.");
+                    return result;
+                }
+                double raHours = (raDeg.Value / 15.0) % 24.0;
+                if (raHours < 0) raHours += 24.0;
+                string name = string.IsNullOrWhiteSpace(header.ObjectName)
+                    ? Path.GetFileNameWithoutExtension(xisfPath)
+                    : header.ObjectName;
+                result.Add(new Target(
+                    name:           name,
+                    rightAscension: raHours,
+                    declination:    decDeg.Value,
+                    north:          true,
+                    directory:      xisfPath,
+                    enabled:        true));
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Log.Error($"ImageLibraryLoader.LoadFileAsync failed at '{xisfPath}'", ex);
+            }
             return result;
         }
     }

@@ -55,6 +55,26 @@ namespace TargetPlanner.Nina
             return result;
         }
 
+        // Parses a single NINA .json sequence file into one Target. Returns a
+        // 0-or-1-element list -- empty when the file is missing, unparseable, or
+        // carries no target (logged), mirroring Load()'s skip-and-log contract.
+        public static List<Target> LoadFile(string path)
+        {
+            var result = new List<Target>();
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                return result;
+            try
+            {
+                Target t = ParseTargetFile(path);
+                if (t != null) result.Add(t);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("TargetLoader.LoadFile: skipping '" + path + "'", ex);
+            }
+            return result;
+        }
+
         private static IEnumerable<string> EnumerateTargetFiles(string rootFolder)
         {
             foreach (string f in Directory.EnumerateFiles(rootFolder, "*.json", SearchOption.TopDirectoryOnly))
