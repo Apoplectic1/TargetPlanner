@@ -5,8 +5,7 @@ namespace TargetPlanner.Caches
 {
     /// <summary>
     /// One per-target per-night cache entry. Holds the geometric and lunar precomputes
-    /// that <see cref="TargetPlanner.Charts.AltitudeSeries"/> reads at render time
-    /// instead of recomputing per spinner scrub.
+    /// the chart pipeline reads at render time instead of recomputing per spinner scrub.
     /// </summary>
     /// <remarks>
     /// <para>

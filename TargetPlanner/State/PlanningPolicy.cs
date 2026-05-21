@@ -32,12 +32,10 @@ namespace TargetPlanner.State
     /// <c>NumericUpDown_TargetFloor</c> spinner).
     /// </para>
     /// <para>
-    /// <see cref="HdmKey"/> derives its scalar <c>HorizonDeg</c> from
-    /// <see cref="TargetFloorDeg"/>. When <see cref="LocalHorizon"/> is
-    /// scalar (the default), this matches <see cref="IHorizonProfile.MinAltitude"/>.
-    /// For polyline horizons, the cache continues to dedupe on the scalar key
-    /// until the PR-5 LocalHorizon work extends <see cref="HdmKey"/> to carry
-    /// the profile reference.
+    /// <see cref="HdmKey"/> keys the fits cache on both <c>HorizonDeg</c>
+    /// (derived from <see cref="TargetFloorDeg"/> — the differentiator for the
+    /// scalar case) and <see cref="HdmKey.LocalHorizon"/> (the profile reference,
+    /// populated for non-scalar polyline / obstruction horizons).
     /// </para>
     /// </remarks>
     public sealed record PlanningPolicy(
