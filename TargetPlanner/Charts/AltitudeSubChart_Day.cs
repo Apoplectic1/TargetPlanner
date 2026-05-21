@@ -42,10 +42,6 @@ namespace TargetPlanner.Charts
         public const double MinAltitude = 0.0;
         public const double MaxAltitude = 90.0;
 
-        // Yellow gradient endpoints for dusk/dawn sections (matches MS Charts side).
-        private static readonly SKColor YellowOpaque = new SKColor(255, 238, 88, 145);
-        private static readonly SKColor YellowFaded  = new SKColor(255, 238, 88,   0);
-
         // The label-edge epsilon used to dodge LC2's Ceil/Floor edge-tick
         // floating-point sensitivity lives in ChartLayout (shared with Sky).
 
@@ -62,8 +58,7 @@ namespace TargetPlanner.Charts
         // Axes objects are mutated in place; only Series can be re-listed.
         private readonly Axis mXAxis;
         private readonly Axis mYAxis;
-        private readonly RectangularSection mDuskSection;
-        private readonly RectangularSection mDawnSection;
+        private readonly DuskDawnGradient mGradient;
         private readonly RectangularSection mNowLine;
         private readonly RectangularSection mHorizonLine;
 
@@ -186,8 +181,7 @@ namespace TargetPlanner.Charts
 
             // Initialize section objects with placeholder bounds; Render() rewrites
             // Xi/Xj/Yi/Yj per the actual night window.
-            mDuskSection = new RectangularSection { Xi = 0, Xj = 0 };
-            mDawnSection = new RectangularSection { Xi = 0, Xj = 0 };
+            mGradient = new DuskDawnGradient();
             mNowLine = new RectangularSection
             {
                 Xi = 0, Xj = 0,
@@ -203,7 +197,7 @@ namespace TargetPlanner.Charts
             {
                 XAxes = new[] { mXAxis },
                 YAxes = new[] { mYAxis },
-                Sections = new[] { mDuskSection, mDawnSection, mNowLine, mHorizonLine },
+                Sections = new[] { mGradient.Dusk, mGradient.Dawn, mNowLine, mHorizonLine },
                 Series = Array.Empty<ISeries>(),
                 LegendPosition = LegendPosition.Hidden,
                 FindingStrategy = FindingStrategy.ExactMatch,
@@ -270,7 +264,7 @@ namespace TargetPlanner.Charts
                 debounceMs: 300);
 
             mChart.MouseDown += OnChartMouseDown;
-            mChart.SizeChanged += OnChartSizeChanged;
+            mGradient.WireSizeChanged(mChart);
 
             // Two placement-strategy radios overlaid on the plot area top-left,
             // just right of the Y-axis "90°" label. Parented to mContainer (a
@@ -443,8 +437,8 @@ namespace TargetPlanner.Charts
 
             // Gradient sections are UTC-anchored: dusk gradient spans
             // [startUtc, AstronomicalDusk], dawn gradient [AstronomicalDawn, endUtc].
-            UpdateGradientSections(startUtc, night.AstronomicalDusk,
-                                   night.AstronomicalDawn, endUtc);
+            mGradient.Update(startUtc, night.AstronomicalDusk,
+                             night.AstronomicalDawn, endUtc);
             UpdateNowLine(now);
             // Green horizon line follows the scalar TargetFloor spinner, not the polyline's
             // minimum sample -- the polyline drives per-azimuth fit decisions in the cache.
@@ -663,52 +657,6 @@ namespace TargetPlanner.Charts
             mLegendPanel.Controls.Clear();
         }
 
-        // Recreate gradient Fills sized to the actual dusk/dawn widths. LC2 caches
-        // shaders per-Section; calling this every Render keeps the gradient correctly
-        // sized when the night window changes (Location / DateTime edits). All four
-        // bounds are UTC instants (the X axis is UTC-internal); the gradient math
-        // is purely relative fractions so the frame doesn't matter here.
-        private void UpdateGradientSections(
-            DateTime startUtc, DateTime duskUtc, DateTime dawnUtc, DateTime endUtc)
-        {
-            mDuskSection.Xi = startUtc.ToOADate();
-            mDuskSection.Xj = duskUtc.ToOADate();
-            mDawnSection.Xi = dawnUtc.ToOADate();
-            mDawnSection.Xj = endUtc.ToOADate();
-
-            // SKPoint coords for RectangularSection.Fill gradients are normalized
-            // to the chart's plot area (NOT the section's bounds). So a section
-            // of width W out of total night width T gets gradient endpoints from
-            // 0 to W/T (dusk: opaque-left → faded-right) or 1-W/T to 1 (dawn).
-            double total = (endUtc - startUtc).TotalMinutes;
-            float duskFrac = (float)((duskUtc - startUtc).TotalMinutes / total);
-            float dawnFrac = (float)((endUtc - dawnUtc).TotalMinutes / total);
-            mDuskSection.Fill = new LinearGradientPaint(
-                new[] { YellowOpaque, YellowFaded },
-                new SKPoint(0f, 0.5f),
-                new SKPoint(duskFrac, 0.5f));
-            mDawnSection.Fill = new LinearGradientPaint(
-                new[] { YellowFaded, YellowOpaque },
-                new SKPoint(1f - dawnFrac, 0.5f),
-                new SKPoint(1f, 0.5f));
-        }
-
-        private void OnChartSizeChanged(object sender, EventArgs e)
-        {
-            // LC2 caches the gradient shader at first paint; horizontal resize
-            // would otherwise leave the dawn gradient progressively cut off.
-            // Re-assigning Fill forces a fresh shader resolve. The section Xi/Xj
-            // round-trip is frame-consistent (UTC OADate in, UTC OADate out).
-            if (!mDuskSection.Xi.HasValue || !mDuskSection.Xj.HasValue
-                || !mDawnSection.Xi.HasValue || !mDawnSection.Xj.HasValue) return;
-            if (mDuskSection.Xi.Value == 0 && mDuskSection.Xj.Value == 0) return;  // pre-render
-            DateTime startUtc = DateTime.FromOADate(mDuskSection.Xi.Value);
-            DateTime duskUtc  = DateTime.FromOADate(mDuskSection.Xj.Value);
-            DateTime dawnUtc  = DateTime.FromOADate(mDawnSection.Xi.Value);
-            DateTime endUtc   = DateTime.FromOADate(mDawnSection.Xj.Value);
-            UpdateGradientSections(startUtc, duskUtc, dawnUtc, endUtc);
-        }
-
         private void OnChartMouseDown(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Right)
@@ -846,7 +794,7 @@ namespace TargetPlanner.Charts
         public void Dispose()
         {
             mChart.MouseDown -= OnChartMouseDown;
-            mChart.SizeChanged -= OnChartSizeChanged;
+            mGradient.Dispose();
             mHover.Dispose();
             mContainer.Dispose();
         }
