@@ -66,25 +66,24 @@ Re-grep each "zero call sites" claim at fix time before deleting. Leaf namespace
   + the coordinator delegate. Tier 6's Day-overlay work re-introduces a staleness
   param to `Render` when it has a real consumer.
 
-## Tier 4 — Charts mirror-pair dedup (the dominant theme; M–L)
+## Tier 4 — Charts mirror-pair dedup ✅ SHIPPED 2026-05-19 (`4b4981c` / `53227f0` / `cfbd45c` / `b03fe3b`)
 
-Day↔Sky and Year↔Sessions carry large copy-paste blocks. None of these need the
-separately-future-flagged Day+Sky chart merge — each is a clean helper extraction.
+Day↔Sky and Year↔Sessions carried large copy-paste blocks; four clean helper
+extractions removed them without the separately-future-flagged Day+Sky merge.
 
-- [ ] **Extract `DuskDawnGradient` helper** (M, low) — the `YellowOpaque/Faded`
-  constants, `mDusk/DawnSection` fields + ctor init, `UpdateGradientSections` (the
-  24-line normalized-fraction math), and `OnChartSizeChanged` shader-kick are
-  byte-identical Day↔Sky (`AltitudeSubChart_Day.cs:46-47,672-711` ↔ `_Sky.cs` equiv).
-- [ ] **Extract `MoonOverlay` helper** (M, low) — `BuildOrUpdateMoonSeries` +
-  `ComputeMoonAltitudesInline` are identical Day↔Sky except one Y-mapping line. Helper
-  takes a `Func<double,double?> altitudeToPlotY`.
-- [ ] **`ChartLayout` axis factories** (M, low) — `MakeUtcHourAxis` (Day↔Sky time axis
-  + the shared `AxisTimeLabel`), `MakeMonthAxis` (Year↔Sessions), `MakeAltitudeYAxis`.
-- [ ] **Extract `ChartLegendPanel`** (L, med — user-visible, needs visual verify) —
-  `MakeLegendItem` + `BuildLegendItems` + `RecomputeLayout` + the `FlowLayoutPanel`
-  ctor block + `IdealHeight`/`IdealHeightChanged` are duplicated across **all four**
-  sub-charts and have **already drifted** (Day seeds legend `ForeColor` unconditionally
-  LightGray; Sky/Year seed it conditionally on `IsVisible`). Biggest line-count win.
+- [x] **`DuskDawnGradient`** — new `Charts/DuskDawnGradient.cs` owns the dusk/dawn
+  gradient (constants, the two `RectangularSection`s, the fraction math, the resize
+  shader re-kick); Day + Sky route through it.
+- [x] **`MoonOverlay`** — new static `Charts/MoonOverlay.cs`; `BuildSeries` takes a
+  `Func<double,double>` Y-mapper for the one Day/Sky difference, `ComputeAltitudesInline`
+  is the shared cache-miss fallback.
+- [x] **`ChartLayout` axis factories** — `MakeTimeXAxis` / `MakeMonthXAxis` /
+  `MakeAltitudeYAxis` + `FormatZonedAxisLabel`; all four sub-charts route through them
+  (Sky's inverted-magnitude Y axis stays inline — single consumer).
+- [x] **`ChartLegendPanel`** — new `Charts/ChartLegendPanel.cs` owns the external
+  clickable legend across all four sub-charts; the `LegendEntry` struct carries the
+  per-chart 1-vs-3-series toggle. Fixed the drift — Day's legend `ForeColor` is now
+  conditional on visibility like the other three.
 
 ## Tier 5 — Cache dedup (M–L)
 
