@@ -85,18 +85,21 @@ extractions removed them without the separately-future-flagged Day+Sky merge.
   per-chart 1-vs-3-series toggle. Fixed the drift — Day's legend `ForeColor` is now
   conditional on visibility like the other three.
 
-## Tier 5 — Cache dedup (M–L)
+## Tier 5 — Cache dedup ✅ SHIPPED 2026-05-19 (`f912e71` / `7973dca`)
 
-- [ ] **Extract `ComputeOneFit`** (M, low) — `ComputeTonightFit` (`ChartCacheStore.cs:961-1000`)
-  is, by its own comment, the single-night equivalent of `ComputeNightFits`' loop body
-  (`888-953`). Same `ResolveCandidates → PlaceBest → Floor/Ceiling → PlaceCentered`
-  recipe; a placement-strategy change must currently be made twice.
-- [ ] **Generic `CacheAxis<TKey,TVal>`** (L, med — biggest structural win, do when a 5th
-  axis looms) — the four `Get*OrBuildAsync` blocks and three `Prepare*Async` methods
-  (`ChartCacheStore.cs` yearDays/fits/day/moon) are near-identical dedupe + progress-tick
-  boilerplate (~120 lines). A `CacheAxis` holding `store` + `inFlight` + a `build` func
-  collapses them; the four `BuildXxxEntryAsync` compute bodies stay distinct. Moon is
-  keyed by `DayWindowKey` not `(Target,*)`, so the generic keys on `TKey`.
+- [x] **`ComputeOneFit`** — extracted the shared `ResolveCandidates → PlaceBest →
+  Floor/Ceiling → PlaceCentered` recipe; `ComputeNightFits` (per-night loop) and
+  `ComputeTonightFit` (single Starting window) both call it. A placement-strategy
+  change is now edited once.
+- [x] **Generic `CacheAxis<TKey,TVal>`** — new `Caches/CacheAxis.cs` collapses the
+  four near-identical axes (yearDays / fits / day / moon) into one generic owning
+  `store` + `inFlight` + the get / build / dedupe / publish lifecycle on the shared
+  `mGate`; the four `BuildXxxEntryAsync` compute bodies stay distinct, wired in as
+  `build` delegates. All four axes went generic — `BuildFitEntryAsync` reconstructs
+  its horizon profile from the `HdmKey` (`LocalHorizon ?? new ScalarHorizonProfile(
+  HorizonDeg)`), so the fits axis needs no extra parameter; that retired the
+  `IHorizonProfile horizon` arg from `PrepareFitsAsync` and the four now-internal
+  `Get*OrBuildAsync` methods from `IChartCacheStore`. Net ~120 lines removed.
 
 ## Tier 6 — SoC restructure (do after Tier 4 helpers land)
 
