@@ -9,8 +9,7 @@ namespace TargetPlanner.Caches
     /// </summary>
     /// <remarks>
     /// One entry per target at the current <see cref="Astronomy.Core.Locations.Location"/>.
-    /// Built by <see cref="ChartCacheStore.GetOrBuildAsync"/> on a background thread;
-    /// rendered by <see cref="TargetPlanner.Charts.AltitudeSeries"/> on the UI thread.
+    /// Built by <see cref="ChartCacheStore"/> on a background thread.
     /// Immutable from the consumer's perspective once published into the cache dictionary.
     /// </remarks>
     public sealed class TargetCacheEntry

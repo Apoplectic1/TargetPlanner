@@ -48,40 +48,21 @@ namespace TargetPlanner.Caches
         private Location mLocation;
         private NightCache mNightCache;
         private Task<NightCache> mNightCacheTask;        // in-flight per-location night-cache build
-        private Dictionary<Target, TargetCacheEntry> mEntries = new Dictionary<Target, TargetCacheEntry>();
-        private Dictionary<Target, Task<TargetCacheEntry>> mInFlight = new Dictionary<Target, Task<TargetCacheEntry>>();
 
-        // Per-(target, HdmKey) fit cache. Sibling axis to mEntries (per-target yearDays).
-        // SetLocationAsync clears both. HdmKey changes invalidate fits but preserve yearDays
-        // so H/D/M scrubs don't re-pay the per-(target, location) moon-sample sweep.
-        private Dictionary<(Target, HdmKey), TargetFitEntry> mFits
-            = new Dictionary<(Target, HdmKey), TargetFitEntry>();
-        private Dictionary<(Target, HdmKey), Task<TargetFitEntry>> mInFlightFits
-            = new Dictionary<(Target, HdmKey), Task<TargetFitEntry>>();
-
-        // Per-(target, DayWindowKey) altitude-curve cache. Third axis alongside
-        // yearDays (per-target) and fits (per-(target, HdmKey)). Drives the Day
-        // chart's per-target altitude polyline -- AltitudeCurve.Sample is the
-        // heavy call (44 targets × 1440 minutes ≈ 63k Meeus calls) and was the
-        // last UI-thread hot path before this axis. DayWindowKey is independent
-        // of HdmKey (altitude depends on target geometry + time, not on the
-        // user's planning policy), so HDM scrubs hit warm cache and only re-run
-        // the per-target ComputeBestDayWindow fit-tonight filter.
-        private Dictionary<(Target, DayWindowKey), TargetDayAltitudeEntry> mDay
-            = new Dictionary<(Target, DayWindowKey), TargetDayAltitudeEntry>();
-        private Dictionary<(Target, DayWindowKey), Task<TargetDayAltitudeEntry>> mInFlightDay
-            = new Dictionary<(Target, DayWindowKey), Task<TargetDayAltitudeEntry>>();
-
-        // Per-DayWindowKey moon altitude curves. Singleton-style (not target-keyed)
-        // since the moon is shared across all targets. SetLocationAsync clears
-        // these alongside the per-target dicts. The Day chart's render reads
-        // GetMoonOrNull(dayKey) instead of computing AstroUtil.GetMoonAltitude
-        // per-minute inline -- same SoC win as TargetDayAltitudeEntry was for
-        // per-target altitudes.
-        private Dictionary<DayWindowKey, MoonAltitudeEntry> mMoon
-            = new Dictionary<DayWindowKey, MoonAltitudeEntry>();
-        private Dictionary<DayWindowKey, Task<MoonAltitudeEntry>> mInFlightMoon
-            = new Dictionary<DayWindowKey, Task<MoonAltitudeEntry>>();
+        // The four cache axes. Each CacheAxis owns its store + in-flight dicts
+        // and the get / build / in-flight-dedupe / publish lifecycle; all four
+        // share mGate and discard stale builds via the () => mLocation accessor.
+        // yearDays is per-target; fits per-(target, HdmKey) -- an HdmKey change
+        // invalidates fits but preserves yearDays so H/D/M scrubs don't re-pay
+        // the per-(target, location) moon-sample sweep; day is per-(target,
+        // DayWindowKey) -- the Day chart's altitude polyline, independent of
+        // HdmKey; moon is per-DayWindowKey -- target-independent (the moon is
+        // shared across all targets at a location). SetLocationAsync drains +
+        // resets all four. Constructed in the ctor after mLocation is seeded.
+        private readonly CacheAxis<Target, TargetCacheEntry> mYearDaysAxis;
+        private readonly CacheAxis<(Target, HdmKey), TargetFitEntry> mFitsAxis;
+        private readonly CacheAxis<(Target, DayWindowKey), TargetDayAltitudeEntry> mDayAxis;
+        private readonly CacheAxis<DayWindowKey, MoonAltitudeEntry> mMoonAxis;
 
         // Last ChartContext successfully applied via EnsureAsync; drives the
         // per-axis diff flags returned in the next ChartEvaluation. Null until
@@ -106,6 +87,22 @@ namespace TargetPlanner.Caches
             if (initialLocation == null) throw new ArgumentNullException(nameof(initialLocation));
             mLocation = initialLocation;
             mLastSetUtc = initialUtc;
+
+            // Build the axes after mLocation is seeded; the () => mLocation
+            // accessor reads it live, so a later SetLocationAsync swap is seen
+            // by in-flight builds' stale-discard check.
+            mYearDaysAxis = new CacheAxis<Target, TargetCacheEntry>(
+                mGate, () => mLocation,
+                (key, loc) => BuildEntryAsync(key, loc));
+            mFitsAxis = new CacheAxis<(Target, HdmKey), TargetFitEntry>(
+                mGate, () => mLocation,
+                (key, loc) => BuildFitEntryAsync(key.Item1, key.Item2, loc));
+            mDayAxis = new CacheAxis<(Target, DayWindowKey), TargetDayAltitudeEntry>(
+                mGate, () => mLocation,
+                (key, loc) => BuildDayEntryAsync(key.Item1, key.Item2, loc));
+            mMoonAxis = new CacheAxis<DayWindowKey, MoonAltitudeEntry>(
+                mGate, () => mLocation,
+                (key, loc) => BuildMoonEntryAsync(key, loc));
         }
 
         public Location CurrentLocation
@@ -121,206 +118,53 @@ namespace TargetPlanner.Caches
         public TargetCacheEntry GetOrNull(Target t)
         {
             if (t == null) return null;
-            lock (mGate)
-            {
-                mEntries.TryGetValue(t, out TargetCacheEntry entry);
-                return entry;
-            }
+            return mYearDaysAxis.GetOrNull(t);
         }
 
-        public Task<TargetCacheEntry> GetOrBuildAsync(Target t)
-        {
-            if (t == null) throw new ArgumentNullException(nameof(t));
-
-            // Fast path: already published.
-            TargetCacheEntry existing = GetOrNull(t);
-            if (existing != null) return Task.FromResult(existing);
-
-            lock (mGate)
-            {
-                // In-flight de-dupe.
-                if (mInFlight.TryGetValue(t, out Task<TargetCacheEntry> task)) return task;
-
-                Location location = mLocation;
-                task = BuildEntryAsync(t, location);
-                mInFlight[t] = task;
-                return task;
-            }
-        }
-
-        public async Task PrepareManyAsync(IEnumerable<Target> targets,
+        public Task PrepareManyAsync(IEnumerable<Target> targets,
             IProgress<int> targetCompleteProgress = null)
         {
-            if (targets == null) return;
-            List<Task> tasks = new List<Task>();
-            int completed = 0;
-            foreach (Target t in targets)
-            {
-                if (t == null) continue;
-                Task<TargetCacheEntry> build = GetOrBuildAsync(t);
-                // Always include the build task itself so WhenAll observes its
-                // original fault (if any) rather than only the continuation's
-                // OnlyOnRanToCompletion cancellation. The continuation is a
-                // best-effort progress tick; faulted builds skip the tick but
-                // their exception still propagates via the build entry below.
-                tasks.Add(build);
-                if (targetCompleteProgress != null)
-                {
-                    // Synchronous continuation keeps the increment cheap; Progress<T>.Report
-                    // internally marshals the callback to the captured SyncContext (UI thread).
-                    tasks.Add(build.ContinueWith(
-                        _ => targetCompleteProgress.Report(Interlocked.Increment(ref completed)),
-                        CancellationToken.None,
-                        TaskContinuationOptions.OnlyOnRanToCompletion | TaskContinuationOptions.ExecuteSynchronously,
-                        TaskScheduler.Default));
-                }
-            }
-            await Task.WhenAll(tasks);
+            if (targets == null) return Task.CompletedTask;
+            return mYearDaysAxis.PrepareAsync(
+                targets.Where(t => t != null), targetCompleteProgress);
         }
 
         public TargetFitEntry GetFitOrNull(Target t, HdmKey key)
         {
             if (t == null) return null;
-            lock (mGate)
-            {
-                mFits.TryGetValue((t, key), out TargetFitEntry entry);
-                return entry;
-            }
+            return mFitsAxis.GetOrNull((t, key));
         }
 
-        public Task<TargetFitEntry> GetFitOrBuildAsync(Target t, HdmKey key, IHorizonProfile horizon)
+        public Task PrepareFitsAsync(IEnumerable<Target> targets, HdmKey key,
+            IProgress<int> targetCompleteProgress = null)
         {
-            if (t == null) throw new ArgumentNullException(nameof(t));
-            if (horizon == null) throw new ArgumentNullException(nameof(horizon));
-
-            // Fast path: already published.
-            TargetFitEntry existing = GetFitOrNull(t, key);
-            if (existing != null) return Task.FromResult(existing);
-
-            lock (mGate)
-            {
-                // In-flight de-dupe. We trust that callers obey the contract that for a
-                // given HdmKey the IHorizonProfile is functionally equivalent across calls
-                // (today HdmKey.HorizonDeg uniquely identifies the scalar profile; the PR-5
-                // local-horizon work will extend the key with the profile reference).
-                if (mInFlightFits.TryGetValue((t, key), out Task<TargetFitEntry> task))
-                    return task;
-
-                Location location = mLocation;
-                task = BuildFitEntryAsync(t, key, location, horizon);
-                mInFlightFits[(t, key)] = task;
-                return task;
-            }
-        }
-
-        public async Task PrepareFitsAsync(IEnumerable<Target> targets, HdmKey key,
-            IHorizonProfile horizon, IProgress<int> targetCompleteProgress = null)
-        {
-            if (targets == null) return;
-            if (horizon == null) throw new ArgumentNullException(nameof(horizon));
-            List<Task> tasks = new List<Task>();
-            int completed = 0;
-            foreach (Target t in targets)
-            {
-                if (t == null) continue;
-                Task<TargetFitEntry> build = GetFitOrBuildAsync(t, key, horizon);
-                // Always include the build task itself -- see PrepareManyAsync for
-                // the rationale (the continuation's OnlyOnRanToCompletion would
-                // otherwise mask the original build fault on a WhenAll).
-                tasks.Add(build);
-                if (targetCompleteProgress != null)
-                {
-                    tasks.Add(build.ContinueWith(
-                        _ => targetCompleteProgress.Report(Interlocked.Increment(ref completed)),
-                        CancellationToken.None,
-                        TaskContinuationOptions.OnlyOnRanToCompletion | TaskContinuationOptions.ExecuteSynchronously,
-                        TaskScheduler.Default));
-                }
-            }
-            await Task.WhenAll(tasks);
+            if (targets == null) return Task.CompletedTask;
+            return mFitsAxis.PrepareAsync(
+                targets.Where(t => t != null).Select(t => (t, key)),
+                targetCompleteProgress);
         }
 
         public TargetDayAltitudeEntry GetDayOrNull(Target t, DayWindowKey key)
         {
             if (t == null) return null;
-            lock (mGate)
-            {
-                mDay.TryGetValue((t, key), out TargetDayAltitudeEntry entry);
-                return entry;
-            }
+            return mDayAxis.GetOrNull((t, key));
         }
 
-        public Task<TargetDayAltitudeEntry> GetDayOrBuildAsync(Target t, DayWindowKey key)
-        {
-            if (t == null) throw new ArgumentNullException(nameof(t));
-
-            // Fast path: already published.
-            TargetDayAltitudeEntry existing = GetDayOrNull(t, key);
-            if (existing != null) return Task.FromResult(existing);
-
-            lock (mGate)
-            {
-                if (mInFlightDay.TryGetValue((t, key), out Task<TargetDayAltitudeEntry> task))
-                    return task;
-
-                Location location = mLocation;
-                task = BuildDayEntryAsync(t, key, location);
-                mInFlightDay[(t, key)] = task;
-                return task;
-            }
-        }
-
-        public async Task PrepareDayAsync(IEnumerable<Target> targets, DayWindowKey key,
+        public Task PrepareDayAsync(IEnumerable<Target> targets, DayWindowKey key,
             IProgress<int> targetCompleteProgress = null)
         {
-            if (targets == null) return;
-            List<Task> tasks = new List<Task>();
-            int completed = 0;
-            foreach (Target t in targets)
-            {
-                if (t == null) continue;
-                Task<TargetDayAltitudeEntry> build = GetDayOrBuildAsync(t, key);
-                tasks.Add(build);
-                if (targetCompleteProgress != null)
-                {
-                    tasks.Add(build.ContinueWith(
-                        _ => targetCompleteProgress.Report(Interlocked.Increment(ref completed)),
-                        CancellationToken.None,
-                        TaskContinuationOptions.OnlyOnRanToCompletion | TaskContinuationOptions.ExecuteSynchronously,
-                        TaskScheduler.Default));
-                }
-            }
-            await Task.WhenAll(tasks);
+            if (targets == null) return Task.CompletedTask;
+            return mDayAxis.PrepareAsync(
+                targets.Where(t => t != null).Select(t => (t, key)),
+                targetCompleteProgress);
         }
 
         public MoonAltitudeEntry GetMoonOrNull(DayWindowKey key)
         {
-            lock (mGate)
-            {
-                mMoon.TryGetValue(key, out MoonAltitudeEntry entry);
-                return entry;
-            }
+            return mMoonAxis.GetOrNull(key);
         }
 
-        public Task<MoonAltitudeEntry> GetMoonOrBuildAsync(DayWindowKey key)
-        {
-            // Fast path: already published.
-            MoonAltitudeEntry existing = GetMoonOrNull(key);
-            if (existing != null) return Task.FromResult(existing);
-
-            lock (mGate)
-            {
-                if (mInFlightMoon.TryGetValue(key, out Task<MoonAltitudeEntry> task))
-                    return task;
-
-                Location location = mLocation;
-                task = BuildMoonEntryAsync(key, location);
-                mInFlightMoon[key] = task;
-                return task;
-            }
-        }
-
-        public Task PrepareMoonAsync(DayWindowKey key) => GetMoonOrBuildAsync(key);
+        public Task PrepareMoonAsync(DayWindowKey key) => mMoonAxis.GetOrBuildAsync(key);
 
         // -------------- single-entry pipeline --------------
 
@@ -398,7 +242,7 @@ namespace TargetPlanner.Caches
             if (ctx.Targets != null && ctx.Targets.Count > 0)
             {
                 await PrepareManyAsync(ctx.Targets);
-                await PrepareFitsAsync(ctx.Targets, ctx.Hdm, ctx.Policy.LocalHorizon);
+                await PrepareFitsAsync(ctx.Targets, ctx.Hdm);
 
                 // dayKey.Count == 0 sentinels "no valid Day window" (polar
                 // night). Day chart's Render handles the blank-chart case from
@@ -440,10 +284,9 @@ namespace TargetPlanner.Caches
 
             if (Log.IsDiagEnabled("Cache"))
             {
-                int fitCount, dayCount, moonCount;
-                lock (mGate) { fitCount = mFits.Count; dayCount = mDay.Count; moonCount = mMoon.Count; }
                 Log.Diag("Cache",
-                    $"EnsureAsync exit mFits.Count={fitCount} mDay.Count={dayCount} mMoon.Count={moonCount}");
+                    $"EnsureAsync exit mFits.Count={mFitsAxis.Count} mDay.Count={mDayAxis.Count} " +
+                    $"mMoon.Count={mMoonAxis.Count}");
             }
 
             return new ChartEvaluation
@@ -487,10 +330,10 @@ namespace TargetPlanner.Caches
             if (newLocation == null) throw new ArgumentNullException(nameof(newLocation));
 
             Task<NightCache> oldNightTask;
-            ICollection<Task<TargetCacheEntry>> oldInFlight;
-            ICollection<Task<TargetFitEntry>> oldInFlightFits;
-            ICollection<Task<TargetDayAltitudeEntry>> oldInFlightDay;
-            ICollection<Task<MoonAltitudeEntry>> oldInFlightMoon;
+            List<Task<TargetCacheEntry>> oldInFlight;
+            List<Task<TargetFitEntry>> oldInFlightFits;
+            List<Task<TargetDayAltitudeEntry>> oldInFlightDay;
+            List<Task<MoonAltitudeEntry>> oldInFlightMoon;
 
             lock (mGate)
             {
@@ -502,32 +345,25 @@ namespace TargetPlanner.Caches
                     && mLastSetUtc == startingUtc) return;
 
                 oldNightTask = mNightCacheTask;
-                oldInFlight = mInFlight.Values.ToList();
-                oldInFlightFits = mInFlightFits.Values.ToList();
-                oldInFlightDay = mInFlightDay.Values.ToList();
-                oldInFlightMoon = mInFlightMoon.Values.ToList();
 
-                // Reset state for the new location. Old in-flight builds keep running and
-                // discard themselves at publish via the ReferenceEquals(mLocation, location)
-                // check in BuildEntryAsync / BuildFitEntryAsync / BuildDayEntryAsync /
-                // BuildMoonEntryAsync.
+                // Swap mLocation FIRST so any post-swap publish from an old
+                // in-flight build fails its ReferenceEquals check and discards.
+                // Old in-flight builds keep running and drop themselves; each
+                // axis's DrainAndReset runs under this same lock so all four
+                // axes + mLocation + the night cache reset atomically.
                 mLocation = newLocation;
                 mLastSetUtc = startingUtc;
                 mNightCache = null;
                 mNightCacheTask = null;
-                mEntries = new Dictionary<Target, TargetCacheEntry>();
-                mInFlight = new Dictionary<Target, Task<TargetCacheEntry>>();
-                mFits = new Dictionary<(Target, HdmKey), TargetFitEntry>();
-                mInFlightFits = new Dictionary<(Target, HdmKey), Task<TargetFitEntry>>();
-                mDay = new Dictionary<(Target, DayWindowKey), TargetDayAltitudeEntry>();
-                mInFlightDay = new Dictionary<(Target, DayWindowKey), Task<TargetDayAltitudeEntry>>();
-                mMoon = new Dictionary<DayWindowKey, MoonAltitudeEntry>();
-                mInFlightMoon = new Dictionary<DayWindowKey, Task<MoonAltitudeEntry>>();
+                oldInFlight     = mYearDaysAxis.DrainAndReset();
+                oldInFlightFits = mFitsAxis.DrainAndReset();
+                oldInFlightDay  = mDayAxis.DrainAndReset();
+                oldInFlightMoon = mMoonAxis.DrainAndReset();
             }
 
             // Wait for in-flight tasks (against the old location) to finish so callers
             // who await SetLocationAsync don't continue while stale work is still
-            // touching the threadpool. Stale-publish is harmless (TryPublish's
+            // touching the threadpool. Stale-publish is harmless (each axis's
             // ReferenceEquals check drops them); we just want the wait for hygiene.
             // Exceptions thrown by stale builds are logged via the local SafeAwait
             // helper and don't fail SetLocationAsync. Concurrent vs sequential
@@ -568,131 +404,77 @@ namespace TargetPlanner.Caches
 
         // -------------- internals --------------
 
-        // Publish a successfully-built entry into <paramref name="store"/> when the
-        // build's source location is still current. Removes from
-        // <paramref name="inFlight"/> on a match. Returns true on publish; false
-        // when a SetLocationAsync swap orphaned the build (caller discards the
-        // entry by simply not using the published copy -- the local entry is
-        // still returned to the immediate caller). Used by every BuildXxxAsync
-        // method so the lock + ReferenceEquals + publish + in-flight-remove
-        // pattern lives in exactly one place.
-        private bool TryPublish<TKey, TVal>(
-            Dictionary<TKey, TVal> store,
-            Dictionary<TKey, Task<TVal>> inFlight,
-            TKey key, TVal value, Location buildLocation)
-        {
-            lock (mGate)
-            {
-                if (!object.ReferenceEquals(mLocation, buildLocation)) return false;
-                store[key] = value;
-                inFlight.Remove(key);
-                return true;
-            }
-        }
-
-        // Drop a faulted task from <paramref name="inFlight"/> so the next
-        // GetOrBuildAsync starts fresh instead of re-awaiting the broken Task.
-        // Skipped when a SetLocationAsync swap already discarded our dict
-        // (the new dict doesn't contain our key anyway). Mirrors TryPublish's
-        // location guard.
-        private void DropOnFault<TKey, TVal>(
-            Dictionary<TKey, Task<TVal>> inFlight, TKey key, Location buildLocation)
-        {
-            lock (mGate)
-            {
-                if (object.ReferenceEquals(mLocation, buildLocation))
-                    inFlight.Remove(key);
-            }
-        }
+        // The four Build*EntryAsync methods are the per-axis compute bodies,
+        // wired as the CacheAxis build delegates in the ctor. They are pure
+        // compute: CacheAxis owns the in-flight dedupe, the publish, and the
+        // stale-build discard (a build started against a since-swapped location
+        // is dropped by the axis's ReferenceEquals check).
 
         private async Task<TargetCacheEntry> BuildEntryAsync(Target target, Location location)
         {
-            try
-            {
-                NightCache night = await EnsureNightCacheAsync(location);
+            NightCache night = await EnsureNightCacheAsync(location);
 
-                IReadOnlyList<NightCacheEntry> yearDays = await Task.Run(
-                    () => ComputeYearDays(target, location, night));
+            IReadOnlyList<NightCacheEntry> yearDays = await Task.Run(
+                () => ComputeYearDays(target, location, night));
 
-                TargetCacheEntry entry = new TargetCacheEntry(target, yearDays);
-                TryPublish(mEntries, mInFlight, target, entry, location);
-                return entry;
-            }
-            catch
-            {
-                DropOnFault(mInFlight, target, location);
-                throw;
-            }
+            return new TargetCacheEntry(target, yearDays);
         }
 
-        // Per-(target, HdmKey) fit build. Awaits yearDays for the target (de-duped via
-        // the existing mInFlight path), then walks each night computing the Sessions
-        // Ceiling / Floor / CenteredFloor triple. Year reads Floor; both share the
-        // upstream BestSession.ResolveCandidates resolve so one resolve drives both
-        // placements. The tail also computes a single-night Tonight fit from the
-        // NightCache.Starting window so Day's HD-overlay box and Sky's
-        // hide-on-no-fit read from the same cache (one source of truth for the
-        // fit decision; zero UI-thread Library calls in render).
-        private async Task<TargetFitEntry> BuildFitEntryAsync(Target target, HdmKey key,
-            Location location, IHorizonProfile horizon)
+        // Per-(target, HdmKey) fit build. Awaits yearDays for the target (via the
+        // yearDays axis, de-duped there), then walks each night computing the
+        // Sessions Ceiling / Floor / CenteredFloor triple plus a single-night
+        // Tonight fit from NightCache.Starting (Day's HD-overlay box and Sky's
+        // hide-on-no-fit read the same cache). The horizon profile is
+        // reconstructed from the key: HdmKey.LocalHorizon carries the polyline /
+        // MaxOfHorizonProfile composite verbatim; for the scalar case it is null
+        // and HdmKey.HorizonDeg is the exact target floor, so a fresh
+        // ScalarHorizonProfile(HorizonDeg) is functionally identical to the live
+        // one. (HorizonDeg, LocalHorizon) thus fully determines the profile, so
+        // fits dedupe is exact -- no caller-supplied-horizon contract needed.
+        private async Task<TargetFitEntry> BuildFitEntryAsync(
+            Target target, HdmKey key, Location location)
         {
-            try
+            TargetCacheEntry yearEntry = await mYearDaysAxis.GetOrBuildAsync(target);
+            IReadOnlyList<NightCacheEntry> yearDays = yearEntry.YearDays;
+            IHorizonProfile horizon = key.LocalHorizon
+                ?? new ScalarHorizonProfile(key.HorizonDeg);
+            TimeSpan duration = TimeSpan.FromTicks(key.DurationTicks);
+            MoonAvoidanceProfile profile = key.Profile;
+            NightCache nightCache = await EnsureNightCacheAsync(location);
+            NightWindow starting = nightCache.Starting;
+
+            (IReadOnlyList<NightFit> nights, NightFit tonight) = await Task.Run(
+                () => (
+                    ComputeNightFits(target, location, yearDays, horizon, duration, profile),
+                    ComputeTonightFit(target, location, starting, horizon, duration, profile)));
+
+            TargetFitEntry entry = new TargetFitEntry(target, key, nights, tonight);
+
+            if (Log.IsDiagEnabled("Cache"))
             {
-                TargetCacheEntry yearEntry = await GetOrBuildAsync(target);
-                IReadOnlyList<NightCacheEntry> yearDays = yearEntry.YearDays;
-                TimeSpan duration = TimeSpan.FromTicks(key.DurationTicks);
-                MoonAvoidanceProfile profile = key.Profile;
-                NightCache nightCache = await EnsureNightCacheAsync(location);
-                NightWindow starting = nightCache.Starting;
-
-                (IReadOnlyList<NightFit> nights, NightFit tonight) = await Task.Run(
-                    () => (
-                        ComputeNightFits(target, location, yearDays, horizon, duration, profile),
-                        ComputeTonightFit(target, location, starting, horizon, duration, profile)));
-
-                TargetFitEntry entry = new TargetFitEntry(target, key, nights, tonight);
-
-                if (Log.IsDiagEnabled("Cache"))
-                {
-                    Log.Diag("Cache",
-                        $"BuildFit target={target.Name} hdmKey=(H={key.HorizonDeg},Dt={key.DurationTicks},FNm={key.FilterCenterNm}) " +
-                        $"durationSec={duration.TotalSeconds:F0} startingValid={starting.IsValid} " +
-                        $"tonightHasFloor={tonight.Floor.HasValue}");
-                }
-
-                TryPublish(mFits, mInFlightFits, (target, key), entry, location);
-                return entry;
+                Log.Diag("Cache",
+                    $"BuildFit target={target.Name} hdmKey=(H={key.HorizonDeg},Dt={key.DurationTicks},FNm={key.FilterCenterNm}) " +
+                    $"durationSec={duration.TotalSeconds:F0} startingValid={starting.IsValid} " +
+                    $"tonightHasFloor={tonight.Floor.HasValue}");
             }
-            catch
-            {
-                DropOnFault(mInFlightFits, (target, key), location);
-                throw;
-            }
+
+            return entry;
         }
 
         // Per-(target, DayWindowKey) altitude-curve build. AltitudeCurve.Sample on a
         // threadpool thread; the result is the minute-spaced altitudes the Day chart
         // paints. Independent of HdmKey (altitude is a function of geometry + time,
         // not user policy), so the cache hits across HDM scrubs.
-        private async Task<TargetDayAltitudeEntry> BuildDayEntryAsync(Target target, DayWindowKey key, Location location)
+        private async Task<TargetDayAltitudeEntry> BuildDayEntryAsync(
+            Target target, DayWindowKey key, Location location)
         {
-            try
-            {
-                DateTime startUtc = key.ChartStartUtc;
-                int count = key.Count;
+            DateTime startUtc = key.ChartStartUtc;
+            int count = key.Count;
 
-                IReadOnlyList<double> altitudes = await Task.Run(
-                    () => AltitudeCurve.Sample(target, location, startUtc, TimeSpan.FromMinutes(1), count));
+            IReadOnlyList<double> altitudes = await Task.Run(
+                () => AltitudeCurve.Sample(target, location, startUtc, TimeSpan.FromMinutes(1), count));
 
-                TargetDayAltitudeEntry entry = new TargetDayAltitudeEntry(target, key, altitudes);
-                TryPublish(mDay, mInFlightDay, (target, key), entry, location);
-                return entry;
-            }
-            catch
-            {
-                DropOnFault(mInFlightDay, (target, key), location);
-                throw;
-            }
+            return new TargetDayAltitudeEntry(target, key, altitudes);
         }
 
         // Per-DayWindowKey moon altitude-curve build. Singleton per night-window
@@ -700,37 +482,28 @@ namespace TargetPlanner.Caches
         // on a threadpool thread; the result is the minute-spaced geometric altitudes
         // the Day chart's moon plot reads. Stored geometric -- callers needing
         // apparent altitude (K-S brightness gate) apply Saemundsson refraction.
-        private async Task<MoonAltitudeEntry> BuildMoonEntryAsync(DayWindowKey key, Location location)
+        private async Task<MoonAltitudeEntry> BuildMoonEntryAsync(
+            DayWindowKey key, Location location)
         {
-            try
-            {
-                DateTime startUtc = key.ChartStartUtc;
-                int count = key.Count;
-                double latSigned = location.LatSigned();
-                double lonEast = location.LonEast();
-                ObserverInfo observer = new ObserverInfo(latSigned, lonEast, location.Elevation);
+            DateTime startUtc = key.ChartStartUtc;
+            int count = key.Count;
+            double latSigned = location.LatSigned();
+            double lonEast = location.LonEast();
+            ObserverInfo observer = new ObserverInfo(latSigned, lonEast, location.Elevation);
 
-                IReadOnlyList<double> altitudes = await Task.Run(() =>
+            IReadOnlyList<double> altitudes = await Task.Run(() =>
+            {
+                double[] arr = new double[count];
+                for (int i = 0; i < count; i++)
                 {
-                    double[] arr = new double[count];
-                    for (int i = 0; i < count; i++)
-                    {
-                        DateTime pointUtc = DateTime.SpecifyKind(
-                            startUtc.AddMinutes(i), DateTimeKind.Utc);
-                        arr[i] = AstroUtil.GetMoonAltitude(pointUtc, observer);
-                    }
-                    return arr;
-                });
+                    DateTime pointUtc = DateTime.SpecifyKind(
+                        startUtc.AddMinutes(i), DateTimeKind.Utc);
+                    arr[i] = AstroUtil.GetMoonAltitude(pointUtc, observer);
+                }
+                return arr;
+            });
 
-                MoonAltitudeEntry entry = new MoonAltitudeEntry(key, altitudes);
-                TryPublish(mMoon, mInFlightMoon, key, entry, location);
-                return entry;
-            }
-            catch
-            {
-                DropOnFault(mInFlightMoon, key, location);
-                throw;
-            }
+            return new MoonAltitudeEntry(key, altitudes);
         }
 
         private Task<NightCache> EnsureNightCacheAsync(Location location)

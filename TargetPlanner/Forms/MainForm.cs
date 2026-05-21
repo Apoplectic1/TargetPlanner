@@ -2040,7 +2040,6 @@ is preserved.";
             // Sessions / Year click hits a warm cache and renders instantly.
             ChartContext warmupCtx = SnapshotCurrent(allLoaded);
             HdmKey hdm = warmupCtx.Hdm;
-            IHorizonProfile horizon = warmupCtx.Policy.LocalHorizon;
             CancellationToken formCt = mFormClosingCts.Token;
             _ = Task.Run(async () =>
             {
@@ -2065,7 +2064,7 @@ is preserved.";
                 async Task WarmupAsync()
                 {
                     await mCache.PrepareManyAsync(allLoaded);
-                    await mCache.PrepareFitsAsync(allLoaded, hdm, horizon);
+                    await mCache.PrepareFitsAsync(allLoaded, hdm);
                 }
             });
         }

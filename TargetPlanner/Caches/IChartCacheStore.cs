@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Astronomy.Core.Horizons;
 using Astronomy.Core.Night;
 using TargetPlanner.State;
 using Location = Astronomy.Core.Locations.Location;
@@ -22,10 +21,10 @@ namespace TargetPlanner.Caches
     /// </para>
     /// <para>
     /// Threading: implementations run cache builds on the threadpool (<c>Task.Run</c>).
-    /// Synchronous read accessors (<see cref="IsReady"/>, <see cref="GetOrNull"/>) are
-    /// lock-free for the consumer. Callers awaiting <c>*OrBuildAsync</c> or
-    /// <c>PrepareXxx</c> receive published entries on completion — no separate
-    /// event surface is required.
+    /// Synchronous read accessors (<see cref="GetOrNull"/> and the per-axis
+    /// <c>Get*OrNull</c> siblings) are lock-protected for the consumer. Callers
+    /// awaiting the <c>PrepareXxx</c> methods receive published entries on
+    /// completion — no separate event surface is required.
     /// </para>
     /// <para>
     /// Cancellation: the cache itself does not cancel in-flight builds; on a
@@ -63,11 +62,6 @@ namespace TargetPlanner.Caches
         /// location, or <see langword="null"/> if not yet built.</summary>
         TargetCacheEntry GetOrNull(Target t);
 
-        /// <summary>Build (or wait for an in-flight build of) the entry for
-        /// <paramref name="t"/> at the current location. Idempotent: concurrent calls for
-        /// the same target dedupe to one underlying compute.</summary>
-        Task<TargetCacheEntry> GetOrBuildAsync(Target t);
-
         /// <summary>Pre-build entries for many targets in parallel. Returns when all builds
         /// have completed (or one has faulted). Optional <paramref name="targetCompleteProgress"/>
         /// receives a 1-based completion count as each target finishes (order matches
@@ -84,39 +78,19 @@ namespace TargetPlanner.Caches
         /// <see cref="PrepareFitsAsync"/> before dispatch.</remarks>
         TargetFitEntry GetFitOrNull(Target t, HdmKey key);
 
-        /// <summary>Build (or wait for an in-flight build of) the fit entry for
-        /// <paramref name="t"/> at <paramref name="key"/>. Idempotent per
-        /// (target, key); concurrent calls dedupe to one underlying compute.</summary>
-        /// <remarks>Requires the per-target yearDays entry to exist; callers should ensure
-        /// <see cref="GetOrBuildAsync"/> / <see cref="PrepareManyAsync"/> has completed
-        /// for the same target before calling this. The implementation reads
-        /// <see cref="TargetCacheEntry.YearDays"/> off the published yearDays entry to
-        /// drive the per-night fit walk. <paramref name="horizon"/> drives
-        /// <see cref="Astronomy.Core.Session.BestSession.ResolveCandidates"/>'s per-azimuth
-        /// visibility test; for a given <paramref name="key"/> the caller must pass a
-        /// functionally-equivalent profile (today the scalar case is the only case in flight,
-        /// keyed uniquely by <see cref="HdmKey.HorizonDeg"/>).</remarks>
-        Task<TargetFitEntry> GetFitOrBuildAsync(Target t, HdmKey key, IHorizonProfile horizon);
-
         /// <summary>Pre-build fit entries for many targets at <paramref name="key"/>
         /// in parallel. Awaits the yearDays prepare for missing targets internally, so
         /// callers can fire this immediately after constructing the cache without
-        /// pre-awaiting yearDays themselves. <paramref name="horizon"/> is passed through
-        /// to each per-target build. Optional progress reports a 1-based completion count
-        /// as each target's fit-build finishes.</summary>
+        /// pre-awaiting yearDays themselves. The horizon profile is reconstructed from
+        /// <paramref name="key"/> per build. Optional progress reports a 1-based
+        /// completion count as each target's fit-build finishes.</summary>
         Task PrepareFitsAsync(IEnumerable<Target> targets, HdmKey key,
-            IHorizonProfile horizon, IProgress<int> targetCompleteProgress = null);
+            IProgress<int> targetCompleteProgress = null);
 
         /// <summary>Returns the published per-night altitude curve for
         /// <paramref name="t"/> at <paramref name="key"/>, or <see langword="null"/>
         /// if not yet built. Synchronous, lock-protected.</summary>
         TargetDayAltitudeEntry GetDayOrNull(Target t, DayWindowKey key);
-
-        /// <summary>Build (or wait for an in-flight build of) the Day altitude curve
-        /// for <paramref name="t"/> at <paramref name="key"/>. Idempotent per
-        /// (target, key); concurrent calls dedupe to one underlying
-        /// <see cref="Astronomy.Core.AltitudeCurve"/>.Sample call.</summary>
-        Task<TargetDayAltitudeEntry> GetDayOrBuildAsync(Target t, DayWindowKey key);
 
         /// <summary>Pre-build Day altitude entries for many targets at <paramref name="key"/>
         /// in parallel. Optional progress reports a 1-based completion count
@@ -130,11 +104,6 @@ namespace TargetPlanner.Caches
         /// Synchronous, lock-protected.</summary>
         MoonAltitudeEntry GetMoonOrNull(DayWindowKey key);
 
-        /// <summary>Build (or wait for an in-flight build of) the moon altitude
-        /// entry at <paramref name="key"/>. Idempotent per key; concurrent calls
-        /// dedupe to one underlying compute.</summary>
-        Task<MoonAltitudeEntry> GetMoonOrBuildAsync(DayWindowKey key);
-
         /// <summary>Pre-build the moon altitude entry at <paramref name="key"/>.
         /// No-op when already published.</summary>
         Task PrepareMoonAsync(DayWindowKey key);
@@ -143,8 +112,7 @@ namespace TargetPlanner.Caches
         /// re-anchoring the NightCache against <paramref name="startingUtc"/>. In-flight
         /// builds against the old (location, utc) pair run to completion and discard
         /// themselves at publish via the cache's internal location check. Subsequent
-        /// <see cref="GetOrBuildAsync"/> / <see cref="PrepareManyAsync"/> calls build
-        /// against the new state.</summary>
+        /// <see cref="PrepareManyAsync"/> calls build against the new state.</summary>
         Task SetLocationAsync(Location newLocation, DateTime startingUtc);
     }
 }
