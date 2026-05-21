@@ -142,8 +142,9 @@ separately-future-flagged Day+Sky chart merge — each is a clean helper extract
 - [ ] View-radio handler boilerplate (`MainForm.SortPresenter.cs:2157-2199`) — mostly
   dissolves once Tier-1 removes the `mUIState` writes.
 
-## Doc drift caught in passing (not code — fix during a docs pass)
+## Doc drift caught in passing
 
-- `ARCHITECTURE.md:262-263` still describes `mSelection.Mode` / `SetMode(GraphMode.Multi)`
-  on `TargetSelection` — that VM has **no `Mode` property** (its own XML doc says so;
-  render dispatch is explicit at the consumer). Stale since the VM refactor.
+- [x] **Fixed 2026-05-19.** `ARCHITECTURE.md` lines 46 + 262 + 263 described a
+  `TargetSelection.Mode` property / `SetMode(GraphMode.Multi)` that does not exist
+  — the VM has no `Mode`; `Button_Graph` renders `SelectedSingle` and the checked-set
+  is an independent debounce-driven view. Corrected in commit alongside this audit.
