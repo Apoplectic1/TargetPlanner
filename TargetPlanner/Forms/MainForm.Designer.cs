@@ -1120,10 +1120,10 @@
             //
             // Button_ClearAllTargets
             //
-            Button_ClearAllTargets.Location = new System.Drawing.Point(912, 55);
+            Button_ClearAllTargets.Location = new System.Drawing.Point(444, 55);
             Button_ClearAllTargets.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             Button_ClearAllTargets.Name = "Button_ClearAllTargets";
-            Button_ClearAllTargets.Size = new System.Drawing.Size(110, 27);
+            Button_ClearAllTargets.Size = new System.Drawing.Size(140, 27);
             Button_ClearAllTargets.TabIndex = 10;
             Button_ClearAllTargets.Text = "Clear All Targets";
             Button_ClearAllTargets.UseVisualStyleBackColor = true;
