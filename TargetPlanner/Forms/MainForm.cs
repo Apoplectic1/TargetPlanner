@@ -2796,9 +2796,9 @@ is preserved.";
         // previously-rendered targets is preserved (PrepareManyAsync(empty) is a
         // no-op; only SetLocationAsync ever drops cache entries), so re-checking
         // those targets later hits the warm cache instantly.
-        private void Button_ClearAllTargets_Click(object sender, EventArgs e)
+        private void Button_UncheckAll_Click(object sender, EventArgs e)
         {
-            Log.Diag("UI", "Button_ClearAllTargets.Click");
+            Log.Diag("UI", "Button_UncheckAll.Click");
             mSelection.SetAllChecked(false);
         }
 
@@ -2806,6 +2806,16 @@ is preserved.";
         {
             Log.Diag("UI", "Button_SelectAllTargets.Click");
             mSelection.SetAllChecked(true);
+        }
+
+        // Empties the known-target list entirely (combo + listbox cleared, charts
+        // blanked). Distinct from Button_UncheckAll, which only clears the *checked*
+        // set. SetKnownTargets with an empty list also clears Checked + SelectedSingle;
+        // the VM events repopulate the now-empty UI and blank the charts.
+        private void Button_ClearAllTargets_Click(object sender, EventArgs e)
+        {
+            Log.Diag("UI", "Button_ClearAllTargets.Click");
+            mSelection.SetKnownTargets(Array.Empty<Target>());
         }
 
         // Check exactly the targets that have a contiguous window of at least

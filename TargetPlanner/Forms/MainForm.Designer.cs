@@ -109,6 +109,7 @@
             RadioButton_Day = new System.Windows.Forms.RadioButton();
             Button_VisibleTargets = new System.Windows.Forms.Button();
             Button_SelectAllTargets = new System.Windows.Forms.Button();
+            Button_UncheckAll = new System.Windows.Forms.Button();
             Button_ClearAllTargets = new System.Windows.Forms.Button();
             ProgressBar_ProcessObject = new System.Windows.Forms.ProgressBar();
             Label_SortBy = new System.Windows.Forms.Label();
@@ -1104,15 +1105,26 @@
             Button_SelectAllTargets.UseVisualStyleBackColor = true;
             Button_SelectAllTargets.Click += Button_SelectAllTargets_Click;
             // 
-            // Button_ClearAllTargets
+            // Button_UncheckAll
             // 
-            Button_ClearAllTargets.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
-            Button_ClearAllTargets.Location = new System.Drawing.Point(912, 22);
+            Button_UncheckAll.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
+            Button_UncheckAll.Location = new System.Drawing.Point(912, 22);
+            Button_UncheckAll.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            Button_UncheckAll.Name = "Button_UncheckAll";
+            Button_UncheckAll.Size = new System.Drawing.Size(75, 27);
+            Button_UncheckAll.TabIndex = 8;
+            Button_UncheckAll.Text = "Uncheck All";
+            Button_UncheckAll.UseVisualStyleBackColor = true;
+            Button_UncheckAll.Click += Button_UncheckAll_Click;
+            //
+            // Button_ClearAllTargets
+            //
+            Button_ClearAllTargets.Location = new System.Drawing.Point(912, 55);
             Button_ClearAllTargets.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             Button_ClearAllTargets.Name = "Button_ClearAllTargets";
-            Button_ClearAllTargets.Size = new System.Drawing.Size(75, 27);
-            Button_ClearAllTargets.TabIndex = 8;
-            Button_ClearAllTargets.Text = "Clear All";
+            Button_ClearAllTargets.Size = new System.Drawing.Size(110, 27);
+            Button_ClearAllTargets.TabIndex = 10;
+            Button_ClearAllTargets.Text = "Clear All Targets";
             Button_ClearAllTargets.UseVisualStyleBackColor = true;
             Button_ClearAllTargets.Click += Button_ClearAllTargets_Click;
             // 
@@ -1170,15 +1182,15 @@
             Button_BrowseTargetList.Text = "Browse";
             Button_BrowseTargetList.UseVisualStyleBackColor = true;
             Button_BrowseTargetList.Click += Button_BrowseTargetList_Click;
-            //
+            // 
             // Button_LoadImageLibrary
-            //
+            // 
             Button_LoadImageLibrary.Location = new System.Drawing.Point(26, 55);
             Button_LoadImageLibrary.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             Button_LoadImageLibrary.Name = "Button_LoadImageLibrary";
-            Button_LoadImageLibrary.Size = new System.Drawing.Size(140, 27);
+            Button_LoadImageLibrary.Size = new System.Drawing.Size(203, 27);
             Button_LoadImageLibrary.TabIndex = 1;
-            Button_LoadImageLibrary.Text = "Load Image Library";
+            Button_LoadImageLibrary.Text = "Load Image Library Targets";
             Button_LoadImageLibrary.UseVisualStyleBackColor = true;
             Button_LoadImageLibrary.Click += Button_LoadImageLibrary_Click;
             // 
@@ -1217,6 +1229,7 @@
             GroupBox_Target.Controls.Add(ComboBox_SortTargets);
             GroupBox_Target.Controls.Add(NumericUpDown_RaMinutes);
             GroupBox_Target.Controls.Add(Label_DecMinuteColon);
+            GroupBox_Target.Controls.Add(Button_UncheckAll);
             GroupBox_Target.Controls.Add(Button_ClearAllTargets);
             GroupBox_Target.Controls.Add(Label_SortBy);
             GroupBox_Target.Controls.Add(NumericUpDown_TargetDuration);
@@ -1653,6 +1666,7 @@
         private System.Windows.Forms.Label Label_Phase;
         private System.Windows.Forms.ComboBox ComboBox_SelectTarget;
         private System.Windows.Forms.Button Button_SelectAllTargets;
+        private System.Windows.Forms.Button Button_UncheckAll;
         private System.Windows.Forms.Button Button_ClearAllTargets;
         private System.Windows.Forms.ProgressBar ProgressBar_MultiTargetProcessing;
         private System.Windows.Forms.ProgressBar ProgressBar_ProcessObject;
