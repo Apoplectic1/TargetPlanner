@@ -892,41 +892,7 @@ namespace TargetPlanner.Caches
                     LunarIlluminationFraction = 0,
                 };
 
-                var candidates = BestSession.ResolveCandidates(
-                    target, location, nw, horizonProfile, profile);
-                if (candidates.Count == 0) continue;
-
-                // PlaceBest: transit-centered-or-wall-pushed placement. altitudeQuality
-                // default (null) dispatches to the sin(alt) closed-form path inside
-                // BestSession.PlaceBestInternal -- ~25x faster than the Simpson lambda.
-                double? floor = null, ceiling = null;
-                var session = BestSession.PlaceBest(target, location, candidates, duration, duration);
-                if (session != null)
-                {
-                    floor   = SessionAltitude.Floor(target, location, session.Value.Start, session.Value.End);
-                    ceiling = SessionAltitude.Ceiling(target, location, session.Value.Start, session.Value.End);
-                }
-
-                // PlaceCentered: strict-centered placement; null when transit doesn't
-                // fit with positive room on both sides.
-                double? centeredFloor = null;
-                var centered = BestSession.PlaceCentered(target, location, candidates, duration);
-                if (centered != null)
-                {
-                    centeredFloor = SessionAltitude.Floor(target, location,
-                        centered.Value.Start, centered.Value.End);
-                }
-
-                fits[i] = new NightFit
-                {
-                    Ceiling = ceiling,
-                    Floor = floor,
-                    CenteredFloor = centeredFloor,
-                    StartUtc = session?.Start,
-                    EndUtc   = session?.End,
-                    CenteredStartUtc = centered?.Start,
-                    CenteredEndUtc   = centered?.End,
-                };
+                fits[i] = ComputeOneFit(target, location, nw, horizonProfile, duration, profile);
             }
 
             return fits;
@@ -934,31 +900,42 @@ namespace TargetPlanner.Caches
 
         // Single-night equivalent of ComputeNightFits' loop body, for the
         // LocationNightCache.Starting slot consumed by Day's HD-overlay and
-        // Sky's hide-on-no-fit. Same recipe (ResolveCandidates + PlaceBest +
-        // SessionAltitude.Floor / Ceiling + PlaceCentered) -- so the cached
-        // Tonight fit is byte-identical to what Day's ad-hoc BestSession.For
-        // produced pre-consolidation.
+        // Sky's hide-on-no-fit.
         private static NightFit ComputeTonightFit(
             Target target, Location location, NightWindow starting,
             IHorizonProfile horizonProfile, TimeSpan duration, MoonAvoidanceProfile profile)
         {
             if (duration <= TimeSpan.Zero || !starting.IsValid) return default;
+            return ComputeOneFit(target, location, starting, horizonProfile, duration, profile);
+        }
 
+        // The per-night fit recipe shared by ComputeNightFits (the per-night
+        // loop) and ComputeTonightFit (the single Starting window). One
+        // BestSession.ResolveCandidates resolve drives both PlaceBest
+        // (Ceiling + Floor) and PlaceCentered (CenteredFloor). No guards --
+        // each caller applies its own pre-rejection (geometric for the loop,
+        // duration / IsValid for tonight) before calling in.
+        private static NightFit ComputeOneFit(
+            Target target, Location location, NightWindow nw,
+            IHorizonProfile horizonProfile, TimeSpan duration, MoonAvoidanceProfile profile)
+        {
             var candidates = BestSession.ResolveCandidates(
-                target, location, starting, horizonProfile, profile);
+                target, location, nw, horizonProfile, profile);
             if (candidates.Count == 0) return default;
 
+            // PlaceBest: transit-centered-or-wall-pushed placement. altitudeQuality
+            // default (null) dispatches to the sin(alt) closed-form path inside
+            // BestSession.PlaceBestInternal -- ~25x faster than the Simpson lambda.
             double? floor = null, ceiling = null;
-            DateTime? startUtc = null, endUtc = null;
             var session = BestSession.PlaceBest(target, location, candidates, duration, duration);
             if (session != null)
             {
-                floor    = SessionAltitude.Floor(target, location, session.Value.Start, session.Value.End);
-                ceiling  = SessionAltitude.Ceiling(target, location, session.Value.Start, session.Value.End);
-                startUtc = session.Value.Start;
-                endUtc   = session.Value.End;
+                floor   = SessionAltitude.Floor(target, location, session.Value.Start, session.Value.End);
+                ceiling = SessionAltitude.Ceiling(target, location, session.Value.Start, session.Value.End);
             }
 
+            // PlaceCentered: strict-centered placement; null when transit doesn't
+            // fit with positive room on both sides.
             double? centeredFloor = null;
             var centered = BestSession.PlaceCentered(target, location, candidates, duration);
             if (centered != null)
@@ -972,8 +949,8 @@ namespace TargetPlanner.Caches
                 Ceiling = ceiling,
                 Floor = floor,
                 CenteredFloor = centeredFloor,
-                StartUtc = startUtc,
-                EndUtc   = endUtc,
+                StartUtc = session?.Start,
+                EndUtc   = session?.End,
                 CenteredStartUtc = centered?.Start,
                 CenteredEndUtc   = centered?.End,
             };
