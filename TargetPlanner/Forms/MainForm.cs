@@ -1452,14 +1452,7 @@ is preserved.";
             try
             {
                 mCheckedToggleDebounce.Stop();
-
-                var targets = new List<Target>();
-                foreach (object item in CheckedListBox_SelectedTargets.CheckedItems)
-                {
-                    if (item is TargetRow row && row.Target != null) targets.Add(row.Target);
-                }
-
-                await RunGraphBuildAsync(targets);
+                await RunGraphBuildAsync(HarvestCheckedTargets());
             }
             catch (Exception ex)
             {
@@ -1477,14 +1470,20 @@ is preserved.";
         {
             Log.Diag("UI", $"Button_CheckedTargets.Click checkedCount={CheckedListBox_SelectedTargets.CheckedItems.Count}");
             mCheckedToggleDebounce?.Stop();
+            await RunGraphBuildAsync(HarvestCheckedTargets());
+        }
 
+        // Walk CheckedListBox_SelectedTargets in display order, collecting the
+        // checked targets. Display order so the rendered list inherits the
+        // listbox's NaturalStringComparer sort. Shared by Button_CheckedTargets_Click
+        // and the CheckedToggleDebounce_Tick multi-graph path.
+        private List<Target> HarvestCheckedTargets()
+        {
             var targets = new List<Target>();
             foreach (object item in CheckedListBox_SelectedTargets.CheckedItems)
-            {
-                if (item is TargetRow row && row.Target != null) targets.Add(row.Target);
-            }
-
-            await RunGraphBuildAsync(targets);
+                if (item is TargetRow row && row.Target != null)
+                    targets.Add(row.Target);
+            return targets;
         }
 
         // Returns the currently-active chart-area name. The radio cluster
@@ -1627,12 +1626,10 @@ is preserved.";
                 // values. Preserve Horizon / Duration / N / W: those are independent of the
                 // location name and the user may have deliberately tuned them.
                 mLocation = mLocation.With(name: "Custom", latitude: 0, longitude: 0);
-                // Polyline horizon is per-named-site; Custom has no associated NamedLocation-
-                // Setting to look up a LocalHorizonPath against, so clear the loaded profile
-                // and fall back to the scalar Horizon path until the user picks a named site.
-                mLocalHorizon = null;
-                UpdateHorizonPathLabel();
-                ConfigureHorizonWatcher(null);
+                // Polyline horizon is per-named-site; Custom has no associated NamedSite
+                // to look up a LocalHorizonPath against, so clear the loaded profile and
+                // fall back to the scalar Horizon path until the user picks a named site.
+                ApplySiteHorizon(null);
                 SyncLocationUIFromModel();
             }
             else
@@ -1652,9 +1649,7 @@ is preserved.";
                 // (no path, missing file, parse failure) falls back through SnapshotCurrent
                 // to the scalar ScalarHorizonProfile(mLocation.Horizon) path; the loader
                 // logs to tp.log on failure.
-                mLocalHorizon = HrzFileLoader.Load(named.LocalHorizonPath);
-                UpdateHorizonPathLabel();
-                ConfigureHorizonWatcher(named.LocalHorizonPath);
+                ApplySiteHorizon(named.LocalHorizonPath);
                 SyncLocationUIFromModel();
             }
 
@@ -1708,11 +1703,22 @@ is preserved.";
             // owned the LocalHorizonPath, so the loaded polyline no longer corresponds
             // to the displayed coordinates. Scalar Horizon takes over until the user
             // re-picks a named location (or stays on Custom, where there's no polyline).
-            mLocalHorizon = null;
-            UpdateHorizonPathLabel();
-            ConfigureHorizonWatcher(null);
+            ApplySiteHorizon(null);
             mAppSettings.LastSelectedLocationName = "Custom";
             // Not saving on every edit -- settings are persisted on form close.
+        }
+
+        // Apply a named site's polyline horizon: load the .hrz at localHorizonPath
+        // (null/empty -> no polyline, the scalar Horizon takes over), refresh the
+        // path label, and re-point the file watcher. Shared by the ComboBox_Location
+        // site-pick branches and OnLocationEdited's switch-to-Custom path.
+        private void ApplySiteHorizon(string localHorizonPath)
+        {
+            mLocalHorizon = string.IsNullOrEmpty(localHorizonPath)
+                ? null
+                : HrzFileLoader.Load(localHorizonPath);
+            UpdateHorizonPathLabel();
+            ConfigureHorizonWatcher(localHorizonPath);
         }
 
         // PickStartupPreferences -- companion to PickStartupLocation. Resolves

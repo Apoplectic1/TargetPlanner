@@ -440,20 +440,8 @@ namespace TargetPlanner
             if (mSubCharts == null) return;
 
             bool enabled = CheckBox_Moon_AvoidanceEnable.Checked;
-            MoonAvoidanceProfile profile = null;
-            if (enabled)
-            {
-                profile = MoonAvoidanceProfile.Custom(
-                    separationDeg:  (double)NumericUpDown_Moon_Separation.Value,
-                    widthDays:      (double)NumericUpDown_Moon_Width.Value,
-                    relaxEnabled:   CheckBox_Moon_RelaxEnabled.Checked,
-                    relaxMinAltDeg: (double)NumericUpDown_Moon_RelaxMin.Value,
-                    relaxMaxAltDeg: (double)NumericUpDown_Moon_RelaxMax.Value,
-                    relaxScale:     (double)NumericUpDown_Moon_RelaxScale.Value);
-            }
-
             SetLorentzianControlsEnabled(enabled);
-            mMoonAvoidanceProfile = profile;
+            mMoonAvoidanceProfile = enabled ? BuildProfileFromControls() : null;
             // Coordinator's internal debounce collapses a fast Enable-Disable-
             // Enable click sequence into one trailing-edge pipeline run.
             mCoordinator?.Apply(SnapshotCurrent());

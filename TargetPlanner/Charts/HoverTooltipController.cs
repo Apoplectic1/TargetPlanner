@@ -21,6 +21,10 @@ namespace TargetPlanner.Charts
     // endpoint and read data[snapped].Y directly.
     public class HoverTooltipController : IDisposable
     {
+        // Hover hit-test tolerance: the tooltip shows only when the cursor is
+        // within 1.5° (Y) of a curve. Deliberately tighter than OverlayController's
+        // MaxClickDistanceDeg (5°) — a hover is a precise probe, a click a
+        // committed action.
         public const double MaxHoverDistanceDeg = 1.5;
 
         // Caller-supplied tooltip text builder for plot-area hover hits.

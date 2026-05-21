@@ -23,6 +23,10 @@ namespace TargetPlanner.Charts
     // lookup without rebuilding this controller.
     public class OverlayController
     {
+        // Click hit-test tolerance: a left-click within 5° (Y) of a curve toggles
+        // its overlay. Deliberately more forgiving than HoverTooltipController's
+        // MaxHoverDistanceDeg (1.5°) — a click is a committed action, a hover a
+        // precise probe.
         public const double MaxClickDistanceDeg = 5.0;
 
         private readonly CartesianChart mChart;
@@ -87,16 +91,13 @@ namespace TargetPlanner.Charts
             mReportStatus = reportStatus;
         }
 
-        // Discard any backup tracking for series that are about to be re-rendered.
-        // Caller invokes before a full Render() so stale entries (series whose data
-        // collection is being repopulated) don't leak across render cycles.
-        public void ClearAll()
-        {
-            mBackups.Clear();
-            mWasGlobalApply = false;
-            mGlobalOptOuts.Clear();
-            mLastToggled = null;
-        }
+        // Discard ALL backup + opt-out tracking. Caller invokes before a full
+        // Render() so stale entries (series whose data collection is being
+        // repopulated) don't leak across render cycles. Implemented as a prune
+        // against an empty active set — every series is "stale", so the prune
+        // wipes everything — keeping the reset field-list in one place
+        // (PruneStaleBackups) instead of duplicating it here.
+        public void ClearAll() => PruneStaleBackups(Array.Empty<LineSeries<ObservablePoint>>());
 
         // Walk currently-active overlays and re-render against the latest window
         // returned by mWindowFor. Called after Horizon / Duration / MoonAvoidance

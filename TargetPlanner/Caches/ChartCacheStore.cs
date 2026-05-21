@@ -692,7 +692,7 @@ namespace TargetPlanner.Caches
         {
             try
             {
-                DateTime startUtc = new DateTime(key.ChartStartUtcTicks, DateTimeKind.Utc);
+                DateTime startUtc = key.ChartStartUtc;
                 int count = key.Count;
 
                 IReadOnlyList<double> altitudes = await Task.Run(
@@ -718,7 +718,7 @@ namespace TargetPlanner.Caches
         {
             try
             {
-                DateTime startUtc = new DateTime(key.ChartStartUtcTicks, DateTimeKind.Utc);
+                DateTime startUtc = key.ChartStartUtc;
                 int count = key.Count;
                 double latSigned = location.LatSigned();
                 double lonEast = location.LonEast();
