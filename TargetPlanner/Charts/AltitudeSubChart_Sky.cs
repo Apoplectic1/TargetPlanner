@@ -383,9 +383,11 @@ namespace TargetPlanner.Charts
             if (moonAltitudes == null || moonAltitudes.Count != count)
             {
                 Log.Warn($"Sky moon cache miss; inline fallback (dayKey.Count={count}, cached={moonAltitudes?.Count ?? -1})");
-                moonAltitudes = ComputeMoonAltitudesInline(location, startUtc, count);
+                moonAltitudes = MoonOverlay.ComputeAltitudesInline(location, startUtc, count);
             }
-            BuildOrUpdateMoonSeries(moonAltitudes, startUtc, count, night.LunarIlluminationFraction);
+            mMoonSeries = MoonOverlay.BuildSeries(
+                moonAltitudes, startUtc, count, night.LunarIlluminationFraction,
+                alt => SkyAxisMinMag + (alt / 90.0) * (SkyAxisMaxMag - SkyAxisMinMag), "Sky");
 
             // Compute K-S data for ALL passed targets so a future H/D/M scrub
             // that brings an unfit target back into fit can re-add its series
@@ -479,74 +481,6 @@ namespace TargetPlanner.Charts
             mChart.Series = Array.Empty<ISeries>();
             mLegendPanel.Controls.Clear();
         }
-
-        // Build the moon overlay for Sky from a pre-computed altitude array
-        // (sourced from the per-DayWindowKey moon cache). Y values mapped to
-        // Sky's [SkyAxisMinMag, SkyAxisMaxMag] plot range: altitude=0 ->
-        // y_plot=SkyAxisMinMag (bottom = darkest mag), altitude=90 ->
-        // y_plot=SkyAxisMaxMag (top = brightest mag). Below-horizon points get
-        // null Y so the fill gaps where the moon is down.
-        private void BuildOrUpdateMoonSeries(
-            IReadOnlyList<double> altitudes,
-            DateTime startUtc,
-            int count,
-            double lunarIllumination)
-        {
-            byte alpha = (byte)Math.Min(250, Math.Max(0, (int)(lunarIllumination * 250.0)));
-
-            int aboveHorizon = 0;
-            const double yRange = SkyAxisMaxMag - SkyAxisMinMag;
-            var data = new ObservableCollection<ObservablePoint>();
-            for (int i = 0; i < count; i++)
-            {
-                double moonAlt = altitudes[i];
-                if (moonAlt > 0) aboveHorizon++;
-                double? plotY = moonAlt < 0
-                    ? (double?)null
-                    : SkyAxisMinMag + (moonAlt / 90.0) * yRange;
-                // UTC-internal X axis: sample i is at startUtc + i minutes.
-                DateTime pointUtc = startUtc.AddMinutes(i);
-                data.Add(new ObservablePoint(pointUtc.ToOADate(), plotY));
-            }
-
-            mMoonSeries = new LineSeries<ObservablePoint>
-            {
-                Name = "Moon",
-                Values = data,
-                Stroke = null,
-                Fill = new SolidColorPaint(new SKColor(209, 209, 209, alpha)),
-                GeometrySize = 0,
-                LineSmoothness = 0.4,
-                IsVisibleAtLegend = false,
-                ZIndex = -1,
-            };
-
-            if (Log.IsDiagEnabled("Sky"))
-            {
-                Log.Diag("Sky",
-                    $"BuildMoon illum={lunarIllumination:F3} alpha={alpha} count={count} " +
-                    $"aboveHorizon={aboveHorizon} startUtc={startUtc:yyyy-MM-dd HH:mm}Z");
-            }
-        }
-
-        // Defensive fallback when the moon cache misses. Matches
-        // ChartCacheStore.BuildMoonEntryAsync's compute path.
-        private static IReadOnlyList<double> ComputeMoonAltitudesInline(
-            Location location, DateTime startUtc, int count)
-        {
-            double latSigned = location.LatSigned();
-            double lonEast   = location.LonEast();
-            ObserverInfo observer = new ObserverInfo(latSigned, lonEast, location.Elevation);
-            double[] altitudes = new double[count];
-            for (int i = 0; i < count; i++)
-            {
-                DateTime pointUtc = DateTime.SpecifyKind(
-                    startUtc.AddMinutes(i), DateTimeKind.Utc);
-                altitudes[i] = AstroUtil.GetMoonAltitude(pointUtc, observer);
-            }
-            return altitudes;
-        }
-
 
         // Hide via fully-transparent stroke (zero alpha) when no D-hour window
         // fits tonight; restore the palette stroke when one fits. Mirrors Day's
