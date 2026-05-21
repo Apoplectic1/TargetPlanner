@@ -172,46 +172,21 @@ namespace TargetPlanner.Caches
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
 
-            // Capture prev under the lock so the diff sees a consistent snapshot.
-            // The compute below runs unlocked (await), which is fine because every
-            // downstream Prepare path is itself locked + idempotent.
+            // Capture the last-applied snapshot + date anchor under one lock so
+            // the diff sees a consistent picture; the compute + Prepare paths
+            // below run unlocked (each Prepare path is itself locked + idempotent).
             ChartContext prev;
-            lock (mGate) { prev = mLastEnsureCtx; }
-
-            bool locationChanged = prev == null
-                || !LocationCacheEquivalent(prev.Location, ctx.Location);
-            bool targetsChanged = prev == null
-                || !TargetsEqualByReference(prev.Targets, ctx.Targets);
-            bool hdmChanged = prev == null || prev.Hdm != ctx.Hdm;
-            bool dayModeChanged = prev == null || prev.DayMode != ctx.DayMode;
-            bool brightnessChanged = prev == null
-                || ctx.Location.BortleClass != prev.Location.BortleClass
-                || ctx.Location.ExtinctionK != prev.Location.ExtinctionK
-                || ctx.Policy.FilterCenterNm != prev.Policy.FilterCenterNm;
-
-            // Detect date-change-without-geometry-change. NightCache's Starting
-            // window and YearStartDay both depend on the seed UTC; any cross-day
-            // scrub stales the Starting slot, any cross-month scrub stales the
-            // YearStartDay anchor (and thus the whole year-cache). Treat both
-            // as cache-busting events on par with a true geometry change so
-            // SetLocationAsync rebuilds against the new anchor.
             DateTime prevUtc;
-            lock (mGate) { prevUtc = mLastSetUtc; }
-            // First EnsureAsync at a same-date ctor anchor doesn't need to
-            // SetLocationAsync (the cache is already keyed correctly via the
-            // ctor's seed). Only mark dateChanged when the date axis actually
-            // moved off the ctor anchor or a previous SetLocationAsync's anchor.
-            bool dateChanged =
-                prevUtc.Date != ctx.Observation.Utc.Date
-                || NightCache.ComputeYearStartDay(prevUtc)
-                   != NightCache.ComputeYearStartDay(ctx.Observation.Utc);
+            lock (mGate) { prev = mLastEnsureCtx; prevUtc = mLastSetUtc; }
+
+            CacheDiff diff = ComputeDiff(prev, ctx, prevUtc);
 
             if (Log.IsDiagEnabled("Cache"))
             {
                 Log.Diag("Cache",
-                    $"EnsureAsync enter prevNull={prev == null} locChanged={locationChanged} " +
-                    $"dateChanged={dateChanged} tgtChanged={targetsChanged} hdmChanged={hdmChanged} " +
-                    $"dayModeChanged={dayModeChanged} brightnessChanged={brightnessChanged} " +
+                    $"EnsureAsync enter prevNull={prev == null} locChanged={diff.LocationChanged} " +
+                    $"dateChanged={diff.DateChanged} tgtChanged={diff.TargetsChanged} hdmChanged={diff.HdmChanged} " +
+                    $"dayModeChanged={diff.DayModeChanged} brightnessChanged={diff.BrightnessChanged} " +
                     $"targets={ctx.Targets?.Count ?? 0} dayKey.Count={dayKey.Count}");
             }
 
@@ -220,7 +195,7 @@ namespace TargetPlanner.Caches
             //    unchanged -- SetLocationAsync's own ReferenceEquals fast path
             //    doesn't help when the form re-creates Location instances on
             //    every UI tick even for value-unchanged saves.
-            if (locationChanged || dateChanged)
+            if (diff.LocationChanged || diff.DateChanged)
             {
                 await SetLocationAsync(ctx.Location, ctx.Observation.Utc);
             }
@@ -291,8 +266,48 @@ namespace TargetPlanner.Caches
 
             return new ChartEvaluation
             {
-                BrightnessInputsChanged = brightnessChanged,
+                BrightnessInputsChanged = diff.BrightnessChanged,
             };
+        }
+
+        // Bundles the six staleness flags ComputeDiff produces. LocationChanged
+        // + DateChanged gate SetLocationAsync; BrightnessChanged becomes the
+        // returned ChartEvaluation; Targets / Hdm / DayMode are diag-only today.
+        private readonly record struct CacheDiff(
+            bool LocationChanged, bool DateChanged, bool TargetsChanged,
+            bool HdmChanged, bool DayModeChanged, bool BrightnessChanged);
+
+        // Pure staleness diff of ctx against the last-applied snapshot (prev)
+        // and date anchor (prevUtc). No instance state -- EnsureAsync captures
+        // both under the lock and passes them in.
+        private static CacheDiff ComputeDiff(ChartContext prev, ChartContext ctx, DateTime prevUtc)
+        {
+            bool locationChanged = prev == null
+                || !LocationCacheEquivalent(prev.Location, ctx.Location);
+            bool targetsChanged = prev == null
+                || !TargetsEqualByReference(prev.Targets, ctx.Targets);
+            bool hdmChanged = prev == null || prev.Hdm != ctx.Hdm;
+            bool dayModeChanged = prev == null || prev.DayMode != ctx.DayMode;
+            bool brightnessChanged = prev == null
+                || ctx.Location.BortleClass != prev.Location.BortleClass
+                || ctx.Location.ExtinctionK != prev.Location.ExtinctionK
+                || ctx.Policy.FilterCenterNm != prev.Policy.FilterCenterNm;
+
+            // Date-change-without-geometry-change. NightCache's Starting window
+            // and YearStartDay both depend on the seed UTC; any cross-day scrub
+            // stales the Starting slot, any cross-month scrub stales the
+            // YearStartDay anchor (and thus the whole year-cache). Treat both as
+            // cache-busting events on par with a true geometry change so
+            // SetLocationAsync rebuilds against the new anchor. The first
+            // EnsureAsync (prev == null) at the unchanged ctor anchor keeps
+            // dateChanged false -- the cache is already keyed via the ctor seed.
+            bool dateChanged =
+                prevUtc.Date != ctx.Observation.Utc.Date
+                || NightCache.ComputeYearStartDay(prevUtc)
+                   != NightCache.ComputeYearStartDay(ctx.Observation.Utc);
+
+            return new CacheDiff(locationChanged, dateChanged, targetsChanged,
+                hdmChanged, dayModeChanged, brightnessChanged);
         }
 
         private static bool TargetsEqualByReference(IReadOnlyList<Target> a, IReadOnlyList<Target> b)
