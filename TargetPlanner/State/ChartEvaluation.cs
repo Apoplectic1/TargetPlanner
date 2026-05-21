@@ -65,30 +65,5 @@ namespace TargetPlanner.State
 
         /// <summary>Current Day chart placement-strategy mode.</summary>
         public required DayChartMode DayMode { get; init; }
-
-        /// <summary>Convenience: any of the staleness flags set.</summary>
-        public bool AnyChange => LocationChanged
-                              || TargetsChanged
-                              || HdmChanged
-                              || DayModeChanged
-                              || BrightnessInputsChanged;
-
-        /// <summary>"Worst-case" eval used by callers that haven't yet computed
-        /// per-axis diffs (Phase 4 transitional). Every flag is <c>true</c> so
-        /// sub-charts that haven't migrated to short-circuit logic still take
-        /// their full Render path. Phase 5's <c>EnsureAsync</c> replaces this
-        /// with real diffs.</summary>
-        public static ChartEvaluation FullChange(DayWindowKey dayKey, HdmKey hdmKey, DayChartMode dayMode)
-            => new ChartEvaluation
-            {
-                LocationChanged = true,
-                TargetsChanged = true,
-                HdmChanged = true,
-                DayModeChanged = true,
-                BrightnessInputsChanged = true,
-                DayKey = dayKey,
-                HdmKey = hdmKey,
-                DayMode = dayMode,
-            };
     }
 }

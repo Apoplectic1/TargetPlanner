@@ -317,7 +317,6 @@ is preserved.";
 
         private Panel Panel_AltitudeChart;
 
-        private UIState mUIState;
         private AppSettings mAppSettings;
 
         // Guard flag: set while SyncLocationUIFromModel is programmatically updating location
@@ -411,9 +410,6 @@ is preserved.";
             // types coordinates / picks from the ComboBox. The RA/Dec edit handlers fall
             // back to Target.Default if the user types before any selection exists.
 
-            mUIState = new UIState();
-
-            UpdateUI();
             UpdateLocalDateTimeEvents();
             InitializeDynamicControls();
 
@@ -788,22 +784,6 @@ is preserved.";
             InitializeLocalHorizonControls();
         }
 
-        private void UpdateUI()
-        {
-            CheckBox_LocalNorth.Checked = mLocation.North;
-            CheckBox_LocalWest.Checked = mLocation.West;
-            TextBox_Latitude.Text = mLocation.Latitude.ToString("F6");
-            TextBox_Longitude.Text = mLocation.Longitude.ToString("F6");
-
-            Target t = mSelection?.SelectedSingle;
-            if (t != null)
-            {
-                CheckBox_TargetNorth.Checked = t.North;
-                TextBox_RightAscension.Text = t.RightAscension.ToString("F6");
-                TextBox_Declination.Text = t.Declination.ToString("F6");
-            }
-        }
-
         private void UpdateLocalDateTimeEvents()
         {
             DateTime local = DatePicker.Value.Date + TimePicker.Value.TimeOfDay;
@@ -1089,22 +1069,14 @@ is preserved.";
         // through the Sky sub-chart's existing series. Called from the coordinator's
         // post-apply hook so Bortle / ExtinctionK / Filter scrubs (and any other
         // pipeline) keep Sky's brightness curves in sync with the just-applied
-        // snapshot. ctx-based overload reads the snapshot's filter + location
-        // for snapshot-coherence under mid-pipeline drift; the no-arg overload
-        // is kept for legacy callers that still read MainForm fields directly.
-        // Null-safe; no-op when Sky isn't instantiated yet (early-init paths).
+        // snapshot. Reads the snapshot's filter + location for snapshot-coherence
+        // under mid-pipeline drift. Null-safe; no-op when Sky isn't instantiated
+        // yet (early-init paths).
         private void PushSkyKSInputs(ChartContext ctx)
         {
             if (mLC2Sky == null || ctx == null || ctx.Location == null || ctx.Policy == null) return;
             mLC2Sky.ActiveFilterCenterNm = ctx.Policy.FilterCenterNm;
             mLC2Sky.RefreshSkyBrightness(mCache, ctx.Location);
-        }
-
-        private void PushSkyKSInputs()
-        {
-            if (mLC2Sky == null) return;
-            mLC2Sky.ActiveFilterCenterNm = mActiveFilterCenterNm;
-            mLC2Sky.RefreshSkyBrightness(mCache, mLocation);
         }
 
         // Compare the two locations on the fields that key the chart cache: pure
@@ -2148,16 +2120,14 @@ is preserved.";
         }
 
         // The three view radio handlers (Day / Year / Sessions) all share the
-        // same shape: persist UI state, and if the radio is now checked, hand a
-        // snapshot to the coordinator. CheckBox_Sky lives inside the Day radio
-        // as a sub-mode toggle (altitude vs K-S brightness); it's enabled only
-        // when Day is the active radio. The coordinator's diff sees ActiveArea
-        // changed and dispatches Render or ShowOnly depending on whether the
-        // new active area's data is current.
+        // same shape: if the radio is now checked, hand a snapshot to the
+        // coordinator. CheckBox_Sky lives inside the Day radio as a sub-mode
+        // toggle (altitude vs K-S brightness); it's enabled only when Day is
+        // the active radio. The coordinator's diff sees ActiveArea changed and
+        // dispatches Render on the new active sub-chart.
         private void RadioButton_Day_CheckedChanged(object sender, EventArgs e)
         {
             Log.Diag("UI", $"RadioButton_Day.CheckedChanged checked={RadioButton_Day.Checked}");
-            mUIState.DayChart = RadioButton_Day.Checked;
             if (CheckBox_Sky != null) CheckBox_Sky.Enabled = RadioButton_Day.Checked;
             if (!RadioButton_Day.Checked) return;
             mCoordinator?.Apply(SnapshotCurrent());
@@ -2166,7 +2136,6 @@ is preserved.";
         private void RadioButton_Year_CheckedChanged(object sender, EventArgs e)
         {
             Log.Diag("UI", $"RadioButton_Year.CheckedChanged checked={RadioButton_Year.Checked}");
-            mUIState.YearChart = RadioButton_Year.Checked;
             if (!RadioButton_Year.Checked) return;
             mCoordinator?.Apply(SnapshotCurrent());
         }
@@ -2174,7 +2143,6 @@ is preserved.";
         private void RadioButton_Sessions_CheckedChanged(object sender, EventArgs e)
         {
             Log.Diag("UI", $"RadioButton_Sessions.CheckedChanged checked={RadioButton_Sessions.Checked}");
-            mUIState.SessionsChart = RadioButton_Sessions.Checked;
             if (!RadioButton_Sessions.Checked) return;
             mCoordinator?.Apply(SnapshotCurrent());
         }
@@ -2189,7 +2157,6 @@ is preserved.";
         private void CheckBox_Sky_CheckedChanged(object sender, EventArgs e)
         {
             Log.Diag("UI", $"CheckBox_Sky.CheckedChanged checked={CheckBox_Sky.Checked}");
-            mUIState.SkyChart = CheckBox_Sky.Checked;
             // Only dispatch when Day is the active radio -- toggling the
             // checkbox while Year or Sessions is selected would otherwise
             // re-render those areas with an unchanged ActiveArea (Year /

@@ -59,10 +59,6 @@ namespace TargetPlanner.Caches
         /// first build completes for the current location.</summary>
         NightCache LocationNightCache { get; }
 
-        /// <summary>True iff the cache contains a published entry for <paramref name="t"/>
-        /// at the current location.</summary>
-        bool IsReady(Target t);
-
         /// <summary>Returns the published entry for <paramref name="t"/> at the current
         /// location, or <see langword="null"/> if not yet built.</summary>
         TargetCacheEntry GetOrNull(Target t);

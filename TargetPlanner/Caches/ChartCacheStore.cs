@@ -118,12 +118,6 @@ namespace TargetPlanner.Caches
             get { lock (mGate) { return mNightCache; } }
         }
 
-        public bool IsReady(Target t)
-        {
-            if (t == null) return false;
-            lock (mGate) { return mEntries.ContainsKey(t); }
-        }
-
         public TargetCacheEntry GetOrNull(Target t)
         {
             if (t == null) return null;
