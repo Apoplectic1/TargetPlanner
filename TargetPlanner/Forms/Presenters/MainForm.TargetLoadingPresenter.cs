@@ -89,6 +89,56 @@ namespace TargetPlanner
             finally { UseWaitCursor = false; }
         }
 
+        // Loads targets from a set of dropped paths (Explorer file-drop onto the
+        // target list). Each path is classified + loaded via LoadBrowsedPathAsync
+        // -- a .json or .xisf file, or a NINA / image-library folder, any mix --
+        // and the results combine into one wholesale replace. One-off, like
+        // GetBrowsedTargets: no persist, no sidecar append.
+        private async Task GetDroppedTargets(string[] paths)
+        {
+            if (paths == null || paths.Length == 0) return;
+            Log.Diag("UI", $"Targets dropped: {paths.Length} path(s)");
+
+            UseWaitCursor = true;
+            try
+            {
+                var combined = new List<Target>();
+                foreach (string path in paths)
+                    combined.AddRange(await LoadBrowsedPathAsync(path));
+
+                if (combined.Count == 0)
+                {
+                    MessageBox.Show(
+                        "Nothing loadable in the dropped item(s) -- expected NINA "
+                        + ".json or .xisf files, or folders of them.",
+                        "Nothing to load", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                mSelection.SetKnownTargets(combined);
+                StartCacheWarmup(combined);
+            }
+            catch (OperationCanceledException) { /* form closing mid-load; expected */ }
+            catch (Exception ex) { Log.Error("Dropped-targets load failed", ex); }
+            finally { UseWaitCursor = false; }
+        }
+
+        // DragEnter on the target list: accept Explorer file-drops (the Copy
+        // cursor is the drop affordance), reject anything else.
+        private void OnTargetListDragEnter(object sender, DragEventArgs e)
+        {
+            e.Effect = e.Data != null && e.Data.GetDataPresent(DataFormats.FileDrop)
+                ? DragDropEffects.Copy
+                : DragDropEffects.None;
+        }
+
+        // DragDrop on the target list: pull the dropped file/folder paths and
+        // load them.
+        private async void OnTargetListDragDrop(object sender, DragEventArgs e)
+        {
+            if (e.Data?.GetData(DataFormats.FileDrop) is string[] paths)
+                await GetDroppedTargets(paths);
+        }
+
         // Classifies a browsed path and loads targets from it. A file dispatches by
         // extension (.json -> one NINA target, .xisf -> one image-library target);
         // a directory is an image-library root when LooksLikeImageLibraryRoot

@@ -572,6 +572,12 @@ is preserved.";
             // Right-click on the listbox clears the Visible-tonight tint set.
             CheckedListBox_SelectedTargets.MouseDown += OnSelectedTargetsMouseDown;
 
+            // Accept Explorer drag-drop of .json / .xisf files and target folders
+            // (any mix) onto the list -- see GetDroppedTargets.
+            CheckedListBox_SelectedTargets.AllowDrop = true;
+            CheckedListBox_SelectedTargets.DragEnter += OnTargetListDragEnter;
+            CheckedListBox_SelectedTargets.DragDrop += OnTargetListDragDrop;
+
             // Up/Down on DatePicker = +/-1 day with natural month/year cascade
             // (DateTime.AddDays handles the rollover). Replaces the default
             // WinForms field-wrap behavior where Up on day=31 wraps to day=01
