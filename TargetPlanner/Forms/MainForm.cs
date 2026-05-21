@@ -729,7 +729,7 @@ is preserved.";
             //   - Sky's K-S brightness re-walk (Bortle/Extinction/Filter scrubs).
             mCoordinator = new TargetPlanner.State.ChartCoordinator(
                 cache: mCache,
-                renderActiveArea: (ctx, eval) => RenderArea(ctx, eval),
+                renderActiveArea: RenderArea,
                 postApplyHook: (ctx, eval) =>
                 {
                     RefreshAstrometryLabels();
@@ -1509,14 +1509,14 @@ is preserved.";
         // <see cref="SnapshotCurrent(IReadOnlyList{Target})"/> (radio toggles, etc.)
         // or capture the snapshot at the start of an async build (RunGraphBuildAsync)
         // so the paint is location-coherent even if mLocation has drifted since.
-        private void RenderArea(ChartContext ctx, ChartEvaluation eval)
+        private void RenderArea(ChartContext ctx)
         {
             if (mSubCharts == null) return;
             if (ctx == null) return;
             if (!mSubCharts.TryGetValue(ctx.ActiveArea, out var sc)) return;
             // Render BEFORE ShowOnly so the sub-chart's Series state is fully
             // current at the moment WinForms fires the Visible=true paint cycle.
-            sc.Render(ctx, mCache, eval);
+            sc.Render(ctx, mCache);
             ShowOnlyAltitudeChart(sc.Control);
             ResizeAltitudeChartArea(sc.IdealHeight);
             // Force synchronous repaint. LC2's SKControl first-paint after

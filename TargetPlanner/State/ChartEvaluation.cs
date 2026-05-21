@@ -1,69 +1,27 @@
-using TargetPlanner.Caches;
-
 namespace TargetPlanner.State
 {
     /// <summary>
-    /// Typed output of the cache's pre-render evaluation. Each <see cref="bool"/>
-    /// flag says "did this axis change since the last successful pipeline?" so
-    /// downstream consumers (sub-chart Render, post-apply hook) can short-circuit
-    /// the work they own.
+    /// Result of the cache's pre-render evaluation, produced by
+    /// <c>ChartCacheStore.EnsureAsync</c> and consumed by the coordinator's
+    /// post-apply hook. Currently a single staleness gate — whether the Sky
+    /// chart's K-S brightness inputs changed since the last pipeline. NOT
+    /// threaded through sub-chart <c>Render</c>.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// <b>Paradigm.</b> This record is the typed enforcement mechanism for the
-    /// straight-line chart pipeline. Future code that needs to broadcast a new
-    /// staleness signal adds a field here; sub-charts react to it. Don't add
-    /// side-paths (extra callbacks, conditional dispatch). The cache populates
-    /// fields as it actually rebuilds; render reads them.
-    /// </para>
-    /// <para>
-    /// Phase 4 introduces the type and threads it through
-    /// <see cref="TargetPlanner.Charts.IAltitudeSubChart.Render"/>; sub-charts
-    /// accept but currently ignore the flags. Phase 5 lands
-    /// <c>ChartCacheStore.EnsureAsync(ctx)</c> which populates the flags from
-    /// real per-axis diffs. Phase 6 collapses the coordinator's dispatch table
-    /// in favour of the straight-line pipeline. Phase 7 wires per-sub-chart
-    /// short-circuit logic against the flags (originally attempted then reverted
-    /// on LC2 paint-instability grounds — see ARCHITECTURE.md).
-    /// </para>
-    /// <para>
-    /// <b>Current consumers (2026-05-17 follow-up).</b> The coordinator's
-    /// post-apply hook gates <c>PushSkyKSInputs(ctx)</c> on
-    /// <see cref="BrightnessInputsChanged"/> — the first real flag consumer.
-    /// Sub-chart Render paths still read the key fields (DayKey/HdmKey/DayMode)
-    /// for cache lookups but do NOT short-circuit on the bool flags.
-    /// </para>
+    /// The four per-axis change flags this record once carried
+    /// (Location / Targets / Hdm / DayMode) plus the unread DayKey / HdmKey /
+    /// DayMode keys were Phase-7 short-circuit scaffolding. Phase 7 was reverted
+    /// and nothing ever branched on the flags, so they were dropped. If a future
+    /// change needs a sub-chart to react to a staleness signal, add the field
+    /// here and re-thread the parameter onto <c>Render</c> then — with a real
+    /// consumer, not as speculative scaffolding.
     /// </remarks>
     public sealed record ChartEvaluation
     {
-        /// <summary>Site geometry or date changed; night, dayKey, moon, fits all invalidate.</summary>
-        public required bool LocationChanged { get; init; }
-
-        /// <summary>Per-target series set added or removed.</summary>
-        public required bool TargetsChanged { get; init; }
-
-        /// <summary>HDM / filter / horizon-profile changed; fits invalidate, altitude
-        /// cache untouched.</summary>
-        public required bool HdmChanged { get; init; }
-
-        /// <summary>Day chart placement-strategy radio flipped (Floor / Transit);
-        /// per-target visibility filter shifts, no cache state changes.</summary>
-        public required bool DayModeChanged { get; init; }
-
-        /// <summary>Sky chart's K-S brightness inputs (Bortle / ExtinctionK / Filter
-        /// center) changed; sky re-walks brightness lookup without rebuilding fits.</summary>
+        /// <summary>Sky chart's K-S brightness inputs (Bortle / ExtinctionK /
+        /// filter centre) changed since the last pipeline. The coordinator's
+        /// post-apply hook gates the K-S brightness re-walk on this so a
+        /// brightness-only scrub doesn't rebuild fits.</summary>
         public required bool BrightnessInputsChanged { get; init; }
-
-        /// <summary>Current Day window key; sub-charts pass to
-        /// <see cref="IChartCacheStore.GetDayOrNull"/> /
-        /// <see cref="IChartCacheStore.GetMoonOrNull"/>.</summary>
-        public required DayWindowKey DayKey { get; init; }
-
-        /// <summary>Current HDM key; sub-charts pass to
-        /// <see cref="IChartCacheStore.GetFitOrNull"/>.</summary>
-        public required HdmKey HdmKey { get; init; }
-
-        /// <summary>Current Day chart placement-strategy mode.</summary>
-        public required DayChartMode DayMode { get; init; }
     }
 }

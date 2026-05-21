@@ -22,8 +22,8 @@ namespace TargetPlanner.State
     /// <b>Paradigm.</b> This is the only path from UI to charts. Do not add
     /// side-paths (extra callbacks, conditional dispatch tables, per-area
     /// stamping). If you need to broadcast a new staleness signal, add a
-    /// field to <see cref="ChartEvaluation"/> -- the cache populates it,
-    /// the sub-chart reads it. The straight-line shape is the SoC win;
+    /// field to <see cref="ChartEvaluation"/> -- the cache populates it and
+    /// the post-apply hook reads it. The straight-line shape is the SoC win;
     /// preserving it is how the architecture defends against erosion.
     /// </para>
     /// <para>
@@ -40,7 +40,7 @@ namespace TargetPlanner.State
     public sealed class ChartCoordinator : IDisposable
     {
         private readonly IChartCacheStore mCache;
-        private readonly Action<ChartContext, ChartEvaluation> mRenderActiveArea;
+        private readonly Action<ChartContext> mRenderActiveArea;
         private readonly Action<ChartContext, ChartEvaluation> mPostApplyHook;
 
         private readonly System.Windows.Forms.Timer mDebounce;
@@ -61,7 +61,7 @@ namespace TargetPlanner.State
 
         public ChartCoordinator(
             IChartCacheStore cache,
-            Action<ChartContext, ChartEvaluation> renderActiveArea,
+            Action<ChartContext> renderActiveArea,
             Action<ChartContext, ChartEvaluation> postApplyHook,
             int debounceMs = 150)
         {
@@ -186,29 +186,20 @@ namespace TargetPlanner.State
                         $"obs={ctx.Observation.Utc:yyyy-MM-dd HH:mm}Z");
                 }
                 ChartEvaluation eval = await mCache.EnsureAsync(ctx, dayKey);
-                if (Log.IsDiagEnabled("Coord"))
-                {
-                    Log.Diag("Coord",
-                        $"Pipeline eval LocationChanged={eval.LocationChanged} " +
-                        $"TargetsChanged={eval.TargetsChanged} HdmChanged={eval.HdmChanged} " +
-                        $"DayModeChanged={eval.DayModeChanged} Brightness={eval.BrightnessInputsChanged}");
-                }
 
                 // Generation guard: a newer Apply has come in while we awaited; bail.
                 if (gen != Volatile.Read(ref mGeneration)) return;
 
-                // Render is unconditional. Sub-charts read eval flags to decide
-                // whether to short-circuit (Phase 7). The active area's
-                // ShowOnlyAltitudeChart + Render + Resize sequence is owned by
-                // MainForm.RenderArea; this coordinator doesn't conditionally
-                // skip any of it -- the sub-chart owns its own idempotency.
-                mRenderActiveArea(ctx, eval);
+                // Render is unconditional. The active area's ShowOnlyAltitudeChart
+                // + Render + Resize sequence is owned by MainForm.RenderArea; this
+                // coordinator doesn't conditionally skip any of it -- the sub-chart
+                // owns its own idempotency.
+                mRenderActiveArea(ctx);
 
                 // Post-apply hook for label refresh / line position updates /
-                // Sky K-S re-walk that don't fit the Render contract. Hook
-                // receives the same ChartEvaluation Render saw, so consumers
-                // can gate expensive steps on the relevant axis flags
-                // (e.g. Sky K-S re-walk on eval.BrightnessInputsChanged).
+                // Sky K-S re-walk that don't fit the Render contract. The hook
+                // receives the cache's ChartEvaluation so it can gate expensive
+                // steps (e.g. the Sky K-S re-walk on eval.BrightnessInputsChanged).
                 mPostApplyHook?.Invoke(ctx, eval);
             }
             catch (Exception ex)

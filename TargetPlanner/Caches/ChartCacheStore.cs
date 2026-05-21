@@ -381,13 +381,6 @@ namespace TargetPlanner.Caches
                 await SetLocationAsync(ctx.Location, ctx.Observation.Utc);
             }
 
-            // Surface date-change to downstream diff: a date-only scrub at the
-            // same site should still report LocationChanged=true to consumers
-            // (sub-charts and post-apply hooks) because the cache contents
-            // genuinely cleared. Keeps the public eval semantics aligned with
-            // what actually happened underneath.
-            locationChanged = locationChanged || dateChanged;
-
             // 2a. Moon altitudes are TARGET-INDEPENDENT (function of Location +
             //     night only). Prep unconditionally when dayKey is valid so
             //     Day's startup Render (with empty targets, before NINA load
@@ -455,14 +448,7 @@ namespace TargetPlanner.Caches
 
             return new ChartEvaluation
             {
-                LocationChanged = locationChanged,
-                TargetsChanged = targetsChanged,
-                HdmChanged = hdmChanged,
-                DayModeChanged = dayModeChanged,
                 BrightnessInputsChanged = brightnessChanged,
-                DayKey = dayKey,
-                HdmKey = ctx.Hdm,
-                DayMode = ctx.DayMode,
             };
         }
 

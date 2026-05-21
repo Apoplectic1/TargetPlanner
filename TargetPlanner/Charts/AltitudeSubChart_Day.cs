@@ -389,7 +389,7 @@ namespace TargetPlanner.Charts
             mNowLine.Xj = oa;
         }
 
-        public void Render(ChartContext ctx, IChartCacheStore cache, ChartEvaluation eval)
+        public void Render(ChartContext ctx, IChartCacheStore cache)
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
             // Phase 7's short-circuit-on-eval-flags was reverted: LC2's paint
@@ -405,8 +405,7 @@ namespace TargetPlanner.Charts
                 Log.Diag("Day",
                     $"Render enter obs={ctx.Observation.Utc:yyyy-MM-dd HH:mm}Z " +
                     $"loc=({ctx.Location.Latitude:F3},{ctx.Location.Longitude:F3}) " +
-                    $"targets={ctx.Targets?.Count ?? 0} LocationChanged={eval?.LocationChanged} " +
-                    $"TargetsChanged={eval?.TargetsChanged} HdmChanged={eval?.HdmChanged}");
+                    $"targets={ctx.Targets?.Count ?? 0}");
             }
             if (ctx.Location == null) throw new ArgumentException("ctx.Location must not be null", nameof(ctx));
             if (ctx.Policy == null) throw new ArgumentException("ctx.Policy must not be null", nameof(ctx));

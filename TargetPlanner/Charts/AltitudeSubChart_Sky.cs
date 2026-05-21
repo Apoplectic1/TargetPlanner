@@ -312,7 +312,7 @@ namespace TargetPlanner.Charts
             return arr[segmentStart] ?? string.Empty;
         }
 
-        public void Render(ChartContext ctx, IChartCacheStore cache, ChartEvaluation eval)
+        public void Render(ChartContext ctx, IChartCacheStore cache)
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
             if (ctx.Location == null) throw new ArgumentException("ctx.Location must not be null", nameof(ctx));
