@@ -280,28 +280,15 @@ namespace TargetPlanner.Charts
                 seriesList.Add(series);
             }
 
+            // Snap chart bounds to the start-of-month midnights so columns align
+            // with the CustomSeparators ticks (12 full month columns between the
+            // 13 ticks); gridStart's SentinelX is mid-day on the first cached
+            // night, snapped back to first-of-month by ApplyMonthGrid.
             if (gridStart.HasValue && gridEnd.HasValue)
-            {
-                // Snap chart bounds to the start-of-month midnights so columns
-                // align with the CustomSeparators ticks. gridStart's SentinelX is
-                // mid-day on the first cached night (May 1 12:00 if start month is
-                // May); back it up to midnight for the visible left edge. Right
-                // edge = first-of-(start+12 months) so 12 full month columns fit
-                // exactly between the 13 ticks.
-                DateTime startMonth = gridStart.Value.Date.AddDays(1 - gridStart.Value.Day);
-                DateTime endMonth = startMonth.AddYears(1);
-                mXAxis.MinLimit = startMonth.ToOADate();
-                mXAxis.MaxLimit = endMonth.ToOADate();
-                mXAxis.CustomSeparators = ChartLayout.MonthBoundaryOADates(startMonth, 12);
-            }
+                ChartLayout.ApplyMonthGrid(mXAxis, gridStart.Value);
 
-            mSeriesByTarget.Clear();
             mTargetBySeries.Clear();
-            foreach (var kv in newSeriesByTarget)
-            {
-                mSeriesByTarget[kv.Key] = kv.Value;
-                mTargetBySeries[kv.Value] = kv.Key;
-            }
+            ChartLayout.SwapSeriesDict(mSeriesByTarget, newSeriesByTarget, mTargetBySeries);
             mChart.Series = seriesList;
             BuildLegendItems();
         }

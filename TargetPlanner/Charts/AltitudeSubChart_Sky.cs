@@ -338,15 +338,11 @@ namespace TargetPlanner.Charts
 
             // Moon altitude overlay -- shared across all targets; built before
             // the per-target loop so it lands first in mChart.Series (ZIndex=-1
-            // also puts it behind the target curves). Read altitudes from the
-            // per-DayWindowKey cache entry; fall back to inline compute on
-            // cache miss (defensive only -- EnsureAsync prepares this).
-            IReadOnlyList<double> moonAltitudes = cache?.GetMoonOrNull(dayKey)?.AltitudesPerMinute;
-            if (moonAltitudes == null || moonAltitudes.Count != count)
-            {
-                Log.Warn($"Sky moon cache miss; inline fallback (dayKey.Count={count}, cached={moonAltitudes?.Count ?? -1})");
-                moonAltitudes = MoonOverlay.ComputeAltitudesInline(location, startUtc, count);
-            }
+            // also puts it behind the target curves). FetchOrCompute reads the
+            // per-DayWindowKey cache entry, falling back to inline compute on
+            // a cache miss (defensive only -- EnsureAsync prepares this).
+            IReadOnlyList<double> moonAltitudes = MoonOverlay.FetchOrCompute(
+                cache, dayKey, location, startUtc, count, "Sky");
             mMoonSeries = MoonOverlay.BuildSeries(
                 moonAltitudes, startUtc, count, night.LunarIlluminationFraction,
                 alt => SkyAxisMinMag + (alt / 90.0) * (SkyAxisMaxMag - SkyAxisMinMag), "Sky");
@@ -393,8 +389,7 @@ namespace TargetPlanner.Charts
                 .ToList();
             foreach (var s in droppedSeries) mTooltipText.Remove(s);
 
-            mSeriesByTarget.Clear();
-            foreach (var kv in newSeriesByTarget) mSeriesByTarget[kv.Key] = kv.Value;
+            ChartLayout.SwapSeriesDict(mSeriesByTarget, newSeriesByTarget);
             mChart.Series = seriesList;
             BuildLegendItems();
         }

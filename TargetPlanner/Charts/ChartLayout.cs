@@ -305,5 +305,39 @@ namespace TargetPlanner.Charts
                 SeparatorsPaint = new SolidColorPaint(GridLineColor),
                 NamePaint = new SolidColorPaint(SKColors.LightGray),
             };
+
+        // --- Render-body shared helpers (code-quality-audit.md Tier 6) --------
+
+        // The series-dictionary swap every sub-chart's Render does at commit:
+        // replace `persistent` wholesale with the freshly-built `fresh`. When
+        // `reverse` is non-null it is also populated [value] = key (NOT cleared
+        // here -- the caller clears it once, so Sessions can call this three
+        // times into one shared reverse map). Series identity is preserved by
+        // the caller's GetOrCreate path; this is pure dictionary plumbing.
+        public static void SwapSeriesDict<TVal>(
+            Dictionary<Target, TVal> persistent,
+            Dictionary<Target, TVal> fresh,
+            Dictionary<TVal, Target> reverse = null)
+        {
+            persistent.Clear();
+            foreach (var kv in fresh)
+            {
+                persistent[kv.Key] = kv.Value;
+                if (reverse != null) reverse[kv.Value] = kv.Key;
+            }
+        }
+
+        // The Year/Sessions month-grid bounds: snap gridStart down to its
+        // first-of-month, span exactly 12 months, and lock the X axis to that
+        // range with 1st-of-month CustomSeparators. Both charts ran this block
+        // verbatim once the first target's yearDays gave a grid anchor.
+        public static void ApplyMonthGrid(Axis xAxis, DateTime gridStart)
+        {
+            DateTime startMonth = gridStart.Date.AddDays(1 - gridStart.Day);
+            DateTime endMonth = startMonth.AddYears(1);
+            xAxis.MinLimit = startMonth.ToOADate();
+            xAxis.MaxLimit = endMonth.ToOADate();
+            xAxis.CustomSeparators = MonthBoundaryOADates(startMonth, 12);
+        }
     }
 }

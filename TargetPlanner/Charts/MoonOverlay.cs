@@ -7,6 +7,7 @@ using LiveChartsCore.Defaults;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
 using SkiaSharp;
+using TargetPlanner.Caches;
 using TargetPlanner.Support;
 
 using Location = Astronomy.Core.Locations.Location;
@@ -73,11 +74,26 @@ namespace TargetPlanner.Charts
             return series;
         }
 
-        // Defensive fallback when the moon cache misses (a race where Render
-        // runs before PrepareMoonAsync's await settled). Matches
+        // Day/Sky moon-altitude source: the per-DayWindowKey cache entry, or a
+        // defensive inline recompute when the cache misses (a race where Render
+        // runs before PrepareMoonAsync's await settled -- logs a WARN). The
+        // caller passes the result to BuildSeries; diagLabel ("Day" / "Sky")
+        // tags the cache-miss WARN.
+        public static IReadOnlyList<double> FetchOrCompute(
+            IChartCacheStore cache, DayWindowKey dayKey, Location location,
+            DateTime startUtc, int count, string diagLabel)
+        {
+            IReadOnlyList<double> altitudes = cache?.GetMoonOrNull(dayKey)?.AltitudesPerMinute;
+            if (altitudes != null && altitudes.Count == count) return altitudes;
+            Log.Warn($"{diagLabel} moon cache miss; inline fallback " +
+                $"(dayKey.Count={count}, cached={altitudes?.Count ?? -1})");
+            return ComputeAltitudesInline(location, startUtc, count);
+        }
+
+        // Defensive fallback when the moon cache misses. Matches
         // ChartCacheStore.BuildMoonEntryAsync's compute path so the result is
         // byte-identical to the cached version.
-        public static IReadOnlyList<double> ComputeAltitudesInline(
+        private static IReadOnlyList<double> ComputeAltitudesInline(
             Location location, DateTime startUtc, int count)
         {
             double latSigned = location.LatSigned();

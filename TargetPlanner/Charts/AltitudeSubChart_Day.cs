@@ -394,15 +394,10 @@ namespace TargetPlanner.Charts
             mTargetColors.Clear();
 
             // Moon altitudes from cache (prepared by ChartCacheStore.EnsureAsync ->
-            // PrepareMoonAsync alongside per-target Day altitudes). Defensive
-            // fallback to inline compute if the cache misses (race-condition
-            // safety net; should never fire in practice).
-            IReadOnlyList<double> moonAltitudes = cache?.GetMoonOrNull(dayKey)?.AltitudesPerMinute;
-            if (moonAltitudes == null || moonAltitudes.Count != count)
-            {
-                Log.Warn($"Day moon cache miss; inline fallback (dayKey.Count={count}, cached={moonAltitudes?.Count ?? -1})");
-                moonAltitudes = MoonOverlay.ComputeAltitudesInline(location, startUtc, count);
-            }
+            // PrepareMoonAsync alongside per-target Day altitudes); FetchOrCompute
+            // falls back to inline compute if the cache misses.
+            IReadOnlyList<double> moonAltitudes = MoonOverlay.FetchOrCompute(
+                cache, dayKey, location, startUtc, count, "Day");
             mMoonSeries = MoonOverlay.BuildSeries(
                 moonAltitudes, startUtc, count, night.LunarIlluminationFraction,
                 alt => alt, "Day");
@@ -475,8 +470,7 @@ namespace TargetPlanner.Charts
                     $"hdmKey=(H={ctx.Hdm.HorizonDeg},Dt={ctx.Hdm.DurationTicks},FNm={ctx.Hdm.FilterCenterNm})");
             }
 
-            mSeriesByTarget.Clear();
-            foreach (var kv in newSeriesByTarget) mSeriesByTarget[kv.Key] = kv.Value;
+            ChartLayout.SwapSeriesDict(mSeriesByTarget, newSeriesByTarget);
             mChart.Series = seriesList;
             if (Log.IsDiagEnabled("Day"))
             {
