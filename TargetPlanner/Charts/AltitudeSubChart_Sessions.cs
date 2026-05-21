@@ -117,24 +117,8 @@ namespace TargetPlanner.Charts
             // the year-grid start is known) so labels sit on real month boundaries
             // and the 12 ticks span exactly 12 calendar months. UnitWidth = 1 day
             // matches the per-night data spacing.
-            mXAxis = new Axis
-            {
-                Labeler = v => DateTime.FromOADate(v).ToString("MMM", CultureInfo.InvariantCulture),
-                UnitWidth = TimeSpan.FromDays(1).TotalDays,
-                LabelsPaint = new SolidColorPaint(SKColors.LightGray),
-                SeparatorsPaint = new SolidColorPaint(ChartLayout.GridLineColor),
-            };
-            mYAxis = new Axis
-            {
-                Name = "Altitude at Minimum Duration (°)",
-                MinLimit = MinAltitude,
-                MaxLimit = MaxAltitude,
-                MinStep = 10,
-                ForceStepToMin = true,
-                LabelsPaint = new SolidColorPaint(SKColors.LightGray),
-                SeparatorsPaint = new SolidColorPaint(ChartLayout.GridLineColor),
-                NamePaint = new SolidColorPaint(SKColors.LightGray),
-            };
+            mXAxis = ChartLayout.MakeMonthXAxis();
+            mYAxis = ChartLayout.MakeAltitudeYAxis("Altitude at Minimum Duration (°)");
 
             mNowLine = new RectangularSection
             {

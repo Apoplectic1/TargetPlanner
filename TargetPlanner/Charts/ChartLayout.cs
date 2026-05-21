@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Globalization;
 using Astronomy.Core.Night;
+using LiveChartsCore.SkiaSharpView;
+using LiveChartsCore.SkiaSharpView.Painting;
 using SkiaSharp;
 using TargetPlanner.Caches;
 
@@ -243,5 +246,64 @@ namespace TargetPlanner.Charts
                 separators[i] = startMonth.AddMonths(i).ToOADate();
             return separators;
         }
+
+        // --- Shared Axis factories (code-quality-audit.md Tier 4) -------------
+        // The four sub-charts built near-identical Axis objects inline; these
+        // factories are the single source of truth.
+
+        // Format a UTC-OADate axis value as the site's wall-clock "h:mm tt" --
+        // the shared body of the Day/Sky time-axis Labeler. The X axis is
+        // UTC-internal, so ConvertTimeFromUtc evaluates DST rules per-instant.
+        // A null zone (a Labeler call before the first Render) falls back to a
+        // zone-blind format.
+        public static string FormatZonedAxisLabel(double oaDate, TimeZoneInfo zone)
+        {
+            if (zone == null) return DateTime.FromOADate(oaDate).ToString("h:mm tt");
+            DateTime utc = DateTime.SpecifyKind(DateTime.FromOADate(oaDate), DateTimeKind.Utc);
+            return TimeZoneInfo.ConvertTimeFromUtc(utc, zone).ToString("h:mm tt");
+        }
+
+        // The Day/Sky single-night time X axis: whole-hour ticks over a
+        // UTC-internal OADate axis, labelled in the site's wall clock.
+        // zoneAccessor is read live by the Labeler (the host updates its zone
+        // field each Render). ForceStepToMin disables LC2's adaptive
+        // label-skip so every whole-hour tick is labelled.
+        public static Axis MakeTimeXAxis(Func<TimeZoneInfo> zoneAccessor)
+            => new Axis
+            {
+                Labeler = v => FormatZonedAxisLabel(v, zoneAccessor()),
+                UnitWidth = TimeSpan.FromHours(1).TotalDays,
+                MinStep = TimeSpan.FromHours(1).TotalDays,
+                ForceStepToMin = true,
+                LabelsPaint = new SolidColorPaint(SKColors.LightGray),
+                SeparatorsPaint = new SolidColorPaint(GridLineColor),
+            };
+
+        // The Year/Sessions 12-month X axis: one-day UnitWidth, month-
+        // abbreviation labels. Tick positions come from MonthBoundaryOADates
+        // via Axis.CustomSeparators, set per Render.
+        public static Axis MakeMonthXAxis()
+            => new Axis
+            {
+                Labeler = v => DateTime.FromOADate(v).ToString("MMM", CultureInfo.InvariantCulture),
+                UnitWidth = TimeSpan.FromDays(1).TotalDays,
+                LabelsPaint = new SolidColorPaint(SKColors.LightGray),
+                SeparatorsPaint = new SolidColorPaint(GridLineColor),
+            };
+
+        // The 0-90° altitude Y axis shared by Day / Year / Sessions,
+        // parameterised on the axis name (the only per-chart difference).
+        public static Axis MakeAltitudeYAxis(string name)
+            => new Axis
+            {
+                Name = name,
+                MinLimit = 0,
+                MaxLimit = 90,
+                MinStep = 10,
+                ForceStepToMin = true,
+                LabelsPaint = new SolidColorPaint(SKColors.LightGray),
+                SeparatorsPaint = new SolidColorPaint(GridLineColor),
+                NamePaint = new SolidColorPaint(SKColors.LightGray),
+            };
     }
 }

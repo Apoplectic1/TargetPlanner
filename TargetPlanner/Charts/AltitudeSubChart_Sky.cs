@@ -165,21 +165,7 @@ namespace TargetPlanner.Charts
 
         public AltitudeSubChart_Sky()
         {
-            mXAxis = new Axis
-            {
-                // UTC-internal axis: the value is the OADate of a UTC instant;
-                // AxisTimeLabel converts to the site wall clock via mAxisZone so
-                // DST transitions resolve per-instant. Mirrors Day's X axis.
-                Labeler = AxisTimeLabel,
-                UnitWidth = TimeSpan.FromHours(1).TotalDays,
-                MinStep = TimeSpan.FromHours(1).TotalDays,
-                // ForceStepToMin disables LC2's adaptive label-skip density logic.
-                // Mirrors Day's X-axis config; both charts use the same hour-tick
-                // labeling scheme over the same night bounds.
-                ForceStepToMin = true,
-                LabelsPaint = new SolidColorPaint(SKColors.LightGray),
-                SeparatorsPaint = new SolidColorPaint(ChartLayout.GridLineColor),
-            };
+            mXAxis = ChartLayout.MakeTimeXAxis(() => mAxisZone);
             mYAxis = new Axis
             {
                 Name = "Sky brightness (mag/arcsec²)",
@@ -263,17 +249,6 @@ namespace TargetPlanner.Charts
                 debounceMs: 30);
 
             mGradient.WireSizeChanged(mChart);
-        }
-
-        // X-axis Labeler: the axis value is the OADate of a UTC instant; convert
-        // to the site wall clock via mAxisZone. Null zone (pre-first-Render) ->
-        // raw zone-blind format. Mirrors AltitudeSubChart_Day.AxisTimeLabel.
-        private string AxisTimeLabel(double v)
-        {
-            TimeZoneInfo zone = mAxisZone;
-            if (zone == null) return DateTime.FromOADate(v).ToString("h:mm tt");
-            DateTime utc = DateTime.SpecifyKind(DateTime.FromOADate(v), DateTimeKind.Utc);
-            return TimeZoneInfo.ConvertTimeFromUtc(utc, zone).ToString("h:mm tt");
         }
 
         // Update the red now-line position in place. The X axis is UTC-internal

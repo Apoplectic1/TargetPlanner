@@ -145,39 +145,8 @@ namespace TargetPlanner.Charts
 
         public AltitudeSubChart_Day()
         {
-            mXAxis = new Axis
-            {
-                // The X-axis is UTC-internal: every plotted X is the OADate of a
-                // UTC instant. The Labeler is the single seam that converts back
-                // to the site's wall clock for display -- ConvertTimeFromUtc
-                // evaluates DST rules per-instant, so a fall-back night shows a
-                // duplicated hour label and a spring-forward night skips one.
-                // mAxisZone is null until the first Render; fall back to a
-                // zone-blind format for any Labeler call during early LC2 layout.
-                Labeler = AxisTimeLabel,
-                UnitWidth = TimeSpan.FromHours(1).TotalDays,
-                MinStep = TimeSpan.FromHours(1).TotalDays,
-                // ForceStepToMin disables LC2's adaptive label-skip density logic,
-                // which would otherwise occasionally drop the leftmost/rightmost
-                // hour label when chart width vs. label width tips into the skip
-                // branch. ChartStart/ChartStop always land on exact hour
-                // boundaries (per ChartLayout.DayChartStart/Stop), so we want
-                // every hour labeled regardless of pixel-density estimates.
-                ForceStepToMin = true,
-                LabelsPaint = new SolidColorPaint(SKColors.LightGray),
-                SeparatorsPaint = new SolidColorPaint(ChartLayout.GridLineColor),
-            };
-            mYAxis = new Axis
-            {
-                Name = "Altitude (°)",
-                MinLimit = MinAltitude,
-                MaxLimit = MaxAltitude,
-                MinStep = 10,
-                ForceStepToMin = true,
-                LabelsPaint = new SolidColorPaint(SKColors.LightGray),
-                SeparatorsPaint = new SolidColorPaint(ChartLayout.GridLineColor),
-                NamePaint = new SolidColorPaint(SKColors.LightGray),
-            };
+            mXAxis = ChartLayout.MakeTimeXAxis(() => mAxisZone);
+            mYAxis = ChartLayout.MakeAltitudeYAxis("Altitude (°)");
 
             // Initialize section objects with placeholder bounds; Render() rewrites
             // Xi/Xj/Yi/Yj per the actual night window.
@@ -260,7 +229,7 @@ namespace TargetPlanner.Charts
                 mChart,
                 () => mSeriesByTarget.Values,
                 curveTooltipFormatter: (series, data, hoverX, interpY, segmentStart) =>
-                    $"{series.Name}\n{AxisTimeLabel(hoverX)}\nAltitude: {interpY:F1}°",
+                    $"{series.Name}\n{ChartLayout.FormatZonedAxisLabel(hoverX, mAxisZone)}\nAltitude: {interpY:F1}°",
                 debounceMs: 300);
 
             mChart.MouseDown += OnChartMouseDown;
@@ -359,18 +328,6 @@ namespace TargetPlanner.Charts
         {
             mHorizonLine.Yi = horizon;
             mHorizonLine.Yj = horizon;
-        }
-
-        // X-axis Labeler: the axis value is the OADate of a UTC instant; convert
-        // to the site's wall clock via mAxisZone. Null zone (pre-first-Render) ->
-        // raw zone-blind format. The interface contract for IAltitudeSubChart's
-        // time axis is now "UTC-internal, labels resolved via the site zone".
-        private string AxisTimeLabel(double v)
-        {
-            TimeZoneInfo zone = mAxisZone;
-            if (zone == null) return DateTime.FromOADate(v).ToString("h:mm tt");
-            DateTime utc = DateTime.SpecifyKind(DateTime.FromOADate(v), DateTimeKind.Utc);
-            return TimeZoneInfo.ConvertTimeFromUtc(utc, zone).ToString("h:mm tt");
         }
 
         // Update the red now-line position in place. The X axis is UTC-internal
