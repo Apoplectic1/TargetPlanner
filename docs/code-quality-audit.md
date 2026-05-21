@@ -53,16 +53,18 @@ Re-grep each "zero call sites" claim at fix time before deleting. Leaf namespace
   hover) rather than a physical move to `ChartLayout`, which would have split
   each constant from its owner class.
 
-## Tier 3 — Slim `ChartEvaluation` (Phase-7-revert residue; M, low-risk)
+## Tier 3 — Slim `ChartEvaluation` ✅ SHIPPED 2026-05-19 (commit `3fbd772`)
 
-- [ ] **Drop the 4 unread bool flags + the 2 pass-through key copies.**
-  `LocationChanged` / `TargetsChanged` / `HdmChanged` / `DayModeChanged`
-  (`ChartEvaluation.cs:39-55`) are computed in `EnsureAsync`, threaded through every
-  `Render`, and read by nobody but a diag string. `HdmKey` + `DayMode` are always
-  equal to `ctx.Hdm` / `ctx.DayMode` (two names for one fact). **Load-bearing set
-  after this + Tier-6 Day-overlay work: `BrightnessInputsChanged` + `DayKey`
-  (+ `DayKeyChanged`).** Simplifies the `EnsureAsync` diff. Decide the `eval` param
-  on `IAltitudeSubChart.Render` here — see Tier 6.
+- [x] **Slimmed `ChartEvaluation` to its one live field + dropped the dead `eval`
+  parameter from `Render`.** A consumer audit found the four axis flags
+  (`LocationChanged` / `TargetsChanged` / `HdmChanged` / `DayModeChanged`) were
+  diag-only and the three keys (`DayKey` / `HdmKey` / `DayMode`) had zero reads.
+  Only `BrightnessInputsChanged` is load-bearing — and its consumer is the
+  coordinator's post-apply hook, not `Render`. So: `ChartEvaluation` collapsed to
+  `{ BrightnessInputsChanged }`, and `IAltitudeSubChart.Render(ctx, cache, eval)` →
+  `Render(ctx, cache)` across the interface + four sub-charts + `MainForm.RenderArea`
+  + the coordinator delegate. Tier 6's Day-overlay work re-introduces a staleness
+  param to `Render` when it has a real consumer.
 
 ## Tier 4 — Charts mirror-pair dedup (the dominant theme; M–L)
 
