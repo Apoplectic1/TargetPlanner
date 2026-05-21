@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-21 (Phase C re-scoped — image library shipped as a minimal bare-target source; rich-type migration + Sky-chart filters deferred to TPP/TPS). Previously updated 2026-05-19 (Fix L — Day/Sky chart X-axis made UTC-internal so axis labels are DST-correct across spring-forward / fall-back transitions; verified). Previously updated 2026-05-19 (named-TZ refactor shipped via Astronomy.NINA.Persistence.NamedSite + ComboBox_TimeZone; settings.json collapse — personal-defaults.json dropped, factory seed in C#, Defaults > Edit/Clear menu; persistence-fix sweep — Target Floor mirror, ActiveControl-commit, FormClosing-save suppression; observation dialog simplified to notes-only; UI logging expanded to ~25 discrete-event handlers). Previously updated 2026-05-18 (observation-dialog feedback id=7abd: Now-line UTC bug + Moon Rise/Set bracket-by-night + chart pipeline on Location zone), 2026-05-18 (multi-library refactor: Astronomy.XISF Tier 1 extracted + Astronomy.NINA Phases A+B shipped on the Library side; TP sln pre-staged with sibling visibility — Phase C migration is the next TP-side work), 2026-05-18 (Location refactor Phase 2: Library `Location` strip + TP-side decoupling), 2026-05-17 (chart-pipeline SoC pipeline collapse + observation dialog + Library Saemundsson consolidation; HD-overlay per-target toggle in global mode + sticky fast-path), 2026-05-13 (architectural-review campaign + post-campaign re-review follow-ups + Gemini code-review triage + Location refactor Phase 1), 2026-05-11 (XISF prep notes + AnyCPU drop), 2026-05-04 (.NET 10 migration). Originally captured 2026-04-19.
+Last updated 2026-05-21 (target-source UX — startup auto-loads the image library; new Load NINA Sequencer Targets button; Load-button fallback browse with path persistence; type-detecting Browse over file/folder + json/library; Clear All Targets / Uncheck All split). Previously updated 2026-05-21 (Phase C re-scoped — image library shipped as a minimal bare-target source; rich-type migration + Sky-chart filters deferred to TPP/TPS). Previously updated 2026-05-19 (Fix L — Day/Sky chart X-axis made UTC-internal so axis labels are DST-correct across spring-forward / fall-back transitions; verified). Previously updated 2026-05-19 (named-TZ refactor shipped via Astronomy.NINA.Persistence.NamedSite + ComboBox_TimeZone; settings.json collapse — personal-defaults.json dropped, factory seed in C#, Defaults > Edit/Clear menu; persistence-fix sweep — Target Floor mirror, ActiveControl-commit, FormClosing-save suppression; observation dialog simplified to notes-only; UI logging expanded to ~25 discrete-event handlers). Previously updated 2026-05-18 (observation-dialog feedback id=7abd: Now-line UTC bug + Moon Rise/Set bracket-by-night + chart pipeline on Location zone), 2026-05-18 (multi-library refactor: Astronomy.XISF Tier 1 extracted + Astronomy.NINA Phases A+B shipped on the Library side; TP sln pre-staged with sibling visibility — Phase C migration is the next TP-side work), 2026-05-18 (Location refactor Phase 2: Library `Location` strip + TP-side decoupling), 2026-05-17 (chart-pipeline SoC pipeline collapse + observation dialog + Library Saemundsson consolidation; HD-overlay per-target toggle in global mode + sticky fast-path), 2026-05-13 (architectural-review campaign + post-campaign re-review follow-ups + Gemini code-review triage + Location refactor Phase 1), 2026-05-11 (XISF prep notes + AnyCPU drop), 2026-05-04 (.NET 10 migration). Originally captured 2026-04-19.
 
 ## Currently open (priority order)
 
@@ -20,6 +20,8 @@ Migrated from CLAUDE.md so the agent-facing reference stays lean. Order is rough
    4. **Verify** `TargetPlanner\bin\x64\<Configuration>\net10.0-windows10.0.19041\Astronomy.PCL.Native.dll` shows up in TP's output after build.
 
    Sequencing gotcha: TP's transitive `<Content>` references `bin\x64\$(Configuration)\Astronomy.PCL.Native.dll`, so TP Debug requires Library Debug native on disk, TP Release requires Library Release. Easiest rule: build `Library\Astronomy.sln` in both Debug and Release once via `msbuild`, then switch TP configurations freely.
+
+8. **Extract a `MainForm.TargetLoadingPresenter` partial.** `MainForm.cs` has grown large; all target-loading orchestration (`GetImageLibraryTargets` / `GetJsonTargets` / `GetBrowsedTargets` + the `Load*Async` / `PromptFor*` helpers + `StartCacheWarmup` + the `OnVm*` target handlers) should move into a `MainForm.TargetLoadingPresenter.cs` partial-class file (matching `MainForm.SortPresenter.cs` / `CoordinatePresenter.cs` / `FilterMenuPresenter.cs`) so `MainForm.cs` stays straight-line. The 2026-05-21 target-source-UX work was built extraction-ready (thin handlers, cohesive methods) specifically to make this a near-mechanical lift. Deferred deliberately so it runs once against the complete, stable surface; deserves its own short plan.
 
 **Future-flagged for Core API shape:** **partial-moon-impact tolerance** — allowing a session to span moon-blocked time at a quality penalty rather than rejecting outright. Deferred until much later, but the placement primitives are designed so they don't preclude it (moon profile is optional everywhere; mask computation is behind an internal helper).
 
@@ -66,6 +68,40 @@ Design notes preserved for the future implementation:
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+### 2026-05-21 — Target-source UX: startup swap, fallback browse, type-detecting Browse
+
+Follow-on to the image-library source (same day). Four commits restructure how
+targets enter TP.
+
+**C1 (`229810b`) — Clear / Uncheck buttons.** The existing `Button_ClearAllTargets`
+only *unchecked* all targets; renamed to `Button_UncheckAll` / "Uncheck All". A
+new `Button_ClearAllTargets` / "Clear All Targets" empties the known-target list
+outright (`SetKnownTargets(empty)`).
+
+**C2 (`9b8c582`) — Startup swap + NINA-load button + fallback browse.** Startup
+auto-loads the image library instead of NINA `.json` (`GetImageLibraryTargets`
+with `offerFallbackBrowse: false` — a missing/empty/failed root logs and boots
+empty, no dialog). New `Button_LoadJsonTargets` ("Load NINA Sequencer Targets")
+loads `NinaTargetsRoot` directly. Both Load buttons fall back to a
+`FolderBrowserDialog` when their configured root yields nothing, and a successful
+browse persists the chosen path (`SettingsStore.Save`). New helpers: `GetJsonTargets`,
+never-throw `LoadImageLibraryAsync` / `LoadNinaTargetsAsync`, shared `PromptForFolder`.
+
+**C3 (`5db875e`) — Type-detecting Browse.** `Button_BrowseTargetList` is now a
+one-off loader: a folder-capable `OpenFileDialog` whose result is classified — a
+`.json` file → one NINA target, a `.xisf` file → one image-library target
+(`XisfHeaderReader`), a `Captures/`-bearing folder → image-library scan, a
+`.json` folder → NINA walk. New single-file loaders `TargetLoader.LoadFile` +
+`ImageLibraryLoader.LoadFileAsync`. Browse is one-off — no persist, no sidecar
+append. The old `GetNinaTargets` (last caller was Browse) and the dead
+`mProcessObjectGeneration` field were removed; `ProgressBar_ProcessObject` is now
+an idle Designer control.
+
+The work was built extraction-ready (thin handlers, cohesive load methods) for a
+future `MainForm.TargetLoadingPresenter` partial-class extraction — see Currently
+open. Build-clean (0/0) per commit; new Designer buttons sit at placeholder
+positions for VS2026-designer repositioning.
 
 ### 2026-05-21 — Phase C re-scoped: image library as a target source
 
