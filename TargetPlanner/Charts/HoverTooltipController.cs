@@ -28,7 +28,6 @@ namespace TargetPlanner.Charts
             LineSeries<ObservablePoint> series,
             IList<ObservablePoint> data,
             double hoverX,
-            double hoverY,
             double interpY,
             int segmentStart);
 
@@ -39,9 +38,9 @@ namespace TargetPlanner.Charts
         private readonly System.Windows.Forms.Timer mTimer;
         private Point mLastMouseLoc;
 
-        // Tracks which curve series the tooltip is currently showing for, so
-        // the tick can decide whether to update or hide. null means hidden.
-        private LineSeries<ObservablePoint> mShownSeries;
+        // True while the tooltip is shown, so the tick can decide whether to
+        // update or hide. The which-series reference was never read.
+        private bool mTooltipVisible;
 
         public HoverTooltipController(
             CartesianChart chart,
@@ -130,11 +129,11 @@ namespace TargetPlanner.Charts
             }
 
             var text = mCurveTooltipFormatter is not null
-                ? mCurveTooltipFormatter(best, bestData, hoverX, hoverY, bestInterpY, bestSegmentStart)
+                ? mCurveTooltipFormatter(best, bestData, hoverX, bestInterpY, bestSegmentStart)
                 : DefaultInterpolatedTooltip(best, hoverX, bestInterpY);
 
             mTooltip.Show(text, mChart, mLastMouseLoc.X + 14, mLastMouseLoc.Y + 14, 4000);
-            mShownSeries = best;
+            mTooltipVisible = true;
         }
 
         private static string DefaultInterpolatedTooltip(
@@ -146,10 +145,10 @@ namespace TargetPlanner.Charts
 
         private void HideTooltip()
         {
-            if (mShownSeries != null)
+            if (mTooltipVisible)
             {
                 mTooltip.Hide(mChart);
-                mShownSeries = null;
+                mTooltipVisible = false;
             }
         }
     }

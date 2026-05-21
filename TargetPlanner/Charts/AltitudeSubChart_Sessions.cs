@@ -231,7 +231,7 @@ namespace TargetPlanner.Charts
         private string SessionsTooltipFormatter(
             LineSeries<ObservablePoint> series,
             IList<ObservablePoint> data,
-            double hoverX, double hoverY,
+            double hoverX,
             double interpY,
             int segmentStart)
         {

@@ -203,7 +203,7 @@ namespace TargetPlanner.Charts
         private string YearTooltipFormatter(
             LineSeries<ObservablePoint> series,
             IList<ObservablePoint> data,
-            double hoverX, double hoverY,
+            double hoverX,
             double interpY,
             int segmentStart)
         {

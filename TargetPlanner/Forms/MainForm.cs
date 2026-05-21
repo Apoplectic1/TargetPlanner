@@ -242,9 +242,9 @@ namespace TargetPlanner
         private int mToolTipIndex;
 
         // Dedicated ToolTip instance for the explanatory radio-button tooltips (Sessions,
-        // Day). Kept separate from mToolTip because AutoPopDelay must be much longer (text
-        // runs several paragraphs) and mToolTip's ShowCheckBoxObjectToolTip handler resets
-        // AutoPopDelay to 5 seconds on every CheckedListBox hover -- globals wouldn't stick.
+        // Day). Kept separate from mToolTip because its AutoPopDelay must be much longer
+        // (60 s -- the text runs several paragraphs) than mToolTip's 5 s, and one ToolTip
+        // instance can only hold a single AutoPopDelay.
         private ToolTip mSessionsRadioTooltip;
 
         private const string SessionsRadioTooltipText =
@@ -2114,9 +2114,6 @@ is preserved.";
             if (found == null) return;
 
             mToolTip.SetToolTip(CheckedListBox_SelectedTargets, found.Directory);
-            mToolTip.AutoPopDelay = 5000;
-            mToolTip.InitialDelay = 2000;
-            mToolTip.ReshowDelay = 2000;
         }
 
         // The three view radio handlers (Day / Year / Sessions) all share the

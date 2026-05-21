@@ -256,7 +256,7 @@ namespace TargetPlanner.Charts
                 series => mTargetWindows.TryGetValue(series, out var w)
                     ? ((double, double, double)?)w
                     : null,
-                _ => { });
+                s => Log.Diag("Overlay", s));
             // Custom curve tooltip so the hover time reads the site's wall clock.
             // HoverTooltipController.DefaultInterpolatedTooltip formats hoverX
             // (a UTC OADate, since the X axis is UTC-internal) zone-blind, which
@@ -265,7 +265,7 @@ namespace TargetPlanner.Charts
             mHover = new HoverTooltipController(
                 mChart,
                 () => mSeriesByTarget.Values,
-                curveTooltipFormatter: (series, data, hoverX, hoverY, interpY, segmentStart) =>
+                curveTooltipFormatter: (series, data, hoverX, interpY, segmentStart) =>
                     $"{series.Name}\n{AxisTimeLabel(hoverX)}\nAltitude: {interpY:F1}°",
                 debounceMs: 300);
 

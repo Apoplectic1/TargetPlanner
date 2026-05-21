@@ -10,10 +10,11 @@ namespace TargetPlanner.Charts
 {
     // HD-overlay state machine. Owns the per-series snapshot/restore
     // dictionary and the apply/restore step-function rewrite logic. A
-    // click in the chart's plot area dispatches to TryToggleAt(clickX,
-    // clickY); right-click dispatches to RestoreAll. Status updates flow
-    // through the reportStatus callback so the controller doesn't reach
-    // into the host form's status label directly.
+    // left-click in the chart's plot area dispatches to TryToggleAt(clickX,
+    // clickY); right-click dispatches to ToggleAll. Status updates flow
+    // through the reportStatus callback (the Day chart wires it to
+    // Log.Diag("Overlay", ...)) so the controller doesn't reach into the
+    // host form directly.
     //
     // Window source is supplied via a delegate (not a static dictionary)
     // so callers whose target→window mapping changes between Render calls
@@ -254,7 +255,7 @@ namespace TargetPlanner.Charts
             }
         }
 
-        public void RestoreAll()
+        private void RestoreAll()
         {
             if (mBackups.Count == 0) return;
             foreach (var kv in mBackups)
