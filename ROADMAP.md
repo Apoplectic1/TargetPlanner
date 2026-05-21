@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-21 (extracted MainForm.TargetLoadingPresenter — the target-loading cluster lifted into its own partial-class file). Previously updated 2026-05-21 (target-source UX — startup auto-loads the image library; new Load NINA Sequencer Targets button; Load-button fallback browse with path persistence; type-detecting Browse over file/folder + json/library; Clear All Targets / Uncheck All split). Previously updated 2026-05-21 (Phase C re-scoped — image library shipped as a minimal bare-target source; rich-type migration + Sky-chart filters deferred to TPP/TPS). Previously updated 2026-05-19 (Fix L — Day/Sky chart X-axis made UTC-internal so axis labels are DST-correct across spring-forward / fall-back transitions; verified). Previously updated 2026-05-19 (named-TZ refactor shipped via Astronomy.NINA.Persistence.NamedSite + ComboBox_TimeZone; settings.json collapse — personal-defaults.json dropped, factory seed in C#, Defaults > Edit/Clear menu; persistence-fix sweep — Target Floor mirror, ActiveControl-commit, FormClosing-save suppression; observation dialog simplified to notes-only; UI logging expanded to ~25 discrete-event handlers). Previously updated 2026-05-18 (observation-dialog feedback id=7abd: Now-line UTC bug + Moon Rise/Set bracket-by-night + chart pipeline on Location zone), 2026-05-18 (multi-library refactor: Astronomy.XISF Tier 1 extracted + Astronomy.NINA Phases A+B shipped on the Library side; TP sln pre-staged with sibling visibility — Phase C migration is the next TP-side work), 2026-05-18 (Location refactor Phase 2: Library `Location` strip + TP-side decoupling), 2026-05-17 (chart-pipeline SoC pipeline collapse + observation dialog + Library Saemundsson consolidation; HD-overlay per-target toggle in global mode + sticky fast-path), 2026-05-13 (architectural-review campaign + post-campaign re-review follow-ups + Gemini code-review triage + Location refactor Phase 1), 2026-05-11 (XISF prep notes + AnyCPU drop), 2026-05-04 (.NET 10 migration). Originally captured 2026-04-19.
+Last updated 2026-05-21 (drag-and-drop — drop a mix of NINA .json / .xisf files and target folders from Explorer onto the target list). Previously updated 2026-05-21 (extracted MainForm.TargetLoadingPresenter — the target-loading cluster lifted into its own partial-class file). Previously updated 2026-05-21 (target-source UX — startup auto-loads the image library; new Load NINA Sequencer Targets button; Load-button fallback browse with path persistence; type-detecting Browse over file/folder + json/library; Clear All Targets / Uncheck All split). Previously updated 2026-05-21 (Phase C re-scoped — image library shipped as a minimal bare-target source; rich-type migration + Sky-chart filters deferred to TPP/TPS). Previously updated 2026-05-19 (Fix L — Day/Sky chart X-axis made UTC-internal so axis labels are DST-correct across spring-forward / fall-back transitions; verified). Previously updated 2026-05-19 (named-TZ refactor shipped via Astronomy.NINA.Persistence.NamedSite + ComboBox_TimeZone; settings.json collapse — personal-defaults.json dropped, factory seed in C#, Defaults > Edit/Clear menu; persistence-fix sweep — Target Floor mirror, ActiveControl-commit, FormClosing-save suppression; observation dialog simplified to notes-only; UI logging expanded to ~25 discrete-event handlers). Previously updated 2026-05-18 (observation-dialog feedback id=7abd: Now-line UTC bug + Moon Rise/Set bracket-by-night + chart pipeline on Location zone), 2026-05-18 (multi-library refactor: Astronomy.XISF Tier 1 extracted + Astronomy.NINA Phases A+B shipped on the Library side; TP sln pre-staged with sibling visibility — Phase C migration is the next TP-side work), 2026-05-18 (Location refactor Phase 2: Library `Location` strip + TP-side decoupling), 2026-05-17 (chart-pipeline SoC pipeline collapse + observation dialog + Library Saemundsson consolidation; HD-overlay per-target toggle in global mode + sticky fast-path), 2026-05-13 (architectural-review campaign + post-campaign re-review follow-ups + Gemini code-review triage + Location refactor Phase 1), 2026-05-11 (XISF prep notes + AnyCPU drop), 2026-05-04 (.NET 10 migration). Originally captured 2026-04-19.
 
 ## Currently open (priority order)
 
@@ -68,6 +68,21 @@ Design notes preserved for the future implementation:
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+### 2026-05-21 — Drag-and-drop targets onto the list
+
+`CheckedListBox_SelectedTargets` now accepts Explorer file-drops (commit
+`97c513f`). Drop any mix of NINA `.json` / `.xisf` files and target folders —
+`DataFormats.FileDrop` hands over the paths, each is classified + loaded via the
+existing `LoadBrowsedPathAsync` (`.json` → NINA target, `.xisf` → image-library
+target, folder → library scan or NINA walk), and the combined result
+wholesale-replaces the known-target set. One-off, like Browse — no persist, no
+sidecar append. Sidesteps the Windows file-dialog limitation (no dialog picks
+files *and* folders, let alone a mix). New `GetDroppedTargets` +
+`OnTargetListDragEnter` / `OnTargetListDragDrop` in
+`MainForm.TargetLoadingPresenter.cs` (its first addition since the extraction);
+`AllowDrop` + the two drag events wired in `InitializeDynamicControls`.
+Build-clean 0/0; the Browse button stays for discoverability.
 
 ### 2026-05-21 — Extract MainForm.TargetLoadingPresenter partial
 
