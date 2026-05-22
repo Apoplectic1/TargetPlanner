@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-22 (recursive target scanner — the three Load/Browse buttons + drag-drop share one error-tolerant recursive walk that groups each target's files and resolves one target at the spherical centroid of the group; comets excluded; loads now add rather than replace). Previously updated 2026-05-21 (drag-and-drop — drop a mix of NINA .json / .xisf files and target folders from Explorer onto the target list). Previously updated 2026-05-21 (extracted MainForm.TargetLoadingPresenter — the target-loading cluster lifted into its own partial-class file). Previously updated 2026-05-21 (target-source UX — startup auto-loads the image library; new Load NINA Sequencer Targets button; Load-button fallback browse with path persistence; type-detecting Browse over file/folder + json/library; Clear All Targets / Uncheck All split). Previously updated 2026-05-21 (Phase C re-scoped — image library shipped as a minimal bare-target source; rich-type migration + Sky-chart filters deferred to TPP/TPS). Previously updated 2026-05-19 (Fix L — Day/Sky chart X-axis made UTC-internal so axis labels are DST-correct across spring-forward / fall-back transitions; verified). Previously updated 2026-05-19 (named-TZ refactor shipped via Astronomy.NINA.Persistence.NamedSite + ComboBox_TimeZone; settings.json collapse — personal-defaults.json dropped, factory seed in C#, Defaults > Edit/Clear menu; persistence-fix sweep — Target Floor mirror, ActiveControl-commit, FormClosing-save suppression; observation dialog simplified to notes-only; UI logging expanded to ~25 discrete-event handlers). Previously updated 2026-05-18 (observation-dialog feedback id=7abd: Now-line UTC bug + Moon Rise/Set bracket-by-night + chart pipeline on Location zone), 2026-05-18 (multi-library refactor: Astronomy.XISF Tier 1 extracted + Astronomy.NINA Phases A+B shipped on the Library side; TP sln pre-staged with sibling visibility — Phase C migration is the next TP-side work), 2026-05-18 (Location refactor Phase 2: Library `Location` strip + TP-side decoupling), 2026-05-17 (chart-pipeline SoC pipeline collapse + observation dialog + Library Saemundsson consolidation; HD-overlay per-target toggle in global mode + sticky fast-path), 2026-05-13 (architectural-review campaign + post-campaign re-review follow-ups + Gemini code-review triage + Location refactor Phase 1), 2026-05-11 (XISF prep notes + AnyCPU drop), 2026-05-04 (.NET 10 migration). Originally captured 2026-04-19.
+Last updated 2026-05-22 (target-loading refactor — recursive scanner groups files and resolves each target at the spherical vector centroid, comets excluded, loads add rather than replace; Browse picks multi-select files xor a folder; per-file progress on ProgressBar_MultiTargetProcessing during loads; MainForm.SelectionVmPresenter extracted). Previously updated 2026-05-21 (drag-and-drop — drop a mix of NINA .json / .xisf files and target folders from Explorer onto the target list). Previously updated 2026-05-21 (extracted MainForm.TargetLoadingPresenter — the target-loading cluster lifted into its own partial-class file). Previously updated 2026-05-21 (target-source UX — startup auto-loads the image library; new Load NINA Sequencer Targets button; Load-button fallback browse with path persistence; type-detecting Browse over file/folder + json/library; Clear All Targets / Uncheck All split). Previously updated 2026-05-21 (Phase C re-scoped — image library shipped as a minimal bare-target source; rich-type migration + Sky-chart filters deferred to TPP/TPS). Previously updated 2026-05-19 (Fix L — Day/Sky chart X-axis made UTC-internal so axis labels are DST-correct across spring-forward / fall-back transitions; verified). Previously updated 2026-05-19 (named-TZ refactor shipped via Astronomy.NINA.Persistence.NamedSite + ComboBox_TimeZone; settings.json collapse — personal-defaults.json dropped, factory seed in C#, Defaults > Edit/Clear menu; persistence-fix sweep — Target Floor mirror, ActiveControl-commit, FormClosing-save suppression; observation dialog simplified to notes-only; UI logging expanded to ~25 discrete-event handlers). Previously updated 2026-05-18 (observation-dialog feedback id=7abd: Now-line UTC bug + Moon Rise/Set bracket-by-night + chart pipeline on Location zone), 2026-05-18 (multi-library refactor: Astronomy.XISF Tier 1 extracted + Astronomy.NINA Phases A+B shipped on the Library side; TP sln pre-staged with sibling visibility — Phase C migration is the next TP-side work), 2026-05-18 (Location refactor Phase 2: Library `Location` strip + TP-side decoupling), 2026-05-17 (chart-pipeline SoC pipeline collapse + observation dialog + Library Saemundsson consolidation; HD-overlay per-target toggle in global mode + sticky fast-path), 2026-05-13 (architectural-review campaign + post-campaign re-review follow-ups + Gemini code-review triage + Location refactor Phase 1), 2026-05-11 (XISF prep notes + AnyCPU drop), 2026-05-04 (.NET 10 migration). Originally captured 2026-04-19.
 
 ## Currently open (priority order)
 
@@ -20,8 +20,6 @@ Migrated from CLAUDE.md so the agent-facing reference stays lean. Order is rough
    4. **Verify** `TargetPlanner\bin\x64\<Configuration>\net10.0-windows10.0.19041\Astronomy.PCL.Native.dll` shows up in TP's output after build.
 
    Sequencing gotcha: TP's transitive `<Content>` references `bin\x64\$(Configuration)\Astronomy.PCL.Native.dll`, so TP Debug requires Library Debug native on disk, TP Release requires Library Release. Easiest rule: build `Library\Astronomy.sln` in both Debug and Release once via `msbuild`, then switch TP configurations freely.
-
-8. **Extract a `MainForm.SelectionVmPresenter` partial.** The `TargetLoadingPresenter` extraction shipped 2026-05-21 (commit `1862770`, see Recently shipped). The remaining `MainForm.cs` cluster worth lifting is the `TargetSelection` VM↔UI-sync concern — `WireSelectionVm`, the `OnVm*` handlers (`OnVmKnownTargetsChanged` / `OnVmSelectedSingleChanged` / `OnVmCheckedSetChanged` / `OnVmCheckedSetChanged_TriggerGraph`), and the per-target color rebuilders (`RebuildTargetColors` / `RecomputeDupeSetColors`). A distinct concern from target loading, currently scattered across `MainForm.cs`; lifting it into a `MainForm.SelectionVmPresenter.cs` partial (same pattern as SortPresenter / CoordinatePresenter / TargetLoadingPresenter) would consolidate it. Lower priority — a navigability cleanup, not a feature.
 
 **Future-flagged for Core API shape:** **partial-moon-impact tolerance** — allowing a session to span moon-blocked time at a quality penalty rather than rejecting outright. Deferred until much later, but the placement primitives are designed so they don't preclude it (moon profile is optional everywhere; mask computation is behind an internal helper).
 
@@ -68,6 +66,37 @@ Design notes preserved for the future implementation:
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+### 2026-05-22 — Load-path polish: Browse multi-select, load progress, SelectionVmPresenter
+
+Three follow-ons to the day's target-loading rework:
+
+- **Browse multi-select** (commit `036e7c8`) — `Button_BrowseTargetList`'s
+  dialog became a multi-select `OpenFileDialog` (`PromptForFilesOrFolder`).
+  One OK returns either a multi-selection of `.json`/`.xisf` files XOR a
+  single folder (navigate into it and click Open) — never both at once.
+  Browse and drag-drop now share `LoadFromPathsAsync`, literally the same
+  code path; `GetBrowsedTargets` / `GetDroppedTargets` are 5-line wrappers.
+- **Per-file load progress** (commit `30cb059`) — wires
+  `ProgressBar_MultiTargetProcessing` to the three Load/Browse buttons +
+  drag-drop. Sister helper `BeginScanProgress` takes
+  `IProgress<(int Done, int Total)>` (Total unknown up front, so the first
+  report after enumeration sizes Maximum); shares `mChartBuildGeneration`
+  so a chart click mid-scan invalidates the scan's callbacks (and vice
+  versa). `TargetScanner.ScanAsync` pre-filters work units (xisf pairing +
+  Captures + comet drop, json by extension), then ticks
+  `Interlocked.Increment` per file processed.
+- **`MainForm.SelectionVmPresenter` extracted** (commit `2cfe2fe`) — ROADMAP
+  item 8. The `TargetSelection` <-> UI-sync cluster lifted out of
+  `MainForm.cs` into a new partial-class file: `WireSelectionVm`, the four
+  `OnVm*` handlers, the two `OnCheckedListBox*` handlers, the per-target
+  color rebuilders (`RebuildTargetColors` / `RecomputeDupeSetColors`), the
+  listbox tint callbacks (`GetDupeRowBackground` /
+  `GetCheckboxInteriorTint`), and `OnSelectedTargetsMouseDown`. Same
+  partial-class-file-split pattern as SortPresenter / CoordinatePresenter /
+  TargetLoadingPresenter — fields stay in `MainForm.cs`, methods relocate.
+  Pure move; behaviour identical. Also drops an orphaned 5-line
+  `IProgress<string>` comment at the old WireSelectionVm site.
 
 ### 2026-05-22 — Recursive target scanner: folder-grouped, centroid-located
 
