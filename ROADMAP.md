@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-22 (target-loading refactor — recursive scanner groups files and resolves each target at the spherical vector centroid, comets excluded, loads add rather than replace; Browse picks multi-select files xor a folder; per-file progress on ProgressBar_MultiTargetProcessing during loads; MainForm.SelectionVmPresenter + MainForm.ChartBuildPresenter extracted; Velopack 0.0.1298 → 0.0.1589-ga2c5a97). Previously updated 2026-05-21 (drag-and-drop — drop a mix of NINA .json / .xisf files and target folders from Explorer onto the target list). Previously updated 2026-05-21 (extracted MainForm.TargetLoadingPresenter — the target-loading cluster lifted into its own partial-class file). Previously updated 2026-05-21 (target-source UX — startup auto-loads the image library; new Load NINA Sequencer Targets button; Load-button fallback browse with path persistence; type-detecting Browse over file/folder + json/library; Clear All Targets / Uncheck All split). Previously updated 2026-05-21 (Phase C re-scoped — image library shipped as a minimal bare-target source; rich-type migration + Sky-chart filters deferred to TPP/TPS). Previously updated 2026-05-19 (Fix L — Day/Sky chart X-axis made UTC-internal so axis labels are DST-correct across spring-forward / fall-back transitions; verified). Previously updated 2026-05-19 (named-TZ refactor shipped via Astronomy.NINA.Persistence.NamedSite + ComboBox_TimeZone; settings.json collapse — personal-defaults.json dropped, factory seed in C#, Defaults > Edit/Clear menu; persistence-fix sweep — Target Floor mirror, ActiveControl-commit, FormClosing-save suppression; observation dialog simplified to notes-only; UI logging expanded to ~25 discrete-event handlers). Previously updated 2026-05-18 (observation-dialog feedback id=7abd: Now-line UTC bug + Moon Rise/Set bracket-by-night + chart pipeline on Location zone), 2026-05-18 (multi-library refactor: Astronomy.XISF Tier 1 extracted + Astronomy.NINA Phases A+B shipped on the Library side; TP sln pre-staged with sibling visibility — Phase C migration is the next TP-side work), 2026-05-18 (Location refactor Phase 2: Library `Location` strip + TP-side decoupling), 2026-05-17 (chart-pipeline SoC pipeline collapse + observation dialog + Library Saemundsson consolidation; HD-overlay per-target toggle in global mode + sticky fast-path), 2026-05-13 (architectural-review campaign + post-campaign re-review follow-ups + Gemini code-review triage + Location refactor Phase 1), 2026-05-11 (XISF prep notes + AnyCPU drop), 2026-05-04 (.NET 10 migration). Originally captured 2026-04-19.
+Last updated 2026-05-22 (target-loading refactor — recursive scanner groups files and resolves each target at the spherical vector centroid, comets excluded, loads add rather than replace; Browse picks multi-select files xor a folder; per-file progress on ProgressBar_MultiTargetProcessing during loads; MainForm.SelectionVmPresenter + MainForm.ChartBuildPresenter + MainForm.LocationPresenter extracted; Velopack 0.0.1298 → 0.0.1589-ga2c5a97). Previously updated 2026-05-21 (drag-and-drop — drop a mix of NINA .json / .xisf files and target folders from Explorer onto the target list). Previously updated 2026-05-21 (extracted MainForm.TargetLoadingPresenter — the target-loading cluster lifted into its own partial-class file). Previously updated 2026-05-21 (target-source UX — startup auto-loads the image library; new Load NINA Sequencer Targets button; Load-button fallback browse with path persistence; type-detecting Browse over file/folder + json/library; Clear All Targets / Uncheck All split). Previously updated 2026-05-21 (Phase C re-scoped — image library shipped as a minimal bare-target source; rich-type migration + Sky-chart filters deferred to TPP/TPS). Previously updated 2026-05-19 (Fix L — Day/Sky chart X-axis made UTC-internal so axis labels are DST-correct across spring-forward / fall-back transitions; verified). Previously updated 2026-05-19 (named-TZ refactor shipped via Astronomy.NINA.Persistence.NamedSite + ComboBox_TimeZone; settings.json collapse — personal-defaults.json dropped, factory seed in C#, Defaults > Edit/Clear menu; persistence-fix sweep — Target Floor mirror, ActiveControl-commit, FormClosing-save suppression; observation dialog simplified to notes-only; UI logging expanded to ~25 discrete-event handlers). Previously updated 2026-05-18 (observation-dialog feedback id=7abd: Now-line UTC bug + Moon Rise/Set bracket-by-night + chart pipeline on Location zone), 2026-05-18 (multi-library refactor: Astronomy.XISF Tier 1 extracted + Astronomy.NINA Phases A+B shipped on the Library side; TP sln pre-staged with sibling visibility — Phase C migration is the next TP-side work), 2026-05-18 (Location refactor Phase 2: Library `Location` strip + TP-side decoupling), 2026-05-17 (chart-pipeline SoC pipeline collapse + observation dialog + Library Saemundsson consolidation; HD-overlay per-target toggle in global mode + sticky fast-path), 2026-05-13 (architectural-review campaign + post-campaign re-review follow-ups + Gemini code-review triage + Location refactor Phase 1), 2026-05-11 (XISF prep notes + AnyCPU drop), 2026-05-04 (.NET 10 migration). Originally captured 2026-04-19.
 
 ## Currently open (priority order)
 
@@ -66,6 +66,44 @@ Design notes preserved for the future implementation:
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+### 2026-05-22 — LocationPresenter extraction
+
+**`MainForm.LocationPresenter` extracted** (commit `ecf12fd`) — seventh
+partial-class file split (after Sort / Coordinate / FilterMenu /
+TargetLoading / SelectionVm / ChartBuild). Lifts 25 methods covering the
+location-state + per-site preferences + local-horizon polyline plumbing
+out of `MainForm.cs`:
+
+- **Site-characteristic spinners (7):** LocalElevation / Bortle /
+  Extinction / TimeZone / TargetDuration / TargetFloor handlers +
+  `PersistPlanningPreferencesToActiveSite` (mirror `mPlanningPreferences`
+  back onto the active `NamedSite.Preferences` so close-time save persists).
+- **Edit funnel + debounce (4):** `OnLocationEdited` (single attach point
+  for lat/lon/elev/N/W/Bortle/Extinction edits),
+  `RestartSessionsRebuildDebounce` / `SessionsRebuildDebounce_Tick`
+  (250 ms scrub debounce that branches on `LocationsCacheEquivalent`),
+  `ResetForLocationChange` (clear checked set / blank chart / drop +
+  rebuild cache against the new location).
+- **Location-keying helper:** `LocationsCacheEquivalent` (geometry-only
+  diff used by the debounce tick).
+- **Location combo (2):** `ComboBox_Location_SelectionIndexChanged` +
+  `ComboBox_Location_DropDown` (re-fire trick for re-picking the same
+  item after a Custom auto-switch).
+- **Startup pickers (2):** `PickStartupLocation` + `PickStartupPreferences`
+  resolve initial state from `mAppSettings.LastSelectedLocationName`.
+- **Local-horizon polyline plumbing (9):** `ApplySiteHorizon`,
+  `LoadLocalHorizonForCurrentLocation`, `GetCurrentHorizonPath`,
+  `UpdateHorizonPathLabel`, `ConfigureHorizonWatcher` +
+  `HorizonWatcher_FileChanged` + `HorizonReloadDebounce_Tick` (the
+  `FileSystemWatcher` hot-reload pipeline), `Button_BrowseHorizon_Click`
+  (file picker that persists the `.hrz` path onto `NamedSite`),
+  `InitializeLocalHorizonControls` (wires the lot at form init).
+
+`ClampToRange` stays in `MainForm.cs` (used by CoordinatePresenter +
+FilterMenuPresenter + this presenter); fields stay per the partial-class
+pattern; `SnapshotCurrent` + `RefreshAstrometryLabels` also stay. Pure
+move; behaviour identical.
 
 ### 2026-05-22 — ChartBuildPresenter + Velopack bump
 
