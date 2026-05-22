@@ -83,14 +83,19 @@ namespace TargetPlanner
 
         // Shared core of Browse and drag-and-drop: scan each picked file or
         // folder (a folder recursively, both formats), then add the new targets.
+        // A single shared IProgress threads through every path; if the user
+        // selected multiple paths the bar resizes per path (each one reports its
+        // own Total) -- acceptable since the per-path work is either a fast
+        // single file or one folder scan.
         private async Task LoadFromPathsAsync(string[] paths)
         {
             UseWaitCursor = true;
+            (int progGen, IProgress<(int Done, int Total)> prog) = BeginScanProgress();
             try
             {
                 var combined = new List<Target>();
                 foreach (string path in paths)
-                    combined.AddRange(await ScanPathAsync(path, TargetFileKinds.All));
+                    combined.AddRange(await ScanPathAsync(path, TargetFileKinds.All, prog));
 
                 if (combined.Count == 0)
                 {
@@ -104,7 +109,11 @@ namespace TargetPlanner
             }
             catch (OperationCanceledException) { /* form closing mid-load; expected */ }
             catch (Exception ex) { Log.Error("Browse / drop load failed", ex); }
-            finally { UseWaitCursor = false; }
+            finally
+            {
+                UseWaitCursor = false;
+                FinishChartBuildProgress(progGen);
+            }
         }
 
         // Explorer file-drop onto the target list -- the same operation as
@@ -141,10 +150,11 @@ namespace TargetPlanner
         {
             Log.Diag("UI", $"GetImageLibraryTargets offerFallback={offerFallbackBrowse}");
             UseWaitCursor = true;
+            (int progGen, IProgress<(int Done, int Total)> prog) = BeginScanProgress();
             try
             {
                 IReadOnlyList<Target> scanned =
-                    await ScanPathAsync(ImageLibraryRootPath, TargetFileKinds.Xisf);
+                    await ScanPathAsync(ImageLibraryRootPath, TargetFileKinds.Xisf, prog);
                 if (scanned.Count == 0 && offerFallbackBrowse)
                 {
                     string picked = PromptForFolder(
@@ -152,7 +162,7 @@ namespace TargetPlanner
                         ImageLibraryRootPath);
                     if (!string.IsNullOrEmpty(picked))
                     {
-                        scanned = await ScanPathAsync(picked, TargetFileKinds.Xisf);
+                        scanned = await ScanPathAsync(picked, TargetFileKinds.Xisf, prog);
                         if (scanned.Count > 0)
                         {
                             mAppSettings.ImageLibraryRoot = picked;
@@ -164,7 +174,11 @@ namespace TargetPlanner
             }
             catch (OperationCanceledException) { /* form closing mid-scan; expected */ }
             catch (Exception ex) { Log.Error("GetImageLibraryTargets failed", ex); }
-            finally { UseWaitCursor = false; }
+            finally
+            {
+                UseWaitCursor = false;
+                FinishChartBuildProgress(progGen);
+            }
         }
 
         // Scans the configured NINA targets root for .json targets and adds the
@@ -175,10 +189,11 @@ namespace TargetPlanner
         {
             Log.Diag("UI", $"GetJsonTargets offerFallback={offerFallbackBrowse}");
             UseWaitCursor = true;
+            (int progGen, IProgress<(int Done, int Total)> prog) = BeginScanProgress();
             try
             {
                 IReadOnlyList<Target> scanned =
-                    await ScanPathAsync(NinaTargetsRootPath, TargetFileKinds.Json);
+                    await ScanPathAsync(NinaTargetsRootPath, TargetFileKinds.Json, prog);
                 if (scanned.Count == 0 && offerFallbackBrowse)
                 {
                     string picked = PromptForFolder(
@@ -186,7 +201,7 @@ namespace TargetPlanner
                         NinaTargetsRootPath);
                     if (!string.IsNullOrEmpty(picked))
                     {
-                        scanned = await ScanPathAsync(picked, TargetFileKinds.Json);
+                        scanned = await ScanPathAsync(picked, TargetFileKinds.Json, prog);
                         if (scanned.Count > 0)
                         {
                             mAppSettings.NinaTargetsRoot = picked;
@@ -197,14 +212,21 @@ namespace TargetPlanner
                 AddScannedTargets(scanned);
             }
             catch (Exception ex) { Log.Error("GetJsonTargets failed", ex); }
-            finally { UseWaitCursor = false; }
+            finally
+            {
+                UseWaitCursor = false;
+                FinishChartBuildProgress(progGen);
+            }
         }
 
         // Scan that never throws (cancellation aside): returns an empty list,
         // logged, when the path is unset or the scan fails. TargetScanner already
         // tolerates per-directory I/O errors inside the tree; this guards the
-        // outer call.
-        private async Task<IReadOnlyList<Target>> ScanPathAsync(string path, TargetFileKinds kinds)
+        // outer call. <paramref name="progress"/> is forwarded to the scanner
+        // for per-file ticking on ProgressBar_MultiTargetProcessing.
+        private async Task<IReadOnlyList<Target>> ScanPathAsync(
+            string path, TargetFileKinds kinds,
+            IProgress<(int Done, int Total)> progress = null)
         {
             if (string.IsNullOrWhiteSpace(path))
             {
@@ -213,7 +235,8 @@ namespace TargetPlanner
             }
             try
             {
-                return await TargetScanner.ScanAsync(path, kinds, mFormClosingCts.Token);
+                return await TargetScanner.ScanAsync(
+                    path, kinds, mFormClosingCts.Token, progress);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

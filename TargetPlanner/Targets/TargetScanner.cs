@@ -64,8 +64,16 @@ namespace TargetPlanner.Targets
         // and returns one bare Target per real sky target. Never throws for I/O
         // problems inside the tree (logged and skipped); a cancelled token still
         // surfaces as OperationCanceledException.
+        //
+        // <paramref name="progress"/>, when supplied, receives one (Done=0, Total)
+        // report after enumeration + per-kind filtering (extension / Captures /
+        // comet drop), then one (Done++, Total) per file processed -- .xisf
+        // header read or .json parse. The increment is Interlocked, so concurrent
+        // parallel-parse ticks are race-free; the receiver should ignore stale
+        // (out-of-order) Done values. The single-file branch does not report.
         public static async Task<IReadOnlyList<Target>> ScanAsync(
-            string path, TargetFileKinds kinds, CancellationToken ct)
+            string path, TargetFileKinds kinds, CancellationToken ct,
+            IProgress<(int Done, int Total)> progress = null)
         {
             if (string.IsNullOrWhiteSpace(path) || kinds == TargetFileKinds.None)
                 return Array.Empty<Target>();
@@ -82,11 +90,39 @@ namespace TargetPlanner.Targets
             string[] files = await Task.Run(
                 () => SafeEnumerateFiles(path, ct).ToArray(), ct).ConfigureAwait(false);
 
+            // Pre-filter per kind so the work-unit total is known up front. The
+            // .xisf side does its full pairing pass here (extension + Captures/
+            // ancestor + comet drop) -- the heavy work (parallel header reads)
+            // gets exactly the files that will become Targets. The .json side
+            // just filters by extension; standalone/panel/comet decisions happen
+            // during parsing.
+            List<(string TargetFolder, string File)> xisfPaired =
+                (kinds & TargetFileKinds.Xisf) != 0
+                    ? await Task.Run(() => PairXisfFiles(files), ct).ConfigureAwait(false)
+                    : null;
+            string[] jsonFiles =
+                (kinds & TargetFileKinds.Json) != 0
+                    ? files.Where(f => f.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                           .ToArray()
+                    : null;
+
+            int total = (xisfPaired?.Count ?? 0) + (jsonFiles?.Length ?? 0);
+            progress?.Report((0, total));
+
+            int done = 0;
+            void OnFileProcessed()
+            {
+                int d = Interlocked.Increment(ref done);
+                progress?.Report((d, total));
+            }
+
             var result = new List<Target>();
-            if ((kinds & TargetFileKinds.Xisf) != 0)
-                result.AddRange(await ScanXisfDirectoryAsync(files, ct).ConfigureAwait(false));
-            if ((kinds & TargetFileKinds.Json) != 0)
-                result.AddRange(await Task.Run(() => ScanJsonFiles(files), ct).ConfigureAwait(false));
+            if (xisfPaired != null)
+                result.AddRange(await ScanXisfDirectoryAsync(xisfPaired, ct, OnFileProcessed)
+                    .ConfigureAwait(false));
+            if (jsonFiles != null)
+                result.AddRange(await Task.Run(
+                    () => ScanJsonFiles(jsonFiles, OnFileProcessed), ct).ConfigureAwait(false));
 
             Log.Diag("UI", $"TargetScanner: '{path}' kinds={kinds} -> "
                 + $"{files.Length} file(s), {result.Count} target(s).");
@@ -95,7 +131,8 @@ namespace TargetPlanner.Targets
 
         // A directly-picked file (Browse / drag-drop of one file) is its own
         // target -- there is no folder to group or centroid with. .xisf keeps
-        // that one frame's coordinate; .json its planned coordinate.
+        // that one frame's coordinate; .json its planned coordinate. No progress
+        // ticking -- the work is too small to be worth reporting.
         private static async Task<IReadOnlyList<Target>> ScanSingleFileAsync(
             string path, TargetFileKinds kinds, CancellationToken ct)
         {
@@ -116,40 +153,24 @@ namespace TargetPlanner.Targets
                 : new[] { t };
         }
 
-        // .xisf directory scan: group every capture frame by its target folder,
-        // then collapse each group to one Target at the vector centroid of its
-        // light frames.
+        // .xisf directory scan: read every paired frame's header in parallel,
+        // then collapse each target folder's light frames to one Target at their
+        // vector centroid. Pairing (extension + Captures/-ancestor + comet drop)
+        // happens earlier in ScanAsync so the progress-tick total is known.
         private static async Task<IReadOnlyList<Target>> ScanXisfDirectoryAsync(
-            string[] files, CancellationToken ct)
+            IReadOnlyList<(string TargetFolder, string File)> paired,
+            CancellationToken ct,
+            Action onFileProcessed)
         {
-            // Pair each capture frame with its target folder (the path above
-            // \Captures\). Pure string work, off-thread -- a big library is many
-            // thousands of paths. Comet folders are dropped here, so their
-            // headers are never read; .xisf with no Captures/ ancestor is not a
-            // capture frame and is skipped.
-            List<(string TargetFolder, string File)> paired = await Task.Run(() =>
-            {
-                var p = new List<(string, string)>();
-                foreach (string f in files)
-                {
-                    if (!f.EndsWith(".xisf", StringComparison.OrdinalIgnoreCase)) continue;
-                    string tf = CaptureTargetFolderOf(f);
-                    if (tf == null) continue;
-                    if (IsComet(Path.GetFileName(tf))) continue;
-                    p.Add((tf, f));
-                }
-                return p;
-            }, ct).ConfigureAwait(false);
-
             if (paired.Count == 0) return Array.Empty<Target>();
 
-            // Read every kept frame header in parallel.
             var frames = new Target[paired.Count];
             await Parallel.ForEachAsync(Enumerable.Range(0, paired.Count), ct,
                 async (i, token) =>
                 {
                     frames[i] = await ImageLibraryLoader
                         .ParseFileAsync(paired[i].File, token).ConfigureAwait(false);
+                    onFileProcessed?.Invoke();
                 }).ConfigureAwait(false);
 
             // Collect each target folder's light-frame coordinates.
@@ -183,16 +204,17 @@ namespace TargetPlanner.Targets
         // .json scan: a standalone .json is one target, unchanged; a folder of
         // "... Panel <n>" files is a NINA mosaic, collapsed to one target at the
         // centroid of the panels' planned coordinates.
-        private static IReadOnlyList<Target> ScanJsonFiles(string[] files)
+        private static IReadOnlyList<Target> ScanJsonFiles(
+            IList<string> jsonFiles, Action onFileProcessed)
         {
             var standalone = new List<Target>();
             var mosaicPanels = new Dictionary<string, List<Target>>(
                 StringComparer.OrdinalIgnoreCase);
 
-            foreach (string f in files)
+            foreach (string f in jsonFiles)
             {
-                if (!f.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) continue;
                 Target t = TargetLoader.ParseFile(f);
+                onFileProcessed?.Invoke();
                 if (t == null || IsComet(t.Name)) continue;
 
                 if (MosaicPanelPattern.IsMatch(Path.GetFileNameWithoutExtension(f)))
@@ -224,6 +246,25 @@ namespace TargetPlanner.Targets
                     enabled:        true));
             }
             return result;
+        }
+
+        // Pairs every .xisf capture frame with its target folder (the path
+        // segment above \Captures\). Drops files without a Captures/ ancestor
+        // (processing outputs, loose files -- not capture frames) and comet
+        // target folders, so their headers are never read. Pure string work --
+        // safe to run on a worker thread.
+        private static List<(string TargetFolder, string File)> PairXisfFiles(string[] files)
+        {
+            var p = new List<(string, string)>();
+            foreach (string f in files)
+            {
+                if (!f.EndsWith(".xisf", StringComparison.OrdinalIgnoreCase)) continue;
+                string tf = CaptureTargetFolderOf(f);
+                if (tf == null) continue;
+                if (IsComet(Path.GetFileName(tf))) continue;
+                p.Add((tf, f));
+            }
+            return p;
         }
 
         // The target folder of a capture frame: the path component immediately

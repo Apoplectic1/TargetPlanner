@@ -2595,6 +2595,36 @@ is preserved.";
                 TaskScheduler.FromCurrentSynchronizationContext());
         }
 
+        // Sister of BeginChartBuildProgress for the load paths -- the bar's
+        // Maximum is unknown up front (the scanner discovers it after
+        // enumeration), so the progress shape is (Done, Total): the first
+        // report sizes the Maximum, each subsequent one advances Value. Reuses
+        // mChartBuildGeneration so a chart click mid-scan (or vice versa)
+        // invalidates the earlier path's stale callbacks -- the bar shows one
+        // operation at a time. Pair with FinishChartBuildProgress for the
+        // fill + 1-second hold + reset.
+        private (int generation, IProgress<(int Done, int Total)> progress) BeginScanProgress()
+        {
+            int thisGeneration = ++mChartBuildGeneration;
+
+            ProgressBar_MultiTargetProcessing.Minimum = 0;
+            ProgressBar_MultiTargetProcessing.Maximum = 1;   // resized on first Total
+            ProgressBar_MultiTargetProcessing.Value   = 0;
+
+            var progress = new Progress<(int Done, int Total)>(t =>
+            {
+                if (thisGeneration != mChartBuildGeneration) return;  // stale
+                int max = Math.Max(1, t.Total);
+                if (ProgressBar_MultiTargetProcessing.Maximum != max)
+                    ProgressBar_MultiTargetProcessing.Maximum = max;
+                int clamped = Math.Min(Math.Max(0, t.Done), max);
+                if (clamped > ProgressBar_MultiTargetProcessing.Value)
+                    ProgressBar_MultiTargetProcessing.Value = clamped;
+            });
+
+            return (thisGeneration, progress);
+        }
+
         private void ComboBox_SelectTarget_SelectedIndexChanged(object sender, EventArgs e)
         {
             // Validate-then-route: if the Find returns null (combobox text doesn't match any
