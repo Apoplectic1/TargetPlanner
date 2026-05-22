@@ -1378,7 +1378,7 @@
             CheckBox_Moon_RelaxEnabled.TabIndex = 2;
             CheckBox_Moon_RelaxEnabled.Text = "Relaxation Enable";
             CheckBox_Moon_RelaxEnabled.UseVisualStyleBackColor = true;
-            CheckBox_Moon_RelaxEnabled.CheckedChanged += OnLorentzianControlChanged;
+            CheckBox_Moon_RelaxEnabled.CheckedChanged += OnRelaxEnabledChanged;
             // 
             // Label_Moon_RelaxMin
             // 

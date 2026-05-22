@@ -464,6 +464,18 @@ namespace TargetPlanner
             mCoordinator?.Apply(SnapshotCurrent());
         }
 
+        // CheckBox_Moon_RelaxEnabled toggled: re-gate the relaxation Min/Max/Scale
+        // params (enabled only while this is checked), then run the standard
+        // Lorentzian-changed path -- the avoidance profile carries RelaxEnabled, so
+        // the chart must rebuild.
+        private void OnRelaxEnabledChanged(object sender, EventArgs e)
+        {
+            bool avoidanceOn = CheckBox_Moon_AvoidanceEnable != null
+                            && CheckBox_Moon_AvoidanceEnable.Checked;
+            SetLorentzianControlsEnabled(avoidanceOn);
+            OnLorentzianControlChanged(sender, e);
+        }
+
         // Read the live Lorentzian control values into a MoonAvoidanceProfile. Used by
         // OnLorentzianControlChanged for the live chart push and (indirectly, via the
         // same control reads) by FilterAutoSaveDebounce_Tick when building the
@@ -571,17 +583,29 @@ namespace TargetPlanner
             }
         }
 
-        // Enable/disable the Lorentzian controls. Used to grey them when the active
-        // filter is Disabled (avoidance off entirely); enables them otherwise.
-        private void SetLorentzianControlsEnabled(bool enabled)
+        // Enable/disable the moon-avoidance controls in a two-level hierarchy.
+        // The master CheckBox_Moon_AvoidanceEnable (passed as avoidanceEnabled)
+        // gates the Separation / Width controls and the Relaxation-Enable toggle.
+        // The relaxation Min/Max/Scale params (labels + spinners) sit one level
+        // deeper -- enabled only when avoidance is on AND CheckBox_Moon_RelaxEnabled
+        // is checked. CheckBox_Moon_AvoidanceEnable itself is never disabled here.
+        private void SetLorentzianControlsEnabled(bool avoidanceEnabled)
         {
             if (NumericUpDown_Moon_Separation == null) return;
-            NumericUpDown_Moon_Separation.Enabled  = enabled;
-            NumericUpDown_Moon_Width.Enabled       = enabled;
-            CheckBox_Moon_RelaxEnabled.Enabled     = enabled;
-            NumericUpDown_Moon_RelaxMin.Enabled    = enabled;
-            NumericUpDown_Moon_RelaxMax.Enabled    = enabled;
-            NumericUpDown_Moon_RelaxScale.Enabled  = enabled;
+
+            Label_Moon_Seperation.Enabled         = avoidanceEnabled;
+            NumericUpDown_Moon_Separation.Enabled  = avoidanceEnabled;
+            Label_Moon_Width.Enabled              = avoidanceEnabled;
+            NumericUpDown_Moon_Width.Enabled       = avoidanceEnabled;
+            CheckBox_Moon_RelaxEnabled.Enabled    = avoidanceEnabled;
+
+            bool relaxParamsEnabled = avoidanceEnabled && CheckBox_Moon_RelaxEnabled.Checked;
+            Label_Moon_RelaxMin.Enabled           = relaxParamsEnabled;
+            NumericUpDown_Moon_RelaxMin.Enabled   = relaxParamsEnabled;
+            Label_Moon_RelaxMax.Enabled           = relaxParamsEnabled;
+            NumericUpDown_Moon_RelaxMax.Enabled   = relaxParamsEnabled;
+            Label_Moon_RelaxScale.Enabled         = relaxParamsEnabled;
+            NumericUpDown_Moon_RelaxScale.Enabled = relaxParamsEnabled;
         }
     }
 }
