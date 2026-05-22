@@ -1,92 +1,44 @@
 using Newtonsoft.Json.Linq;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using TargetPlanner.Support;
+using TargetPlanner.Targets;
 
 using Target = Astronomy.Core.Targets.Target;
 
 namespace TargetPlanner.Nina
 {
-    // Loads Astronomy.Core Target objects from NINA sequence files (.json). A NINA target file
-    // serializes a DeepSkyObjectContainer whose Target.InputCoordinates carries sexagesimal
-    // RA/Dec plus a NegativeDec flag.
+    // Parses a single NINA sequence file (.json) into one bare Astronomy.Core
+    // Target. A NINA target file serializes a DeepSkyObjectContainer whose
+    // Target.InputCoordinates carries sexagesimal RA/Dec plus a NegativeDec flag.
     //
-    // Scope of discovery:
-    //   - every .json in the root of the folder;
-    //   - every .json recursively under subfolders EXCEPT those named "Calibration" (flats /
-    //     darks holders, not imaging targets) or "Mosaics" (multi-pane composites that can't be
-    //     represented as a single point target).
+    // Parsing only -- this class finds nothing on its own. The recursive
+    // directory walk that feeds it lives in TargetPlanner.Targets.TargetScanner;
+    // collapsing the duplicates a walk turns up lives in TargetIdentity.
     public static class TargetLoader
     {
-        private static readonly HashSet<string> ExcludedSubfolders = new HashSet<string>(
-            StringComparer.OrdinalIgnoreCase) { "Calibration", "Mosaics" };
-
-        public static List<Target> Load(string rootFolder, IProgress<(int Current, int Total)> progress)
+        // Parses one NINA .json sequence file into a Target, or null when the
+        // file is missing, unparseable, or carries no target (each logged).
+        // Never throws -- TargetScanner parses many files and one bad file must
+        // not abort the batch. The target name is canonicalized via
+        // TargetIdentity.NormalizeName so a " Stars" sequence collapses onto its
+        // parent target downstream.
+        public static Target ParseFile(string path)
         {
-            var result = new List<Target>();
-            if (string.IsNullOrWhiteSpace(rootFolder) || !Directory.Exists(rootFolder))
-                return result;
-
-            List<string> files = EnumerateTargetFiles(rootFolder).ToList();
-            progress?.Report((0, files.Count));
-
-            int i = 0;
-            foreach (string file in files)
-            {
-                i++;
-                try
-                {
-                    Target t = ParseTargetFile(file);
-                    if (t != null) result.Add(t);
-                }
-                catch (Exception ex)
-                {
-                    // Skip unparseable / malformed files but leave a diagnostic trail in
-                    // tp.log. The previous bare catch dropped both the path and the reason
-                    // on the floor, which made "target X missing from the list" an
-                    // unsolvable mystery.
-                    Log.Warn("TargetLoader: skipping '" + file + "'", ex);
-                }
-                progress?.Report((i, files.Count));
-            }
-
-            return result;
-        }
-
-        // Parses a single NINA .json sequence file into one Target. Returns a
-        // 0-or-1-element list -- empty when the file is missing, unparseable, or
-        // carries no target (logged), mirroring Load()'s skip-and-log contract.
-        public static List<Target> LoadFile(string path)
-        {
-            var result = new List<Target>();
             if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-                return result;
+                return null;
             try
             {
-                Target t = ParseTargetFile(path);
-                if (t != null) result.Add(t);
+                return ParseTargetFile(path);
             }
             catch (Exception ex)
             {
-                Log.Warn("TargetLoader.LoadFile: skipping '" + path + "'", ex);
-            }
-            return result;
-        }
-
-        private static IEnumerable<string> EnumerateTargetFiles(string rootFolder)
-        {
-            foreach (string f in Directory.EnumerateFiles(rootFolder, "*.json", SearchOption.TopDirectoryOnly))
-                yield return f;
-
-            foreach (string dir in Directory.EnumerateDirectories(rootFolder))
-            {
-                string name = Path.GetFileName(dir);
-                if (ExcludedSubfolders.Contains(name)) continue;
-
-                foreach (string f in Directory.EnumerateFiles(dir, "*.json", SearchOption.AllDirectories))
-                    yield return f;
+                // Skip unparseable / malformed files but leave a diagnostic trail
+                // in tp.log. A bare swallow drops both the path and the reason,
+                // which makes "target X missing from the list" an unsolvable
+                // mystery.
+                Log.Warn("TargetLoader.ParseFile: skipping '" + path + "'", ex);
+                return null;
             }
         }
 
@@ -119,7 +71,7 @@ namespace TargetPlanner.Nina
 
             // The Target ctor normalizes a negative declination into (magnitude, north=false).
             return new Target(
-                name:           name,
+                name:           TargetIdentity.NormalizeName(name),
                 rightAscension: Math.Round(raHours, 6),
                 declination:    Math.Round(decDegrees, 6),
                 north:          true,

@@ -18,6 +18,7 @@ using TargetPlanner.Horizons;
 using TargetPlanner.Settings;
 using TargetPlanner.State;
 using TargetPlanner.Support;
+using TargetPlanner.Targets;
 using TargetPlanner.Updates;
 using System.Threading;
 using System.Threading.Tasks;
@@ -770,6 +771,14 @@ is preserved.";
             // The ComboBox starts blank; OnVmKnownTargetsChanged populates it after NINA
             // load completes (~100 ms) and auto-selects the first sorted target.
             WireSelectionVm();
+
+            // Seed the hand-typed local targets (local-targets.json) into the
+            // known set up front. Loads now ADD rather than replace, so locals no
+            // longer need re-merging on every NINA load -- one seed here makes
+            // them visible from boot. AddKnownTargets fires KnownTargetsChanged,
+            // which OnVmKnownTargetsChanged turns into a listbox/combo populate.
+            if (mLocalTargets.Count > 0)
+                mSelection.AddKnownTargets(mLocalTargets);
 
             // Local-horizon hot-reload + initial label sync. The Button_BrowseHorizon
             // and Label_HorizonPath controls themselves are Designer-managed; this just
@@ -2158,12 +2167,15 @@ is preserved.";
         private void OnVmKnownTargetsChanged(object sender, EventArgs e)
         {
             // Repopulate ComboBox_SelectTarget and CheckedListBox_SelectedTargets from the
-            // new known-target list (in the current sort order). Default checked = false
-            // for every loaded target -- the user opts in target-by-target rather than
-            // opting out via Clear-All. Matches TargetSelection's default-none-checked
-            // policy in SetKnownTargets.
+            // current known-target list (in the current sort order). New rows arrive
+            // unchecked -- they are not in the VM's checked set -- so the user opts in
+            // target-by-target. preserveSelection:true keeps the combo on the user's
+            // current pick: loads now ADD to the catalog, and an add must not yank the
+            // combo (and the RA/Dec spinners it drives) off whatever the user selected.
+            // The first populate, with nothing selected yet, falls through to the
+            // first-sorted auto-pick below.
             PopulateCheckedListBoxFromTargets(defaultChecked: false);
-            PopulateTargetComboFromTargets(preserveSelection: false);
+            PopulateTargetComboFromTargets(preserveSelection: true);
 
             // Rebuild the per-target color map. Name-sorted so the same target lands on
             // the same palette index across reloads of the same folder; consumed by every
@@ -2171,25 +2183,24 @@ is preserved.";
             // target's color regardless of their Render-time iteration order.
             RebuildTargetColors();
 
-            // Compute dupe-set background colors for the listbox owner-draw handler.
-            // Targets sharing (RA, Dec, North) get a shared pastel; recomputed any
-            // time KnownTargets changes (NINA load, Add, Remove).
+            // Compute duplicate-set tint colors for the listbox owner-draw handler.
+            // Recomputed any time KnownTargets changes (load, Add, Remove); see
+            // RecomputeDupeSetColors for the TargetIdentity-based grouping.
             RecomputeDupeSetColors();
 
-            // Prune the Visible-tonight tint set to current KnownTargets. NINA
-            // reload yields zero overlap (new Target instances) -- effective wipe.
-            // Add: no-op (the new target wasn't in the set). Remove: drops the
-            // removed target. Listbox repaint follows from PopulateChecked-
-            // ListBoxFromTargets above.
+            // Prune the Visible-tonight tint set to current KnownTargets. A load
+            // adds, so tags survive it; Clear All empties the catalog and the tag
+            // set with it; Remove drops just the removed target. Listbox repaint
+            // follows from PopulateCheckedListBoxFromTargets above.
             mVisibleTaggedTargets.IntersectWith(mSelection.KnownTargets);
 
-            // SetKnownTargets clears SelectedSingle when the prior selection isn't in the
-            // new catalog (different Target instance equality across reloads). Re-establish
-            // a default by picking the *first sorted* known target (matching what the
-            // ComboBox auto-selected via PopulateTargetComboFromTargets above) so RA/Dec
-            // inputs and ComboBox text reflect the same VM state after a load. Using
-            // KnownTargets[0] would pick load-order first, which only coincides with sort
-            // order under Name sort.
+            // When nothing is selected yet -- the first populate, or after Clear All
+            // emptied the catalog -- establish a default by picking the *first sorted*
+            // known target. SetSelectedSingle fires SelectedSingleChanged, which writes
+            // the name into the ComboBox and the coords into the RA/Dec inputs, so all
+            // three agree. Using KnownTargets[0] would pick load order, which only
+            // coincides with sorted order under Name sort. A load that adds onto an
+            // already-populated catalog leaves SelectedSingle intact and skips this.
             if (mSelection.SelectedSingle == null && mSelection.KnownTargets.Count > 0)
             {
                 Target firstSorted = SortedTargets(mSelection.KnownTargets).FirstOrDefault();
@@ -2219,26 +2230,28 @@ is preserved.";
             }
         }
 
-        // Group KnownTargets by (RoundedRa, RoundedDec, North) and assign each group
-        // with size > 1 a stable pastel from DupeSetPalette. The palette index is a
-        // deterministic hash of the coord triple so the same coord-set always lands
-        // on the same color across sort changes / re-populates. Targets not in any
-        // dupe-set are absent from mDupeSetColors -- the listbox owner-draw handler
-        // reads "missing" as "use the OS default background".
-        // Group targets by Name-OR-coords match. Two targets are in the same dupe
-        // set if they share a Name OR they share (RA, Dec, North) -- and the
-        // relation is transitive: T1 ~ T2 by name and T2 ~ T3 by coords means
-        // {T1, T2, T3} are one group. Implemented via DSU. Each group with size
-        // > 1 gets a stable pastel from DupeSetPalette (hash is XOR of member
-        // identities so the assignment survives sort changes).
+        // Group KnownTargets into duplicate-sets and give each set of two or more
+        // a stable pastel from DupeSetPalette. "Duplicate" is the app-wide
+        // definition in TargetIdentity.AreSameTarget -- equal stars-stripped names
+        // AND coordinates within ~1 arcminute. Membership is transitive (T1~T2 and
+        // T2~T3 puts all three in one set), resolved with a disjoint-set union.
+        //
+        // Loads collapse duplicates as they arrive (TargetIdentity.SelectNewTargets),
+        // so in practice this tints what manual Add / RA-Dec entry has created --
+        // the same "spot a target you typed twice" cue the listbox has always
+        // given. Targets in no duplicate-set are absent from mDupeSetColors; the
+        // listbox owner-draw handler reads "missing" as "use the OS background".
         private void RecomputeDupeSetColors()
         {
             mDupeSetColors.Clear();
-            if (mSelection == null || mSelection.KnownTargets.Count == 0) return;
-
-            var targets = mSelection.KnownTargets.Where(t => t != null).ToList();
+            var targets = mSelection?.KnownTargets.Where(t => t != null).ToList()
+                          ?? new List<Target>();
             int n = targets.Count;
-            if (n == 0) return;
+            if (n == 0)
+            {
+                CheckedListBox_SelectedTargets?.Invalidate();
+                return;
+            }
 
             // DSU.
             var parent = new int[n];
@@ -2254,21 +2267,26 @@ is preserved.";
                 if (ra != rb) parent[ra] = rb;
             }
 
-            // Bucket by Name and by coord-triple, then union members within each
-            // bucket to the bucket's first member.
-            var byName = new Dictionary<string, int>(StringComparer.Ordinal);
-            var byCoord = new Dictionary<(double Ra, double Dec, bool N), int>();
+            // Two targets can only be duplicates when their normalized names
+            // match, so bucket indices by name and run the coordinate test only
+            // within a bucket -- O(n) tiny buckets instead of an O(n^2) sweep.
+            var byName = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase);
             for (int i = 0; i < n; i++)
             {
-                Target t = targets[i];
-                if (byName.TryGetValue(t.Name, out int nameRoot)) Union(nameRoot, i);
-                else byName[t.Name] = i;
-
-                var key = (System.Math.Round(t.RightAscension, 6),
-                           System.Math.Round(t.Declination, 6),
-                           t.North);
-                if (byCoord.TryGetValue(key, out int coordRoot)) Union(coordRoot, i);
-                else byCoord[key] = i;
+                string key = TargetIdentity.NormalizeName(targets[i].Name);
+                if (!byName.TryGetValue(key, out var indices))
+                {
+                    indices = new List<int>();
+                    byName[key] = indices;
+                }
+                indices.Add(i);
+            }
+            foreach (var indices in byName.Values)
+            {
+                for (int a = 0; a < indices.Count; a++)
+                    for (int b = a + 1; b < indices.Count; b++)
+                        if (TargetIdentity.AreSameTarget(targets[indices[a]], targets[indices[b]]))
+                            Union(indices[a], indices[b]);
             }
 
             // Collect connected components.
@@ -2276,12 +2294,12 @@ is preserved.";
             for (int i = 0; i < n; i++)
             {
                 int root = Find(i);
-                if (!groups.TryGetValue(root, out var bucket))
+                if (!groups.TryGetValue(root, out var members))
                 {
-                    bucket = new List<int>();
-                    groups[root] = bucket;
+                    members = new List<int>();
+                    groups[root] = members;
                 }
-                bucket.Add(i);
+                members.Add(i);
             }
 
             int paletteSize = DupeSetPalette.Length;

@@ -1,101 +1,89 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Astronomy.NINA.Xisf;
 using Astronomy.XISF;
 using TargetPlanner.Support;
+using TargetPlanner.Targets;
 
 using Target = Astronomy.Core.Targets.Target;
 
 namespace TargetPlanner.ImageLibrary
 {
-    // Loads Astronomy.Core Target objects from the user's image library by
-    // scanning .xisf FITS headers via Astronomy.NINA's ImageLibraryScanner.
+    // Parses a single .xisf image file into one bare Astronomy.Core Target by
+    // reading its FITS-keyword header (OBJECT / RA / DEC / IMAGETYP).
     //
-    // TP today consumes targets as bare geometry (name + RA + Dec), exactly as it
-    // does NINA .json targets, so this loader down-converts each scanned
-    // TargetReport to a bare Astronomy.Core.Targets.Target at the boundary and
-    // drops the rich per-filter imaging history. Surfacing that richness
-    // (filters, integration time) is deferred TPP/TPS work -- see the Phase C
-    // plan. The image library and NINA .json are independent target lenses;
-    // each load wholesale-replaces the known-target set.
+    // Parsing only -- the recursive directory walk that feeds it lives in
+    // TargetPlanner.Targets.TargetScanner, and collapsing the many per-filter /
+    // stars / per-frame .xisf files of one object into a single target lives in
+    // TargetIdentity. TP consumes targets as bare geometry (name + RA + Dec), so
+    // the rich per-frame data (exposure, filter, camera) is dropped at this
+    // boundary; surfacing it is deferred TPP/TPS work.
     public static class ImageLibraryLoader
     {
-        // Scans the image library rooted at <paramref name="root"/> and returns
-        // one bare Target per top-level target directory found. The scan reads
-        // every .xisf header (~1.4 s for a 14k-frame library on the dev machine).
-        public static async Task<List<Target>> LoadAsync(string root, CancellationToken ct)
+        // Reads one .xisf header and builds a Target, or null when the file is
+        // missing, not a light frame, lacks RA/DEC keywords, or fails to parse
+        // (each logged). Never throws (cancellation aside) -- TargetScanner reads
+        // thousands of headers and one bad file must not abort the batch.
+        //
+        // Only IMAGETYP=Light frames yield a target; darks / flats / bias are
+        // skipped here rather than by directory name, so calibration frames are
+        // excluded wherever they sit in the tree. The OBJECT keyword is the
+        // complete target name (e.g. "M101 P1 Stars"); TargetIdentity.NormalizeName
+        // strips the imaging-only " Stars" designation so a stars frame collapses
+        // onto its parent target.
+        public static async Task<Target> ParseFileAsync(string xisfPath, CancellationToken ct)
         {
-            ImageLibraryReport report =
-                await ImageLibraryScanner.ScanAsync(root, ct).ConfigureAwait(false);
-
-            var result = new List<Target>(report.Targets.Count);
-            foreach (TargetReport tr in report.Targets)
-            {
-                // DecDegrees is signed; pass north:true and let the Target ctor
-                // normalize a negative declination by flipping the flag (matches
-                // the convention TargetLoader and ReportToTargetAdapter use). The
-                // directory name ("M51 - Whirlpool") is the user's canonical
-                // identity -- use it for both the display name and Directory.
-                result.Add(new Target(
-                    name:           tr.DirectoryName,
-                    rightAscension: tr.RaHours,
-                    declination:    tr.DecDegrees,
-                    north:          true,
-                    directory:      tr.DirectoryName,
-                    enabled:        true));
-            }
-
-            if (report.SkippedFiles.Count > 0)
-            {
-                Log.Warn($"ImageLibraryLoader: {report.SkippedFiles.Count} file(s) "
-                    + $"skipped during scan of '{root}' (XISF parse failures).");
-            }
-
-            return result;
-        }
-
-        // Reads a single .xisf file's FITS header and builds one bare Target from
-        // it. Returns a 0-or-1-element list -- empty when the file is missing or
-        // its header lacks RA/DEC (logged). The rich per-frame data is dropped at
-        // the boundary, same as LoadAsync.
-        public static async Task<List<Target>> LoadFileAsync(string xisfPath, CancellationToken ct)
-        {
-            var result = new List<Target>();
             if (string.IsNullOrWhiteSpace(xisfPath) || !File.Exists(xisfPath))
-                return result;
+                return null;
             try
             {
                 XisfHeader header =
                     await XisfHeaderReader.ReadAsync(xisfPath, ct).ConfigureAwait(false);
+
+                if (!IsLightFrame(header))
+                    return null;
+
                 double? raDeg = header.RaDegrees;
                 double? decDeg = header.DecDegrees;
                 if (raDeg is null || decDeg is null)
                 {
-                    Log.Warn($"ImageLibraryLoader.LoadFileAsync: '{xisfPath}' "
-                        + "has no RA/DEC header keyword; skipped.");
-                    return result;
+                    Log.Warn($"ImageLibraryLoader: '{xisfPath}' has no RA/DEC header "
+                        + "keyword; skipped.");
+                    return null;
                 }
+
                 double raHours = (raDeg.Value / 15.0) % 24.0;
                 if (raHours < 0) raHours += 24.0;
-                string name = string.IsNullOrWhiteSpace(header.ObjectName)
+
+                string rawName = string.IsNullOrWhiteSpace(header.ObjectName)
                     ? Path.GetFileNameWithoutExtension(xisfPath)
                     : header.ObjectName;
-                result.Add(new Target(
-                    name:           name,
-                    rightAscension: raHours,
-                    declination:    decDeg.Value,
+
+                return new Target(
+                    name:           TargetIdentity.NormalizeName(rawName),
+                    rightAscension: Math.Round(raHours, 6),
+                    declination:    Math.Round(decDeg.Value, 6),
                     north:          true,
                     directory:      xisfPath,
-                    enabled:        true));
+                    enabled:        true);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                Log.Error($"ImageLibraryLoader.LoadFileAsync failed at '{xisfPath}'", ex);
+                Log.Warn($"ImageLibraryLoader.ParseFileAsync: skipping '{xisfPath}'", ex);
+                return null;
             }
-            return result;
+        }
+
+        // True when the header's IMAGETYP marks a light frame. An absent IMAGETYP
+        // is treated as not-a-light-frame: the user's processed library always
+        // stamps it, so a missing value means a file outside that pipeline, which
+        // is safer to skip than to admit as a target.
+        private static bool IsLightFrame(XisfHeader header)
+        {
+            string imageType = header.ImageType;
+            return !string.IsNullOrWhiteSpace(imageType)
+                && imageType.IndexOf("light", StringComparison.OrdinalIgnoreCase) >= 0;
         }
     }
 }

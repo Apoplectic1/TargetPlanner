@@ -143,6 +143,33 @@ namespace TargetPlanner.State
         }
 
         /// <summary>
+        /// Append every target in <paramref name="targets"/> not already present by
+        /// reference to <see cref="KnownTargets"/>. <see cref="Checked"/> and
+        /// <see cref="SelectedSingle"/> are left untouched — a load accumulates
+        /// candidates, it does not change what the user has picked. Fires
+        /// <see cref="KnownTargetsChanged"/> once iff at least one target was added.
+        /// </summary>
+        /// <remarks>
+        /// Coordinate-level de-duplication is the caller's responsibility (via
+        /// <c>TargetIdentity.SelectNewTargets</c>); the reference-equality guard
+        /// here only stops the very same instance being listed twice.
+        /// </remarks>
+        public void AddKnownTargets(IEnumerable<Target> targets)
+        {
+            if (targets == null) return;
+
+            bool added = false;
+            foreach (Target t in targets)
+            {
+                if (t == null || mKnown.Contains(t)) continue;
+                mKnown.Add(t);
+                added = true;
+            }
+
+            if (added) KnownTargetsChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
         /// Remove <paramref name="t"/> from <see cref="KnownTargets"/>. Also drops it from
         /// <see cref="Checked"/> and clears <see cref="SelectedSingle"/> if it was the
         /// selected target. Each affected event fires once. Returns true iff removed from
