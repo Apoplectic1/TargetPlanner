@@ -593,7 +593,7 @@ namespace TargetPlanner
         {
             if (NumericUpDown_Moon_Separation == null) return;
 
-            Label_Moon_Seperation.Enabled         = avoidanceEnabled;
+            Label_Moon_Separation.Enabled         = avoidanceEnabled;
             NumericUpDown_Moon_Separation.Enabled  = avoidanceEnabled;
             Label_Moon_Width.Enabled              = avoidanceEnabled;
             NumericUpDown_Moon_Width.Enabled       = avoidanceEnabled;

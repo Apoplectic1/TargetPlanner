@@ -124,7 +124,7 @@
             GroupBox_Moon_Filters = new System.Windows.Forms.GroupBox();
             GroupBox_MoonAvoidance = new System.Windows.Forms.GroupBox();
             CheckBox_Moon_AvoidanceEnable = new System.Windows.Forms.CheckBox();
-            Label_Moon_Seperation = new System.Windows.Forms.Label();
+            Label_Moon_Separation = new System.Windows.Forms.Label();
             NumericUpDown_Moon_Separation = new System.Windows.Forms.NumericUpDown();
             Label_Moon_Width = new System.Windows.Forms.Label();
             NumericUpDown_Moon_Width = new System.Windows.Forms.NumericUpDown();
@@ -1291,7 +1291,7 @@
             // GroupBox_MoonAvoidance
             // 
             GroupBox_MoonAvoidance.Controls.Add(CheckBox_Moon_AvoidanceEnable);
-            GroupBox_MoonAvoidance.Controls.Add(Label_Moon_Seperation);
+            GroupBox_MoonAvoidance.Controls.Add(Label_Moon_Separation);
             GroupBox_MoonAvoidance.Controls.Add(NumericUpDown_Moon_Separation);
             GroupBox_MoonAvoidance.Controls.Add(Label_Moon_Width);
             GroupBox_MoonAvoidance.Controls.Add(NumericUpDown_Moon_Width);
@@ -1323,15 +1323,15 @@
             CheckBox_Moon_AvoidanceEnable.UseVisualStyleBackColor = true;
             CheckBox_Moon_AvoidanceEnable.CheckedChanged += OnAvoidanceEnableChanged;
             // 
-            // Label_Moon_Seperation
+            // Label_Moon_Separation
             // 
-            Label_Moon_Seperation.AutoSize = true;
-            Label_Moon_Seperation.Location = new System.Drawing.Point(16, 51);
-            Label_Moon_Seperation.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
-            Label_Moon_Seperation.Name = "Label_Moon_Seperation";
-            Label_Moon_Seperation.Size = new System.Drawing.Size(69, 15);
-            Label_Moon_Seperation.TabIndex = 6;
-            Label_Moon_Seperation.Text = "Separation: ";
+            Label_Moon_Separation.AutoSize = true;
+            Label_Moon_Separation.Location = new System.Drawing.Point(16, 51);
+            Label_Moon_Separation.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_Moon_Separation.Name = "Label_Moon_Separation";
+            Label_Moon_Separation.Size = new System.Drawing.Size(69, 15);
+            Label_Moon_Separation.TabIndex = 6;
+            Label_Moon_Separation.Text = "Separation: ";
             // 
             // NumericUpDown_Moon_Separation
             // 
@@ -1676,7 +1676,7 @@
         private System.Windows.Forms.Button Button_VisibleTargets;
         private System.Windows.Forms.GroupBox GroupBox_MoonAvoidance;
         private System.Windows.Forms.CheckBox CheckBox_Moon_AvoidanceEnable;
-        private System.Windows.Forms.Label Label_Moon_Seperation;
+        private System.Windows.Forms.Label Label_Moon_Separation;
         private System.Windows.Forms.NumericUpDown NumericUpDown_Moon_Separation;
         private System.Windows.Forms.Label Label_Moon_Width;
         private System.Windows.Forms.NumericUpDown NumericUpDown_Moon_Width;
