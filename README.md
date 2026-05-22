@@ -55,7 +55,7 @@ Two selection modes:
 Targets come from two on-disk formats — NINA `.json` sequence files and `.xisf` images — through three buttons plus drag-and-drop:
 
 - **Load Image Library Targets** / **Load NINA Sequencer Targets** scan your configured image-library / NINA roots. If a root is unset or empty you're prompted to browse for one, and the choice is saved.
-- **Browse** recursively scans any file or folder you pick, for both formats at once.
+- **Browse** — pick one or more files, or open a folder (scanned recursively); both formats at once.
 - **Drag-and-drop** any mix of `.json` / `.xisf` files and folders from Explorer onto the target list — same as Browse.
 
 Every load *adds* to the list rather than replacing it, so you can build a set from several sources. An object imaged through many filters — or a mosaic's panels — collapses to a single target, placed at the centre of all its frames. Comet folders are skipped. **Clear All Targets** empties the list; **Uncheck All** just clears the checkboxes.

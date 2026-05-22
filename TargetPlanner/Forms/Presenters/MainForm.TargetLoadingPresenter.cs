@@ -69,43 +69,22 @@ namespace TargetPlanner
             _ = GetJsonTargets(offerFallbackBrowse: true);
         }
 
-        // Browse: opens a folder-capable file dialog, recursively scans the chosen
-        // file or directory for BOTH .json and .xisf, and adds whatever is new.
-        // One-off -- it does not persist the path.
+        // Browse: an OpenFileDialog that returns either a multi-selection of
+        // .json/.xisf files OR a single folder (navigate into it and click Open)
+        // -- one OK yields files xor a folder, never both. Both go through
+        // LoadFromPathsAsync. One-off -- the path is not persisted.
         private async Task GetBrowsedTargets()
         {
-            string path = PromptForFileOrFolder();
-            if (string.IsNullOrEmpty(path)) return;
-            Log.Diag("UI", $"Browse selected: {path}");
-
-            UseWaitCursor = true;
-            try
-            {
-                IReadOnlyList<Target> scanned =
-                    await ScanPathAsync(path, TargetFileKinds.All);
-                if (scanned.Count == 0)
-                {
-                    MessageBox.Show(
-                        "No NINA .json or .xisf targets were found at:\n\n" + path,
-                        "Nothing to load", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return;
-                }
-                AddScannedTargets(scanned);
-            }
-            catch (OperationCanceledException) { /* form closing mid-load; expected */ }
-            catch (Exception ex) { Log.Error("Browse load failed", ex); }
-            finally { UseWaitCursor = false; }
+            string[] paths = PromptForFilesOrFolder();
+            if (paths.Length == 0) return;
+            Log.Diag("UI", $"Browse selected {paths.Length} path(s)");
+            await LoadFromPathsAsync(paths);
         }
 
-        // Loads targets from a set of dropped paths (Explorer file-drop onto the
-        // target list). Behaves identically to Browse: each path is recursively
-        // scanned for both .json and .xisf, the results combine, and only targets
-        // not already loaded are added. One-off -- no persist.
-        private async Task GetDroppedTargets(string[] paths)
+        // Shared core of Browse and drag-and-drop: scan each picked file or
+        // folder (a folder recursively, both formats), then add the new targets.
+        private async Task LoadFromPathsAsync(string[] paths)
         {
-            if (paths == null || paths.Length == 0) return;
-            Log.Diag("UI", $"Targets dropped: {paths.Length} path(s)");
-
             UseWaitCursor = true;
             try
             {
@@ -116,16 +95,25 @@ namespace TargetPlanner
                 if (combined.Count == 0)
                 {
                     MessageBox.Show(
-                        "Nothing loadable in the dropped item(s) -- expected NINA "
-                        + ".json or .xisf files, or folders of them.",
+                        "No NINA .json or .xisf targets were found in the "
+                        + "selected file(s) / folder.",
                         "Nothing to load", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
                 AddScannedTargets(combined);
             }
             catch (OperationCanceledException) { /* form closing mid-load; expected */ }
-            catch (Exception ex) { Log.Error("Dropped-targets load failed", ex); }
+            catch (Exception ex) { Log.Error("Browse / drop load failed", ex); }
             finally { UseWaitCursor = false; }
+        }
+
+        // Explorer file-drop onto the target list -- the same operation as
+        // Browse, just a different way to hand over the files / folders.
+        private async Task GetDroppedTargets(string[] paths)
+        {
+            if (paths == null || paths.Length == 0) return;
+            Log.Diag("UI", $"Targets dropped: {paths.Length} path(s)");
+            await LoadFromPathsAsync(paths);
         }
 
         // DragEnter on the target list: accept Explorer file-drops (the Copy
@@ -251,30 +239,35 @@ namespace TargetPlanner
             StartCacheWarmup(toAdd);
         }
 
-        // Folder-capable file picker: the user selects a .json/.xisf file, or
-        // navigates into a directory and clicks Open (the dialog's relaxed
-        // validation lets a folder come back as the path). Returns a real file or
-        // directory path, or string.Empty if cancelled / unresolvable.
-        private string PromptForFileOrFolder()
+        // Browse picker: a multi-select OpenFileDialog. The user picks one or
+        // many .json/.xisf files, XOR navigates into a folder and clicks Open to
+        // take that folder -- a single OK yields files or a folder, never both.
+        // Returns the picked paths, or an empty array if cancelled.
+        private string[] PromptForFilesOrFolder()
         {
             using var dialog = new OpenFileDialog
             {
-                Title = "Browse to a target file or folder",
+                Title = "Select target files, or open a folder to scan",
                 Filter = "Target files (*.json;*.xisf)|*.json;*.xisf|All files (*.*)|*.*",
                 InitialDirectory = ImageLibraryRootPath ?? string.Empty,
+                Multiselect = true,
                 CheckFileExists = false,
                 CheckPathExists = true,
                 ValidateNames = false,
-                FileName = "(pick a file, or open a folder)",
+                FileName = "(select files, or open a folder)",
             };
-            if (dialog.ShowDialog(this) != DialogResult.OK) return string.Empty;
+            if (dialog.ShowDialog(this) != DialogResult.OK) return Array.Empty<string>();
 
-            string raw = dialog.FileName;
-            if (File.Exists(raw) || Directory.Exists(raw)) return raw;
-            // Folder-pick path: the user navigated into a folder, so FileName is
-            // <folder>\<sentinel>; the containing directory is what they meant.
-            string dir = Path.GetDirectoryName(raw) ?? string.Empty;
-            return Directory.Exists(dir) ? dir : string.Empty;
+            string[] names = dialog.FileNames;
+            // A single non-existent entry is the open-a-folder gesture: the dialog
+            // hands back <folder>\<sentinel filename>, so the folder is what was
+            // meant. Real file selections come back as themselves.
+            if (names.Length == 1 && !File.Exists(names[0]) && !Directory.Exists(names[0]))
+            {
+                string dir = Path.GetDirectoryName(names[0]) ?? string.Empty;
+                return Directory.Exists(dir) ? new[] { dir } : Array.Empty<string>();
+            }
+            return names;
         }
 
         // Folder picker shared by the Load buttons' fallback browse. Returns the
