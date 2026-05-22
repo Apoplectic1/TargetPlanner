@@ -1,6 +1,6 @@
 # TargetPlanner
 
-Windows Forms desktop tool for astrophotography target planning. Plots a deep-sky target's altitude across a single night, scans a year for the best dates, and overlays multiple targets from a NINA sequence library.
+Windows Forms desktop tool for astrophotography target planning. Plots a deep-sky target's altitude across a single night, scans a year for the best dates, and overlays multiple targets loaded from NINA sequence files or your `.xisf` image library.
 
 ![TargetPlanner v1.0.0 showing the Day altitude chart for Abell 21](docs/screenshot.png)
 
@@ -8,7 +8,7 @@ Windows Forms desktop tool for astrophotography target planning. Plots a deep-sk
 
 - **Four chart areas** — *Day* (minute-by-minute altitude across the coming night, with twilight shading and a live "now" line), *Sky* (Krisciunas–Schaefer sky brightness in mag/arcsec² across the same night), *Year* (per-night altitude across 12 months), *Sessions* (Ceiling / Floor / Symmetric placement curves per night).
 - **Multi-target overlay** — graph many targets at once. Filter via *Visible Tonight* / *Select All* / *Clear All*; sort by name, RA, declination, or transit time.
-- **NINA sequence ingestion** — auto-loads every `DeepSkyObjectContainer` `.json` under your NINA Targets root and turns them into selectable targets. Skips `Calibration` and `Mosaics` folders.
+- **Target ingestion** — load targets from NINA `.json` sequence files and `.xisf` images: the **Load** buttons scan your configured roots, **Browse** scans any file or folder, and you can drag files or folders onto the list. Loads add to the list and collapse duplicates — one entry per object even when it was imaged through many filters.
 - **Picker-driven moment** — Date / Time pickers drive the observation moment; *Now* snaps back to the current instant and moves the red now-line on the chart.
 - **Sky brightness** — its own chart area (peer of Day / Year / Sessions). Krisciunas–Schaefer sky brightness in mag/arcsec², with per-Bortle baseline, atmospheric extinction, and per-filter wavelength scaling.
 - **Moon avoidance** — per-filter Lorentzian moon-avoidance gates the Sessions-chart curves and Day-chart best-window overlay.
@@ -48,9 +48,19 @@ Hover any of the three curves to see all three values for that night.
 Two selection modes:
 
 - **Single mode** — combo + RA/Dec inputs drive one target at a time. Default: M31.
-- **Multi mode** — checkbox listbox drives a set of targets. NINA ingestion auto-loads every `DeepSkyObjectContainer` `.json` under your NINA Targets root (folders `Calibration` and `Mosaics` skipped). Checkboxes default to **none-checked** so you opt targets in rather than out.
+- **Multi mode** — the checkbox listbox drives a set of targets. Checkboxes default to **none-checked** so you opt targets in rather than out.
 
-*Visible Tonight* / *Select All* / *Clear All* filter the listbox; sort by name, RA, declination, or transit time. Click **Graph** to (re)render the chart — the chart panel is blank at launch until Graph is clicked.
+### Loading targets
+
+Targets come from two on-disk formats — NINA `.json` sequence files and `.xisf` images — through three buttons plus drag-and-drop:
+
+- **Load Image Library Targets** / **Load NINA Sequencer Targets** scan your configured image-library / NINA roots. If a root is unset or empty you're prompted to browse for one, and the choice is saved.
+- **Browse** recursively scans any file or folder you pick, for both formats at once.
+- **Drag-and-drop** any mix of `.json` / `.xisf` files and folders from Explorer onto the target list — same as Browse.
+
+Every load *adds* to the list rather than replacing it, so you can build a set from several sources. Duplicates are skipped: an object imaged through many filters — or with a separate stars frame — collapses to one target, matched by name and coordinates. **Clear All Targets** empties the list; **Uncheck All** just clears the checkboxes.
+
+*Visible Tonight* / *Select All* / *Uncheck All* filter the listbox; sort by name, RA, declination, or transit time. Click **Graph** to (re)render the chart — the chart panel is blank at launch until Graph is clicked.
 
 ## Locations
 
