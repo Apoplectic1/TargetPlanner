@@ -58,7 +58,7 @@ Targets come from two on-disk formats — NINA `.json` sequence files and `.xisf
 - **Browse** recursively scans any file or folder you pick, for both formats at once.
 - **Drag-and-drop** any mix of `.json` / `.xisf` files and folders from Explorer onto the target list — same as Browse.
 
-Every load *adds* to the list rather than replacing it, so you can build a set from several sources. Duplicates are skipped: an object imaged through many filters — or with a separate stars frame — collapses to one target, matched by name and coordinates. **Clear All Targets** empties the list; **Uncheck All** just clears the checkboxes.
+Every load *adds* to the list rather than replacing it, so you can build a set from several sources. An object imaged through many filters — or a mosaic's panels — collapses to a single target, placed at the centre of all its frames. Comet folders are skipped. **Clear All Targets** empties the list; **Uncheck All** just clears the checkboxes.
 
 *Visible Tonight* / *Select All* / *Uncheck All* filter the listbox; sort by name, RA, declination, or transit time. Click **Graph** to (re)render the chart — the chart panel is blank at launch until Graph is clicked.
 
