@@ -147,4 +147,3 @@ First-run defaults are seeded into `settings.json` from `PersonalDefaults.BuildS
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — deep architecture reference: cache store, sub-chart wiring, universal chart-behaviour contract, moon avoidance, K-S sky brightness, MainForm UI flow.
 - [`RELEASING.md`](RELEASING.md) — how to cut a new release.
 - [`ROADMAP.md`](ROADMAP.md) — currently open follow-ups and recently shipped work.
-- [`SCHEDULER_DESIGN.md`](SCHEDULER_DESIGN.md) — design notes for the upcoming interval scheduler.

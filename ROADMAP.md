@@ -555,7 +555,7 @@ Land any fixes here *before* restructuring — debugging on the current code wit
 
 ### Step 2 — Extract `Astronomy.Core` (new class library, `netstandard2.0`) ✅ **DONE** (commit `24bb4e7`)
 
-Landed the full library surface in one pass: POCOs (`Targets/Target`, `Locations/Location`, `Night/NightWindow`), time / sidereal / alt-az / target-geometry primitives, night + twilight calculators, horizon profile abstraction (`IHorizonProfile` + scalar / polyline / obstruction-table impls), session-level primitives (`TransitTime`, `IntegratedQuality` incl. closed-form sin(alt), `VisibilityWindows`, `BestSession`, `QualitySamples`, `RiseSet` scalar + profile-aware), `MoonSeparation`. Design rationale for every primitive lives in `SCHEDULER_DESIGN.md`.
+Landed the full library surface in one pass: POCOs (`Targets/Target`, `Locations/Location`, `Night/NightWindow`), time / sidereal / alt-az / target-geometry primitives, night + twilight calculators, horizon profile abstraction (`IHorizonProfile` + scalar / polyline / obstruction-table impls), session-level primitives (`TransitTime`, `IntegratedQuality` incl. closed-form sin(alt), `VisibilityWindows`, `BestSession`, `QualitySamples`, `RiseSet` scalar + profile-aware), `MoonSeparation`. Design rationale for every primitive moved with `SCHEDULER_DESIGN.md` to `..\IntervalScheduler\` on 2026-05-23 (was IS-side dossier all along).
 
 Notable follow-through from the extraction:
 
@@ -577,11 +577,7 @@ All originally-listed cleanup items are resolved:
 
 ### Step 4 — NINA plugin
 
-Thin WPF shell over `Astronomy.Core` plus a TS SQLite access layer. NINA is .NET 10 / WPF, so none of the current WinForms UI transfers — a plugin is a fresh UI over the shared library. The TS access code XisfManager already has working could itself be factored out into the same (or a sibling) library.
-
-`SCHEDULER_DESIGN.md` captures the plugin's intended architecture in detail: interval-scheduling (not score-at-decision), three policy modes (meridian-chase, narrow-window, keep-busy) that all reduce to the same weighted-interval-scheduling solver, a quality function `q(alt)` defaulting to `sin(alt)`, and a clear library/scheduler/plugin seam. Read that before starting.
-
-Reference sources already present locally (see memory for paths): full NINA codebase on `develop` at `E:\Projects\VisualStudio\Astronomy\NINA`, Target Scheduler clone at `E:\Projects\VisualStudio\Astronomy\TargetScheduler_Clone\nina.plugin.targetscheduler`. The dossier's delta pass against NINA 3.2.x `develop` is still current as of the Step 2 commit — plugin API shifts (Ninject → MS.DI, new `IMessageBroker`, `StartAdvancedSequence(skipValidation)`) are captured there.
+Moved to the IntervalScheduler repo on 2026-05-23 — see `..\IntervalScheduler\ROADMAP.md` and `..\IntervalScheduler\SCHEDULER_DESIGN.md`. This step never belonged in TP's roadmap; it was IS/ISP work tracked here while there was no IS repo to receive it.
 
 ## Open code-quality items (CODE_REVIEW.md residual)
 
