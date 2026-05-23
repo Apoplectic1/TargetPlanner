@@ -2,7 +2,7 @@
 
 **Status:** Sketched 2026-05-16, not yet implemented. Authoritative schema is **owned by IS** (the .NET 10 desktop app per `MEMORY.md → project_intervalscheduler`); ISP / ISS / XisfManager / TP read it, never write through it as a side channel. (XisfManager's image-grading write of `exposure_plan.accepted_count` is the one consumer-write carve-out and is treated as part of IS's contract.)
 
-This brief is the positive inversion of the antipatterns documented in [`..\..\..\IntervalSchedular\TS DataBase Example\TS_SCHEDULER_INGEST.md`](../../../IntervalSchedular/TS%20DataBase%20Example/TS_SCHEDULER_INGEST.md) §3 ("What not to repeat"). Each section below names the TS antipattern it is replacing and the rule IS adopts instead. The aim is not a green-field clean-room rebuild of TS — it's a deliberate, narrow set of design rules that future migration scripts and future consumers can rely on without having to learn historical magic.
+This brief is the positive inversion of the antipatterns documented in [`..\..\..\IntervalScheduler\TS DataBase Example\TS_SCHEDULER_INGEST.md`](../../../IntervalScheduler/TS%20DataBase%20Example/TS_SCHEDULER_INGEST.md) §3 ("What not to repeat"). Each section below names the TS antipattern it is replacing and the rule IS adopts instead. The aim is not a green-field clean-room rebuild of TS — it's a deliberate, narrow set of design rules that future migration scripts and future consumers can rely on without having to learn historical magic.
 
 ---
 
@@ -22,7 +22,7 @@ Out of scope:
 
 ## 2. Rules (the inversions)
 
-Each rule cites the TS antipattern in `..\..\..\IntervalSchedular\TS DataBase Example\TS_SCHEDULER_INGEST.md §3` (the schema critique, relocated 2026-05-23) it replaces.
+Each rule cites the TS antipattern in `..\..\..\IntervalScheduler\TS DataBase Example\TS_SCHEDULER_INGEST.md §3` (the schema critique, relocated 2026-05-23) it replaces.
 
 ### R1 — One identity per row (replaces TS §4)
 
@@ -154,7 +154,7 @@ This is the biggest unresolved decision and has to be answered before any DDL is
 - Pros: smoothest UX; no lossy import.
 - Cons: every reader (ISP, XisfManager, TP) has to know about both sources; cross-source joins are a footgun; "which DB owns this target?" becomes a routine question.
 
-**Recommendation (to discuss):** **B with provenance**. One importer, written carefully and tested against the snapshot in `..\..\..\IntervalSchedular\TS DataBase Example\`. Each imported row carries `imported_from_ts_guid TEXT NULL` so the lineage is preserved. The importer is deletable once the user is done with the transition. Avoids C's permanent dual-source complexity and avoids A's re-entry tax.
+**Recommendation (to discuss):** **B with provenance**. One importer, written carefully and tested against the snapshot in `..\..\..\IntervalScheduler\TS DataBase Example\`. Each imported row carries `imported_from_ts_guid TEXT NULL` so the lineage is preserved. The importer is deletable once the user is done with the transition. Avoids C's permanent dual-source complexity and avoids A's re-entry tax.
 
 ---
 
@@ -171,9 +171,9 @@ This is the biggest unresolved decision and has to be answered before any DDL is
 
 ## 6. References
 
-- [`..\..\..\IntervalSchedular\TS DataBase Example\TS_SCHEDULER_INGEST.md`](../../../IntervalSchedular/TS%20DataBase%20Example/TS_SCHEDULER_INGEST.md) — TS schema reference + the §3 critique this brief inverts (relocated from TP repo on 2026-05-23 along with the sqlite snapshot).
+- [`..\..\..\IntervalScheduler\TS DataBase Example\TS_SCHEDULER_INGEST.md`](../../../IntervalScheduler/TS%20DataBase%20Example/TS_SCHEDULER_INGEST.md) — TS schema reference + the §3 critique this brief inverts (relocated from TP repo on 2026-05-23 along with the sqlite snapshot).
 - `MEMORY.md → project_intervalscheduler` — the IS architecture context that puts IS in charge of the schema.
 - `MEMORY.md → reference_birdwatcher_imaging_pc` — where the canonical `scheduler.db` lives once IS is deployed.
 - `..\..\..\TargetScheduler_Clone\nina.plugin.targetscheduler\NINA.Plugin.TargetScheduler\Database\Schema\*.cs` — TS entity classes (semantic source of column meanings).
 - TSP migration scripts under `..\..\..\TargetScheduler_Clone\nina.plugin.targetscheduler\NINA.Plugin.TargetScheduler\Database\Initial\` and `Database\Migrate\` — the historical migration trail.
-- `E:\Projects\VisualStudio\Astronomy\XisfFileManager\XisfFileManager\TargetScheduler\` and `XisfFileManager\Data\TableMappers.cs` — XFM's shipped TS reader. The `ITableMapper<T>` interface + per-table mapper pattern over `Microsoft.Data.Sqlite` is the reference shape for IS consumer-side mappers (replace TS-schema-aware POCOs with IS-schema-aware ones; keep the interface). XFM's footguns documented inline in [`..\..\..\IntervalSchedular\TS DataBase Example\TS_SCHEDULER_INGEST.md`](../../../IntervalSchedular/TS%20DataBase%20Example/TS_SCHEDULER_INGEST.md) §2 — fix them in IS readers from day one.
+- `E:\Projects\VisualStudio\Astronomy\XisfFileManager\XisfFileManager\TargetScheduler\` and `XisfFileManager\Data\TableMappers.cs` — XFM's shipped TS reader. The `ITableMapper<T>` interface + per-table mapper pattern over `Microsoft.Data.Sqlite` is the reference shape for IS consumer-side mappers (replace TS-schema-aware POCOs with IS-schema-aware ones; keep the interface). XFM's footguns documented inline in [`..\..\..\IntervalScheduler\TS DataBase Example\TS_SCHEDULER_INGEST.md`](../../../IntervalScheduler/TS%20DataBase%20Example/TS_SCHEDULER_INGEST.md) §2 — fix them in IS readers from day one.
