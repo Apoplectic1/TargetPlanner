@@ -429,6 +429,10 @@ namespace TargetPlanner
             mActiveFilterCenterNm = filter.CenterNm;
             if (mLC2Sky != null) mLC2Sky.ActiveFilterCenterNm = filter.CenterNm;
             mCoordinator?.Apply(SnapshotCurrent());
+            // SessionSolvers modes consume Policy.MoonProfile (and indirectly the active
+            // filter via the moon-avoidance Lorentzian) -- re-rank when the active
+            // filter changes. Helper short-circuits when sort mode isn't Longest/Highest.
+            MaybeResortForSessionSolversInputChange();
         }
 
         // Master on/off for moon avoidance. When checked, the active filter's profile
@@ -445,6 +449,10 @@ namespace TargetPlanner
             // Coordinator's internal debounce collapses a fast Enable-Disable-
             // Enable click sequence into one trailing-edge pipeline run.
             mCoordinator?.Apply(SnapshotCurrent());
+            // SessionSolvers ranking respects MoonProfile gating, so a master-toggle
+            // change affects the listbox ordering. Helper short-circuits when sort
+            // mode isn't Longest/Highest.
+            MaybeResortForSessionSolversInputChange();
         }
 
         // User scrubbed a Lorentzian control. Push the live values to the chart (gated

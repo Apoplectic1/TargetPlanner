@@ -1,6 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using Astronomy.Core.Night;
+using Astronomy.Core.Session;
+using TargetPlanner.State;
 using TargetPlanner.Support;
 
 using Target = Astronomy.Core.Targets.Target;
@@ -192,10 +196,17 @@ namespace TargetPlanner
             }
         }
 
-        // Dispatch on ComboBox_SortTargets.SelectedIndex. Transit and Rise modes fall back to
-        // Name sort when mLocation isn't ready yet (form is mid-init), so callers don't need
-        // to guard. The picker anchor converts to UTC via SpecifyKind(..., Local).ToUniversalTime()
-        // to match Button_VisibleTonight_Click's idiom.
+        // Dispatch on ComboBox_SortTargets.SelectedIndex. Transit/Rise/Longest/Highest modes
+        // fall back to Name sort when mLocation isn't ready yet (form is mid-init), so callers
+        // don't need to guard. The picker anchor converts to UTC via SpecifyKind(..., Local).
+        // ToUniversalTime() to match Button_VisibleTonight_Click's idiom.
+        //
+        // Modes 3 ("Longest") and 4 ("Highest") call SessionSolvers on every Target on the UI
+        // thread -- no cache axis. Cost is comparable to BestSession.For per target (~10ms
+        // estimate), so ~440ms for 44 targets, ~2s for 200. If big libraries become the norm,
+        // add a per-(target, HdmKey, dayKey) SessionSolvers cache axis parallel to TargetFit-
+        // Entry. The diag line below makes the perf budget observable; grep for
+        // `SessionSolvers sort fired` in tp.log.
         private IEnumerable<Target> SortedTargets(IEnumerable<Target> targets)
         {
             int mode = ComboBox_SortTargets != null ? ComboBox_SortTargets.SelectedIndex : 0;
@@ -219,8 +230,72 @@ namespace TargetPlanner
                     targets, mLocation, anchorUtc, targetFloorDeg);
             }
 
+            if ((mode == 3 || mode == 4) && mLocation != null)
+            {
+                ChartContext ctx = SnapshotCurrent();
+                NightWindow night = NightCalculator.ComputeNight(ctx.Location, ctx.Observation.Utc);
+                Stopwatch sw = Stopwatch.StartNew();
+
+                // "Longest" -- uncapped LongestDuration descending. Uncapped (not D-capped)
+                // because D-capped returns D for every fitting target, collapsing the ranking.
+                // Targets that don't fit at all (null) sink to the bottom via TimeSpan.MinValue
+                // tiebreaker; targets that fit < D naturally fall below targets that fit >= D
+                // because their numerical Duration is smaller.
+                if (mode == 3)
+                {
+                    var ordered = targets.Where(t => t != null)
+                        .Select(t => (t, score: SessionSolvers.LongestDuration(
+                            t, ctx.Location, night, ctx.Policy.LocalHorizon,
+                            cap: null,
+                            profile: ctx.Policy.MoonProfile)?.Duration))
+                        .OrderByDescending(p => p.score ?? TimeSpan.MinValue)
+                        .ThenBy(p => p.t.Name, NaturalStringComparer.OrdinalIgnoreCase)
+                        .Select(p => p.t)
+                        .ToList();
+                    sw.Stop();
+                    Log.Diag("UI", $"SessionSolvers sort fired mode=3 (Longest) n={ordered.Count} elapsed={sw.ElapsedMilliseconds}ms");
+                    return ordered;
+                }
+
+                // "Highest" -- LowestHorizon returns the highest floor at which a D-hour session
+                // still fits (API name is from relaxation perspective; returned HorizonDeg is the
+                // limiting floor). Sort descending: bigger number = more horizon-tolerant target.
+                // minHorizonDeg: 0.0 searches the full [0, ...] space per target, independent of
+                // the user's current floor spinner (which only affects the chart display).
+                {
+                    var ordered = targets.Where(t => t != null)
+                        .Select(t => (t, score: SessionSolvers.LowestHorizon(
+                            t, ctx.Location, night,
+                            duration: ctx.Policy.MinDuration,
+                            minHorizonDeg: 0.0,
+                            profile: ctx.Policy.MoonProfile)?.HorizonDeg))
+                        .OrderByDescending(p => p.score ?? double.MinValue)
+                        .ThenBy(p => p.t.Name, NaturalStringComparer.OrdinalIgnoreCase)
+                        .Select(p => p.t)
+                        .ToList();
+                    sw.Stop();
+                    Log.Diag("UI", $"SessionSolvers sort fired mode=4 (Highest) n={ordered.Count} elapsed={sw.ElapsedMilliseconds}ms");
+                    return ordered;
+                }
+            }
+
             return targets.Where(t => t != null)
                 .OrderBy(t => t.Name, NaturalStringComparer.OrdinalIgnoreCase);
+        }
+
+        // Single funnel for the SessionSolvers-mode re-sort triggers (TargetFloor /
+        // TargetDuration spinner edits, Location combo + lat/lon/elev/N/W/Bortle/Extinction
+        // edits, filter / moon-profile edits, polyline horizon reload). Returns early when
+        // the active sort mode doesn't depend on these inputs -- Name / Transit / Rise are
+        // either input-independent or already re-fired on DatePicker/TimePicker scrubs.
+        // Callers can no-op-call this freely; the gate is here, not at the call sites, so
+        // adding a new SessionSolvers mode in future doesn't require sweeping every callsite.
+        private void MaybeResortForSessionSolversInputChange()
+        {
+            if (ComboBox_SortTargets == null) return;
+            int mode = ComboBox_SortTargets.SelectedIndex;
+            if (mode != 3 && mode != 4) return;
+            ResortSelectedTargets();
         }
 
         // Designer-wired event handler. Routes to ResortSelectedTargets;

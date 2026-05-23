@@ -1142,7 +1142,7 @@
             // 
             ComboBox_SortTargets.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             ComboBox_SortTargets.FormattingEnabled = true;
-            ComboBox_SortTargets.Items.AddRange(new object[] { "Name", "Transit", "Rise" });
+            ComboBox_SortTargets.Items.AddRange(new object[] { "Name", "Transit", "Rise", "Longest", "Highest" });
             ComboBox_SortTargets.Location = new System.Drawing.Point(685, 24);
             ComboBox_SortTargets.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             ComboBox_SortTargets.Name = "ComboBox_SortTargets";

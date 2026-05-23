@@ -133,6 +133,9 @@ namespace TargetPlanner
             // pipeline run; pipeline diff catches Duration change as HDM-only and
             // refreshes visibility on every sub-chart.
             mCoordinator.Apply(SnapshotCurrent());
+            // SessionSolvers sort modes depend on D -- re-rank the listbox.
+            // No-op when sort mode isn't Longest/Highest.
+            MaybeResortForSessionSolversInputChange();
         }
 
         private void NumericUpDown_TargetFloor_ValueChanged(object sender, EventArgs e)
@@ -149,6 +152,10 @@ namespace TargetPlanner
             if (mSubCharts != null)
                 foreach (var sc in mSubCharts.Values) sc.UpdateHorizonLine(newHorizon);
             mCoordinator.Apply(SnapshotCurrent());
+            // SessionSolvers "Longest" sort uses LocalHorizon (composed with floor);
+            // "Highest" sort is floor-independent (searches 0..max). Re-rank either way --
+            // helper short-circuits when sort mode isn't Longest/Highest.
+            MaybeResortForSessionSolversInputChange();
         }
 
         // Mirror mPlanningPreferences back onto the active NamedSite's Preferences
@@ -218,6 +225,11 @@ namespace TargetPlanner
 
                 if (mCoordinator == null) return;
                 await mCoordinator.ApplyImmediateAsync(SnapshotCurrent());
+                // Within-equiv settle (Bortle / Extinction / etc.) -- re-rank the listbox
+                // if a SessionSolvers sort mode is active. The keying-change branch above
+                // calls ResetForLocationChange which re-runs SortedTargets on the rebuild,
+                // so it doesn't need a separate re-fire.
+                MaybeResortForSessionSolversInputChange();
             }
             catch (Exception ex)
             {
@@ -531,6 +543,10 @@ namespace TargetPlanner
                 mLocalHorizon = HrzFileLoader.Load(path);
                 UpdateHorizonPathLabel();
                 mCoordinator?.Apply(SnapshotCurrent());
+                // Polyline horizon change affects SessionSolvers "Longest" sort via
+                // Policy.LocalHorizon; "Highest" is independent. Helper short-circuits
+                // when sort mode isn't a SessionSolvers mode.
+                MaybeResortForSessionSolversInputChange();
             }
             catch (Exception ex)
             {
