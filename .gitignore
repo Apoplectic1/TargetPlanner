@@ -53,15 +53,3 @@ personal-defaults.json
 # Recreated by the harness; not project-relevant.
 .claude/
 
-# Local snapshot of the user's Target Scheduler database — kept for schema/data
-# reference when designing IS/ISP/XisfManager work; ~100+ MB and contains personal
-# imaging history, do not commit. Markdown docs co-located with the snapshot
-# (e.g. TS_SCHEDULER_INGEST.md, which documents the schema the snapshot embodies)
-# are tracked via the negation rule below. NOTE: gitignore can't re-include
-# files whose PARENT directory is excluded -- so we ignore the directory's
-# CONTENTS (TS DataBase Example/*) rather than the directory itself, then
-# re-include .md siblings. Don't replace this with `TS DataBase Example/` or
-# the negation silently stops working.
-TS DataBase Example/*
-!TS DataBase Example/*.md
-
