@@ -56,11 +56,28 @@ namespace TargetPlanner.Charts
     public class AltitudeSubChart_Sky : IAltitudeSubChart
     {
         // K-S magnitude bounds in mag/arcsec². Brighter sky = lower mag = top of
-        // plot (after inversion); darker sky = higher mag = bottom. Matches the
-        // legacy AltitudeSeries.SkyAxisMinMag / SkyAxisMaxMag constants byte-
-        // for-byte so per-target curves overlap legacy positions exactly.
+        // plot (after inversion); darker sky = higher mag = bottom. Was [16, 22]
+        // matching the legacy V-band axis; widened to [16, 26] when bandwidth-
+        // aware K-S landed so narrowband filters at any Bortle (and broadband at
+        // very dark sites) land inside the axis. Narrowband Hα at Bortle 5
+        // predicts ~24 mag; at Bortle 1 ~25.6 mag — both off-axis under the
+        // legacy [16, 22] bounds. The 10-mag span compresses the per-mag pixel
+        // height vs the legacy 6-mag span — acceptable tradeoff vs the
+        // alternative dynamic-axis-per-render plumbing. Future upgrade path:
+        // per-render bounds = v0 + 2.5·log10(85/bandwidth) + small buffer.
         public const double SkyAxisMinMag = 16.0;
-        public const double SkyAxisMaxMag = 22.0;
+        public const double SkyAxisMaxMag = 26.0;
+
+        // Low-altitude gate for K-S compute. Below this target altitude the K-S 1991
+        // dark-sky baseline goes unphysical for light-polluted sites: the +k*(X-1)
+        // extinction term dominates at high airmass (k=0.55 + alt 1° → vDark > 30 mag
+        // -- darker than physically possible). Real urban skies brighten toward the
+        // horizon from off-axis light-pollution in-scatter, which K-S doesn't model
+        // (Garstang/Falchi do; future work). 10° is the conventional amateur-low-alt
+        // cutoff and bounds the formula's reliable regime for any Bortle range. Below
+        // the gate the per-minute sample plots as null-Y (line break) with a tooltip
+        // explaining why.
+        private const double KsLowAltitudeGateDeg = 10.0;
 
         // The Container hosts (top) the CartesianChart at fixed height + (bottom) a
         // FlowLayoutPanel hosting custom legend items that wrap as targets grow.
@@ -487,36 +504,56 @@ namespace TargetPlanner.Charts
                 DateTime localForLabel = TimeZoneInfo.ConvertTimeFromUtc(utc, zone);
 
                 AltAz t = AltAzCalculator.At(target, location, utc);
-                var m = MoonSeparation.ObserveAt(target, location, utc);
-                double phase = SkyBrightness.PhaseAngleDegFromAgeDays(LunarAge.DaysAt(utc));
-                double sunAlt = SunPosition.AltAzAt(location, utc).Altitude;
-                // KsAt's moonAltDeg parameter contract is APPARENT altitude
-                // (geometric + refraction lift). MoonSeparation.ObserveAt returns
-                // geometric — refraction-correct so the K-S cutoff aligns with the
-                // visually-observed moonset (~34' lift, ~2 min later than geometric
-                // moonset depending on the moon's descent rate).
-                double moonAltApparent = m.MoonAltDeg + Refraction.SaemundssonDeg(m.MoonAltDeg);
 
-                double mag = SkyBrightness.KsAt(
-                    t.Altitude, t.Azimuth,
-                    moonAltApparent, m.MoonAzDeg,
-                    phase, sunAlt, kAtBand, v0, bandwidthNm, centerNm);
+                // Low-altitude gate: K-S 1991's dark-sky baseline goes unphysical for
+                // light-polluted sites at high airmass (extinction term dominates -> sky
+                // predicted darker than zenith, which is wrong for urban regimes where
+                // off-axis light-pollution in-scatter actually brightens the horizon --
+                // a Garstang/Falchi physics K-S doesn't model). Null-Y the sample below
+                // the gate threshold with an explanatory tooltip rather than show a
+                // misleading prediction.
+                double? plotY;
+                string tooltip;
+                if (t.Altitude < KsLowAltitudeGateDeg)
+                {
+                    plotY = null;
+                    tooltip = string.Format(CultureInfo.InvariantCulture,
+                        "{0}\n{1:h:mm tt}\n(low altitude — K-S unreliable)",
+                        target.Name, localForLabel);
+                }
+                else
+                {
+                    var m = MoonSeparation.ObserveAt(target, location, utc);
+                    double phase = SkyBrightness.PhaseAngleDegFromAgeDays(LunarAge.DaysAt(utc));
+                    double sunAlt = SunPosition.AltAzAt(location, utc).Altitude;
+                    // KsAt's moonAltDeg parameter contract is APPARENT altitude
+                    // (geometric + refraction lift). MoonSeparation.ObserveAt returns
+                    // geometric — refraction-correct so the K-S cutoff aligns with the
+                    // visually-observed moonset (~34' lift, ~2 min later than geometric
+                    // moonset depending on the moon's descent rate).
+                    double moonAltApparent = m.MoonAltDeg + Refraction.SaemundssonDeg(m.MoonAltDeg);
 
-                // null Y = "no data" gap (LC2 renders nullable points as breaks
-                // in the line). Cleaner than the legacy -90 sentinel because
-                // Sky's plot range is [16, 22]; a -90 spike would clip but
-                // could still leave a stray pixel artifact.
-                double? plotY = double.IsNaN(mag)
-                    ? (double?)null
-                    : (SkyAxisMinMag + SkyAxisMaxMag - mag);
+                    double mag = SkyBrightness.KsAt(
+                        t.Altitude, t.Azimuth,
+                        moonAltApparent, m.MoonAzDeg,
+                        phase, sunAlt, kAtBand, v0, bandwidthNm, centerNm);
 
-                string tooltip = double.IsNaN(mag)
-                    ? string.Format(CultureInfo.InvariantCulture,
-                        "{0}\n{1:h:mm tt}\n(target below horizon)",
-                        target.Name, localForLabel)
-                    : string.Format(CultureInfo.InvariantCulture,
-                        "{0}\n{1:h:mm tt}\n{2:0.0} mag/arcsec²",
-                        target.Name, localForLabel, mag);
+                    // null Y = "no data" gap (LC2 renders nullable points as breaks
+                    // in the line). Cleaner than the legacy -90 sentinel because
+                    // Sky's plot range is [16, 22]; a -90 spike would clip but
+                    // could still leave a stray pixel artifact.
+                    plotY = double.IsNaN(mag)
+                        ? (double?)null
+                        : (SkyAxisMinMag + SkyAxisMaxMag - mag);
+
+                    tooltip = double.IsNaN(mag)
+                        ? string.Format(CultureInfo.InvariantCulture,
+                            "{0}\n{1:h:mm tt}\n(target below horizon)",
+                            target.Name, localForLabel)
+                        : string.Format(CultureInfo.InvariantCulture,
+                            "{0}\n{1:h:mm tt}\n{2:0.0} mag/arcsec²",
+                            target.Name, localForLabel, mag);
+                }
 
                 // UTC-internal X axis: plot the sample at its own UTC OADate.
                 var p = new ObservablePoint(utc.ToOADate(), plotY);

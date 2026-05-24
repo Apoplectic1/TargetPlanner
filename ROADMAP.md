@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-23 (IS/ISP design docs relocated to `..\IntervalScheduler\` + TP `CLAUDE.md` trimmed 40.5→22 KB + line-endings normalized across TP/AL/IS + ROADMAP cleanup pass: closed shipped items, moved K-S/moon Library items to `..\Library\ROADMAP.md`, dropped historical Sequencing + CODE_REVIEW residual sections). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
+Last updated 2026-05-24 (K-S Steps 0-4 + Option B low-altitude gate shipped: moon-sample cadence 10-min → 1-min; bandwidth-aware K-S + Filter folded into PlanningPolicy + refraction-correct moon altitude; wavelength-aware twilight + dusk/dawn null-gate removal; new low-altitude gate at `KsLowAltitudeGateDeg = 10°` for the K-S extinction-overdrive regime; Sky chart Y axis widened `[16, 22]` → `[16, 26]` to accommodate bandwidth-aware narrowband predictions). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
 
 ## Currently open (priority order)
 
@@ -33,11 +33,15 @@ These are real TP work items, deferred until a trigger condition lands. They are
 
 Optional polyline horizon overlay painting the per-site `.hrz` profile as a filled area (matching NINA's CustomHorizon visual). Sketched in `~/.claude/plans/sessions-tab-does-not-elegant-boole.md`. Pick up when the visualization is wanted. Note: the **planning** composition (target qualifies only when it clears `MaxOfHorizonProfile(polyline, ScalarHorizonProfile(floor))`) already ships — this is purely visual.
 
-### Interim TP fix to remove when Library K-S corrections land
+### Interim TP fix: Sky chart low-altitude K-S gate
 
-`AltitudeSubChart_Sky.BuildOrUpdateTargetSeries` gates the per-minute K-S compute to `[NightWindow.AstronomicalDusk, NightWindow.AstronomicalDawn]`. Outside that UTC window, the per-minute `ObservablePoint.Y` is set to `null` (line break) and the tooltip reads "(twilight — K-S not shown)". The chart's X-axis still spans the full night incl. dusk/dawn gradient sections; the yellow gradient zones now double as "K-S unreliable here" indicators, self-documenting against the chart's existing visual cue. `Render` snapshots `night.AstronomicalDusk` / `night.AstronomicalDawn` to fields read by `RefreshSkyBrightness` so cheap-scrub rebuilds apply the same gate.
+`AltitudeSubChart_Sky.BuildOrUpdateTargetSeries` gates the per-minute K-S compute on target altitude — when `t.Altitude < KsLowAltitudeGateDeg` (currently 10°), the per-minute `ObservablePoint.Y` is set to `null` (line break) and the tooltip reads "(low altitude — K-S unreliable)". The chart's X-axis still spans the full night; curves visibly terminate at the gate boundary as the target rises through 10° at dusk or descends through 10° at dawn.
 
-**Remove this gate when the wavelength + bandwidth Library fixes land** — see `..\Library\ROADMAP.md` §Open: K-S sky-brightness model improvements. At that point K-S is reliable through twilight and the curves should extend back to the chart's full X-axis bounds. The two new parameters on `BuildOrUpdateTargetSeries` (`astronomicalDuskUtc` / `astronomicalDawnUtc`) and the two `mLastAstronomical*Utc` fields on the sub-chart are also dead at that point.
+**Why the gate exists.** K-S 1991's dark-sky baseline `vDark = v0 − 2.5·log₁₀(X) + k·(X−1)` has an extinction term `k·(X−1)` that dominates at high airmass with high k. For Bortle 8–9 sites (k₅₀₀ ≥ 0.4), this predicts a sky darker than zenith from extinction alone below ~10° altitude — physically wrong for urban regimes where off-axis light pollution actually brightens the horizon via in-scattering (a Garstang/Falchi regime K-S doesn't model). Concrete test case (Markarian's Chain in Denver B9 on 2026-05-24): K-S predicted mag 21.5 (H filter) / 31.4 (O filter) at target alt 0.79° — far below the chart's `[16, 26]` axis floor.
+
+**Related axis widening (paired with the gate).** The Sky chart's static Y axis was widened from `[16, 22]` to `[16, 26]` so bandwidth-aware K-S predictions for narrowband filters at darker sites land inside the chart. Without the widening, narrowband H at Bortle 5 (V₀≈20.5) predicts mag ~24 mid-night — invisibly clipped below the legacy axis floor. Tradeoff: 10-mag span vs legacy 6-mag squishes per-mag pixel height by ~40%. Future upgrade path (deferred): per-render dynamic bounds computed from v0 + bandwidth (~50 LOC, threading live bounds through the Labeler / inversion math / moon overlay scaling). Static `[16, 26]` is acceptable in the meantime; covers every realistic site+filter combo encountered.
+
+**Remove this gate when the Library adopts a horizon-aware sky-brightness model** — see `..\Library\ROADMAP.md` §Open: K-S unphysical extinction-overdrive at low altitudes. Likely landing condition is Garstang 1986 / Falchi 2016 framework adoption (research-tool scope; not on near horizon). At that point K-S is reliable through the urban-horizon regime and the gate constant + branch can be deleted.
 
 ### Day + Sky chart merge
 
