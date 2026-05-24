@@ -288,23 +288,27 @@ namespace TargetPlanner
         // dispatches Render on the new active sub-chart.
         private void RadioButton_Day_CheckedChanged(object sender, EventArgs e)
         {
-            Log.Diag("UI", $"RadioButton_Day.CheckedChanged checked={RadioButton_Day.Checked}");
+            // Sky-mode toggle is meaningful only while Day is the active radio --
+            // enable/disable in lockstep with the radio's checked state (this line
+            // fires on BOTH the check and uncheck side of the toggle).
             if (CheckBox_Sky != null) CheckBox_Sky.Enabled = RadioButton_Day.Checked;
-            if (!RadioButton_Day.Checked) return;
-            mCoordinator?.Apply(SnapshotCurrent());
+            OnViewRadioCheckedChanged(RadioButton_Day);
         }
 
         private void RadioButton_Year_CheckedChanged(object sender, EventArgs e)
-        {
-            Log.Diag("UI", $"RadioButton_Year.CheckedChanged checked={RadioButton_Year.Checked}");
-            if (!RadioButton_Year.Checked) return;
-            mCoordinator?.Apply(SnapshotCurrent());
-        }
+            => OnViewRadioCheckedChanged(RadioButton_Year);
 
         private void RadioButton_Sessions_CheckedChanged(object sender, EventArgs e)
+            => OnViewRadioCheckedChanged(RadioButton_Sessions);
+
+        // Shared body of the three view-radio handlers. CheckedChanged fires on
+        // both the radio-being-unchecked and the radio-being-checked sides of a
+        // radio-group toggle; we only Apply on the checked side (the unchecked
+        // side's neighbor will fire its own checked event and Apply for us).
+        private void OnViewRadioCheckedChanged(System.Windows.Forms.RadioButton radio)
         {
-            Log.Diag("UI", $"RadioButton_Sessions.CheckedChanged checked={RadioButton_Sessions.Checked}");
-            if (!RadioButton_Sessions.Checked) return;
+            Log.Diag("UI", $"{radio.Name}.CheckedChanged checked={radio.Checked}");
+            if (!radio.Checked) return;
             mCoordinator?.Apply(SnapshotCurrent());
         }
 

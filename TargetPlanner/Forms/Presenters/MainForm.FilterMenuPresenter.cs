@@ -233,16 +233,7 @@ namespace TargetPlanner
 
                 // Adopt the builtin's values; preserve the current Name's casing
                 // (FindBuiltinDefault matched case-insensitively).
-                TpFilter restored = new TpFilter(
-                    Name:           current.Name,
-                    SeparationDeg:  builtin.SeparationDeg,
-                    WidthDays:      builtin.WidthDays,
-                    RelaxEnabled:   builtin.RelaxEnabled,
-                    RelaxMinAltDeg: builtin.RelaxMinAltDeg,
-                    RelaxMaxAltDeg: builtin.RelaxMaxAltDeg,
-                    RelaxScale:     builtin.RelaxScale,
-                    CenterNm:       builtin.CenterNm,
-                    BandwidthNm:    builtin.BandwidthNm);
+                TpFilter restored = builtin with { Name = current.Name };
                 mFilterLibrary.Replace(i, restored);
                 anyChanged = true;
             }

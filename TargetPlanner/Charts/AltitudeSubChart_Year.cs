@@ -186,11 +186,7 @@ namespace TargetPlanner.Charts
             if (segmentStart < 0 || segmentStart >= days.Count) return string.Empty;
 
             NightCacheEntry night = days[segmentStart];
-            HdmKey hdm = mLastCtx?.Hdm ?? default;
-            TargetFitEntry fitEntry = mLastCache?.GetFitOrNull(target, hdm);
-            NightFit fit = fitEntry != null && segmentStart < fitEntry.Nights.Count
-                ? fitEntry.Nights[segmentStart]
-                : default;
+            NightFit fit = FitTooltipResolver.ResolveFit(target, segmentStart, mLastCtx, mLastCache);
 
             if (fit.Floor.HasValue)
             {

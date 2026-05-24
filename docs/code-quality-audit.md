@@ -129,13 +129,24 @@ code and **declined** — both would have added code + coupling, not removed it.
 
 ## Lower-priority / cross-file
 
-- [ ] `OnGridCellClick` / `OnFilterDefaultsClick` both inline the filter-from-builtin
-  field copy (`EditFiltersForm.cs:177-183` / `FilterMenuPresenter.cs:241-250`) — already
-  drifted (one copies `CenterNm`, the other doesn't). M, low — cross-file.
-- [ ] Year/Sessions `mLastCtx` + `mLastCache` shadow fields — benign; fold into a shared
-  tooltip base if one ever materialises. S, low.
-- [ ] View-radio handler boilerplate (`MainForm.SortPresenter.cs:2157-2199`) — mostly
-  dissolves once Tier-1 removes the `mUIState` writes.
+- [x] **Fixed 2026-05-24.** `OnGridCellClick` (`EditFiltersForm.cs`) gained the missing
+  `CenterNm` field copy to align with `OnFilterDefaultsClick`'s coverage; the latter
+  simplified to use the record `with` expression (`builtin with { Name = current.Name }`)
+  now that `Filter` is a positional record. Drift fixed + both callsites at their
+  simplest local pattern.
+- [x] **Fixed 2026-05-24.** `Charts/FitTooltipResolver.cs` extracted; the shared
+  5-line lookup pattern (`HdmKey` from `mLastCtx`, `GetFitOrNull(target, hdm)`,
+  null-safe + segment-bound NightFit pick) now lives in one place. Year + Sessions
+  tooltip formatters call `FitTooltipResolver.ResolveFit(...)` instead of inlining.
+  Per-class `mLastCtx` + `mLastCache` fields stay (legitimate per-instance Render
+  snapshot state, not the part that was duplicated).
+- [x] **Fixed 2026-05-24.** View-radio handler boilerplate dissolved in
+  `MainForm.ChartBuildPresenter.cs` (which absorbed the handlers from
+  `MainForm.SortPresenter.cs` during the 2026-05-22 extraction). New private helper
+  `OnViewRadioCheckedChanged(RadioButton)` owns the Log.Diag + uncheck-side-no-op +
+  `mCoordinator.Apply(SnapshotCurrent())` shape. Day keeps its own pre-helper line
+  for the `CheckBox_Sky.Enabled` sub-mode gate; Year + Sessions are one-line
+  delegates.
 
 ## Doc drift caught in passing
 

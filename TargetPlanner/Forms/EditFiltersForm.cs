@@ -180,6 +180,7 @@ namespace TargetPlanner.Forms
             row.RelaxMinAltDeg = builtin.RelaxMinAltDeg;
             row.RelaxMaxAltDeg = builtin.RelaxMaxAltDeg;
             row.RelaxScale     = builtin.RelaxScale;
+            row.CenterNm       = builtin.CenterNm;
             row.BandwidthNm    = builtin.BandwidthNm;
             mGrid.InvalidateRow(e.RowIndex);
         }
