@@ -29,16 +29,25 @@ namespace TargetPlanner.Filters
         // Factory built-in defaults. Filter is immutable so the array is safe to share;
         // FilterLibrary's ctor takes a snapshot via .ToList() so library mutations never
         // touch this array.
+        // Calibrated to a specific Astrodon Gen 2 E-Series LRGB + Astrodon 3nm Hα/OIII +
+        // Chroma 3nm SII filter set (~$3K of premium glass, 2020-vintage). Center/bandwidth
+        // per manufacturer datasheets; Chroma SII centered between the 671.6 / 673.1 doublet
+        // lines (not on the 671.6 spectroscopic line). Lorentzian moon-avoidance defaults
+        // are per-filter rather than uniform: H/S at 30°/5d (premium 3nm rejects moonlight
+        // well), but OIII keeps 60°/5d because the OIII passband catches the [O III] 500.7nm
+        // airglow line that moonlight-scattered atmosphere brightens. R/G keep 60°/10d (the
+        // 560-620nm Astrodon E-Series gap blocks sodium streetlights but not moonlight); L/B
+        // at 90°/10d since they catch more broadband moon scatter.
         private static readonly Filter[] sBuiltinDefaults = new[]
         {
-            //          name  sep    width  relax  rMin   rMax  rScl  centerNm  bandwidthNm
-            new Filter("H",   60.0,  7.0,   false, -15.0, 5.0,  0.0,  656.3,    3.0),    // Hα line
-            new Filter("O",   60.0,  7.0,   false, -15.0, 5.0,  0.0,  500.7,    3.0),    // [O III] line
-            new Filter("S",   60.0,  7.0,   false, -15.0, 5.0,  0.0,  671.6,    3.0),    // [S II] line
-            new Filter("L",   120.0, 14.0,  false, -15.0, 5.0,  0.0,  540.0,  300.0),    // luminance mid
-            new Filter("R",   120.0, 14.0,  false, -15.0, 5.0,  0.0,  650.0,  100.0),
-            new Filter("G",   120.0, 14.0,  false, -15.0, 5.0,  0.0,  550.0,  100.0),
-            new Filter("B",   120.0, 14.0,  false, -15.0, 5.0,  0.0,  445.0,  100.0),
+            //          name  sep   width  relax  rMin   rMax  rScl  centerNm  bandwidthNm
+            new Filter("H",   30.0, 5.0,   false, -15.0, 5.0,  0.0,  656.3,    3.0),     // Astrodon 3nm Hα
+            new Filter("O",   60.0, 5.0,   false, -15.0, 5.0,  0.0,  500.7,    3.0),     // Astrodon 3nm [O III] (60° sep — [OIII] airglow line at 500.7nm)
+            new Filter("S",   30.0, 5.0,   false, -15.0, 5.0,  0.0,  672.4,    3.0),     // Chroma 3nm SII (centered between 671.6 / 673.1 doublet)
+            new Filter("L",   90.0, 10.0,  false, -15.0, 5.0,  0.0,  550.0,  300.0),     // Astrodon E-Series Luminance
+            new Filter("R",   60.0, 10.0,  false, -15.0, 5.0,  0.0,  650.0,   60.0),     // Astrodon E-Series Red
+            new Filter("G",   60.0, 10.0,  false, -15.0, 5.0,  0.0,  525.0,   65.0),     // Astrodon E-Series Green
+            new Filter("B",   90.0, 10.0,  false, -15.0, 5.0,  0.0,  450.0,  100.0),     // Astrodon E-Series Blue
         };
 
         private readonly List<Filter> mFilters;
