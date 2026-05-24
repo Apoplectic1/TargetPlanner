@@ -38,10 +38,12 @@ namespace TargetPlanner.Caches
     /// </remarks>
     public sealed class ChartCacheStore : IChartCacheStore, IDisposable
     {
-        // Moon-sample sweep cadence inside ComputeYearDays. Matches the pre-Phase-3 behavior
-        // in AltitudeSeries.ComputeYearCache and the cadence BestSession.MoonClearIntersect
-        // uses for the Day-chart path.
-        private static readonly TimeSpan MoonSampleStep = TimeSpan.FromMinutes(10);
+        // Moon-sample sweep cadence inside ComputeYearDays. Matches the cadence
+        // BestSession.MoonClearIntersect uses for the Day-chart path. 1-minute cadence
+        // mirrors what ISP will use, so TP's gate decisions align minute-for-minute with
+        // the Sky chart's per-minute K-S compute (no Sky-chart-vs-gate disagreement on
+        // narrow moon transitions).
+        private static readonly TimeSpan MoonSampleStep = TimeSpan.FromMinutes(1);
 
         private readonly object mGate = new object();
 
@@ -603,13 +605,13 @@ namespace TargetPlanner.Caches
                 if (entry.LstDawn < entry.LstDusk) entry.LstDawn += 24.0;
 
                 // Moon-aware Sessions-chart rebuild path needs per-night moon state. Sampled
-                // at 10-minute cadence between Dusk and Dawn so the cache stays profile-
+                // at 1-minute cadence between Dusk and Dawn so the cache stays profile-
                 // independent: the Lorentzian decision is evaluated at render time against
-                // these raw samples, not pre-decided per night. ~70 samples per night per
+                // these raw samples, not pre-decided per night. ~600 samples per night per
                 // target on a typical night. Each is one MoonSeparation.ObserveAt call --
                 // now lock-free (Meeus-backed AstroUtil) so the per-target sweeps run in
                 // parallel across threadpool cores.
-                List<MoonSample> samples = new List<MoonSample>(80);
+                List<MoonSample> samples = new List<MoonSample>(720);
                 DateTime sampleUtc = entry.Dusk;
                 while (sampleUtc <= entry.Dawn)
                 {

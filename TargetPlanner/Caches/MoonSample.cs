@@ -7,7 +7,7 @@ namespace TargetPlanner.Caches
     /// by the moon-aware curves (Day-chart HD overlay, Sessions-chart placement).
     /// </summary>
     /// <remarks>
-    /// Sampled at 10-minute cadence between Dusk and Dawn for each per-target
+    /// Sampled at 1-minute cadence between Dusk and Dawn for each per-target
     /// <see cref="NightCacheEntry"/>. Profile-independent: consumers walk the samples
     /// at render time and apply the active <see cref="Astronomy.Core.Moon.MoonAvoidanceProfile"/>
     /// to compute moon-clear intervals. Storing raw samples (instead of pre-evaluated
