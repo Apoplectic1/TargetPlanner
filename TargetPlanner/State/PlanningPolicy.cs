@@ -1,6 +1,7 @@
 using System;
 using Astronomy.Core.Horizons;
 using Astronomy.Core.Moon;
+using TpFilter = TargetPlanner.Filters.Filter;
 
 namespace TargetPlanner.State
 {
@@ -8,19 +9,27 @@ namespace TargetPlanner.State
     /// Per-session imaging-planning inputs: what altitude threshold counts as
     /// "above the horizon" (<see cref="TargetFloorDeg"/> /
     /// <see cref="LocalHorizon"/>), how long a target must stay above it
-    /// (<see cref="MinDuration"/>), and the filter/moon parameters that gate
-    /// per-night fit decisions.
+    /// (<see cref="MinDuration"/>), and the active filter + moon-avoidance master
+    /// toggle that gate per-night fit decisions.
     /// </summary>
     /// <remarks>
     /// <para>
     /// Lives on <see cref="ChartContext.Policy"/>; sourced from MainForm's
-    /// active spinners/filters in <c>SnapshotCurrent(...)</c>. Decoupled from
-    /// <see cref="Astronomy.Core.Locations.Location"/> on purpose:
+    /// active spinners/filter selection in <c>SnapshotCurrent(...)</c>. Decoupled
+    /// from <see cref="Astronomy.Core.Locations.Location"/> on purpose:
     /// <c>Location</c> is the site description (latitude / longitude /
     /// elevation / time zone / Bortle), while planning policy is what the user
     /// chooses to image *from* that site. The two scrub independently
     /// (changing site doesn't reset your target floor; raising target floor
     /// doesn't relocate you).
+    /// </para>
+    /// <para>
+    /// <see cref="ActiveFilter"/> is the single source of truth for filter inputs
+    /// to both K-S sky-brightness (CenterNm + BandwidthNm) and the Lorentzian
+    /// moon-clear gate (Lorentzian + Relax fields, surfaced via <see cref="MoonProfile"/>).
+    /// <see cref="MoonAvoidanceEnabled"/> is the master on/off toggle from the UI;
+    /// when false the derived <see cref="MoonProfile"/> returns <see langword="null"/>
+    /// and the placement-primitive moon gate short-circuits to the visibility result.
     /// </para>
     /// <para>
     /// <see cref="LocalHorizon"/> is the canonical horizon representation for
@@ -41,10 +50,20 @@ namespace TargetPlanner.State
     public sealed record PlanningPolicy(
         double TargetFloorDeg,
         TimeSpan MinDuration,
-        MoonAvoidanceProfile MoonProfile,
-        double FilterCenterNm,
+        TpFilter ActiveFilter,
+        bool MoonAvoidanceEnabled,
         IHorizonProfile LocalHorizon)
     {
+        /// <summary>
+        /// Derived moon-clear gate profile. Returns <see langword="null"/> when
+        /// the master toggle is off or no filter is active — placement primitives
+        /// interpret that as "moon-blind" and skip the gate.
+        /// </summary>
+        public MoonAvoidanceProfile MoonProfile
+            => MoonAvoidanceEnabled && ActiveFilter != null
+                ? ActiveFilter.ToProfile()
+                : null;
+
         /// <summary>
         /// Convenience factory for the scalar-horizon case: the user has no
         /// per-azimuth horizon file, so <see cref="LocalHorizon"/> is a
@@ -54,9 +73,9 @@ namespace TargetPlanner.State
         public static PlanningPolicy WithScalarHorizon(
             double targetFloorDeg,
             TimeSpan minDuration,
-            MoonAvoidanceProfile moonProfile,
-            double filterCenterNm)
-            => new(targetFloorDeg, minDuration, moonProfile, filterCenterNm,
+            TpFilter activeFilter,
+            bool moonAvoidanceEnabled)
+            => new(targetFloorDeg, minDuration, activeFilter, moonAvoidanceEnabled,
                    new ScalarHorizonProfile(targetFloorDeg));
     }
 }

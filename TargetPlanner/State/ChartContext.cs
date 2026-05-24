@@ -58,7 +58,7 @@ namespace TargetPlanner.State
         /// <summary>
         /// Derived cache key for per-(target, H/D/M) fit data. All fields
         /// source from <see cref="Policy"/>; flips on any TargetFloor /
-        /// Duration / MoonProfile / FilterCenter / LocalHorizon-reference
+        /// Duration / ActiveFilter / MoonAvoidanceEnabled / LocalHorizon-reference
         /// change. Bortle / ExtinctionK are excluded — they affect Sky's K-S
         /// brightness path, not fit decisions. <see cref="HdmKey.LocalHorizon"/>
         /// is populated only for non-scalar profiles; scalar lives under
@@ -68,11 +68,11 @@ namespace TargetPlanner.State
         /// </summary>
         public HdmKey Hdm => new HdmKey
         {
-            HorizonDeg     = Policy.TargetFloorDeg,
-            DurationTicks  = Policy.MinDuration.Ticks,
-            Profile        = Policy.MoonProfile,
-            FilterCenterNm = Policy.FilterCenterNm,
-            LocalHorizon   = Policy.LocalHorizon is ScalarHorizonProfile ? null : Policy.LocalHorizon,
+            HorizonDeg           = Policy.TargetFloorDeg,
+            DurationTicks        = Policy.MinDuration.Ticks,
+            ActiveFilter         = Policy.ActiveFilter,
+            MoonAvoidanceEnabled = Policy.MoonAvoidanceEnabled,
+            LocalHorizon         = Policy.LocalHorizon is ScalarHorizonProfile ? null : Policy.LocalHorizon,
         };
     }
 }

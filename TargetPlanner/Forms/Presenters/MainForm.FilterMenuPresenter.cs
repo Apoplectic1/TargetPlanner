@@ -88,30 +88,25 @@ namespace TargetPlanner
             // CheckBox_Moon_AvoidanceEnable.
             //
             // Critical: do NOT route through SetActiveFilter here -- SetActiveFilter
-            // restarts the SessionsRebuildDebounce, whose tick can run while the chart's
+            // calls mCoordinator?.Apply, whose pipeline can run while the chart's
             // year caches are still being built (the M31 seed's async BuildSeriesList
-            // is still mid-flight at construction time). Setting MoonAvoidanceProfile
-            // alone is enough -- the setter propagates to every AltitudeSeries in
-            // mSeriesByTarget, and the in-flight async builder picks it up when it
-            // reaches RenderSessionsSeries. The post-Edit-Filters caller in
-            // OpenEditFiltersDialog explicitly calls RebuildSessionsData afterward,
-            // when caches are guaranteed populated.
+            // is still mid-flight at construction time). Just stash mActiveFilter and
+            // mirror its Lorentzian into the controls; SnapshotCurrent will pick it up
+            // on the next legitimate Apply. The post-Edit-Filters caller in
+            // OpenEditFiltersDialog explicitly fires Apply afterward, when caches are
+            // guaranteed populated.
             bool avoidanceOn = CheckBox_Moon_AvoidanceEnable != null
                             && CheckBox_Moon_AvoidanceEnable.Checked;
             if (firstFilter != null)
             {
                 firstFilterItem.Checked = true;
-                MoonAvoidanceProfile firstProfile = firstFilter.ToProfile();
-                WriteProfileToControls(firstProfile);
+                WriteProfileToControls(firstFilter.ToProfile());
                 mActiveFilter = firstFilter;
-                mMoonAvoidanceProfile = avoidanceOn ? firstProfile : null;
-                mActiveFilterCenterNm = firstFilter.CenterNm;
             }
             else
             {
-                // Empty library: nothing checked, no profile.
+                // Empty library: nothing checked, no active filter.
                 mActiveFilter = null;
-                mMoonAvoidanceProfile = null;
             }
             SetLorentzianControlsEnabled(avoidanceOn);
 
@@ -239,15 +234,15 @@ namespace TargetPlanner
                 // Adopt the builtin's values; preserve the current Name's casing
                 // (FindBuiltinDefault matched case-insensitively).
                 TpFilter restored = new TpFilter(
-                    name:           current.Name,
-                    separationDeg:  builtin.SeparationDeg,
-                    widthDays:      builtin.WidthDays,
-                    relaxEnabled:   builtin.RelaxEnabled,
-                    relaxMinAltDeg: builtin.RelaxMinAltDeg,
-                    relaxMaxAltDeg: builtin.RelaxMaxAltDeg,
-                    relaxScale:     builtin.RelaxScale,
-                    centerNm:       builtin.CenterNm,
-                    bandwidthNm:    builtin.BandwidthNm);
+                    Name:           current.Name,
+                    SeparationDeg:  builtin.SeparationDeg,
+                    WidthDays:      builtin.WidthDays,
+                    RelaxEnabled:   builtin.RelaxEnabled,
+                    RelaxMinAltDeg: builtin.RelaxMinAltDeg,
+                    RelaxMaxAltDeg: builtin.RelaxMaxAltDeg,
+                    RelaxScale:     builtin.RelaxScale,
+                    CenterNm:       builtin.CenterNm,
+                    BandwidthNm:    builtin.BandwidthNm);
                 mFilterLibrary.Replace(i, restored);
                 anyChanged = true;
             }
@@ -420,14 +415,12 @@ namespace TargetPlanner
                             && CheckBox_Moon_AvoidanceEnable.Checked;
             SetLorentzianControlsEnabled(avoidanceOn);
 
-            mMoonAvoidanceProfile = avoidanceOn ? profile : null;
-            // Push the active filter's center wavelength so the K-S sky-brightness
-            // minute-loop scales extinction k via Rayleigh λ⁻⁴ at the band. The
-            // coordinator's post-apply hook calls PushSkyKSInputs(ctx) to re-walk
-            // the K-S grid; the property is also set immediately here for any
-            // sync read that lands before the pipeline settles.
-            mActiveFilterCenterNm = filter.CenterNm;
-            if (mLC2Sky != null) mLC2Sky.ActiveFilterCenterNm = filter.CenterNm;
+            // mActiveFilter is the single source of truth for both K-S inputs
+            // (CenterNm + BandwidthNm) and the Lorentzian moon-clear gate
+            // (via ToProfile()). Apply funnels through SnapshotCurrent which reads
+            // mActiveFilter into PlanningPolicy.ActiveFilter; the coordinator's
+            // post-apply hook calls PushSkyKSInputs(ctx) to push center+bandwidth
+            // into the Sky chart's per-minute K-S walk.
             mCoordinator?.Apply(SnapshotCurrent());
             // SessionSolvers modes consume Policy.MoonProfile (and indirectly the active
             // filter via the moon-avoidance Lorentzian) -- re-rank when the active
@@ -435,17 +428,16 @@ namespace TargetPlanner
             MaybeResortForSessionSolversInputChange();
         }
 
-        // Master on/off for moon avoidance. When checked, the active filter's profile
-        // (read live from the Lorentzian controls -- they always reflect either a named
-        // filter's values or the user's Custom scrubs) is pushed to the chart. When
-        // unchecked, the chart sees null and skips moon-aware work entirely.
+        // Master on/off for moon avoidance. SnapshotCurrent reads CheckBox_Moon_-
+        // AvoidanceEnable directly into PlanningPolicy.MoonAvoidanceEnabled; the
+        // derived Policy.MoonProfile returns null when the toggle is off, so the
+        // placement-primitive moon gate short-circuits to visibility-only.
         private void OnAvoidanceEnableChanged(object sender, EventArgs e)
         {
             if (mSubCharts == null) return;
 
             bool enabled = CheckBox_Moon_AvoidanceEnable.Checked;
             SetLorentzianControlsEnabled(enabled);
-            mMoonAvoidanceProfile = enabled ? BuildProfileFromControls() : null;
             // Coordinator's internal debounce collapses a fast Enable-Disable-
             // Enable click sequence into one trailing-edge pipeline run.
             mCoordinator?.Apply(SnapshotCurrent());
@@ -455,19 +447,26 @@ namespace TargetPlanner
             MaybeResortForSessionSolversInputChange();
         }
 
-        // User scrubbed a Lorentzian control. Push the live values to the chart (gated
-        // on master Enable) and start the auto-save debounce -- after 500 ms idle, the
-        // tick handler commits the live values into mActiveFilter and persists. Returns
-        // early under mSuppressFilterEvents (WriteProfileToControls is the writer; its
-        // writes aren't user edits).
+        // User scrubbed a Lorentzian control. Eagerly mutate mActiveFilter (via record
+        // `with`) so SnapshotCurrent sees the live values, then start the auto-save
+        // debounce -- after 500 ms idle, the tick handler persists mActiveFilter to
+        // filters.json. Returns early under mSuppressFilterEvents
+        // (WriteProfileToControls is the writer; its writes aren't user edits).
         private void OnLorentzianControlChanged(object sender, EventArgs e)
         {
             if (mSuppressFilterEvents) return;
             if (NumericUpDown_Moon_Separation == null) return;
+            if (mActiveFilter == null) return;
 
-            bool avoidanceOn = CheckBox_Moon_AvoidanceEnable != null
-                            && CheckBox_Moon_AvoidanceEnable.Checked;
-            mMoonAvoidanceProfile = avoidanceOn ? BuildProfileFromControls() : null;
+            mActiveFilter = mActiveFilter with
+            {
+                SeparationDeg  = (double)NumericUpDown_Moon_Separation.Value,
+                WidthDays      = (double)NumericUpDown_Moon_Width.Value,
+                RelaxEnabled   = CheckBox_Moon_RelaxEnabled.Checked,
+                RelaxMinAltDeg = (double)NumericUpDown_Moon_RelaxMin.Value,
+                RelaxMaxAltDeg = (double)NumericUpDown_Moon_RelaxMax.Value,
+                RelaxScale     = (double)NumericUpDown_Moon_RelaxScale.Value,
+            };
             RestartFilterAutoSaveDebounce();
             mCoordinator?.Apply(SnapshotCurrent());
         }
@@ -484,19 +483,6 @@ namespace TargetPlanner
             OnLorentzianControlChanged(sender, e);
         }
 
-        // Read the live Lorentzian control values into a MoonAvoidanceProfile. Used by
-        // OnLorentzianControlChanged for the live chart push and (indirectly, via the
-        // same control reads) by FilterAutoSaveDebounce_Tick when building the
-        // replacement Filter.
-        private MoonAvoidanceProfile BuildProfileFromControls()
-            => MoonAvoidanceProfile.Custom(
-                separationDeg:  (double)NumericUpDown_Moon_Separation.Value,
-                widthDays:      (double)NumericUpDown_Moon_Width.Value,
-                relaxEnabled:   CheckBox_Moon_RelaxEnabled.Checked,
-                relaxMinAltDeg: (double)NumericUpDown_Moon_RelaxMin.Value,
-                relaxMaxAltDeg: (double)NumericUpDown_Moon_RelaxMax.Value,
-                relaxScale:     (double)NumericUpDown_Moon_RelaxScale.Value);
-
         // Lazily-constructed shared Timer for the Lorentzian-scrub auto-save. Same
         // restart-on-edit pattern as RestartSessionsRebuildDebounce: ValueChanged calls
         // Stop()+Start() to reset the interval, so rapid edits collapse to one
@@ -512,10 +498,10 @@ namespace TargetPlanner
             mFilterAutoSaveDebounce.Start();
         }
 
-        // Trailing-edge tick for the Lorentzian-scrub auto-save. Builds a replacement
-        // Filter from the live control values (preserving Name and BandwidthNm from
-        // the active filter -- those aren't editable from the main form), replaces the
-        // entry in mFilterLibrary, persists, and refreshes the menu '*' labels.
+        // Trailing-edge tick for the Lorentzian-scrub auto-save. mActiveFilter already
+        // holds the live values (OnLorentzianControlChanged eagerly mutates it via
+        // record `with`); the tick just commits the current mActiveFilter into
+        // mFilterLibrary + persists to disk + refreshes the menu '*' labels.
         // Suppressed while the EditFiltersForm modal is open; the dialog has its own
         // Save semantics against a transactional shadow.
         private void FilterAutoSaveDebounce_Tick(object sender, EventArgs e)
@@ -527,19 +513,7 @@ namespace TargetPlanner
             int idx = IndexOfActiveFilter();
             if (idx < 0) return;
 
-            TpFilter updated = new TpFilter(
-                name:           mActiveFilter.Name,
-                separationDeg:  (double)NumericUpDown_Moon_Separation.Value,
-                widthDays:      (double)NumericUpDown_Moon_Width.Value,
-                relaxEnabled:   CheckBox_Moon_RelaxEnabled.Checked,
-                relaxMinAltDeg: (double)NumericUpDown_Moon_RelaxMin.Value,
-                relaxMaxAltDeg: (double)NumericUpDown_Moon_RelaxMax.Value,
-                relaxScale:     (double)NumericUpDown_Moon_RelaxScale.Value,
-                centerNm:       mActiveFilter.CenterNm,
-                bandwidthNm:    mActiveFilter.BandwidthNm);
-
-            mFilterLibrary.Replace(idx, updated);
-            mActiveFilter = updated;
+            mFilterLibrary.Replace(idx, mActiveFilter);
 
             try { mFilterLibrary.Save(); }
             catch (Exception ex) { Log.Error("FilterLibrary.Save (auto-save) failed", ex); }
@@ -547,15 +521,20 @@ namespace TargetPlanner
             RefreshFilterMenuLabels();
         }
 
-        // Locate the active filter's index in mFilterLibrary by reference equality.
-        // Returns -1 when mActiveFilter has been replaced (post-dialog-Save) before a
-        // refresh, or when the library is empty.
+        // Locate the active filter's index in mFilterLibrary by Name. Reference equality
+        // would fail because OnLorentzianControlChanged constructs new Filter instances
+        // via record `with` on each scrub -- mActiveFilter and the library entry share
+        // a Name but not an instance until the next FilterAutoSaveDebounce_Tick syncs
+        // them. Returns -1 when mActiveFilter has been removed from the library
+        // (post-dialog Save with delete) or when the library is empty.
         private int IndexOfActiveFilter()
         {
             if (mActiveFilter == null || mFilterLibrary == null) return -1;
             for (int i = 0; i < mFilterLibrary.Filters.Count; i++)
             {
-                if (object.ReferenceEquals(mFilterLibrary.Filters[i], mActiveFilter)) return i;
+                if (string.Equals(mFilterLibrary.Filters[i].Name, mActiveFilter.Name,
+                                  StringComparison.OrdinalIgnoreCase))
+                    return i;
             }
             return -1;
         }

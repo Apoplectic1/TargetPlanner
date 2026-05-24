@@ -310,15 +310,15 @@ namespace TargetPlanner.Forms
             };
 
             public Filter ToFilter() => new Filter(
-                name:           Name,
-                separationDeg:  SeparationDeg,
-                widthDays:      WidthDays,
-                relaxEnabled:   RelaxEnabled,
-                relaxMinAltDeg: RelaxMinAltDeg,
-                relaxMaxAltDeg: RelaxMaxAltDeg,
-                relaxScale:     RelaxScale,
-                centerNm:       CenterNm,
-                bandwidthNm:    BandwidthNm);
+                Name:           Name,
+                SeparationDeg:  SeparationDeg,
+                WidthDays:      WidthDays,
+                RelaxEnabled:   RelaxEnabled,
+                RelaxMinAltDeg: RelaxMinAltDeg,
+                RelaxMaxAltDeg: RelaxMaxAltDeg,
+                RelaxScale:     RelaxScale,
+                CenterNm:       CenterNm,
+                BandwidthNm:    BandwidthNm);
         }
     }
 }

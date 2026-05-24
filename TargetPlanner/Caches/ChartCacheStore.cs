@@ -293,7 +293,7 @@ namespace TargetPlanner.Caches
             bool brightnessChanged = prev == null
                 || ctx.Location.BortleClass != prev.Location.BortleClass
                 || ctx.Location.ExtinctionK != prev.Location.ExtinctionK
-                || ctx.Policy.FilterCenterNm != prev.Policy.FilterCenterNm;
+                || !Equals(ctx.Policy.ActiveFilter, prev.Policy.ActiveFilter);
 
             // Date-change-without-geometry-change. NightCache's Starting window
             // and YearStartDay both depend on the seed UTC; any cross-day scrub
@@ -456,7 +456,9 @@ namespace TargetPlanner.Caches
             IHorizonProfile horizon = key.LocalHorizon
                 ?? new ScalarHorizonProfile(key.HorizonDeg);
             TimeSpan duration = TimeSpan.FromTicks(key.DurationTicks);
-            MoonAvoidanceProfile profile = key.Profile;
+            MoonAvoidanceProfile profile = key.MoonAvoidanceEnabled && key.ActiveFilter != null
+                ? key.ActiveFilter.ToProfile()
+                : null;
             NightCache nightCache = await EnsureNightCacheAsync(location);
             NightWindow starting = nightCache.Starting;
 
@@ -470,7 +472,7 @@ namespace TargetPlanner.Caches
             if (Log.IsDiagEnabled("Cache"))
             {
                 Log.Diag("Cache",
-                    $"BuildFit target={target.Name} hdmKey=(H={key.HorizonDeg},Dt={key.DurationTicks},FNm={key.FilterCenterNm}) " +
+                    $"BuildFit target={target.Name} hdmKey=(H={key.HorizonDeg},Dt={key.DurationTicks},F={key.ActiveFilter?.Name ?? "(none)"},MoonOn={key.MoonAvoidanceEnabled}) " +
                     $"durationSec={duration.TotalSeconds:F0} startingValid={starting.IsValid} " +
                     $"tonightHasFloor={tonight.Floor.HasValue}");
             }

@@ -467,7 +467,7 @@ namespace TargetPlanner.Charts
                 Log.Diag("Day",
                     $"Render target-filter targets={targets.Count} dayEntryNull={dbgDayEntryNull} " +
                     $"fitEntryNull={dbgFitEntryNull} tonightFloorNull={dbgTonightFloorNull} added={dbgWindowAdded} " +
-                    $"hdmKey=(H={ctx.Hdm.HorizonDeg},Dt={ctx.Hdm.DurationTicks},FNm={ctx.Hdm.FilterCenterNm})");
+                    $"hdmKey=(H={ctx.Hdm.HorizonDeg},Dt={ctx.Hdm.DurationTicks},F={ctx.Hdm.ActiveFilter?.Name ?? "(none)"},MoonOn={ctx.Hdm.MoonAvoidanceEnabled})");
             }
 
             ChartLayout.SwapSeriesDict(mSeriesByTarget, newSeriesByTarget);

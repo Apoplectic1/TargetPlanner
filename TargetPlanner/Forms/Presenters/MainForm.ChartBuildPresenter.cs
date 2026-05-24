@@ -326,17 +326,20 @@ namespace TargetPlanner
             mCoordinator?.Apply(SnapshotCurrent());
         }
 
-        // Push the active filter's center wavelength + re-walk the K-S minute grid
-        // through the Sky sub-chart's existing series. Called from the coordinator's
-        // post-apply hook so Bortle / ExtinctionK / Filter scrubs (and any other
-        // pipeline) keep Sky's brightness curves in sync with the just-applied
-        // snapshot. Reads the snapshot's filter + location for snapshot-coherence
-        // under mid-pipeline drift. Null-safe; no-op when Sky isn't instantiated
-        // yet (early-init paths).
+        // Push the active filter's center wavelength + bandwidth + re-walk the K-S
+        // minute grid through the Sky sub-chart's existing series. Called from the
+        // coordinator's post-apply hook so Bortle / ExtinctionK / Filter scrubs (and
+        // any other pipeline) keep Sky's brightness curves in sync with the
+        // just-applied snapshot. Reads the snapshot's filter + location for
+        // snapshot-coherence under mid-pipeline drift. Null-safe; no-op when Sky
+        // isn't instantiated yet (early-init paths). When no filter is active (empty
+        // library / pre-init) Sky falls back to V-band defaults (550 nm / 85 nm).
         private void PushSkyKSInputs(ChartContext ctx)
         {
             if (mLC2Sky == null || ctx == null || ctx.Location == null || ctx.Policy == null) return;
-            mLC2Sky.ActiveFilterCenterNm = ctx.Policy.FilterCenterNm;
+            TargetPlanner.Filters.Filter active = ctx.Policy.ActiveFilter;
+            mLC2Sky.ActiveFilterCenterNm    = active?.CenterNm    ?? 550.0;
+            mLC2Sky.ActiveFilterBandwidthNm = active?.BandwidthNm ?? Astronomy.Core.Brightness.SkyBrightness.BWRefNm;
             mLC2Sky.RefreshSkyBrightness(mCache, ctx.Location);
         }
     }

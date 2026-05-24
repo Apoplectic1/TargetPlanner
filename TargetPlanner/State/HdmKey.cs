@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 using Astronomy.Core.Horizons;
-using Astronomy.Core.Moon;
+using TpFilter = TargetPlanner.Filters.Filter;
 
 namespace TargetPlanner.State
 {
@@ -18,12 +18,13 @@ namespace TargetPlanner.State
     /// don't re-pay the per-(target, location) moon-sample sweep.
     /// </para>
     /// <para>
-    /// <c>Profile</c> uses reference identity because <see cref="MoonAvoidanceProfile"/>
-    /// is an immutable POCO produced by <c>Filter.ToProfile()</c> / Lorentzian
-    /// scrub handlers — the same logical profile reuses the same instance for
-    /// the duration of a session. Two structurally-equal profiles created via
-    /// different code paths would technically rebuild fits unnecessarily; we
-    /// accept that trade for the cheap-equality fast path.
+    /// <see cref="ActiveFilter"/> is a record; structural equality flows through
+    /// HdmKey for free. A Lorentzian scrub on the active filter constructs a new
+    /// Filter record via <c>with</c> (different field values → not Equal → cache
+    /// rebuild). A no-op scrub yielding the same field values would compare equal
+    /// (no rebuild). <see cref="MoonAvoidanceEnabled"/> is the master toggle —
+    /// toggling it changes whether the Lorentzian gate runs at all, so it
+    /// participates in the key.
     /// </para>
     /// <para>
     /// <see cref="LocalHorizon"/> is populated only for non-scalar profiles
@@ -41,21 +42,21 @@ namespace TargetPlanner.State
     {
         public double HorizonDeg { get; init; }
         public long DurationTicks { get; init; }
-        public MoonAvoidanceProfile Profile { get; init; }
-        public double FilterCenterNm { get; init; }
+        public TpFilter ActiveFilter { get; init; }
+        public bool MoonAvoidanceEnabled { get; init; }
         public IHorizonProfile LocalHorizon { get; init; }
 
         public bool Equals(HdmKey other) =>
             HorizonDeg == other.HorizonDeg
             && DurationTicks == other.DurationTicks
-            && ReferenceEquals(Profile, other.Profile)
-            && FilterCenterNm == other.FilterCenterNm
+            && Equals(ActiveFilter, other.ActiveFilter)  // record structural equality
+            && MoonAvoidanceEnabled == other.MoonAvoidanceEnabled
             && ReferenceEquals(LocalHorizon, other.LocalHorizon);
 
         public override bool Equals(object obj) => obj is HdmKey k && Equals(k);
 
         public override int GetHashCode() => HashCode.Combine(
-            HorizonDeg, DurationTicks, RuntimeHelpers.GetHashCode(Profile), FilterCenterNm,
+            HorizonDeg, DurationTicks, ActiveFilter, MoonAvoidanceEnabled,
             RuntimeHelpers.GetHashCode(LocalHorizon));
 
         public static bool operator ==(HdmKey a, HdmKey b) => a.Equals(b);

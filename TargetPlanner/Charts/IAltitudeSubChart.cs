@@ -20,7 +20,8 @@ namespace TargetPlanner.Charts
     //
     // Per-chart specifics that don't fit the shared contract stay on the
     // concrete class and are accessed via a typed reference (currently only
-    // AltitudeSubChart_Sky.ActiveFilterCenterNm and RefreshSkyBrightness).
+    // AltitudeSubChart_Sky.ActiveFilterCenterNm + ActiveFilterBandwidthNm
+    // and RefreshSkyBrightness).
     public interface IAltitudeSubChart : IDisposable
     {
         // The WinForms Container hosting the CartesianChart + custom legend.
@@ -58,9 +59,9 @@ namespace TargetPlanner.Charts
         //
         // Phase 1 of the orchestration-layer refactor consolidated the prior
         // 8-parameter signature behind a single ChartContext snapshot. The
-        // sub-chart reads ctx.Targets / ctx.Policy (moon profile, target
-        // floor, min duration, local horizon, filter center) / ctx.Location
-        // and derives DateTime from ctx.Location.DateTime.
+        // sub-chart reads ctx.Targets / ctx.Policy (active filter (Lorentzian +
+        // center + bandwidth), moon-avoidance toggle, target floor, min duration,
+        // local horizon) / ctx.Location and derives DateTime from ctx.Observation.Utc.
         void Render(ChartContext ctx, IChartCacheStore cache);
     }
 }

@@ -155,10 +155,13 @@ namespace TargetPlanner.Charts
         // Active filter center wavelength (nm) for Rayleigh λ⁻⁴ extinction
         // scaling via SkyBrightness.ScaleK. Defaults to V-band (550 nm) so K-S
         // produces sensible values before MainForm pushes the user's filter.
-        // MainForm mirrors the legacy AltitudeChart.ActiveFilterCenterNm setter
-        // pattern: SetActiveFilter pushes to both this and the legacy chart so
-        // they stay in sync mid-migration.
         public double ActiveFilterCenterNm { get; set; } = 550.0;
+
+        // Active filter passband width (nm) for K-S bandwidth scaling (each of the
+        // three nL contributions scales linearly with BW for continuum sources).
+        // Defaults to the V-band reference (BWRefNm = 85 nm) so the predicted
+        // brightness is identity-scaled before MainForm pushes the user's filter.
+        public double ActiveFilterBandwidthNm { get; set; } = SkyBrightness.BWRefNm;
 
         public AltitudeSubChart_Sky()
         {
@@ -280,11 +283,15 @@ namespace TargetPlanner.Charts
             IReadOnlyList<Target> targets = ctx.Targets;
             DateTime now = ctx.Observation.Utc;
 
-            // Sync ActiveFilterCenterNm from the snapshot before computing K-S.
-            // ChartContext.Policy is the authoritative input; the property setter still
-            // exists for cheap-scrub callers (RefreshSkyBrightness from the
-            // SessionsRebuildDebounce_Tick path) which feed it directly.
-            ActiveFilterCenterNm = ctx.Policy.FilterCenterNm;
+            // Sync ActiveFilterCenterNm + ActiveFilterBandwidthNm from the snapshot
+            // before computing K-S. ChartContext.Policy.ActiveFilter is the
+            // authoritative input; the property setters still exist for cheap-scrub
+            // callers (RefreshSkyBrightness from the SessionsRebuildDebounce_Tick
+            // path) which feed them directly. Null filter (empty library / pre-init)
+            // falls back to V-band defaults.
+            TargetPlanner.Filters.Filter activeFilter = ctx.Policy.ActiveFilter;
+            ActiveFilterCenterNm    = activeFilter?.CenterNm    ?? 550.0;
+            ActiveFilterBandwidthNm = activeFilter?.BandwidthNm ?? SkyBrightness.BWRefNm;
 
             NightWindow night = cache?.LocationNightCache?.Starting ?? NightCalculator.ComputeNight(location, now);
             if (!night.IsValid)
@@ -368,7 +375,7 @@ namespace TargetPlanner.Charts
 
                 var series = GetOrCreateTargetSeries(target, c);
                 BuildOrUpdateTargetSeries(series, target, location, startUtc, zone,
-                    count, observer, kAtBand, v0,
+                    count, observer, kAtBand, v0, ActiveFilterBandwidthNm,
                     night.AstronomicalDusk, night.AstronomicalDawn);
 
                 bool fits = cache?.GetFitOrNull(target, ctx.Hdm)?.Tonight.Floor.HasValue ?? false;
@@ -420,7 +427,7 @@ namespace TargetPlanner.Charts
                 LineSeries<ObservablePoint> series = kv.Value;
                 BuildOrUpdateTargetSeries(series, target, location,
                     mLastChartStartUtc, mAxisZone, mLastCount,
-                    observer, kAtBand, v0,
+                    observer, kAtBand, v0, ActiveFilterBandwidthNm,
                     mLastAstronomicalDuskUtc, mLastAstronomicalDawnUtc);
             }
         }
@@ -476,6 +483,7 @@ namespace TargetPlanner.Charts
             ObserverInfo observer,
             double kAtBand,
             double v0,
+            double bandwidthNm,
             DateTime astronomicalDuskUtc,
             DateTime astronomicalDawnUtc)
         {
@@ -520,11 +528,17 @@ namespace TargetPlanner.Charts
                     var m = MoonSeparation.ObserveAt(target, location, utc);
                     double phase = SkyBrightness.PhaseAngleDegFromAgeDays(LunarAge.DaysAt(utc));
                     double sunAlt = SunPosition.AltAzAt(location, utc).Altitude;
+                    // KsAt's moonAltDeg parameter contract is APPARENT altitude
+                    // (geometric + refraction lift). MoonSeparation.ObserveAt returns
+                    // geometric — refraction-correct so the K-S cutoff aligns with the
+                    // visually-observed moonset (~34' lift, ~2 min later than geometric
+                    // moonset depending on the moon's descent rate).
+                    double moonAltApparent = m.MoonAltDeg + Refraction.SaemundssonDeg(m.MoonAltDeg);
 
                     double mag = SkyBrightness.KsAt(
                         t.Altitude, t.Azimuth,
-                        m.MoonAltDeg, m.MoonAzDeg,
-                        phase, sunAlt, kAtBand, v0);
+                        moonAltApparent, m.MoonAzDeg,
+                        phase, sunAlt, kAtBand, v0, bandwidthNm);
 
                     // null Y = "no data" gap (LC2 renders nullable points as breaks
                     // in the line). Cleaner than the legacy -90 sentinel because

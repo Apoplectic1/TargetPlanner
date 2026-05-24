@@ -130,7 +130,7 @@ namespace TargetPlanner.Filters
                 if (f.CenterNm == 0.0)
                 {
                     Filter b = FindBuiltinDefault(f.Name);
-                    if (b != null) f = f.With(centerNm: b.CenterNm);
+                    if (b != null) f = f with { CenterNm = b.CenterNm };
                 }
                 result[i] = f;
             }

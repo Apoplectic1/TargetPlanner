@@ -72,17 +72,17 @@ namespace TargetPlanner
         //     implements IAltitudeSubChart so picker/spinner/debounce/Graph-click
         //     traffic dispatches via foreach + dict lookup instead of explicit fields.
         //   - mLC2Sky: typed reference for the Sky-specific quirks not in the
-        //     interface (ActiveFilterCenterNm setter + RefreshSkyBrightness).
-        //   - mMoonAvoidanceProfile / mActiveFilterCenterNm: state pushed into each
-        //     sub-chart's Render call (via ChartContext.Policy). Set by
-        //     SetActiveFilter and the Lorentzian / avoidance-checkbox handlers.
+        //     interface (ActiveFilterCenterNm / ActiveFilterBandwidthNm setters +
+        //     RefreshSkyBrightness).
+        //   - mActiveFilter (declared further down with the filter-presenter state):
+        //     single source of truth for the K-S filter inputs (CenterNm +
+        //     BandwidthNm) and the Lorentzian moon-clear gate (via ToProfile()).
+        //     Threaded into PlanningPolicy.ActiveFilter by SnapshotCurrent.
         // The "what targets is the active chart currently displaying" question is
         // answered by mCoordinator.LastAppliedTargets -- pre-stamped at pipeline
         // entry so concurrent Apply()s see the user's current intent rather than
         // the previous successful render.
         private System.Collections.Generic.Dictionary<string, Charts.IAltitudeSubChart> mSubCharts;
-        private Astronomy.Core.Moon.MoonAvoidanceProfile mMoonAvoidanceProfile;
-        private double mActiveFilterCenterNm = 550.0;
 
         // Single source of truth for per-target curve / legend colors across every
         // sub-chart. Built once per KnownTargets change (NINA load), Name-sorted so
@@ -217,8 +217,10 @@ namespace TargetPlanner
         private Button mFilterDefaultsButton;
 
         // Sky needs a typed reference for K-S/filter-specific calls that aren't on
-        // IAltitudeSubChart: ActiveFilterCenterNm property (Rayleigh λ⁻⁴ scaling) and
-        // RefreshSkyBrightness(cache, location) (Bortle / ExtinctionK / Filter scrub).
+        // IAltitudeSubChart: ActiveFilterCenterNm + ActiveFilterBandwidthNm properties
+        // (Rayleigh λ⁻⁴ extinction scaling + linear bandwidth scaling of the three K-S
+        // nL contributions) and RefreshSkyBrightness(cache, location) (Bortle /
+        // ExtinctionK / Filter scrub).
         private Charts.AltitudeSubChart_Sky mLC2Sky;
 
         // Day needs a typed reference for the DayChartModeChanged event raised by
@@ -454,10 +456,10 @@ is preserved.";
 
             // Filters menu: load the per-filter library (or ship-defaults on first launch)
             // and build a mutually-exclusive radio group of menu items. Disabled is the
-            // first-launch default; a click on any preset writes its values into
-            // mMoonAvoidanceProfile and triggers RestartSessionsRebuildDebounce so the
-            // universal hide-on-no-fit refresh propagates the new avoidance regime
-            // to every sub-chart.
+            // first-launch default; a click on any preset writes the active filter
+            // into mActiveFilter and triggers the coordinator pipeline so the universal
+            // hide-on-no-fit refresh propagates the new avoidance regime to every
+            // sub-chart.
             BuildFiltersMenu();
 
             // BuildFiltersMenu's preselect-first-filter call already wrote starting
@@ -675,8 +677,8 @@ is preserved.";
             // Phase 4 LC2 sub-charts. Indexed by area name so MainForm dispatches
             // picker / spinner / debounce / Graph-click traffic via foreach + dict
             // lookup. Sky also keeps a typed reference (mLC2Sky) for K-S quirks
-            // (ActiveFilterCenterNm property + RefreshSkyBrightness) that aren't
-            // on the IAltitudeSubChart interface.
+            // (ActiveFilterCenterNm + ActiveFilterBandwidthNm properties +
+            // RefreshSkyBrightness) that aren't on the IAltitudeSubChart interface.
             mLC2Sky = new Charts.AltitudeSubChart_Sky();
             mLC2Day = new Charts.AltitudeSubChart_Day();
             mSubCharts = new System.Collections.Generic.Dictionary<string, Charts.IAltitudeSubChart>(System.StringComparer.Ordinal)
@@ -1091,31 +1093,34 @@ is preserved.";
 
         // Build a ChartContext snapshot from current MainForm state. Single point
         // that reads mLocation / mObservation / mPlanningPreferences /
-        // mMoonAvoidanceProfile / mActiveFilterCenterNm / SelectedArea() /
+        // mActiveFilter / CheckBox_Moon_AvoidanceEnable / SelectedArea() /
         // mTargetColorsByTarget — adding a new chart input is one record-field
         // addition here plus one additional read here, not a signature break
         // across six files. Caller decides which target list to pass
         // (single-target via SelectedSingle, multi via the checked set, or empty
         // for blanking).
         //
-        // PlanningPolicy is synthesized from mPlanningPreferences plus the form-
-        // level moon profile + filter center + mLocalHorizon. The polyline horizon
-        // (when configured + loaded for the active named location) composes with
-        // the scalar floor via MaxOfHorizonProfile so a target qualifies only
-        // when it clears whichever of the two is higher at the target's azimuth.
-        // Scalar-only sites skip the combinator and pass a bare ScalarHorizonProfile.
+        // PlanningPolicy is synthesized from mPlanningPreferences plus the active
+        // filter + moon-avoidance master toggle + mLocalHorizon. The polyline
+        // horizon (when configured + loaded for the active named location)
+        // composes with the scalar floor via MaxOfHorizonProfile so a target
+        // qualifies only when it clears whichever of the two is higher at the
+        // target's azimuth. Scalar-only sites skip the combinator and pass a
+        // bare ScalarHorizonProfile.
         private ChartContext SnapshotCurrent(IReadOnlyList<Target> targets)
         {
             ScalarHorizonProfile scalar = new ScalarHorizonProfile(mPlanningPreferences.TargetFloorDeg);
             IHorizonProfile horizon = mLocalHorizon == null
                 ? scalar
                 : new MaxOfHorizonProfile(mLocalHorizon, scalar);
+            bool moonAvoidanceEnabled = CheckBox_Moon_AvoidanceEnable != null
+                                     && CheckBox_Moon_AvoidanceEnable.Checked;
             PlanningPolicy policy = new PlanningPolicy(
-                TargetFloorDeg:  mPlanningPreferences.TargetFloorDeg,
-                MinDuration:     mPlanningPreferences.MinDuration,
-                MoonProfile:     mMoonAvoidanceProfile,
-                FilterCenterNm:  mActiveFilterCenterNm,
-                LocalHorizon:    horizon);
+                TargetFloorDeg:        mPlanningPreferences.TargetFloorDeg,
+                MinDuration:           mPlanningPreferences.MinDuration,
+                ActiveFilter:          mActiveFilter,
+                MoonAvoidanceEnabled:  moonAvoidanceEnabled,
+                LocalHorizon:          horizon);
 
             return new ChartContext(
                 Location:     mLocation,
@@ -1242,13 +1247,16 @@ is preserved.";
                 IReadOnlyList<Target> targets =
                     mCoordinator?.LastAppliedTargets ?? Array.Empty<Target>();
                 return string.Format(
-                    "area={0}, obs={1:yyyy-MM-dd HH:mm}Z, n={2}, H={3:F0}, D={4:F0}m, filter={5:F0}nm, Bortle={6}, K={7:F2}",
+                    "area={0}, obs={1:yyyy-MM-dd HH:mm}Z, n={2}, H={3:F0}, D={4:F0}m, filter={5}, Bortle={6}, K={7:F2}",
                     SelectedArea() ?? "?",
                     mObservation.Utc,
                     targets.Count,
                     mPlanningPreferences.TargetFloorDeg,
                     mPlanningPreferences.MinDuration.TotalMinutes,
-                    mActiveFilterCenterNm,
+                    mActiveFilter == null
+                        ? "(none)"
+                        : string.Format("{0}@{1:F0}/{2:F0}nm",
+                                        mActiveFilter.Name, mActiveFilter.CenterNm, mActiveFilter.BandwidthNm),
                     mLocation.BortleClass,
                     mLocation.ExtinctionK);
             }
