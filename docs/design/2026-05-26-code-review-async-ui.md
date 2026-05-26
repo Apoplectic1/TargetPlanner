@@ -297,8 +297,8 @@ Task.Delay(ProgressBarHoldMs).ContinueWith(_ =>
 {
     if (mBarOwnerGen != gen) return;
     mBarOwnerGen = 0;
-    ProgressBar_MultiTargetProcessing.Value   = 0;       // touching control
-    ProgressBar_MultiTargetProcessing.Visible = false;   // touching control
+    ProgressBar_Processing.Value   = 0;       // touching control
+    ProgressBar_Processing.Visible = false;   // touching control
 }, uiSched);
 ```
 
@@ -316,8 +316,8 @@ Task.Delay(ProgressBarHoldMs).ContinueWith(_ =>
         if (mBarOwnerGen != gen) return;
         if (IsDisposed || !IsHandleCreated) return;
         mBarOwnerGen = 0;
-        ProgressBar_MultiTargetProcessing.Value   = 0;
-        ProgressBar_MultiTargetProcessing.Visible = false;
+        ProgressBar_Processing.Value   = 0;
+        ProgressBar_Processing.Visible = false;
     }
     catch (ObjectDisposedException) { /* form closed */ }
 }, uiSched);
@@ -333,8 +333,8 @@ async void HideAfterHold(int gen)
         await Task.Delay(ProgressBarHoldMs).ConfigureAwait(true);
         if (mBarOwnerGen != gen || IsDisposed) return;
         mBarOwnerGen = 0;
-        ProgressBar_MultiTargetProcessing.Value   = 0;
-        ProgressBar_MultiTargetProcessing.Visible = false;
+        ProgressBar_Processing.Value   = 0;
+        ProgressBar_Processing.Visible = false;
     }
     catch (Exception ex) { Log.Warn("Progress-bar hide-after-hold threw", ex); }
 }

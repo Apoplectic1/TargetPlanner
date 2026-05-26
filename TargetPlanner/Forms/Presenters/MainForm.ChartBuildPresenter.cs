@@ -131,7 +131,7 @@ namespace TargetPlanner
                 // Coordinator owns the cache-prep + render pipeline AND the
                 // progress bar (via the defaultProgressFactory wired at
                 // construction). Every Apply path -- this graph-build, scrubs,
-                // location edits -- drives ProgressBar_MultiTargetProcessing
+                // location edits -- drives ProgressBar_Processing
                 // through one funnel; no per-callsite Begin/Finish wrapping.
                 // Generation-counter supersedence ensures only the latest
                 // Apply's pipeline writes Render state; older pipelines bail

@@ -333,7 +333,7 @@ is preserved.";
         private CoordinateInput mDecInput;
 
         // Incremented on every Graph click so stale Progress<int> callbacks from a prior
-        // (still in-flight) PrepareManyAsync don't tick ProgressBar_MultiTargetProcessing
+        // (still in-flight) PrepareManyAsync don't tick ProgressBar_Processing
         // after the user has already launched a new chart build. Captured by value in the
         // Progress<int> closure, so each click's callbacks are stamped and can be
         // identified as stale later.
@@ -392,7 +392,7 @@ is preserved.";
             // line establishes the boot-idle state. The auto-load image-library
             // scan kicked off later in MainForm_Shown surfaces the bar via
             // BeginScanProgress, so first-paint still shows progress.
-            ProgressBar_MultiTargetProcessing.Visible = false;
+            ProgressBar_Processing.Visible = false;
 
             // Disable Aero visual styles on the progress bar so Value setter
             // is instant -- under default visual styles, ProgressBar animates
@@ -404,7 +404,7 @@ is preserved.";
             // is the documented workaround -- the bar renders classic-style
             // with no animation, and the visible state matches Value setter
             // immediately on every tick.
-            SetWindowTheme(ProgressBar_MultiTargetProcessing.Handle, " ", " ");
+            SetWindowTheme(ProgressBar_Processing.Handle, " ", " ");
 
             mAppSettings = SettingsStore.Load();
 
@@ -1476,18 +1476,18 @@ is preserved.";
                     // hide notice we've taken over and bail.
                     claimed = true;
                     mBarOwnerGen = gen;
-                    ProgressBar_MultiTargetProcessing.Minimum = 0;
-                    ProgressBar_MultiTargetProcessing.Maximum = max;
-                    ProgressBar_MultiTargetProcessing.Value   = 0;
-                    ProgressBar_MultiTargetProcessing.Visible = true;
+                    ProgressBar_Processing.Minimum = 0;
+                    ProgressBar_Processing.Maximum = max;
+                    ProgressBar_Processing.Value   = 0;
+                    ProgressBar_Processing.Visible = true;
                 }
-                else if (ProgressBar_MultiTargetProcessing.Maximum != max)
+                else if (ProgressBar_Processing.Maximum != max)
                 {
-                    ProgressBar_MultiTargetProcessing.Maximum = max;
+                    ProgressBar_Processing.Maximum = max;
                 }
                 int clamped = Math.Min(Math.Max(0, value.Done), max);
-                if (clamped > ProgressBar_MultiTargetProcessing.Value)
-                    ProgressBar_MultiTargetProcessing.Value = clamped;
+                if (clamped > ProgressBar_Processing.Value)
+                    ProgressBar_Processing.Value = clamped;
                 if (clamped >= max)
                 {
                     Task.Delay(ProgressBarHoldMs).ContinueWith(_ =>
@@ -1498,8 +1498,8 @@ is preserved.";
                         // happened).
                         if (mBarOwnerGen != gen) return;
                         mBarOwnerGen = 0;
-                        ProgressBar_MultiTargetProcessing.Value   = 0;
-                        ProgressBar_MultiTargetProcessing.Visible = false;
+                        ProgressBar_Processing.Value   = 0;
+                        ProgressBar_Processing.Visible = false;
                     }, uiSched);
                 }
             });
@@ -1515,20 +1515,20 @@ is preserved.";
         {
             int thisGeneration = ++mChartBuildGeneration;
 
-            ProgressBar_MultiTargetProcessing.Minimum = 0;
-            ProgressBar_MultiTargetProcessing.Maximum = 1;   // resized on first Total
-            ProgressBar_MultiTargetProcessing.Value   = 0;
-            ProgressBar_MultiTargetProcessing.Visible = true;
+            ProgressBar_Processing.Minimum = 0;
+            ProgressBar_Processing.Maximum = 1;   // resized on first Total
+            ProgressBar_Processing.Value   = 0;
+            ProgressBar_Processing.Visible = true;
 
             var progress = new Progress<(int Done, int Total)>(t =>
             {
                 if (thisGeneration != mChartBuildGeneration) return;  // stale
                 int max = Math.Max(1, t.Total);
-                if (ProgressBar_MultiTargetProcessing.Maximum != max)
-                    ProgressBar_MultiTargetProcessing.Maximum = max;
+                if (ProgressBar_Processing.Maximum != max)
+                    ProgressBar_Processing.Maximum = max;
                 int clamped = Math.Min(Math.Max(0, t.Done), max);
-                if (clamped > ProgressBar_MultiTargetProcessing.Value)
-                    ProgressBar_MultiTargetProcessing.Value = clamped;
+                if (clamped > ProgressBar_Processing.Value)
+                    ProgressBar_Processing.Value = clamped;
             });
 
             return (thisGeneration, progress);
@@ -1540,13 +1540,13 @@ is preserved.";
         private void FinishScanProgress(int generation)
         {
             if (generation != mChartBuildGeneration) return;
-            ProgressBar_MultiTargetProcessing.Value = ProgressBar_MultiTargetProcessing.Maximum;
+            ProgressBar_Processing.Value = ProgressBar_Processing.Maximum;
             Task.Delay(1000).ContinueWith(
                 _ =>
                 {
                     if (generation != mChartBuildGeneration) return;
-                    ProgressBar_MultiTargetProcessing.Value = 0;
-                    ProgressBar_MultiTargetProcessing.Visible = false;
+                    ProgressBar_Processing.Value = 0;
+                    ProgressBar_Processing.Visible = false;
                 },
                 TaskScheduler.FromCurrentSynchronizationContext());
         }

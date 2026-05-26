@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-26 (scrub-path progress bar + auto-paint chart on startup shipped — `ChartCoordinator` now owns progress lifecycle via a default `Progress<T>` factory wired at construction; every Apply path drives `ProgressBar_MultiTargetProcessing` through one funnel, no per-callsite wrapping; warm-cache scrubs stay invisibly fast; cold pipelines hold at 100 % for 200 ms before hiding so the completion is visible, with `mBarOwnerGen` ownership tracking so a follow-on scrub during the hold takes over cleanly. `SelectionVmPresenter` fires one Apply right after the first `SelectedSingle` auto-seed so the chart paints immediately on launch instead of staying blank-gray). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
+Last updated 2026-05-26 (scrub-path progress bar + auto-paint chart on startup shipped — `ChartCoordinator` now owns progress lifecycle via a default `Progress<T>` factory wired at construction; every Apply path drives `ProgressBar_Processing` through one funnel, no per-callsite wrapping; warm-cache scrubs stay invisibly fast; cold pipelines hold at 100 % for 200 ms before hiding so the completion is visible, with `mBarOwnerGen` ownership tracking so a follow-on scrub during the hold takes over cleanly. `SelectionVmPresenter` fires one Apply right after the first `SelectedSingle` auto-seed so the chart paints immediately on launch instead of staying blank-gray). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
 
 ## Currently open (priority order)
 
@@ -27,7 +27,7 @@ Migrated from CLAUDE.md so the agent-facing reference stays lean. Order is rough
 
 7. ~~**Auto-paint chart on startup**~~ — closed 2026-05-26 (commit `c055986`). `SelectionVmPresenter.OnVmKnownTargetsChanged` now fires one `mCoordinator?.Apply(SnapshotCurrent(new[] { firstSorted }))` right after the first `SelectedSingle` auto-seed; the chart paints with the just-seeded target on launch instead of staying blank-gray. The seed logic lives in `SelectionVmPresenter` (not `TargetLoadingPresenter` as the original item guessed) after the 2026-05-22 extraction. Explicit-targets overload because no-arg `SnapshotCurrent` reads `LastAppliedTargets` which is empty at boot. See 2026-05-26 entry in §Recently shipped for details.
 
-8. ~~**`ProgressBar_MultiTargetProcessing` during scrubs**~~ — closed 2026-05-26 (commit `9ff3573`). `ChartCoordinator` owns the progress lifecycle via a `defaultProgressFactory` wired at construction; every Apply path — H/M/D scrubs, filter, moon, date/time/Now, location edits, `ResetForLocationChange`, graph-build — drives the bar through one funnel without per-callsite wrapping. Three progress shapes collapsed to two: chart pipeline (coordinator-owned `ChartProgressSink`) + load paths (`BeginScanProgress` / new `FinishScanProgress`). See the 2026-05-26 entry in §Recently shipped for details.
+8. ~~**`ProgressBar_Processing` during scrubs**~~ — closed 2026-05-26 (commit `9ff3573`). `ChartCoordinator` owns the progress lifecycle via a `defaultProgressFactory` wired at construction; every Apply path — H/M/D scrubs, filter, moon, date/time/Now, location edits, `ResetForLocationChange`, graph-build — drives the bar through one funnel without per-callsite wrapping. Three progress shapes collapsed to two: chart pipeline (coordinator-owned `ChartProgressSink`) + load paths (`BeginScanProgress` / new `FinishScanProgress`). See the 2026-05-26 entry in §Recently shipped for details.
 
 ## Future-flagged TP-side work
 
@@ -89,7 +89,7 @@ extraction (`2cfe2fe`) moved the four `OnVm*` handlers there.
 
 ### 2026-05-26 — Scrub-path progress bar: coordinator-owned lifecycle
 
-ROADMAP item #8 closed (commits `9ff3573` + follow-up). `ProgressBar_MultiTargetProcessing`
+ROADMAP item #8 closed (commits `9ff3573` + follow-up). `ProgressBar_Processing`
 now surfaces during every chart-pipeline scrub — H/M/D, filter, moon-avoidance,
 date/time/Now, location edits, and `ResetForLocationChange` — not just load
 paths and graph-build. Warm-cache scrubs (no stale axes per the cache's diff)
@@ -238,7 +238,7 @@ Three follow-ons to the day's target-loading rework:
   Browse and drag-drop now share `LoadFromPathsAsync`, literally the same
   code path; `GetBrowsedTargets` / `GetDroppedTargets` are 5-line wrappers.
 - **Per-file load progress** (commit `30cb059`) — wires
-  `ProgressBar_MultiTargetProcessing` to the three Load/Browse buttons +
+  `ProgressBar_Processing` to the three Load/Browse buttons +
   drag-drop. Sister helper `BeginScanProgress` takes
   `IProgress<(int Done, int Total)>` (Total unknown up front, so the first
   report after enumeration sizes Maximum); shares `mChartBuildGeneration`

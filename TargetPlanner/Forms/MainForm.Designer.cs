@@ -143,7 +143,7 @@
             AboutToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             GroupBox_Altitude = new System.Windows.Forms.GroupBox();
             CheckBox_Sky = new System.Windows.Forms.CheckBox();
-            ProgressBar_MultiTargetProcessing = new System.Windows.Forms.ProgressBar();
+            ProgressBar_Processing = new System.Windows.Forms.ProgressBar();
             GroupBox_Local.SuspendLayout();
             GroupBox_Location.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)NumericUpDown_Extinction).BeginInit();
@@ -1497,7 +1497,7 @@
             // GroupBox_Altitude
             // 
             GroupBox_Altitude.Controls.Add(CheckBox_Sky);
-            GroupBox_Altitude.Controls.Add(ProgressBar_MultiTargetProcessing);
+            GroupBox_Altitude.Controls.Add(ProgressBar_Processing);
             GroupBox_Altitude.Controls.Add(RadioButton_Year);
             GroupBox_Altitude.Controls.Add(RadioButton_Sessions);
             GroupBox_Altitude.Controls.Add(RadioButton_Day);
@@ -1522,13 +1522,13 @@
             CheckBox_Sky.UseVisualStyleBackColor = true;
             CheckBox_Sky.CheckedChanged += CheckBox_Sky_CheckedChanged;
             // 
-            // ProgressBar_MultiTargetProcessing
+            // ProgressBar_Processing
             // 
-            ProgressBar_MultiTargetProcessing.Location = new System.Drawing.Point(280, 19);
-            ProgressBar_MultiTargetProcessing.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            ProgressBar_MultiTargetProcessing.Name = "ProgressBar_MultiTargetProcessing";
-            ProgressBar_MultiTargetProcessing.Size = new System.Drawing.Size(1570, 21);
-            ProgressBar_MultiTargetProcessing.TabIndex = 40;
+            ProgressBar_Processing.Location = new System.Drawing.Point(280, 19);
+            ProgressBar_Processing.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            ProgressBar_Processing.Name = "ProgressBar_Processing";
+            ProgressBar_Processing.Size = new System.Drawing.Size(1570, 21);
+            ProgressBar_Processing.TabIndex = 40;
             // 
             // MainForm
             // 
@@ -1672,7 +1672,7 @@
         private System.Windows.Forms.Button Button_SelectAllTargets;
         private System.Windows.Forms.Button Button_UncheckAll;
         private System.Windows.Forms.Button Button_ClearAllTargets;
-        private System.Windows.Forms.ProgressBar ProgressBar_MultiTargetProcessing;
+        private System.Windows.Forms.ProgressBar ProgressBar_Processing;
         private System.Windows.Forms.Button Button_VisibleTargets;
         private System.Windows.Forms.GroupBox GroupBox_MoonAvoidance;
         private System.Windows.Forms.CheckBox CheckBox_Moon_AvoidanceEnable;

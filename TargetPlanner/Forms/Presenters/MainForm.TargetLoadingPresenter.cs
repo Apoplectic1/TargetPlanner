@@ -223,7 +223,7 @@ namespace TargetPlanner
         // logged, when the path is unset or the scan fails. TargetScanner already
         // tolerates per-directory I/O errors inside the tree; this guards the
         // outer call. <paramref name="progress"/> is forwarded to the scanner
-        // for per-file ticking on ProgressBar_MultiTargetProcessing.
+        // for per-file ticking on ProgressBar_Processing.
         private async Task<IReadOnlyList<Target>> ScanPathAsync(
             string path, TargetFileKinds kinds,
             IProgress<(int Done, int Total)> progress = null)
