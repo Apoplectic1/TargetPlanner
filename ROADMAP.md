@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-26 (scrub-path progress bar + auto-paint chart on startup shipped — `ChartCoordinator` now owns progress lifecycle via a default `Progress<T>` factory wired at construction; every Apply path drives `ProgressBar_MultiTargetProcessing` through one funnel, no per-callsite wrapping; warm-cache scrubs stay invisibly fast; cold pipelines hold at 100 % for 200 ms before hiding so the completion is visible, with `mBarOwnerGen` ownership tracking so a follow-on scrub during the hold takes over cleanly. `SelectionVmPresenter` fires one Apply right after the first `SelectedSingle` auto-seed so the chart paints immediately on launch instead of staying blank-gray). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
+Last updated 2026-05-26 (scrub-path progress bar + auto-paint chart on startup + async-hardening bundle shipped — `ChartCoordinator` now owns progress lifecycle via a default `Progress<T>` factory wired at construction; every Apply path drives `ProgressBar_MultiTargetProcessing` through one funnel; cold pipelines hold at 100 % for 200 ms before hiding with `mBarOwnerGen` ownership tracking for clean takeover; `SelectionVmPresenter` fires one Apply right after the first `SelectedSingle` auto-seed so the chart paints immediately on launch. The 2026-05-26 `/ultrareview` priority items 1-4 closed in commit `5c4ce1e`: five unwrapped `async void` handlers gained try/catch wraps, the two `Task.Delay().ContinueWith()` deferred hides rewrote as `async void` helpers with `IsDisposed` guards, cache internals gained `.ConfigureAwait(false)` end-to-end, and `UpdateService.CheckOnStartupAsync`'s silent catch gained a diagnostic `Log.Warn`). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
 
 ## Currently open (priority order)
 
@@ -69,6 +69,61 @@ The original 4-step sequencing plan (correctness audit → extract Astronomy.Cor
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+### 2026-05-26 — Async hardening bundle (code-review items 1-4)
+
+Closed the top four priority items from the 2026-05-26 `/ultrareview`
+multi-agent code review (`docs/design/2026-05-26-code-review-async-ui.md`).
+Commit `5c4ce1e`. Four mechanical fixes, no new abstractions, single code
+commit; each fix follows an existing pattern already established elsewhere
+in the codebase.
+
+**§2.A — five unwrapped `async void` handlers wrapped.** Inconsistent
+try/catch wrapping across `async void` event handlers was the highest-
+severity finding: each unwrapped handler is a process-crash vector (an
+exception escapes into the WinForms unhandled-exception filter and
+terminates the process on modern .NET). Brought into line with the
+existing convention from `Button_Graph_Click` + four other handlers
+already wrapped. The five: `Button_CheckedTargets_Click`,
+`ComboBox_Location_SelectionIndexChanged`, `OnTargetListDragDrop`,
+`OnCheckUpdatesClick`, and the `Shown += async (s, e) => ...` lambda for
+the startup update check.
+
+**§3.B — two `Task.Delay().ContinueWith()` hide continuations rewritten.**
+The deferred hides in `CreateChartProgress` (commit `a75f640`) and
+`FinishScanProgress` were unobserved against `ObjectDisposedException` on
+form-close mid-hold, dying as unobserved task faults at GC time. Rewrote
+each as a named `async void` helper -- `HideChartProgressAfterHold` and
+`HideScanProgressAfterHold` -- with `try/catch` + `IsDisposed` /
+`IsHandleCreated` guards. Pattern matches `ChartCoordinator.OnDebounceTick`.
+Dropped the captured `uiSched` TaskScheduler since `async/await`'s
+SyncContext machinery handles the UI marshalling.
+
+**§1.A — `.ConfigureAwait(false)` end-to-end across cache internals.** Every
+internal `await` in `ChartCacheStore.cs` and `CacheAxis.cs` (the 10 cited
+sites + a few adjacent awaits the review didn't enumerate but the
+recommendation covered). Library-layer code should never marshal back
+to the UI; UI marshalling stays the coordinator's job via the
+`Progress<T>` factory and the explicit `mRenderActiveArea` /
+`mPostApplyHook` callbacks that run after `EnsureAsync` returns. Pattern
+is already correctly applied in `TargetScanner.cs` and
+`ImageLibraryLoader.cs`; cache-side now extends the same convention.
+No runtime behaviour change today; future-deadlock-proofing if any
+caller ever `.Wait()`s on a cache method.
+
+**§2.B — `Log.Warn` inside `UpdateService.CheckOnStartupAsync` silent catch.**
+The startup-path catch swallowed every failure (network down, Velopack
+version drift, GitHub token issues, transient `Manager.IsInstalled` bugs)
+with no log line. User-facing silence requirement preserved (the manual
+menu path remains the surfacing path); diagnostic trail added so "update
+prompts never appear" is one `tp.log` grep away from a root cause.
+
+**Out of scope** (deferred to follow-up commits when the right ROADMAP
+item lands): §2.C (re-entrancy disable on `Button_CheckedTargets` /
+drag-drop / location combo), §1.B (`EnsureNightCacheAsync` `ContinueWith`
+→ async local function), §1.C (sync file I/O on UI thread), §2.E
+(echo-guard `using`-scope helper), §3.A (no-CT cache contract docs),
+§4.A (`ChartArea` enum typing), §4.D (`GetModeWindow` strategy refactor).
 
 ### 2026-05-26 — Auto-paint chart on startup
 
