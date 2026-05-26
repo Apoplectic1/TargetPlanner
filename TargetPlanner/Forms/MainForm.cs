@@ -390,6 +390,17 @@ is preserved.";
             // toggles. Avoids hidden-then-shown paint races that ate the
             // "user sees 100 %" moment, plus simpler reasoning across rapid-
             // scrub takeovers (bar stays put, Value tracks progress).
+            //
+            // Continuous style (vs the default Blocks) disables the WinForms
+            // ProgressBar's Aero-era animated-fill behaviour. With Blocks,
+            // Value setter triggers a smooth visual interpolation over
+            // ~500 ms; rapid Value changes mid-pipeline (0 -> 1 -> 2 -> ...
+            // -> max in tens of ms) leave the visible bar lagging behind
+            // the setter, and the 200 ms hold-then-reset fires before the
+            // animation can reach the peak. Symptom: bar appears to climb
+            // to ~40 % then reverse to 0 -- the user never sees 100 %.
+            // Continuous removes the animation; Value setter is instant.
+            ProgressBar_MultiTargetProcessing.Style = ProgressBarStyle.Continuous;
 
             mAppSettings = SettingsStore.Load();
 
