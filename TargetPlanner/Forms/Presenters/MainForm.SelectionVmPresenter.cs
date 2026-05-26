@@ -119,7 +119,17 @@ namespace TargetPlanner
             if (mSelection.SelectedSingle == null && mSelection.KnownTargets.Count > 0)
             {
                 Target firstSorted = SortedTargets(mSelection.KnownTargets).FirstOrDefault();
-                if (firstSorted != null) mSelection.SetSelectedSingle(firstSorted);
+                if (firstSorted != null)
+                {
+                    mSelection.SetSelectedSingle(firstSorted);
+                    // Auto-paint the chart against the freshly-seeded target so a fresh
+                    // launch shows something immediately rather than the blank-gray
+                    // chart area until the user clicks Button_Graph or checks a target.
+                    // Explicit-targets overload because the no-arg SnapshotCurrent reads
+                    // mCoordinator.LastAppliedTargets which is empty at boot -- without
+                    // the explicit list the paint would be empty.
+                    mCoordinator?.Apply(SnapshotCurrent(new[] { firstSorted }));
+                }
             }
         }
 
