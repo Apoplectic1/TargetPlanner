@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-26 (scrub-path progress bar + auto-paint chart on startup shipped — `ChartCoordinator` now owns progress lifecycle via a default `Progress<T>` factory wired at construction; every Apply path drives `ProgressBar_Processing` through one funnel, no per-callsite wrapping; warm-cache scrubs stay invisibly fast; cold pipelines hold at 100 % for 200 ms before hiding so the completion is visible, with `mBarOwnerGen` ownership tracking so a follow-on scrub during the hold takes over cleanly. `SelectionVmPresenter` fires one Apply right after the first `SelectedSingle` auto-seed so the chart paints immediately on launch instead of staying blank-gray). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
+Last updated 2026-05-26 (`ProgressBar_Processing` now reliably reaches 100 % on cold pipelines — 1 s hold-then-reset masks Aero's ~500 ms animation lag, no `SetWindowTheme` workaround needed; chart paints a baseline at boot via `Apply(empty targets)` so axes / dusk-dawn / moon overlay show without implicitly plotting any target; `ChartCoordinator` owns progress lifecycle through a default `Progress<T>` factory so every Apply path drives the bar through one funnel; bar control renamed from `ProgressBar_MultiTargetProcessing` to `ProgressBar_Processing`; Filters Defaults transient popup removed; 5 missing `async void` handler wraps + `UpdateService.CheckOnStartupAsync` `Log.Warn` shipped from the 2026-05-26 code review's salvageable bits). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
 
 ## Currently open (priority order)
 
@@ -25,9 +25,9 @@ Migrated from CLAUDE.md so the agent-facing reference stays lean. Order is rough
 
 6. **Rich-Target migration onto `Astronomy.NINA.Target` (TPP/TPS-era, deferred)** — Phase C re-scoped 2026-05-21: the image library shipped as a minimal *bare-target* source via `ImageLibrary/ImageLibraryLoader.cs`. The remaining originally-Phase-C work — swapping every `Astronomy.Core.Targets.Target` callsite onto the rich `Astronomy.NINA.Target` (wraps the old type via `.Geometry`) and surfacing per-target Filter on the Sky chart (tint / legend badge / per-target K-S bandwidth) — is now TPP/TPS-era. Do it when the scheduler mode actually needs the richness and the young `Astronomy.NINA.Target` shape has settled; migrating now would be churn against a moving type for zero current benefit. Original full breakdown at `~/.claude/plans/what-is-next-from-crispy-garden.md`. **Phase D** (`InputTargetAdapter` bidirectional to NINA's `InputTarget`) introduces the `NINA.Plugin` NuGet dep and unblocks future NINA sequence-JSON export; queued behind the migration.
 
-7. ~~**Auto-paint chart on startup**~~ — closed 2026-05-26 (commit `c055986`). `SelectionVmPresenter.OnVmKnownTargetsChanged` now fires one `mCoordinator?.Apply(SnapshotCurrent(new[] { firstSorted }))` right after the first `SelectedSingle` auto-seed; the chart paints with the just-seeded target on launch instead of staying blank-gray. The seed logic lives in `SelectionVmPresenter` (not `TargetLoadingPresenter` as the original item guessed) after the 2026-05-22 extraction. Explicit-targets overload because no-arg `SnapshotCurrent` reads `LastAppliedTargets` which is empty at boot. See 2026-05-26 entry in §Recently shipped for details.
+7. ~~**Auto-paint chart on startup**~~ — closed 2026-05-26 (commit `4f709a8`). MainForm's constructor fires one `Apply(SnapshotCurrent(Array.Empty<Target>()))` right after coordinator construction, so the chart paints its baseline (axes, dusk/dawn gradient, moon overlay on Day) instead of staying blank-gray. Target curves only appear when the user explicitly checks a target or clicks `Button_Graph` — `LastAppliedTargets` stays empty until the user acts. Earlier iteration (commit `c055986`, same-day) auto-painted with the just-seeded `SelectedSingle` but introduced a special case where the combo target was always implicitly plotted regardless of checked state; the empty-targets approach honours "render reflects user intent" across every code path. See 2026-05-26 entry in §Recently shipped for details.
 
-8. ~~**`ProgressBar_Processing` during scrubs**~~ — closed 2026-05-26 (commit `9ff3573`). `ChartCoordinator` owns the progress lifecycle via a `defaultProgressFactory` wired at construction; every Apply path — H/M/D scrubs, filter, moon, date/time/Now, location edits, `ResetForLocationChange`, graph-build — drives the bar through one funnel without per-callsite wrapping. Three progress shapes collapsed to two: chart pipeline (coordinator-owned `ChartProgressSink`) + load paths (`BeginScanProgress` / new `FinishScanProgress`). See the 2026-05-26 entry in §Recently shipped for details.
+8. ~~**`ProgressBar_Processing` during scrubs**~~ — closed 2026-05-26 (commits `9ff3573` initial + `eabff00` Aero-animation-lag fix). `ChartCoordinator` owns the progress lifecycle via a `defaultProgressFactory` wired at construction; every Apply path — H/M/D scrubs, filter, moon, date/time/Now, location edits, `ResetForLocationChange`, graph-build — drives the bar through one funnel without per-callsite wrapping. The bar reliably reaches 100 % on cold pipelines via a 1 s hold-then-reset that masks Aero's ~500 ms internal animation lag (chart pipeline ticks `Value` 0→max in tens of ms; under default visual styles the visible bar lags behind the setter). Three progress shapes collapsed to two: chart pipeline (coordinator-owned `Progress<T>` closure) + load paths (`BeginScanProgress` / new `FinishScanProgress`). See the 2026-05-26 entry in §Recently shipped for details.
 
 ## Future-flagged TP-side work
 
@@ -70,22 +70,75 @@ The original 4-step sequencing plan (correctness audit → extract Astronomy.Cor
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
 
-### 2026-05-26 — Auto-paint chart on startup
+### 2026-05-26 — Chart baseline paint at boot (empty-targets Apply)
 
-ROADMAP item #7 closed (commit `c055986`). On a fresh launch
-`SelectionVmPresenter.OnVmKnownTargetsChanged` now fires one
-`mCoordinator?.Apply(SnapshotCurrent(new[] { firstSorted }))` right
-after the first `SelectedSingle` auto-seed -- the chart area paints
-with the just-seeded target instead of staying blank-gray until the
-user clicks `Button_Graph` or checks a target. Subsequent loads that
-add onto an already-populated catalog leave `SelectedSingle` intact and
-skip the auto-paint (existing `SelectedSingle == null` guard is the
-seam). Explicit-targets overload because no-arg `SnapshotCurrent` reads
-`mCoordinator.LastAppliedTargets` which is empty at boot.
+ROADMAP item #7 closed (commit `4f709a8`). MainForm's constructor fires
+one `mCoordinator.Apply(SnapshotCurrent(Array.Empty<Target>()))` right
+after coordinator construction; the pipeline runs with no targets,
+`EnsureAsync` only preps the moon altitudes, and the sub-charts paint
+their non-target scaffolding (axes, dusk/dawn gradient, moon overlay on
+Day) instead of staying blank-gray. Target curves stay absent until the
+user explicitly checks a target or clicks `Button_Graph` -- the rule
+"rendered targets == user intent" holds across every code path
+(scrubs, radio toggles, location edits, etc., all read
+`LastAppliedTargets` which stays empty until user action).
 
-The seed lives in `SelectionVmPresenter` (not `TargetLoadingPresenter`
-as the original ROADMAP item guessed) -- the 2026-05-22 partial-class
-extraction (`2cfe2fe`) moved the four `OnVm*` handlers there.
+`SelectionVmPresenter.OnVmKnownTargetsChanged` still auto-seeds the
+combo's default value via `SetSelectedSingle(firstSorted)` once the
+image-library load completes -- that's separate from chart rendering
+and was always the original responsibility of that handler.
+
+Earlier same-day iteration (commit `c055986`) auto-painted via
+`Apply(SnapshotCurrent(new[] { firstSorted }))` -- the just-seeded
+combo target got implicitly plotted regardless of checked state. The
+asymmetry between Day's "fit-tonight-only" filter (which hid the
+target on Day) and Year/Sessions (which showed it across the year)
+made the special case user-visible. Removing the auto-paint of the
+combo target eliminates the bifurcation.
+
+### 2026-05-26 — Misc polish (rename, async-void wraps, popup removal)
+
+- **ProgressBar control renamed** `ProgressBar_MultiTargetProcessing`
+  → `ProgressBar_Processing` across code + docs (commit `c2a04fd`). The
+  shorter name better reflects what the control surfaces for: scan loads,
+  chart-pipeline scrubs, graph builds, and location-reset rebuilds --
+  not just "multi-target" work.
+
+- **5 unwrapped `async void` handlers** gained `try/catch + Log.Error`
+  wraps (commit `f2e6660`), bringing the codebase to 10/10 wrapped
+  `async void` handlers. Source: §2.A from the 2026-05-26 `/ultrareview`
+  multi-agent code review (`docs/design/2026-05-26-code-review-async-ui.md`).
+  Wrapped: `Button_CheckedTargets_Click`,
+  `ComboBox_Location_SelectionIndexChanged`, `OnTargetListDragDrop`,
+  `OnCheckUpdatesClick`, and the `Shown += async` lambda. Of these, only
+  `ComboBox_Location_SelectionIndexChanged` carries genuine risk
+  (`SettingsStore.Save` in the synchronous prefix can throw `IOException` /
+  `UnauthorizedAccessException`); the other four are defense-in-depth
+  that earns its keep through consistency with the existing 5 wrapped
+  `async void` handlers.
+
+- **§2.B `Log.Warn` in `UpdateService.CheckOnStartupAsync`** silent catch
+  (commit `f2e6660`). User-facing silence requirement preserved; diagnostic
+  trail added so "the update prompt never appears" is one tp.log grep
+  away from a root cause.
+
+- **Filters Defaults transient popup removed** (commit `56c7749`). The
+  Defaults button in `GroupBox_Moon_Filters` used to flash a 1-second
+  "Filters reset to defaults" transient after the reset finished;
+  removed as redundant noise -- the visible feedback the user actually
+  needs is already there via `RefreshFilterMenuLabels()` (strips the
+  `" *"` modified-markers as filters now equal their builtins) and
+  `SetActiveFilter` (snaps the Lorentzian controls to the reset values).
+
+The other two items from the same review (§3.B `Task.Delay` →
+`async void` rewrite, §1.A `.ConfigureAwait(false)` sprinkle across cache
+internals) were attempted then reverted -- the first introduced an
+`await Task.Delay` SyncContext-capture bug that regressed the progress
+bar; the second was pure speculative future-proofing with no current
+benefit (the review doc itself classified it as "No runtime behaviour
+change today"). The review doc survives at
+`docs/design/2026-05-26-code-review-async-ui.md` as a historical
+reference even though most of its bundled changes didn't ship.
 
 ### 2026-05-26 — Scrub-path progress bar: coordinator-owned lifecycle
 
@@ -126,20 +179,28 @@ called Report — cross-thread accesses on cold scrubs got swallowed by
 the coordinator's `OnDebounceTick` catch, leaving the bar stuck at its
 first (UI-thread) tick.
 
-**200 ms hold-then-hide with ownership tracking.** On `Done >= Total`
-the closure schedules a 200 ms hold-then-hide via `Task.Delay` on the
-UI `TaskScheduler` so the bar paints at 100 % before disappearing —
-without the hold, WinForms doesn't paint between `Value=max` and
-`Visible=false` in the same handler invocation, so the user never sees
-the full bar. A new `mBarOwnerGen` field on `MainForm` tracks which
-pipeline currently owns the bar's visible state (stamped on first
-claim); the deferred hide bails if a newer pipeline has taken over,
-which kills the two visual quirks the original 1 s hold had: a cold
-follow-on during the hold can reset the bar to 0 % cleanly (its first
-Report re-stamps ownership), and a warm follow-on still gets the hide
-(since the outgoing pipeline retained ownership through to its delayed
-hide). 200 ms is a UX sweet spot for completion feedback — long enough
-to perceive, short enough that rapid-scrub overlap stays brief.
+**1 s hold-then-reset with ownership tracking; Aero animation lag.** On
+`Done >= Total` the closure schedules a 1 s hold-then-reset via
+`Task.Delay` on the UI `TaskScheduler`. Why 1 s rather than something
+shorter: WinForms `ProgressBar` under default Aero visual styles uses
+a smooth-fill animation that lags ~500 ms behind the `Value` setter
+internally. The chart pipeline ticks `Value` from 0 to max in tens of
+ms; each setter interrupts the previous animation. With a 200 ms hold
+the reset fires while the visible bar is still animating up — the user
+sees the bar peak at ~40 % then reverse as `Value=0` fires. With 1 s
+the animation has ~500 ms to climb and the user gets another ~500 ms
+of stable 100 % before the reset. An experimental
+`SetWindowTheme(handle, " ", " ")` workaround that disabled Aero visual
+styles entirely was tried and abandoned (commit `38c9973`) -- the
+longer hold alone suffices without sacrificing the green gradient.
+
+A new `mBarOwnerGen` field on `MainForm` tracks which pipeline
+currently owns the bar's visible state (stamped on first claim); the
+deferred reset bails if a newer pipeline has taken over, which kills
+two visual quirks: a cold follow-on during the hold can reset the bar
+to 0 % cleanly (its first Report re-stamps ownership), and a warm
+follow-on still gets the reset (since the outgoing pipeline retained
+ownership through to its delayed reset).
 
 **Progress shapes collapsed 3 → 2.** Chart pipeline (coordinator-owned
 `Progress<T>` closure) + load paths (`BeginScanProgress` + new
