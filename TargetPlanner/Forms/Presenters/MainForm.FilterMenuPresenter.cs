@@ -215,9 +215,9 @@ namespace TargetPlanner
         // Defaults button click: restore EVERY library filter that has a factory
         // built-in baseline to its factory values. User-created filters (no baseline
         // via FilterLibrary.FindBuiltinDefault) are skipped silently. Persists once
-        // at the end, then refreshes both UI surfaces, re-applies the active filter
-        // (its values may have just been reset), and surfaces a 1-second transient
-        // message so the user sees what happened.
+        // at the end, then refreshes both UI surfaces (which strips the " *" modified
+        // markers as the filters now equal their built-ins) and re-applies the active
+        // filter so its values reflect the reset in the chart immediately.
         private void OnFilterDefaultsClick(object sender, EventArgs e)
         {
             if (mFilterLibrary == null || mFilterLibrary.Filters.Count == 0) return;
@@ -250,8 +250,6 @@ namespace TargetPlanner
             TpFilter newActive = activeName != null ? mFilterLibrary.Find(activeName) : null;
             if (newActive != null) SetActiveFilter(newActive);
             RefreshFilterMenuLabels();
-
-            ShowTransientMessage("Filters reset to defaults", 1000);
         }
 
         // Walk both UI surfaces (menu items + groupbox radios) updating each label from
