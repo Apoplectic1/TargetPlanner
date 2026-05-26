@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-26 (scrub-path progress bar + auto-paint chart on startup shipped — `ChartCoordinator` now owns progress lifecycle via a default `Progress<T>` factory wired at construction; every Apply path drives `ProgressBar_MultiTargetProcessing` through one funnel, no per-callsite wrapping; warm-cache scrubs stay invisibly fast; bar hides immediately on `Done == Total` so a follow-on scrub during the previous pipeline's tail can't inherit stale state. `SelectionVmPresenter` fires one Apply right after the first `SelectedSingle` auto-seed so the chart paints immediately on launch instead of staying blank-gray). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
+Last updated 2026-05-26 (scrub-path progress bar + auto-paint chart on startup shipped — `ChartCoordinator` now owns progress lifecycle via a default `Progress<T>` factory wired at construction; every Apply path drives `ProgressBar_MultiTargetProcessing` through one funnel, no per-callsite wrapping; warm-cache scrubs stay invisibly fast; cold pipelines hold at 100 % for 200 ms before hiding so the completion is visible, with `mBarOwnerGen` ownership tracking so a follow-on scrub during the hold takes over cleanly. `SelectionVmPresenter` fires one Apply right after the first `SelectedSingle` auto-seed so the chart paints immediately on launch instead of staying blank-gray). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
 
 ## Currently open (priority order)
 
@@ -126,13 +126,20 @@ called Report — cross-thread accesses on cold scrubs got swallowed by
 the coordinator's `OnDebounceTick` catch, leaving the bar stuck at its
 first (UI-thread) tick.
 
-**No 1 s hold.** On `Done >= Total` the bar hides immediately (Value=0,
-Visible=false). The previous design held at 100% for 1 second; that
-created two visual quirks: a cold-cold follow-on scrub during the hold
-would inherit the "stuck at full" state via the monotonic `clamped >
-Value` guard, and a warm follow-on (no Reports) would leave the bar
-stuck indefinitely. The chart paint itself is the completion signal so
-the bar's role ends when work does.
+**200 ms hold-then-hide with ownership tracking.** On `Done >= Total`
+the closure schedules a 200 ms hold-then-hide via `Task.Delay` on the
+UI `TaskScheduler` so the bar paints at 100 % before disappearing —
+without the hold, WinForms doesn't paint between `Value=max` and
+`Visible=false` in the same handler invocation, so the user never sees
+the full bar. A new `mBarOwnerGen` field on `MainForm` tracks which
+pipeline currently owns the bar's visible state (stamped on first
+claim); the deferred hide bails if a newer pipeline has taken over,
+which kills the two visual quirks the original 1 s hold had: a cold
+follow-on during the hold can reset the bar to 0 % cleanly (its first
+Report re-stamps ownership), and a warm follow-on still gets the hide
+(since the outgoing pipeline retained ownership through to its delayed
+hide). 200 ms is a UX sweet spot for completion feedback — long enough
+to perceive, short enough that rapid-scrub overlap stays brief.
 
 **Progress shapes collapsed 3 → 2.** Chart pipeline (coordinator-owned
 `Progress<T>` closure) + load paths (`BeginScanProgress` + new

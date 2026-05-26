@@ -338,6 +338,16 @@ is preserved.";
         // identified as stale later.
         private int mChartBuildGeneration;
 
+        // Generation that currently owns the bar's visible state. Set when a
+        // chart-pipeline closure first claims the bar (its `claimed` flip).
+        // The deferred-hide continuation reads this -- if a follow-on pipeline
+        // has claimed ownership in the meantime, the older pipeline's hide
+        // bails and lets the newer one manage the bar. Without this, the 200 ms
+        // hold at 100 % would either clobber a cold follow-on scrub (clearing
+        // the bar mid-progress) or leave a warm follow-on staring at a stuck
+        // 100 % indefinitely. UI-thread-only access; no synchronization needed.
+        private int mBarOwnerGen;
+
         // Debounce for the Horizon / Duration spinners. Each ValueChanged restarts the
         // timer (stop + start), so rapid scrubs coalesce into one trailing-edge
         // RebuildSessionsData on the Tick. Horizon-line positioning stays immediate in the
@@ -1401,18 +1411,26 @@ is preserved.";
         // callbacks -- one operation owns the bar at a time.
         //
         // Behavior: first Report with Total > 0 claims the bar (Value=0,
-        // Maximum=Total, Visible=true); subsequent Reports advance Value
-        // monotonically (stale ticks from a slower path can't regress); on
-        // Done >= Maximum the bar hides immediately. No 1-second hold: a
-        // mid-hold takeover by a follow-on scrub would otherwise inherit
-        // the previous pipeline's "stuck at full" state via the monotonic-
-        // fill guard, and a warm follow-on (no Reports) would leave the bar
-        // stuck at 100% indefinitely. The chart paint itself is the
-        // completion signal; the bar's role ends when work does.
+        // Maximum=Total, Visible=true) and stamps mBarOwnerGen so the
+        // deferred hide can tell whether a follow-on pipeline has stolen
+        // ownership. Subsequent Reports advance Value monotonically (stale
+        // ticks from a slower path can't regress). On Done >= Maximum the
+        // closure schedules a 200 ms hold-then-hide via Task.Delay so the
+        // bar is visibly at 100 % before disappearing -- without the hold,
+        // WinForms doesn't paint between Value=max and Visible=false in the
+        // same handler invocation, so the user never sees the full bar.
+        // The hide bails if ownership has moved to a newer pipeline, which
+        // resolves the two takeover quirks that killed the prior 1 s hold:
+        // a cold follow-on can claim the bar mid-hold without being
+        // clobbered, and a warm follow-on still gets the hide (since the
+        // outgoing pipeline retained ownership through to its delayed hide).
+        private const int ProgressBarHoldMs = 200;
+
         private IProgress<(int Done, int Total)> CreateChartProgress()
         {
             int gen = ++mChartBuildGeneration;
             bool claimed = false;
+            TaskScheduler uiSched = TaskScheduler.FromCurrentSynchronizationContext();
             return new Progress<(int Done, int Total)>(value =>
             {
                 if (gen != mChartBuildGeneration) return;   // superseded
@@ -1423,7 +1441,10 @@ is preserved.";
                     // Fresh take-over: reset Value/Visible from whatever the
                     // previous pipeline left behind so a stale 100% fill
                     // doesn't ride forward through the monotonic guard.
+                    // mBarOwnerGen stamp lets a previous pipeline's deferred
+                    // hide notice we've taken over and bail.
                     claimed = true;
+                    mBarOwnerGen = gen;
                     ProgressBar_MultiTargetProcessing.Minimum = 0;
                     ProgressBar_MultiTargetProcessing.Maximum = max;
                     ProgressBar_MultiTargetProcessing.Value   = 0;
@@ -1438,8 +1459,17 @@ is preserved.";
                     ProgressBar_MultiTargetProcessing.Value = clamped;
                 if (clamped >= max)
                 {
-                    ProgressBar_MultiTargetProcessing.Value   = 0;
-                    ProgressBar_MultiTargetProcessing.Visible = false;
+                    Task.Delay(ProgressBarHoldMs).ContinueWith(_ =>
+                    {
+                        // Hide only if we still own the bar; a newer pipeline
+                        // that claimed in the meantime will manage its own
+                        // hide (or its own takeover reset will already have
+                        // happened).
+                        if (mBarOwnerGen != gen) return;
+                        mBarOwnerGen = 0;
+                        ProgressBar_MultiTargetProcessing.Value   = 0;
+                        ProgressBar_MultiTargetProcessing.Visible = false;
+                    }, uiSched);
                 }
             });
         }
