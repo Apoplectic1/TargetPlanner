@@ -385,22 +385,13 @@ is preserved.";
             TimePicker.Format = DateTimePickerFormat.Custom;
             TimePicker.CustomFormat = "  hh:mm tt";
 
-            // Bar is always visible; idle state is Value=0. Load paths and
-            // the chart pipeline manage Value + Maximum only -- no Visible
-            // toggles. Avoids hidden-then-shown paint races that ate the
-            // "user sees 100 %" moment, plus simpler reasoning across rapid-
-            // scrub takeovers (bar stays put, Value tracks progress).
-            //
-            // Continuous style (vs the default Blocks) disables the WinForms
-            // ProgressBar's Aero-era animated-fill behaviour. With Blocks,
-            // Value setter triggers a smooth visual interpolation over
-            // ~500 ms; rapid Value changes mid-pipeline (0 -> 1 -> 2 -> ...
-            // -> max in tens of ms) leave the visible bar lagging behind
-            // the setter, and the 200 ms hold-then-reset fires before the
-            // animation can reach the peak. Symptom: bar appears to climb
-            // to ~40 % then reverse to 0 -- the user never sees 100 %.
-            // Continuous removes the animation; Value setter is instant.
-            ProgressBar_MultiTargetProcessing.Style = ProgressBarStyle.Continuous;
+            // Hidden-when-idle: load paths and the chart pipeline both flip
+            // Visible=true at the start of work and back to false after the
+            // 1-second hold. Designer leaves the bar Visible by default; this
+            // line establishes the boot-idle state. The auto-load image-library
+            // scan kicked off later in MainForm_Shown surfaces the bar via
+            // BeginScanProgress, so first-paint still shows progress.
+            ProgressBar_MultiTargetProcessing.Visible = false;
 
             mAppSettings = SettingsStore.Load();
 
@@ -496,13 +487,7 @@ is preserved.";
             // Run the silent startup update check after the form is visible so the user sees
             // the UI immediately; the prompt (if any) lands a moment later. Fire-and-forget --
             // UpdateService swallows exceptions internally so a network failure can't crash here.
-            // Defensive wrap regardless so a bug in the call path can't escape into the
-            // WinForms unhandled-exception filter and terminate the process.
-            Shown += async (s, e) =>
-            {
-                try { await UpdateService.CheckOnStartupAsync(this); }
-                catch (Exception ex) { Log.Error("Shown update-check threw", ex); }
-            };
+            Shown += async (s, e) => await UpdateService.CheckOnStartupAsync(this);
         }
 
         // MinVer stamps AssemblyInformationalVersion ("1.0.0" for tagged releases,
@@ -905,16 +890,8 @@ is preserved.";
         // in MainForm.Designer.cs.
         private async void OnCheckUpdatesClick(object sender, EventArgs e)
         {
-            // async void: wrap entire body so a synchronous throw doesn't crash the process.
-            try
-            {
-                Log.Diag("UI", "Menu Help.CheckUpdates.Click");
-                await UpdateService.CheckManuallyAsync(this);
-            }
-            catch (Exception ex)
-            {
-                Log.Error("OnCheckUpdatesClick threw", ex);
-            }
+            Log.Diag("UI", "Menu Help.CheckUpdates.Click");
+            await UpdateService.CheckManuallyAsync(this);
         }
 
         // Help -> About TargetPlanner handler. Wired to AboutToolStripMenuItem in
@@ -1453,16 +1430,6 @@ is preserved.";
         {
             int gen = ++mChartBuildGeneration;
             bool claimed = false;
-            // Capture the UI scheduler at factory call time -- the coordinator
-            // calls the factory from RunPipelineAsync on the UI thread, where
-            // SyncContext.Current is reliably WindowsFormsSynchronizationContext.
-            // Pinning uiSched explicitly avoids a subtle WinForms gotcha where
-            // SyncContext.Current can be null inside Control.BeginInvoke-posted
-            // delegates, which would cause `await Task.Delay()` to schedule the
-            // continuation on TaskScheduler.Default (ThreadPool) -- the hide's
-            // ProgressBar mutations would then throw cross-thread and the bar
-            // would either stay stuck at 100% (caught + logged + no hide) or
-            // disappear from a half-state (mixed paint).
             TaskScheduler uiSched = TaskScheduler.FromCurrentSynchronizationContext();
             return new Progress<(int Done, int Total)>(value =>
             {
@@ -1471,16 +1438,17 @@ is preserved.";
                 int max = Math.Max(1, value.Total);
                 if (!claimed)
                 {
-                    // Fresh take-over: reset Value from whatever the previous
-                    // pipeline left behind so a stale 100% fill doesn't ride
-                    // forward through the monotonic guard. mBarOwnerGen stamp
-                    // lets a previous pipeline's deferred reset notice we've
-                    // taken over and bail.
+                    // Fresh take-over: reset Value/Visible from whatever the
+                    // previous pipeline left behind so a stale 100% fill
+                    // doesn't ride forward through the monotonic guard.
+                    // mBarOwnerGen stamp lets a previous pipeline's deferred
+                    // hide notice we've taken over and bail.
                     claimed = true;
                     mBarOwnerGen = gen;
                     ProgressBar_MultiTargetProcessing.Minimum = 0;
                     ProgressBar_MultiTargetProcessing.Maximum = max;
                     ProgressBar_MultiTargetProcessing.Value   = 0;
+                    ProgressBar_MultiTargetProcessing.Visible = true;
                 }
                 else if (ProgressBar_MultiTargetProcessing.Maximum != max)
                 {
@@ -1491,31 +1459,16 @@ is preserved.";
                     ProgressBar_MultiTargetProcessing.Value = clamped;
                 if (clamped >= max)
                 {
-                    // Hold the bar at 100 % for ProgressBarHoldMs before
-                    // resetting to 0 so WinForms gets a paint cycle at full
-                    // -- without the hold, Value=max and Value=0 set in the
-                    // same handler don't paint between them and the user
-                    // never sees 100 %. The try/catch + IsDisposed guard
-                    // handles the form-close-mid-hold race per the §3.B
-                    // unobserved-exception finding from the 2026-05-26 code
-                    // review.
                     Task.Delay(ProgressBarHoldMs).ContinueWith(_ =>
                     {
-                        try
-                        {
-                            if (IsDisposed || !IsHandleCreated) return;
-                            // Reset Value only if we still own the bar; a
-                            // newer pipeline that claimed in the meantime
-                            // will manage its own reset (or its own takeover
-                            // reset will already have happened).
-                            if (mBarOwnerGen != gen) return;
-                            mBarOwnerGen = 0;
-                            ProgressBar_MultiTargetProcessing.Value = 0;
-                        }
-                        catch (Exception ex)
-                        {
-                            Log.Warn("Chart-progress reset-after-hold threw", ex);
-                        }
+                        // Hide only if we still own the bar; a newer pipeline
+                        // that claimed in the meantime will manage its own
+                        // hide (or its own takeover reset will already have
+                        // happened).
+                        if (mBarOwnerGen != gen) return;
+                        mBarOwnerGen = 0;
+                        ProgressBar_MultiTargetProcessing.Value   = 0;
+                        ProgressBar_MultiTargetProcessing.Visible = false;
                     }, uiSched);
                 }
             });
@@ -1534,6 +1487,7 @@ is preserved.";
             ProgressBar_MultiTargetProcessing.Minimum = 0;
             ProgressBar_MultiTargetProcessing.Maximum = 1;   // resized on first Total
             ProgressBar_MultiTargetProcessing.Value   = 0;
+            ProgressBar_MultiTargetProcessing.Visible = true;
 
             var progress = new Progress<(int Done, int Total)>(t =>
             {
@@ -1549,34 +1503,21 @@ is preserved.";
             return (thisGeneration, progress);
         }
 
-        // Load-path finish: fill bar to Maximum, hold 1 s, reset Value to 0.
+        // Load-path finish: fill bar to Maximum, hold 1 s, clear + hide.
         // Generation-guarded so a superseding chart pipeline or fresh load
-        // doesn't get its bar clobbered by the trailing reset. try/catch +
-        // IsDisposed guard inside the continuation handles the form-close-
-        // mid-hold race per the §3.B unobserved-exception finding from the
-        // 2026-05-26 code review. ContinueWith(..., uiSched) explicitly
-        // pins the continuation to the UI scheduler -- using `await Task.Delay`
-        // here would capture SyncContext.Current at the await point, which
-        // can be null in some WinForms dispatch paths and fall back to the
-        // ThreadPool scheduler.
+        // doesn't get its bar clobbered by the trailing reset.
         private void FinishScanProgress(int generation)
         {
             if (generation != mChartBuildGeneration) return;
             ProgressBar_MultiTargetProcessing.Value = ProgressBar_MultiTargetProcessing.Maximum;
-            TaskScheduler uiSched = TaskScheduler.FromCurrentSynchronizationContext();
-            Task.Delay(1000).ContinueWith(_ =>
-            {
-                try
+            Task.Delay(1000).ContinueWith(
+                _ =>
                 {
-                    if (IsDisposed || !IsHandleCreated) return;
                     if (generation != mChartBuildGeneration) return;
                     ProgressBar_MultiTargetProcessing.Value = 0;
-                }
-                catch (Exception ex)
-                {
-                    Log.Warn("Scan-progress reset-after-hold threw", ex);
-                }
-            }, uiSched);
+                    ProgressBar_MultiTargetProcessing.Visible = false;
+                },
+                TaskScheduler.FromCurrentSynchronizationContext());
         }
 
         private void ComboBox_SelectTarget_SelectedIndexChanged(object sender, EventArgs e)
