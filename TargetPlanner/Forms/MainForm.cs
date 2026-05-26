@@ -783,6 +783,16 @@ is preserved.";
                     if (eval.BrightnessInputsChanged) PushSkyKSInputs(ctx);
                 });
 
+            // Baseline paint: fire one Apply with an empty target list so the chart
+            // area paints its non-target scaffolding (axis labels, dusk/dawn gradient,
+            // moon overlay on Day) instead of staying blank-gray at boot. Empty targets
+            // is the key -- the chart's target curves stay absent until the user
+            // explicitly checks a target or clicks Button_Graph, which keeps the
+            // "rendered targets == user intent" rule intact across every code path.
+            // Cheap: EnsureAsync with no targets prepares moon altitudes only, no
+            // per-target work.
+            mCoordinator.Apply(SnapshotCurrent(Array.Empty<Target>()));
+
             // Establish a default sort mode authoritatively from code. The VS Designer has a
             // recurring habit of silently dropping ComboBox_SortTargets.SelectedIndex = 0 from
             // MainForm.Designer.cs; when that happens the initial SelectedIndex is -1 (no

@@ -116,20 +116,20 @@ namespace TargetPlanner
             // three agree. Using KnownTargets[0] would pick load order, which only
             // coincides with sorted order under Name sort. A load that adds onto an
             // already-populated catalog leaves SelectedSingle intact and skips this.
+            //
+            // NOTE: this seeds the combo's default value only -- it does NOT auto-paint
+            // the chart against the seeded target. Rendering the chart with an implicit
+            // single target the user didn't ask for created a special case where the
+            // combo target was always plotted regardless of checked-state, which
+            // confused the "unchecked = nothing rendered" mental model. The chart's
+            // baseline paint (axes, dusk/dawn, moon) happens once at boot via the
+            // coordinator's initial empty-targets Apply in MainForm's constructor;
+            // target curves appear only when the user explicitly checks or clicks
+            // Button_Graph.
             if (mSelection.SelectedSingle == null && mSelection.KnownTargets.Count > 0)
             {
                 Target firstSorted = SortedTargets(mSelection.KnownTargets).FirstOrDefault();
-                if (firstSorted != null)
-                {
-                    mSelection.SetSelectedSingle(firstSorted);
-                    // Auto-paint the chart against the freshly-seeded target so a fresh
-                    // launch shows something immediately rather than the blank-gray
-                    // chart area until the user clicks Button_Graph or checks a target.
-                    // Explicit-targets overload because the no-arg SnapshotCurrent reads
-                    // mCoordinator.LastAppliedTargets which is empty at boot -- without
-                    // the explicit list the paint would be empty.
-                    mCoordinator?.Apply(SnapshotCurrent(new[] { firstSorted }));
-                }
+                if (firstSorted != null) mSelection.SetSelectedSingle(firstSorted);
             }
         }
 
