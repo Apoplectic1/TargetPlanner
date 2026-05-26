@@ -1444,6 +1444,17 @@ is preserved.";
         {
             int gen = ++mChartBuildGeneration;
             bool claimed = false;
+            // Capture the UI scheduler at factory call time -- the coordinator
+            // calls the factory from RunPipelineAsync on the UI thread, where
+            // SyncContext.Current is reliably WindowsFormsSynchronizationContext.
+            // Pinning uiSched explicitly avoids a subtle WinForms gotcha where
+            // SyncContext.Current can be null inside Control.BeginInvoke-posted
+            // delegates, which would cause `await Task.Delay()` to schedule the
+            // continuation on TaskScheduler.Default (ThreadPool) -- the hide's
+            // ProgressBar mutations would then throw cross-thread and the bar
+            // would either stay stuck at 100% (caught + logged + no hide) or
+            // disappear from a half-state (mixed paint).
+            TaskScheduler uiSched = TaskScheduler.FromCurrentSynchronizationContext();
             return new Progress<(int Done, int Total)>(value =>
             {
                 if (gen != mChartBuildGeneration) return;   // superseded
@@ -1472,35 +1483,35 @@ is preserved.";
                     ProgressBar_MultiTargetProcessing.Value = clamped;
                 if (clamped >= max)
                 {
-                    HideChartProgressAfterHold(gen);
+                    // Hold the bar at 100 % for ProgressBarHoldMs before
+                    // hiding so WinForms gets a paint cycle at full --
+                    // without the hold, Value=max and Visible=false set in
+                    // the same handler don't paint between them and the
+                    // user never sees 100 %. The try/catch + IsDisposed
+                    // guard handles the form-close-mid-hold race per the
+                    // §3.B unobserved-exception finding from the
+                    // 2026-05-26 code review.
+                    Task.Delay(ProgressBarHoldMs).ContinueWith(_ =>
+                    {
+                        try
+                        {
+                            if (IsDisposed || !IsHandleCreated) return;
+                            // Hide only if we still own the bar; a newer
+                            // pipeline that claimed in the meantime will
+                            // manage its own hide (or its own takeover
+                            // reset will already have happened).
+                            if (mBarOwnerGen != gen) return;
+                            mBarOwnerGen = 0;
+                            ProgressBar_MultiTargetProcessing.Value   = 0;
+                            ProgressBar_MultiTargetProcessing.Visible = false;
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warn("Chart-progress hide-after-hold threw", ex);
+                        }
+                    }, uiSched);
                 }
             });
-        }
-
-        // Async-void helper for the deferred hide so an ObjectDisposedException
-        // on form-close mid-hold is observed (and logged) rather than dying as
-        // an unobserved task fault at GC time. Pattern matches OnDebounceTick
-        // at ChartCoordinator.cs:130. The IsDisposed / IsHandleCreated guards
-        // make the close-during-hold race a no-op in practice; the catch is
-        // defense-in-depth for any other failure mode.
-        private async void HideChartProgressAfterHold(int gen)
-        {
-            try
-            {
-                await Task.Delay(ProgressBarHoldMs);
-                if (IsDisposed || !IsHandleCreated) return;
-                // Hide only if we still own the bar; a newer pipeline that
-                // claimed in the meantime will manage its own hide (or its
-                // own takeover reset will already have happened).
-                if (mBarOwnerGen != gen) return;
-                mBarOwnerGen = 0;
-                ProgressBar_MultiTargetProcessing.Value   = 0;
-                ProgressBar_MultiTargetProcessing.Visible = false;
-            }
-            catch (Exception ex)
-            {
-                Log.Warn("Chart-progress hide-after-hold threw", ex);
-            }
         }
 
         // Load-path progress (Browse / Load / drag-drop). The scanner discovers
@@ -1534,31 +1545,33 @@ is preserved.";
 
         // Load-path finish: fill bar to Maximum, hold 1 s, clear + hide.
         // Generation-guarded so a superseding chart pipeline or fresh load
-        // doesn't get its bar clobbered by the trailing reset.
+        // doesn't get its bar clobbered by the trailing reset. try/catch +
+        // IsDisposed guard inside the continuation handles the form-close-
+        // mid-hold race per the §3.B unobserved-exception finding from the
+        // 2026-05-26 code review. ContinueWith(..., uiSched) explicitly
+        // pins the continuation to the UI scheduler -- using `await Task.Delay`
+        // here would capture SyncContext.Current at the await point, which
+        // can be null in some WinForms dispatch paths and fall back to the
+        // ThreadPool scheduler.
         private void FinishScanProgress(int generation)
         {
             if (generation != mChartBuildGeneration) return;
             ProgressBar_MultiTargetProcessing.Value = ProgressBar_MultiTargetProcessing.Maximum;
-            HideScanProgressAfterHold(generation);
-        }
-
-        // Async-void helper for the load-path deferred hide -- same shape as
-        // HideChartProgressAfterHold but gates on the scan's generation
-        // directly (load paths don't use mBarOwnerGen).
-        private async void HideScanProgressAfterHold(int generation)
-        {
-            try
+            TaskScheduler uiSched = TaskScheduler.FromCurrentSynchronizationContext();
+            Task.Delay(1000).ContinueWith(_ =>
             {
-                await Task.Delay(1000);
-                if (IsDisposed || !IsHandleCreated) return;
-                if (generation != mChartBuildGeneration) return;
-                ProgressBar_MultiTargetProcessing.Value = 0;
-                ProgressBar_MultiTargetProcessing.Visible = false;
-            }
-            catch (Exception ex)
-            {
-                Log.Warn("Scan-progress hide-after-hold threw", ex);
-            }
+                try
+                {
+                    if (IsDisposed || !IsHandleCreated) return;
+                    if (generation != mChartBuildGeneration) return;
+                    ProgressBar_MultiTargetProcessing.Value = 0;
+                    ProgressBar_MultiTargetProcessing.Visible = false;
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn("Scan-progress hide-after-hold threw", ex);
+                }
+            }, uiSched);
         }
 
         private void ComboBox_SelectTarget_SelectedIndexChanged(object sender, EventArgs e)
