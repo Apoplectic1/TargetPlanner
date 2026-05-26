@@ -303,58 +303,50 @@ namespace TargetPlanner
         // ---------- ComboBox_Location ----------
         private async void ComboBox_Location_SelectionIndexChanged(object sender, EventArgs e)
         {
-            // async void: wrap entire body so a synchronous throw doesn't crash the process.
-            try
+            if (ComboBox_Location.SelectedItem == null) return;
+            string name = ComboBox_Location.SelectedItem.ToString();
+            Log.Diag("UI", $"ComboBox_Location.SelectionIndexChanged name={name}");
+
+            if (name == "Custom")
             {
-                if (ComboBox_Location.SelectedItem == null) return;
-                string name = ComboBox_Location.SelectedItem.ToString();
-                Log.Diag("UI", $"ComboBox_Location.SelectionIndexChanged name={name}");
-
-                if (name == "Custom")
-                {
-                    // User explicitly chose "Custom" -- clear lat/lon so they can type fresh
-                    // values. Preserve Horizon / Duration / N / W: those are independent of the
-                    // location name and the user may have deliberately tuned them.
-                    mLocation = mLocation.With(name: "Custom", latitude: 0, longitude: 0);
-                    // Polyline horizon is per-named-site; Custom has no associated NamedSite
-                    // to look up a LocalHorizonPath against, so clear the loaded profile and
-                    // fall back to the scalar Horizon path until the user picks a named site.
-                    ApplySiteHorizon(null);
-                    SyncLocationUIFromModel();
-                }
-                else
-                {
-                    NamedSite named = mAppSettings.NamedLocations.Find(x => x.Name == name);
-                    if (named == null) return;
-                    // The user's observation moment is independent of site -- mObservation
-                    // stays put across the swap. The picked site's own TimeZoneInfo
-                    // becomes the new Location.TimeZoneInfo; if the user wants the
-                    // picker to reinterpret the wall-clock time against the new zone
-                    // they'll click Button_Now or re-pick the date/time.
-                    mLocation = named.ToLocation();
-                    // Per-site planning preferences come over with the site -- the
-                    // Horizon/Duration spinners snap to the new site's values.
-                    mPlanningPreferences = PlanningPreferences.FromDto(named.Preferences);
-                    // Load the polyline horizon for the picked site, if configured. Null result
-                    // (no path, missing file, parse failure) falls back through SnapshotCurrent
-                    // to the scalar ScalarHorizonProfile(mLocation.Horizon) path; the loader
-                    // logs to tp.log on failure.
-                    ApplySiteHorizon(named.LocalHorizonPath);
-                    SyncLocationUIFromModel();
-                }
-
-                mAppSettings.LastSelectedLocationName = name;
-                SettingsStore.Save(mAppSettings);
-
-                // Symmetric reset path: clear checked set, blank chart, drop+rekey cache.
-                // The coordinator's post-apply hook (RefreshAstrometryLabels) refreshes
-                // the dependent dusk/dawn/sun/moon labels once the pipeline settles.
-                await ResetForLocationChange();
+                // User explicitly chose "Custom" -- clear lat/lon so they can type fresh
+                // values. Preserve Horizon / Duration / N / W: those are independent of the
+                // location name and the user may have deliberately tuned them.
+                mLocation = mLocation.With(name: "Custom", latitude: 0, longitude: 0);
+                // Polyline horizon is per-named-site; Custom has no associated NamedSite
+                // to look up a LocalHorizonPath against, so clear the loaded profile and
+                // fall back to the scalar Horizon path until the user picks a named site.
+                ApplySiteHorizon(null);
+                SyncLocationUIFromModel();
             }
-            catch (Exception ex)
+            else
             {
-                Log.Error("ComboBox_Location_SelectionIndexChanged threw", ex);
+                NamedSite named = mAppSettings.NamedLocations.Find(x => x.Name == name);
+                if (named == null) return;
+                // The user's observation moment is independent of site -- mObservation
+                // stays put across the swap. The picked site's own TimeZoneInfo
+                // becomes the new Location.TimeZoneInfo; if the user wants the
+                // picker to reinterpret the wall-clock time against the new zone
+                // they'll click Button_Now or re-pick the date/time.
+                mLocation = named.ToLocation();
+                // Per-site planning preferences come over with the site -- the
+                // Horizon/Duration spinners snap to the new site's values.
+                mPlanningPreferences = PlanningPreferences.FromDto(named.Preferences);
+                // Load the polyline horizon for the picked site, if configured. Null result
+                // (no path, missing file, parse failure) falls back through SnapshotCurrent
+                // to the scalar ScalarHorizonProfile(mLocation.Horizon) path; the loader
+                // logs to tp.log on failure.
+                ApplySiteHorizon(named.LocalHorizonPath);
+                SyncLocationUIFromModel();
             }
+
+            mAppSettings.LastSelectedLocationName = name;
+            SettingsStore.Save(mAppSettings);
+
+            // Symmetric reset path: clear checked set, blank chart, drop+rekey cache.
+            // The coordinator's post-apply hook (RefreshAstrometryLabels) refreshes
+            // the dependent dusk/dawn/sun/moon labels once the pipeline settles.
+            await ResetForLocationChange();
         }
 
         // DropDown nulls the current selection so re-picking the same item (e.g. the

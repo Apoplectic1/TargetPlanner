@@ -138,16 +138,8 @@ namespace TargetPlanner
         // load them.
         private async void OnTargetListDragDrop(object sender, DragEventArgs e)
         {
-            // async void: wrap entire body so a synchronous throw doesn't crash the process.
-            try
-            {
-                if (e.Data?.GetData(DataFormats.FileDrop) is string[] paths)
-                    await GetDroppedTargets(paths);
-            }
-            catch (Exception ex)
-            {
-                Log.Error("OnTargetListDragDrop threw", ex);
-            }
+            if (e.Data?.GetData(DataFormats.FileDrop) is string[] paths)
+                await GetDroppedTargets(paths);
         }
 
         // Scans the configured image-library root for .xisf targets and adds the
