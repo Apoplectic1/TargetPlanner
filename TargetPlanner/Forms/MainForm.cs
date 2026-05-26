@@ -385,13 +385,11 @@ is preserved.";
             TimePicker.Format = DateTimePickerFormat.Custom;
             TimePicker.CustomFormat = "  hh:mm tt";
 
-            // Hidden-when-idle: load paths and the chart pipeline both flip
-            // Visible=true at the start of work and back to false after the
-            // 1-second hold. Designer leaves the bar Visible by default; this
-            // line establishes the boot-idle state. The auto-load image-library
-            // scan kicked off later in MainForm_Shown surfaces the bar via
-            // BeginScanProgress, so first-paint still shows progress.
-            ProgressBar_MultiTargetProcessing.Visible = false;
+            // Bar is always visible; idle state is Value=0. Load paths and
+            // the chart pipeline manage Value + Maximum only -- no Visible
+            // toggles. Avoids hidden-then-shown paint races that ate the
+            // "user sees 100 %" moment, plus simpler reasoning across rapid-
+            // scrub takeovers (bar stays put, Value tracks progress).
 
             mAppSettings = SettingsStore.Load();
 
@@ -1462,17 +1460,16 @@ is preserved.";
                 int max = Math.Max(1, value.Total);
                 if (!claimed)
                 {
-                    // Fresh take-over: reset Value/Visible from whatever the
-                    // previous pipeline left behind so a stale 100% fill
-                    // doesn't ride forward through the monotonic guard.
-                    // mBarOwnerGen stamp lets a previous pipeline's deferred
-                    // hide notice we've taken over and bail.
+                    // Fresh take-over: reset Value from whatever the previous
+                    // pipeline left behind so a stale 100% fill doesn't ride
+                    // forward through the monotonic guard. mBarOwnerGen stamp
+                    // lets a previous pipeline's deferred reset notice we've
+                    // taken over and bail.
                     claimed = true;
                     mBarOwnerGen = gen;
                     ProgressBar_MultiTargetProcessing.Minimum = 0;
                     ProgressBar_MultiTargetProcessing.Maximum = max;
                     ProgressBar_MultiTargetProcessing.Value   = 0;
-                    ProgressBar_MultiTargetProcessing.Visible = true;
                 }
                 else if (ProgressBar_MultiTargetProcessing.Maximum != max)
                 {
@@ -1484,30 +1481,29 @@ is preserved.";
                 if (clamped >= max)
                 {
                     // Hold the bar at 100 % for ProgressBarHoldMs before
-                    // hiding so WinForms gets a paint cycle at full --
-                    // without the hold, Value=max and Visible=false set in
-                    // the same handler don't paint between them and the
-                    // user never sees 100 %. The try/catch + IsDisposed
-                    // guard handles the form-close-mid-hold race per the
-                    // §3.B unobserved-exception finding from the
-                    // 2026-05-26 code review.
+                    // resetting to 0 so WinForms gets a paint cycle at full
+                    // -- without the hold, Value=max and Value=0 set in the
+                    // same handler don't paint between them and the user
+                    // never sees 100 %. The try/catch + IsDisposed guard
+                    // handles the form-close-mid-hold race per the §3.B
+                    // unobserved-exception finding from the 2026-05-26 code
+                    // review.
                     Task.Delay(ProgressBarHoldMs).ContinueWith(_ =>
                     {
                         try
                         {
                             if (IsDisposed || !IsHandleCreated) return;
-                            // Hide only if we still own the bar; a newer
-                            // pipeline that claimed in the meantime will
-                            // manage its own hide (or its own takeover
+                            // Reset Value only if we still own the bar; a
+                            // newer pipeline that claimed in the meantime
+                            // will manage its own reset (or its own takeover
                             // reset will already have happened).
                             if (mBarOwnerGen != gen) return;
                             mBarOwnerGen = 0;
-                            ProgressBar_MultiTargetProcessing.Value   = 0;
-                            ProgressBar_MultiTargetProcessing.Visible = false;
+                            ProgressBar_MultiTargetProcessing.Value = 0;
                         }
                         catch (Exception ex)
                         {
-                            Log.Warn("Chart-progress hide-after-hold threw", ex);
+                            Log.Warn("Chart-progress reset-after-hold threw", ex);
                         }
                     }, uiSched);
                 }
@@ -1527,7 +1523,6 @@ is preserved.";
             ProgressBar_MultiTargetProcessing.Minimum = 0;
             ProgressBar_MultiTargetProcessing.Maximum = 1;   // resized on first Total
             ProgressBar_MultiTargetProcessing.Value   = 0;
-            ProgressBar_MultiTargetProcessing.Visible = true;
 
             var progress = new Progress<(int Done, int Total)>(t =>
             {
@@ -1543,7 +1538,7 @@ is preserved.";
             return (thisGeneration, progress);
         }
 
-        // Load-path finish: fill bar to Maximum, hold 1 s, clear + hide.
+        // Load-path finish: fill bar to Maximum, hold 1 s, reset Value to 0.
         // Generation-guarded so a superseding chart pipeline or fresh load
         // doesn't get its bar clobbered by the trailing reset. try/catch +
         // IsDisposed guard inside the continuation handles the form-close-
@@ -1565,11 +1560,10 @@ is preserved.";
                     if (IsDisposed || !IsHandleCreated) return;
                     if (generation != mChartBuildGeneration) return;
                     ProgressBar_MultiTargetProcessing.Value = 0;
-                    ProgressBar_MultiTargetProcessing.Visible = false;
                 }
                 catch (Exception ex)
                 {
-                    Log.Warn("Scan-progress hide-after-hold threw", ex);
+                    Log.Warn("Scan-progress reset-after-hold threw", ex);
                 }
             }, uiSched);
         }
