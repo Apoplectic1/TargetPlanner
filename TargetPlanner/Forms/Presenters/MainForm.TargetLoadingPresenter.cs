@@ -112,7 +112,7 @@ namespace TargetPlanner
             finally
             {
                 UseWaitCursor = false;
-                FinishChartBuildProgress(progGen);
+                FinishScanProgress(progGen);
             }
         }
 
@@ -177,7 +177,7 @@ namespace TargetPlanner
             finally
             {
                 UseWaitCursor = false;
-                FinishChartBuildProgress(progGen);
+                FinishScanProgress(progGen);
             }
         }
 
@@ -215,7 +215,7 @@ namespace TargetPlanner
             finally
             {
                 UseWaitCursor = false;
-                FinishChartBuildProgress(progGen);
+                FinishScanProgress(progGen);
             }
         }
 

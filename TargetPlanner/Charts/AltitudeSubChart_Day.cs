@@ -321,7 +321,8 @@ namespace TargetPlanner.Charts
             mNowLine.Xj = oa;
         }
 
-        public void Render(ChartContext ctx, IChartCacheStore cache)
+        public void Render(ChartContext ctx, IChartCacheStore cache,
+            IProgress<(int Done, int Total)> progress = null)
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
             // Phase 7's short-circuit-on-eval-flags was reverted: LC2's paint
@@ -416,6 +417,7 @@ namespace TargetPlanner.Charts
             int dbgDayEntryNull = 0, dbgFitEntryNull = 0, dbgTonightFloorNull = 0, dbgWindowAdded = 0;
             for (int t = 0; t < targets.Count; t++)
             {
+                progress?.Report((t + 1, targets.Count));
                 Target target = targets[t];
                 if (target == null) continue;
 

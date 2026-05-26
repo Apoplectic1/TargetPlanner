@@ -40,8 +40,9 @@ namespace TargetPlanner.State
     public sealed class ChartCoordinator : IDisposable
     {
         private readonly IChartCacheStore mCache;
-        private readonly Action<ChartContext> mRenderActiveArea;
+        private readonly Action<ChartContext, IProgress<(int Done, int Total)>> mRenderActiveArea;
         private readonly Action<ChartContext, ChartEvaluation> mPostApplyHook;
+        private readonly Func<IProgress<(int Done, int Total)>> mDefaultProgressFactory;
 
         private readonly System.Windows.Forms.Timer mDebounce;
         // Monotonically increasing per-Apply counter. Each RunPipelineAsync captures
@@ -56,18 +57,20 @@ namespace TargetPlanner.State
         // shadow store and the per-area mLastAppliedByArea stamps.
         private IReadOnlyList<Target> mLastAppliedTargets = Array.Empty<Target>();
         private ChartContext mPendingContext;
-        private IProgress<int> mPendingProgress;
+        private IProgress<(int Done, int Total)> mPendingProgress;
         private bool mDisposed;
 
         public ChartCoordinator(
             IChartCacheStore cache,
-            Action<ChartContext> renderActiveArea,
+            Action<ChartContext, IProgress<(int Done, int Total)>> renderActiveArea,
             Action<ChartContext, ChartEvaluation> postApplyHook,
+            Func<IProgress<(int Done, int Total)>> defaultProgressFactory = null,
             int debounceMs = 150)
         {
             mCache = cache ?? throw new ArgumentNullException(nameof(cache));
             mRenderActiveArea = renderActiveArea ?? throw new ArgumentNullException(nameof(renderActiveArea));
             mPostApplyHook = postApplyHook;
+            mDefaultProgressFactory = defaultProgressFactory;
 
             mDebounce = new System.Windows.Forms.Timer { Interval = debounceMs };
             mDebounce.Tick += OnDebounceTick;
@@ -76,10 +79,13 @@ namespace TargetPlanner.State
         /// <summary>Schedule a pipeline run after the debounce settles. Replaces
         /// any previously-pending context — only the most recent snapshot ever
         /// runs. Returns immediately; the actual pipeline runs on the timer
-        /// tick. <paramref name="progress"/> is forwarded to the cache for
-        /// per-target completion ticks (used by graph-build callers that drive
-        /// a progress bar).</summary>
-        public void Apply(ChartContext ctx, IProgress<int> progress = null)
+        /// tick. Explicit <paramref name="progress"/> overrides the
+        /// coordinator's default progress factory for this Apply (used by
+        /// callers that need their own sink — e.g. tests). When omitted the
+        /// factory builds a fresh sink at pipeline-start so every Apply path
+        /// — scrubs, location edits, graph-build — drives the same bar without
+        /// per-callsite wrapping.</summary>
+        public void Apply(ChartContext ctx, IProgress<(int Done, int Total)> progress = null)
         {
             if (ctx == null || mDisposed) return;
             mPendingContext = ctx;
@@ -90,7 +96,7 @@ namespace TargetPlanner.State
 
         /// <summary>Run the pipeline immediately (no debounce). Drops any
         /// pending debounce. Awaitable.</summary>
-        public Task ApplyImmediateAsync(ChartContext ctx, IProgress<int> progress = null)
+        public Task ApplyImmediateAsync(ChartContext ctx, IProgress<(int Done, int Total)> progress = null)
         {
             if (ctx == null || mDisposed) return Task.CompletedTask;
             mDebounce.Stop();
@@ -136,7 +142,7 @@ namespace TargetPlanner.State
             {
                 mDebounce.Stop();
                 ChartContext pending = mPendingContext;
-                IProgress<int> progress = mPendingProgress;
+                IProgress<(int Done, int Total)> progress = mPendingProgress;
                 mPendingContext = null;
                 mPendingProgress = null;
                 if (pending == null) return;
@@ -148,7 +154,7 @@ namespace TargetPlanner.State
             }
         }
 
-        private async Task RunPipelineAsync(ChartContext ctx, IProgress<int> progress)
+        private async Task RunPipelineAsync(ChartContext ctx, IProgress<(int Done, int Total)> progress)
         {
             // Capture this pipeline's generation. A newer Apply increments
             // mGeneration; older pipelines that complete their awaits later see
@@ -158,6 +164,16 @@ namespace TargetPlanner.State
             // Pre-stamp intended targets before the awaits so a concurrent Apply()'s
             // no-arg SnapshotCurrent sees the user's CURRENT intent.
             mLastAppliedTargets = ctx.Targets ?? Array.Empty<Target>();
+
+            // No explicit sink? Build one from the factory. Per-Apply call so
+            // every pipeline gets a fresh generation stamp on its sink (the
+            // factory increments MainForm's shared generation counter on
+            // creation). Wiring lives at the coordinator construction site;
+            // the coordinator itself stays UI-agnostic.
+            if (progress == null && mDefaultProgressFactory != null)
+            {
+                progress = mDefaultProgressFactory();
+            }
 
             try
             {
@@ -185,16 +201,27 @@ namespace TargetPlanner.State
                         $"Pipeline enter activeArea={ctx.ActiveArea} dayKey.Count={dayKey.Count} " +
                         $"obs={ctx.Observation.Utc:yyyy-MM-dd HH:mm}Z");
                 }
-                ChartEvaluation eval = await mCache.EnsureAsync(ctx, dayKey);
+                ChartEvaluation eval = await mCache.EnsureAsync(ctx, dayKey, progress);
 
                 // Generation guard: a newer Apply has come in while we awaited; bail.
                 if (gen != Volatile.Read(ref mGeneration)) return;
+
+                // Bar surfaces only when EnsureAsync did real work (warm-cache
+                // scrubs returned EnsureWork == 0 and never issued a Report,
+                // so the sink stayed hidden). When the cache ran prep, wrap
+                // the sink with an OffsetProgress so Render's per-target ticks
+                // continue Done from where EnsureAsync left off — bar advances
+                // smoothly across the two phases without a Maximum resize.
+                IProgress<(int Done, int Total)> renderProgress =
+                    (progress != null && eval.EnsureWork > 0)
+                        ? new OffsetProgress(progress, eval.EnsureWork, eval.EnsureWork + eval.RenderWork)
+                        : null;
 
                 // Render is unconditional. The active area's ShowOnlyAltitudeChart
                 // + Render + Resize sequence is owned by MainForm.RenderArea; this
                 // coordinator doesn't conditionally skip any of it -- the sub-chart
                 // owns its own idempotency.
-                mRenderActiveArea(ctx);
+                mRenderActiveArea(ctx, renderProgress);
 
                 // Post-apply hook for label refresh / line position updates /
                 // Sky K-S re-walk that don't fit the Render contract. The hook
@@ -206,6 +233,22 @@ namespace TargetPlanner.State
             {
                 Log.Error("ChartCoordinator pipeline await threw", ex);
             }
+        }
+
+        // Translates Render's local (Done, Total) ticks into the outer sink's
+        // coordinate system. Render reports (0..renderWork, renderWork) from
+        // its own loop; this adapter forwards (offset+done, total) so the bar
+        // sees cumulative progress across EnsureAsync + Render with a constant
+        // Maximum. Single use site (RunPipelineAsync above); kept private.
+        private sealed class OffsetProgress : IProgress<(int Done, int Total)>
+        {
+            private readonly IProgress<(int Done, int Total)> mInner;
+            private readonly int mOffset;
+            private readonly int mTotal;
+            public OffsetProgress(IProgress<(int Done, int Total)> inner, int offset, int total)
+            { mInner = inner; mOffset = offset; mTotal = total; }
+            public void Report((int Done, int Total) value)
+                => mInner.Report((mOffset + value.Done, mTotal));
         }
     }
 }

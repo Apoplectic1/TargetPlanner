@@ -375,6 +375,14 @@ is preserved.";
             TimePicker.Format = DateTimePickerFormat.Custom;
             TimePicker.CustomFormat = "  hh:mm tt";
 
+            // Hidden-when-idle: load paths and the chart pipeline both flip
+            // Visible=true at the start of work and back to false after the
+            // 1-second hold. Designer leaves the bar Visible by default; this
+            // line establishes the boot-idle state. The auto-load image-library
+            // scan kicked off later in MainForm_Shown surfaces the bar via
+            // BeginScanProgress, so first-paint still shows progress.
+            ProgressBar_MultiTargetProcessing.Visible = false;
+
             mAppSettings = SettingsStore.Load();
 
             mObservation = ObservationMoment.Now(TimeZoneInfo.Local);
@@ -726,6 +734,7 @@ is preserved.";
             mCoordinator = new TargetPlanner.State.ChartCoordinator(
                 cache: mCache,
                 renderActiveArea: RenderArea,
+                defaultProgressFactory: CreateChartProgress,
                 postApplyHook: (ctx, eval) =>
                 {
                     RefreshAstrometryLabels();
@@ -1381,62 +1390,87 @@ is preserved.";
             mTransientTimer.Start();
         }
 
-        // Sets up ProgressBar_MultiTargetProcessing for a fresh chart build. Returns:
-        //   * generation: stamp captured in the Progress<int> closure + the post-build
-        //     finishing path, so a stale callback / hold-then-reset from a prior build
-        //     no-ops instead of clobbering the new build's bar.
-        //   * progress: per-target-completion handler from PrepareManyAsync. Each
-        //     report increments the bar by 1 (counter is the 1-based completion count
-        //     so we just assign Value directly).
-        // The bar's Maximum is `targetCount + 1` -- one tick per target completion plus
-        // one final tick for the post-cache Render. Synchronous Value=0 reset paints
-        // before the first await, so a fresh click clears any stale fill before the
-        // build starts.
-        private (int generation, IProgress<int> progress) BeginChartBuildProgress(int targetCount)
+        // Coordinator-side default progress factory: builds a fresh
+        // ChartProgressSink per Apply so each pipeline gets its own generation
+        // stamp. The sink stays hidden until the cache's first Report with
+        // Total > 0 (warm scrubs keep the bar invisible) and schedules the
+        // 1-second hold + clear when Done == Total. Shared mChartBuildGeneration
+        // with BeginScanProgress so load paths and chart pipelines mutually
+        // invalidate stale callbacks -- the bar shows one operation at a time.
+        private IProgress<(int Done, int Total)> CreateChartProgress()
         {
-            int thisGeneration = ++mChartBuildGeneration;
-
-            ProgressBar_MultiTargetProcessing.Minimum = 0;
-            ProgressBar_MultiTargetProcessing.Maximum = Math.Max(1, targetCount + 1);
-            ProgressBar_MultiTargetProcessing.Value   = 0;
-
-            // Progress<T> captures SynchronizationContext.Current; constructed on the UI
-            // thread, so Report() callbacks marshal back to the UI thread automatically.
-            var progress = new Progress<int>(completed =>
-            {
-                if (thisGeneration != mChartBuildGeneration) return;  // stale
-                int clamped = Math.Min(completed, ProgressBar_MultiTargetProcessing.Maximum);
-                if (clamped > ProgressBar_MultiTargetProcessing.Value)
-                    ProgressBar_MultiTargetProcessing.Value = clamped;
-            });
-
-            return (thisGeneration, progress);
-        }
-
-        // Final tick + 1-second hold + reset, executed after PrepareManyAsync + Render
-        // complete. Generation-guarded so a Cancel or new Graph click during the hold
-        // no-ops the reset. Marshalled to the UI thread via FromCurrentSynchronizationContext.
-        private void FinishChartBuildProgress(int generation)
-        {
-            if (generation != mChartBuildGeneration) return;
-            ProgressBar_MultiTargetProcessing.Value = ProgressBar_MultiTargetProcessing.Maximum;
-            Task.Delay(1000).ContinueWith(
-                _ =>
-                {
-                    if (generation != mChartBuildGeneration) return;
-                    ProgressBar_MultiTargetProcessing.Value = 0;
-                },
+            int gen = ++mChartBuildGeneration;
+            return new ChartProgressSink(
+                ProgressBar_MultiTargetProcessing,
+                gen,
+                () => mChartBuildGeneration,
                 TaskScheduler.FromCurrentSynchronizationContext());
         }
 
-        // Sister of BeginChartBuildProgress for the load paths -- the bar's
-        // Maximum is unknown up front (the scanner discovers it after
-        // enumeration), so the progress shape is (Done, Total): the first
-        // report sizes the Maximum, each subsequent one advances Value. Reuses
-        // mChartBuildGeneration so a chart click mid-scan (or vice versa)
-        // invalidates the earlier path's stale callbacks -- the bar shows one
-        // operation at a time. Pair with FinishChartBuildProgress for the
-        // fill + 1-second hold + reset.
+        // ProgressBar wrapper for the chart pipeline. Owns the bar's
+        // Visible / Maximum / Value mutations. First non-zero Total flips
+        // Visible=true so warm-cache pipelines (cache returns ensureWork=0
+        // and never Reports) stay invisibly fast. Done==Total schedules the
+        // 1-second hold + clear via the captured UI TaskScheduler so the
+        // delayed reset doesn't fire after a superseding pipeline has taken
+        // over the bar (generation check on the continuation).
+        private sealed class ChartProgressSink : IProgress<(int Done, int Total)>
+        {
+            private readonly ProgressBar mBar;
+            private readonly int mGen;
+            private readonly Func<int> mCurrentGen;
+            private readonly TaskScheduler mUiSched;
+            private bool mFinished;
+
+            public ChartProgressSink(ProgressBar bar, int gen,
+                Func<int> currentGen, TaskScheduler uiSched)
+            {
+                mBar = bar;
+                mGen = gen;
+                mCurrentGen = currentGen;
+                mUiSched = uiSched;
+                // Intentionally don't touch the bar at construction -- a new
+                // pipeline starting while an older one's bar is still visible
+                // would otherwise flash hidden before the new pipeline's first
+                // Report. The first Report owns the show.
+            }
+
+            public void Report((int Done, int Total) value)
+            {
+                if (mGen != mCurrentGen()) return;          // superseded
+                if (value.Total <= 0) return;                // no work to size
+                if (!mBar.Visible)
+                {
+                    mBar.Minimum = 0;
+                    mBar.Value = 0;
+                    mBar.Visible = true;
+                }
+                int max = Math.Max(1, value.Total);
+                if (mBar.Maximum != max) mBar.Maximum = max;
+                int clamped = Math.Min(Math.Max(0, value.Done), max);
+                if (clamped > mBar.Value) mBar.Value = clamped;
+                if (clamped >= max && !mFinished) ScheduleFinish();
+            }
+
+            private void ScheduleFinish()
+            {
+                mFinished = true;
+                Task.Delay(1000).ContinueWith(
+                    _ =>
+                    {
+                        if (mGen != mCurrentGen()) return;
+                        mBar.Value = 0;
+                        mBar.Visible = false;
+                    }, mUiSched);
+            }
+        }
+
+        // Load-path progress (Browse / Load / drag-drop). The scanner discovers
+        // the Total after file enumeration so the first Report sizes Maximum;
+        // pair with FinishScanProgress for the fill + 1-second hold + reset.
+        // Shares mChartBuildGeneration with the chart pipeline's progress sink
+        // (CreateChartProgress) so a chart click mid-scan -- or a load mid-build
+        // -- invalidates the other's stale callbacks.
         private (int generation, IProgress<(int Done, int Total)> progress) BeginScanProgress()
         {
             int thisGeneration = ++mChartBuildGeneration;
@@ -1444,6 +1478,7 @@ is preserved.";
             ProgressBar_MultiTargetProcessing.Minimum = 0;
             ProgressBar_MultiTargetProcessing.Maximum = 1;   // resized on first Total
             ProgressBar_MultiTargetProcessing.Value   = 0;
+            ProgressBar_MultiTargetProcessing.Visible = true;
 
             var progress = new Progress<(int Done, int Total)>(t =>
             {
@@ -1457,6 +1492,23 @@ is preserved.";
             });
 
             return (thisGeneration, progress);
+        }
+
+        // Load-path finish: fill bar to Maximum, hold 1 s, clear + hide.
+        // Generation-guarded so a superseding chart pipeline or fresh load
+        // doesn't get its bar clobbered by the trailing reset.
+        private void FinishScanProgress(int generation)
+        {
+            if (generation != mChartBuildGeneration) return;
+            ProgressBar_MultiTargetProcessing.Value = ProgressBar_MultiTargetProcessing.Maximum;
+            Task.Delay(1000).ContinueWith(
+                _ =>
+                {
+                    if (generation != mChartBuildGeneration) return;
+                    ProgressBar_MultiTargetProcessing.Value = 0;
+                    ProgressBar_MultiTargetProcessing.Visible = false;
+                },
+                TaskScheduler.FromCurrentSynchronizationContext());
         }
 
         private void ComboBox_SelectTarget_SelectedIndexChanged(object sender, EventArgs e)

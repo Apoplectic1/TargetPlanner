@@ -43,13 +43,21 @@ namespace TargetPlanner.Caches
         /// what changed. <paramref name="dayKey"/> identifies the Day chart's
         /// current minute-spaced sampling window (the caller derives this from
         /// the night's <c>NightWindow</c>); pass <c>default(DayWindowKey)</c>
-        /// to skip the Day/Moon prep on polar or empty-targets nights.</summary>
+        /// to skip the Day/Moon prep on polar or empty-targets nights.
+        /// <paramref name="progress"/> receives <c>(Done, Total)</c> ticks for
+        /// cache-prep + sub-chart Render work combined. The cache sizes
+        /// <c>Total</c> from its staleness diff (pessimistic upper bound) and
+        /// ticks <c>Done</c> per-target-per-axis as the prepare paths complete.
+        /// When the diff predicts zero work, no Report is issued so the caller's
+        /// progress UI (if any) stays inert. Pass <see langword="null"/> to opt
+        /// out of progress reporting entirely.</summary>
         /// <remarks>Idempotent: a call with the same ctx as the previous call
         /// short-circuits via the internal per-key Prepare paths (all already
         /// no-op on warm cache). The returned eval reflects the diff from the
         /// previous EnsureAsync; sub-charts use the flags to decide whether
         /// to short-circuit their own Render work.</remarks>
-        Task<ChartEvaluation> EnsureAsync(ChartContext ctx, DayWindowKey dayKey);
+        Task<ChartEvaluation> EnsureAsync(ChartContext ctx, DayWindowKey dayKey,
+            IProgress<(int Done, int Total)> progress = null);
 
         /// <summary>Location all current cache entries are keyed against.</summary>
         Location CurrentLocation { get; }

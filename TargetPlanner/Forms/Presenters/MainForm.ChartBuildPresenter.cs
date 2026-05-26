@@ -33,10 +33,13 @@ namespace TargetPlanner
     //     just-applied snapshot.
     //
     // What stays in MainForm.cs:
-    //   * BeginChartBuildProgress / FinishChartBuildProgress / BeginScanProgress
-    //     -- progress-bar helpers shared with the load paths (they all share
-    //     mChartBuildGeneration so a chart click mid-scan invalidates the scan
-    //     and vice versa).
+    //   * CreateChartProgress / ChartProgressSink -- the coordinator's default
+    //     progress factory + per-pipeline bar sink, used by every Apply path
+    //     (scrubs, location edits, graph-build) through the coordinator's
+    //     dispatch funnel.
+    //   * BeginScanProgress / FinishScanProgress -- load-path progress (Browse /
+    //     Load / drag-drop). Shares mChartBuildGeneration with CreateChartProgress
+    //     so a chart click mid-scan invalidates the scan and vice versa.
     //   * SnapshotCurrent (both overloads) -- builds the ChartContext used by
     //     every Apply, called from too many places (loads, picker handlers,
     //     location edits) to live in any single presenter.
@@ -119,23 +122,23 @@ namespace TargetPlanner
             // pipeline is location-coherent against this snapshot.
             ChartContext ctxSnapshot = SnapshotCurrent(targets);
 
-            (int progressGeneration, IProgress<int> targetProgress) =
-                BeginChartBuildProgress(targetCount: targets.Count);
-
             ActiveControl = null;
             Button_GraphTarget.Enabled = false;
 
             try
             {
-                // Coordinator owns the cache-prep + render pipeline. Its
-                // generation-counter supersedence ensures only the latest Apply's
-                // pipeline writes Render state; older pipelines bail before
-                // touching the chart. The progress object forwards to
-                // PrepareManyAsync so per-target completion ticks drive
-                // ProgressBar_MultiTargetProcessing through BeginChartBuildProgress.
+                // Coordinator owns the cache-prep + render pipeline AND the
+                // progress bar (via the defaultProgressFactory wired at
+                // construction). Every Apply path -- this graph-build, scrubs,
+                // location edits -- drives ProgressBar_MultiTargetProcessing
+                // through one funnel; no per-callsite Begin/Finish wrapping.
+                // Generation-counter supersedence ensures only the latest
+                // Apply's pipeline writes Render state; older pipelines bail
+                // before touching the chart, and their sinks bail at the
+                // mChartBuildGeneration check before touching the bar.
                 if (mCoordinator != null)
                 {
-                    await mCoordinator.ApplyImmediateAsync(ctxSnapshot, targetProgress);
+                    await mCoordinator.ApplyImmediateAsync(ctxSnapshot);
                 }
                 // The coordinator's mLastAppliedByArea is the single SoT for the
                 // rendered target list; no form-side shadow store to update.
@@ -143,10 +146,6 @@ namespace TargetPlanner
             finally
             {
                 Button_GraphTarget.Enabled = true;
-
-                // Tick the bar to its Maximum, hold 1 s, reset to 0. Generation-
-                // guarded so a superseding Apply doesn't leave the bar stuck.
-                FinishChartBuildProgress(progressGeneration);
             }
         }
 
@@ -218,14 +217,18 @@ namespace TargetPlanner
         // <see cref="SnapshotCurrent(IReadOnlyList{Target})"/> (radio toggles, etc.)
         // or capture the snapshot at the start of an async build (RunGraphBuildAsync)
         // so the paint is location-coherent even if mLocation has drifted since.
-        private void RenderArea(ChartContext ctx)
+        // <paramref name="progress"/> is the coordinator's render sub-progress
+        // (OffsetProgress wrapping the active sink); null on warm-cache scrubs
+        // where EnsureAsync reported zero work and the bar should stay hidden.
+        private void RenderArea(ChartContext ctx,
+            IProgress<(int Done, int Total)> progress = null)
         {
             if (mSubCharts == null) return;
             if (ctx == null) return;
             if (!mSubCharts.TryGetValue(ctx.ActiveArea, out var sc)) return;
             // Render BEFORE ShowOnly so the sub-chart's Series state is fully
             // current at the moment WinForms fires the Visible=true paint cycle.
-            sc.Render(ctx, mCache);
+            sc.Render(ctx, mCache, progress);
             ShowOnlyAltitudeChart(sc.Control);
             ResizeAltitudeChartArea(sc.IdealHeight);
             // Force synchronous repaint. LC2's SKControl first-paint after

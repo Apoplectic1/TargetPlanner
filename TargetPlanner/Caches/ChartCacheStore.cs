@@ -170,7 +170,8 @@ namespace TargetPlanner.Caches
 
         // -------------- single-entry pipeline --------------
 
-        public async Task<ChartEvaluation> EnsureAsync(ChartContext ctx, DayWindowKey dayKey)
+        public async Task<ChartEvaluation> EnsureAsync(ChartContext ctx, DayWindowKey dayKey,
+            IProgress<(int Done, int Total)> progress = null)
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
 
@@ -192,12 +193,43 @@ namespace TargetPlanner.Caches
                     $"targets={ctx.Targets?.Count ?? 0} dayKey.Count={dayKey.Count}");
             }
 
+            // Pessimistic work estimate from the diff. Per-axis cost is targets
+            // * (axis stale), summed across the three per-target axes plus 1
+            // for the moon axis when dayKey valid. SetLocationAsync drops every
+            // cache entry, so locOrDate forces a full rebuild on all axes; an
+            // HdmKey-only change re-keys fits but preserves year + day. Render
+            // adds one tick per target so the bar advances smoothly into the
+            // sub-chart pass without a Maximum resize.
+            int n = ctx.Targets?.Count ?? 0;
+            bool locOrDate = diff.LocationChanged || diff.DateChanged;
+            int yearWork  = (locOrDate && n > 0) ? n : 0;
+            int fitWork   = ((locOrDate || diff.HdmChanged) && n > 0) ? n : 0;
+            int dayWork   = (locOrDate && n > 0 && dayKey.Count > 0) ? n : 0;
+            int moonWork  = (locOrDate && dayKey.Count > 0) ? 1 : 0;
+            int ensureWork = yearWork + fitWork + dayWork + moonWork;
+            int renderWork = (n > 0) ? n : 0;
+            int totalWork = ensureWork + renderWork;
+
+            // Initial size + visibility flip via the consumer's first-Report
+            // semantic. Skipping the Report when ensureWork == 0 keeps the bar
+            // hidden for warm scrubs (per-key Prepare fast paths still run for
+            // their idempotence but nothing actually ticks).
+            if (ensureWork > 0) progress?.Report((0, totalWork));
+
+            int done = 0;
+            IProgress<int> SubProgress() =>
+                progress == null ? null : new ActionProgress<int>(_ =>
+                {
+                    int d = Interlocked.Increment(ref done);
+                    progress.Report((d, totalWork));
+                });
+
             // 1. Re-key cache on geometry or date change. Skip SetLocationAsync
             //    entirely when both LocationCacheEquivalent and dateChanged report
             //    unchanged -- SetLocationAsync's own ReferenceEquals fast path
             //    doesn't help when the form re-creates Location instances on
             //    every UI tick even for value-unchanged saves.
-            if (diff.LocationChanged || diff.DateChanged)
+            if (locOrDate)
             {
                 await SetLocationAsync(ctx.Location, ctx.Observation.Utc);
             }
@@ -210,6 +242,11 @@ namespace TargetPlanner.Caches
             if (dayKey.Count > 0)
             {
                 await PrepareMoonAsync(dayKey);
+                if (moonWork > 0)
+                {
+                    int d = Interlocked.Increment(ref done);
+                    progress?.Report((d, totalWork));
+                }
             }
 
             // 2b. Per-target prep: yearDays + fits + per-night Day altitudes.
@@ -218,15 +255,15 @@ namespace TargetPlanner.Caches
             //     per-key fast paths.
             if (ctx.Targets != null && ctx.Targets.Count > 0)
             {
-                await PrepareManyAsync(ctx.Targets);
-                await PrepareFitsAsync(ctx.Targets, ctx.Hdm);
+                await PrepareManyAsync(ctx.Targets, yearWork > 0 ? SubProgress() : null);
+                await PrepareFitsAsync(ctx.Targets, ctx.Hdm, fitWork > 0 ? SubProgress() : null);
 
                 // dayKey.Count == 0 sentinels "no valid Day window" (polar
                 // night). Day chart's Render handles the blank-chart case from
                 // cache.GetDayOrNull returning null; skip the prep.
                 if (dayKey.Count > 0)
                 {
-                    await PrepareDayAsync(ctx.Targets, dayKey);
+                    await PrepareDayAsync(ctx.Targets, dayKey, dayWork > 0 ? SubProgress() : null);
                 }
             }
 
@@ -269,7 +306,21 @@ namespace TargetPlanner.Caches
             return new ChartEvaluation
             {
                 BrightnessInputsChanged = diff.BrightnessChanged,
+                EnsureWork = ensureWork,
+                RenderWork = renderWork,
             };
+        }
+
+        // Tiny IProgress<T> shim so EnsureAsync can hand the per-axis Prepare*
+        // calls a lambda-backed sub-progress (each tick increments a shared
+        // Interlocked counter and re-reports the outer (Done, Total) tuple).
+        // Lives here as a private nested type — single-purpose, no other
+        // consumer in the project.
+        private sealed class ActionProgress<T> : IProgress<T>
+        {
+            private readonly Action<T> mAction;
+            public ActionProgress(Action<T> action) { mAction = action; }
+            public void Report(T value) => mAction(value);
         }
 
         // Bundles the six staleness flags ComputeDiff produces. LocationChanged

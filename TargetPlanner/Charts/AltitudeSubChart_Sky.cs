@@ -275,7 +275,8 @@ namespace TargetPlanner.Charts
             return arr[segmentStart] ?? string.Empty;
         }
 
-        public void Render(ChartContext ctx, IChartCacheStore cache)
+        public void Render(ChartContext ctx, IChartCacheStore cache,
+            IProgress<(int Done, int Total)> progress = null)
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
             if (ctx.Location == null) throw new ArgumentException("ctx.Location must not be null", nameof(ctx));
@@ -370,6 +371,7 @@ namespace TargetPlanner.Charts
             if (mMoonSeries != null) seriesList.Add(mMoonSeries);
             for (int t = 0; t < targets.Count; t++)
             {
+                progress?.Report((t + 1, targets.Count));
                 Target target = targets[t];
                 if (target == null) continue;
 

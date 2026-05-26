@@ -62,6 +62,13 @@ namespace TargetPlanner.Charts
         // sub-chart reads ctx.Targets / ctx.Policy (active filter (Lorentzian +
         // center + bandwidth), moon-avoidance toggle, target floor, min duration,
         // local horizon) / ctx.Location and derives DateTime from ctx.Observation.Utc.
-        void Render(ChartContext ctx, IChartCacheStore cache);
+        //
+        // The optional progress sink ticks once per target as the per-target
+        // outer loop iterates. The coordinator wraps the underlying sink in
+        // an offset adapter so Done is cumulative across EnsureAsync + Render
+        // (the bar advances smoothly from cache-prep into render without a
+        // reset). Pass null to opt out (single-target / hidden-chart paths).
+        void Render(ChartContext ctx, IChartCacheStore cache,
+            IProgress<(int Done, int Total)> progress = null);
     }
 }

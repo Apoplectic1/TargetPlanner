@@ -23,5 +23,20 @@ namespace TargetPlanner.State
         /// post-apply hook gates the K-S brightness re-walk on this so a
         /// brightness-only scrub doesn't rebuild fits.</summary>
         public required bool BrightnessInputsChanged { get; init; }
+
+        /// <summary>Number of per-target-per-axis tick units the cache predicted
+        /// (pessimistically) for the cache-prep phase of this pipeline. Zero
+        /// when the diff indicated no stale axes — the warm-cache fast path.
+        /// The coordinator uses this as the offset for sub-chart Render's
+        /// progress ticks and as the warm-cache gate (no render-progress when
+        /// ensure-work was zero, so the bar never surfaces for warm scrubs).</summary>
+        public int EnsureWork { get; init; }
+
+        /// <summary>Number of per-target ticks the sub-chart Render phase will
+        /// emit (one per target). Sized for the worst case (full target list)
+        /// so the coordinator can pre-add it to the bar's Maximum at the start
+        /// of the pipeline; cumulative Total during Render equals
+        /// <see cref="EnsureWork"/> + <see cref="RenderWork"/>.</summary>
+        public int RenderWork { get; init; }
     }
 }
