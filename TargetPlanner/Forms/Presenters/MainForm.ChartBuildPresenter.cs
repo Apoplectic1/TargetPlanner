@@ -177,9 +177,17 @@ namespace TargetPlanner
         // Comparer sort, mirroring CheckedToggleDebounce_Tick.
         private async void Button_CheckedTargets_Click(object sender, EventArgs e)
         {
-            Log.Diag("UI", $"Button_CheckedTargets.Click checkedCount={CheckedListBox_SelectedTargets.CheckedItems.Count}");
-            mCheckedToggleDebounce?.Stop();
-            await RunGraphBuildAsync(HarvestCheckedTargets());
+            // async void: wrap entire body so a synchronous throw doesn't crash the process.
+            try
+            {
+                Log.Diag("UI", $"Button_CheckedTargets.Click checkedCount={CheckedListBox_SelectedTargets.CheckedItems.Count}");
+                mCheckedToggleDebounce?.Stop();
+                await RunGraphBuildAsync(HarvestCheckedTargets());
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Button_CheckedTargets_Click threw", ex);
+            }
         }
 
         // Walk CheckedListBox_SelectedTargets in display order, collecting the

@@ -500,7 +500,13 @@ is preserved.";
             // Run the silent startup update check after the form is visible so the user sees
             // the UI immediately; the prompt (if any) lands a moment later. Fire-and-forget --
             // UpdateService swallows exceptions internally so a network failure can't crash here.
-            Shown += async (s, e) => await UpdateService.CheckOnStartupAsync(this);
+            // Defensive wrap regardless so any bug in the call path can't escape into the
+            // WinForms unhandled-exception filter and terminate the process.
+            Shown += async (s, e) =>
+            {
+                try { await UpdateService.CheckOnStartupAsync(this); }
+                catch (Exception ex) { Log.Error("Shown update-check threw", ex); }
+            };
         }
 
         // MinVer stamps AssemblyInformationalVersion ("1.0.0" for tagged releases,
@@ -913,8 +919,16 @@ is preserved.";
         // in MainForm.Designer.cs.
         private async void OnCheckUpdatesClick(object sender, EventArgs e)
         {
-            Log.Diag("UI", "Menu Help.CheckUpdates.Click");
-            await UpdateService.CheckManuallyAsync(this);
+            // async void: wrap entire body so a synchronous throw doesn't crash the process.
+            try
+            {
+                Log.Diag("UI", "Menu Help.CheckUpdates.Click");
+                await UpdateService.CheckManuallyAsync(this);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("OnCheckUpdatesClick threw", ex);
+            }
         }
 
         // Help -> About TargetPlanner handler. Wired to AboutToolStripMenuItem in
