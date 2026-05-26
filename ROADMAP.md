@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-26 (scrub-path progress bar shipped — `ChartCoordinator` now owns progress lifecycle via a default factory wired at construction; every Apply path drives `ProgressBar_MultiTargetProcessing` through one funnel, no per-callsite wrapping; warm-cache scrubs stay invisibly fast). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
+Last updated 2026-05-26 (scrub-path progress bar + auto-paint chart on startup shipped — `ChartCoordinator` now owns progress lifecycle via a default factory wired at construction; every Apply path drives `ProgressBar_MultiTargetProcessing` through one funnel, no per-callsite wrapping; warm-cache scrubs stay invisibly fast. `SelectionVmPresenter` fires one Apply right after the first `SelectedSingle` auto-seed so the chart paints immediately on launch instead of staying blank-gray). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
 
 ## Currently open (priority order)
 
@@ -25,7 +25,7 @@ Migrated from CLAUDE.md so the agent-facing reference stays lean. Order is rough
 
 6. **Rich-Target migration onto `Astronomy.NINA.Target` (TPP/TPS-era, deferred)** — Phase C re-scoped 2026-05-21: the image library shipped as a minimal *bare-target* source via `ImageLibrary/ImageLibraryLoader.cs`. The remaining originally-Phase-C work — swapping every `Astronomy.Core.Targets.Target` callsite onto the rich `Astronomy.NINA.Target` (wraps the old type via `.Geometry`) and surfacing per-target Filter on the Sky chart (tint / legend badge / per-target K-S bandwidth) — is now TPP/TPS-era. Do it when the scheduler mode actually needs the richness and the young `Astronomy.NINA.Target` shape has settled; migrating now would be churn against a moving type for zero current benefit. Original full breakdown at `~/.claude/plans/what-is-next-from-crispy-garden.md`. **Phase D** (`InputTargetAdapter` bidirectional to NINA's `InputTarget`) introduces the `NINA.Plugin` NuGet dep and unblocks future NINA sequence-JSON export; queued behind the migration.
 
-7. **Auto-paint chart on startup** — when TP launches and the image library auto-load completes, the post-load handler seeds `mSelection.SelectedSingle` to the first sorted target but nothing fires `mCoordinator?.Apply(SnapshotCurrent())`. Result: chart area paints blank-gray until the user clicks `Button_Graph` or checks a target. Documented behavior (CLAUDE.md "Button_Graph and the checked-set are independent views") but feels wrong now that auto-load happens by default — the user just configured an image library, presumably wants to see something. Small change in the auto-load post-handler in `MainForm.TargetLoadingPresenter`: after `mSelection.SelectedSingle` is seeded, fire one `Apply(SnapshotCurrent())`. Raised 2026-05-24 during user-test ("the day chart is complete gray on invoke with no targets checked"); deferred at the time to keep the K-S work scoped.
+7. ~~**Auto-paint chart on startup**~~ — closed 2026-05-26 (commit `c055986`). `SelectionVmPresenter.OnVmKnownTargetsChanged` now fires one `mCoordinator?.Apply(SnapshotCurrent(new[] { firstSorted }))` right after the first `SelectedSingle` auto-seed; the chart paints with the just-seeded target on launch instead of staying blank-gray. The seed logic lives in `SelectionVmPresenter` (not `TargetLoadingPresenter` as the original item guessed) after the 2026-05-22 extraction. Explicit-targets overload because no-arg `SnapshotCurrent` reads `LastAppliedTargets` which is empty at boot. See 2026-05-26 entry in §Recently shipped for details.
 
 8. ~~**`ProgressBar_MultiTargetProcessing` during scrubs**~~ — closed 2026-05-26 (commit `9ff3573`). `ChartCoordinator` owns the progress lifecycle via a `defaultProgressFactory` wired at construction; every Apply path — H/M/D scrubs, filter, moon, date/time/Now, location edits, `ResetForLocationChange`, graph-build — drives the bar through one funnel without per-callsite wrapping. Three progress shapes collapsed to two: chart pipeline (coordinator-owned `ChartProgressSink`) + load paths (`BeginScanProgress` / new `FinishScanProgress`). See the 2026-05-26 entry in §Recently shipped for details.
 
@@ -69,6 +69,23 @@ The original 4-step sequencing plan (correctness audit → extract Astronomy.Cor
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+### 2026-05-26 — Auto-paint chart on startup
+
+ROADMAP item #7 closed (commit `c055986`). On a fresh launch
+`SelectionVmPresenter.OnVmKnownTargetsChanged` now fires one
+`mCoordinator?.Apply(SnapshotCurrent(new[] { firstSorted }))` right
+after the first `SelectedSingle` auto-seed -- the chart area paints
+with the just-seeded target instead of staying blank-gray until the
+user clicks `Button_Graph` or checks a target. Subsequent loads that
+add onto an already-populated catalog leave `SelectedSingle` intact and
+skip the auto-paint (existing `SelectedSingle == null` guard is the
+seam). Explicit-targets overload because no-arg `SnapshotCurrent` reads
+`mCoordinator.LastAppliedTargets` which is empty at boot.
+
+The seed lives in `SelectionVmPresenter` (not `TargetLoadingPresenter`
+as the original ROADMAP item guessed) -- the 2026-05-22 partial-class
+extraction (`2cfe2fe`) moved the four `OnVm*` handlers there.
 
 ### 2026-05-26 — Scrub-path progress bar: coordinator-owned lifecycle
 
