@@ -1391,78 +1391,57 @@ is preserved.";
         }
 
         // Coordinator-side default progress factory: builds a fresh
-        // ChartProgressSink per Apply so each pipeline gets its own generation
-        // stamp. The sink stays hidden until the cache's first Report with
-        // Total > 0 (warm scrubs keep the bar invisible) and schedules the
-        // 1-second hold + clear when Done == Total. Shared mChartBuildGeneration
-        // with BeginScanProgress so load paths and chart pipelines mutually
-        // invalidate stale callbacks -- the bar shows one operation at a time.
+        // Progress<T> per Apply with closure-captured (gen, claimed) state.
+        // Progress<T> captures SynchronizationContext.Current at construction
+        // -- called from the UI-thread coordinator -- so Report callbacks
+        // marshal back to the UI thread even when the cache ticks from
+        // CacheAxis.PrepareAsync's TaskScheduler.Default ContinueWith
+        // (ThreadPool). Shared mChartBuildGeneration with BeginScanProgress
+        // so load paths and chart pipelines mutually invalidate stale
+        // callbacks -- one operation owns the bar at a time.
+        //
+        // Behavior: first Report with Total > 0 claims the bar (Value=0,
+        // Maximum=Total, Visible=true); subsequent Reports advance Value
+        // monotonically (stale ticks from a slower path can't regress); on
+        // Done >= Maximum the bar hides immediately. No 1-second hold: a
+        // mid-hold takeover by a follow-on scrub would otherwise inherit
+        // the previous pipeline's "stuck at full" state via the monotonic-
+        // fill guard, and a warm follow-on (no Reports) would leave the bar
+        // stuck at 100% indefinitely. The chart paint itself is the
+        // completion signal; the bar's role ends when work does.
         private IProgress<(int Done, int Total)> CreateChartProgress()
         {
             int gen = ++mChartBuildGeneration;
-            return new ChartProgressSink(
-                ProgressBar_MultiTargetProcessing,
-                gen,
-                () => mChartBuildGeneration,
-                TaskScheduler.FromCurrentSynchronizationContext());
-        }
-
-        // ProgressBar wrapper for the chart pipeline. Owns the bar's
-        // Visible / Maximum / Value mutations. First non-zero Total flips
-        // Visible=true so warm-cache pipelines (cache returns ensureWork=0
-        // and never Reports) stay invisibly fast. Done==Total schedules the
-        // 1-second hold + clear via the captured UI TaskScheduler so the
-        // delayed reset doesn't fire after a superseding pipeline has taken
-        // over the bar (generation check on the continuation).
-        private sealed class ChartProgressSink : IProgress<(int Done, int Total)>
-        {
-            private readonly ProgressBar mBar;
-            private readonly int mGen;
-            private readonly Func<int> mCurrentGen;
-            private readonly TaskScheduler mUiSched;
-            private bool mFinished;
-
-            public ChartProgressSink(ProgressBar bar, int gen,
-                Func<int> currentGen, TaskScheduler uiSched)
+            bool claimed = false;
+            return new Progress<(int Done, int Total)>(value =>
             {
-                mBar = bar;
-                mGen = gen;
-                mCurrentGen = currentGen;
-                mUiSched = uiSched;
-                // Intentionally don't touch the bar at construction -- a new
-                // pipeline starting while an older one's bar is still visible
-                // would otherwise flash hidden before the new pipeline's first
-                // Report. The first Report owns the show.
-            }
-
-            public void Report((int Done, int Total) value)
-            {
-                if (mGen != mCurrentGen()) return;          // superseded
-                if (value.Total <= 0) return;                // no work to size
-                if (!mBar.Visible)
-                {
-                    mBar.Minimum = 0;
-                    mBar.Value = 0;
-                    mBar.Visible = true;
-                }
+                if (gen != mChartBuildGeneration) return;   // superseded
+                if (value.Total <= 0) return;                // no work signal
                 int max = Math.Max(1, value.Total);
-                if (mBar.Maximum != max) mBar.Maximum = max;
+                if (!claimed)
+                {
+                    // Fresh take-over: reset Value/Visible from whatever the
+                    // previous pipeline left behind so a stale 100% fill
+                    // doesn't ride forward through the monotonic guard.
+                    claimed = true;
+                    ProgressBar_MultiTargetProcessing.Minimum = 0;
+                    ProgressBar_MultiTargetProcessing.Maximum = max;
+                    ProgressBar_MultiTargetProcessing.Value   = 0;
+                    ProgressBar_MultiTargetProcessing.Visible = true;
+                }
+                else if (ProgressBar_MultiTargetProcessing.Maximum != max)
+                {
+                    ProgressBar_MultiTargetProcessing.Maximum = max;
+                }
                 int clamped = Math.Min(Math.Max(0, value.Done), max);
-                if (clamped > mBar.Value) mBar.Value = clamped;
-                if (clamped >= max && !mFinished) ScheduleFinish();
-            }
-
-            private void ScheduleFinish()
-            {
-                mFinished = true;
-                Task.Delay(1000).ContinueWith(
-                    _ =>
-                    {
-                        if (mGen != mCurrentGen()) return;
-                        mBar.Value = 0;
-                        mBar.Visible = false;
-                    }, mUiSched);
-            }
+                if (clamped > ProgressBar_MultiTargetProcessing.Value)
+                    ProgressBar_MultiTargetProcessing.Value = clamped;
+                if (clamped >= max)
+                {
+                    ProgressBar_MultiTargetProcessing.Value   = 0;
+                    ProgressBar_MultiTargetProcessing.Visible = false;
+                }
+            });
         }
 
         // Load-path progress (Browse / Load / drag-drop). The scanner discovers

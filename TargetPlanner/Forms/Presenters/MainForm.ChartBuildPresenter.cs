@@ -33,10 +33,11 @@ namespace TargetPlanner
     //     just-applied snapshot.
     //
     // What stays in MainForm.cs:
-    //   * CreateChartProgress / ChartProgressSink -- the coordinator's default
-    //     progress factory + per-pipeline bar sink, used by every Apply path
-    //     (scrubs, location edits, graph-build) through the coordinator's
-    //     dispatch funnel.
+    //   * CreateChartProgress -- the coordinator's default progress factory.
+    //     Returns a fresh Progress<(int Done, int Total)> per Apply with a
+    //     closure that owns the bar state for that pipeline. Used by every
+    //     Apply path (scrubs, location edits, graph-build) through the
+    //     coordinator's dispatch funnel.
     //   * BeginScanProgress / FinishScanProgress -- load-path progress (Browse /
     //     Load / drag-drop). Shares mChartBuildGeneration with CreateChartProgress
     //     so a chart click mid-scan invalidates the scan and vice versa.

@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-26 (scrub-path progress bar + auto-paint chart on startup shipped — `ChartCoordinator` now owns progress lifecycle via a default factory wired at construction; every Apply path drives `ProgressBar_MultiTargetProcessing` through one funnel, no per-callsite wrapping; warm-cache scrubs stay invisibly fast. `SelectionVmPresenter` fires one Apply right after the first `SelectedSingle` auto-seed so the chart paints immediately on launch instead of staying blank-gray). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
+Last updated 2026-05-26 (scrub-path progress bar + auto-paint chart on startup shipped — `ChartCoordinator` now owns progress lifecycle via a default `Progress<T>` factory wired at construction; every Apply path drives `ProgressBar_MultiTargetProcessing` through one funnel, no per-callsite wrapping; warm-cache scrubs stay invisibly fast; bar hides immediately on `Done == Total` so a follow-on scrub during the previous pipeline's tail can't inherit stale state. `SelectionVmPresenter` fires one Apply right after the first `SelectedSingle` auto-seed so the chart paints immediately on launch instead of staying blank-gray). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
 
 ## Currently open (priority order)
 
@@ -89,7 +89,7 @@ extraction (`2cfe2fe`) moved the four `OnVm*` handlers there.
 
 ### 2026-05-26 — Scrub-path progress bar: coordinator-owned lifecycle
 
-ROADMAP item #8 closed (commit `9ff3573`). `ProgressBar_MultiTargetProcessing`
+ROADMAP item #8 closed (commits `9ff3573` + follow-up). `ProgressBar_MultiTargetProcessing`
 now surfaces during every chart-pipeline scrub — H/M/D, filter, moon-avoidance,
 date/time/Now, location edits, and `ResetForLocationChange` — not just load
 paths and graph-build. Warm-cache scrubs (no stale axes per the cache's diff)
@@ -100,11 +100,11 @@ prep + sub-chart Render combined.
 `defaultProgressFactory: Func<IProgress<(int Done, int Total)>>` parameter
 wired at construction (`MainForm` passes `CreateChartProgress`). Every
 `Apply(ctx)` / `ApplyImmediateAsync(ctx)` without an explicit progress
-arg now builds a fresh `ChartProgressSink` and threads it through
-`mCache.EnsureAsync(ctx, dayKey, progress)` → wraps with `OffsetProgress`
-for `sc.Render(ctx, cache, progress)` so per-target ticks across all four
-sub-charts continue Done smoothly without a Maximum resize. Zero
-scrub-handler callsites were touched.
+arg now builds a fresh `Progress<T>` with a closure that owns the bar
+state and threads it through `mCache.EnsureAsync(ctx, dayKey, progress)`
+→ wraps with `OffsetProgress` for `sc.Render(ctx, cache, progress)` so
+per-target ticks across all four sub-charts continue Done smoothly
+without a Maximum resize. Zero scrub-handler callsites were touched.
 
 **Cache-side work estimation.**  `ChartCacheStore.EnsureAsync` computes
 pessimistic `ensureWork = yearWork + fitWork + dayWork + moonWork` from
@@ -113,19 +113,37 @@ its existing diff flags (`yearWork` + `dayWork` + `moonWork` gated by
 independent of Location/Date); `renderWork = targets.Count` adds the
 sub-chart pass. Total = ensureWork + renderWork sized once. If
 `ensureWork == 0` the cache skips the initial Report entirely so the
-sink's "show on first Report" semantic keeps the bar hidden. The sink
-auto-finishes at `Done == Total` with the existing 1 s hold + clear.
+sink stays hidden through the warm pipeline.
+
+**Threading is `Progress<T>`-marshaled.** `CacheAxis.PrepareAsync` ticks
+its per-target progress via `ContinueWith(TaskScheduler.Default)` —
+ThreadPool. The factory's `new Progress<(int, int)>(...)` captures
+`SynchronizationContext.Current` at construction (called from the
+UI-thread coordinator), so Report callbacks marshal back to the UI
+thread before touching the WinForms bar. Initial design used a custom
+`IProgress<T>` class that mutated the bar directly from whatever thread
+called Report — cross-thread accesses on cold scrubs got swallowed by
+the coordinator's `OnDebounceTick` catch, leaving the bar stuck at its
+first (UI-thread) tick.
+
+**No 1 s hold.** On `Done >= Total` the bar hides immediately (Value=0,
+Visible=false). The previous design held at 100% for 1 second; that
+created two visual quirks: a cold-cold follow-on scrub during the hold
+would inherit the "stuck at full" state via the monotonic `clamped >
+Value` guard, and a warm follow-on (no Reports) would leave the bar
+stuck indefinitely. The chart paint itself is the completion signal so
+the bar's role ends when work does.
 
 **Progress shapes collapsed 3 → 2.** Chart pipeline (coordinator-owned
-sink) + load paths (`BeginScanProgress` + new `FinishScanProgress`). The
-deleted `BeginChartBuildProgress` / `FinishChartBuildProgress` helpers
-are gone; `RunGraphBuildAsync` no longer has explicit progress
-orchestration — just `Button_GraphTarget.Enabled` toggling around
-`ApplyImmediateAsync`. `ChartProgressSink` is a private nested class on
-`MainForm`; `OffsetProgress` is private nested on `ChartCoordinator`;
+`Progress<T>` closure) + load paths (`BeginScanProgress` + new
+`FinishScanProgress`). The deleted `BeginChartBuildProgress` /
+`FinishChartBuildProgress` helpers are gone; `RunGraphBuildAsync` no
+longer has explicit progress orchestration — just
+`Button_GraphTarget.Enabled` toggling around `ApplyImmediateAsync`.
+`OffsetProgress` is private nested on `ChartCoordinator`;
 `ActionProgress<T>` is private nested on `ChartCacheStore`. All single-
 use, all SoC-aligned (the coordinator owns the funnel, the cache owns
-work estimation, the sink owns the bar).
+work estimation, the closure in `CreateChartProgress` owns the bar).
 
 Incidental fix: `ChartCoordinator.Apply(ctx, progress)`'s `progress`
 parameter was previously captured in `RunPipelineAsync` but never
