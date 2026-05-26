@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-24 (K-S Steps 0-4 + Option B low-altitude gate shipped: moon-sample cadence 10-min → 1-min; bandwidth-aware K-S + Filter folded into PlanningPolicy + refraction-correct moon altitude; wavelength-aware twilight + dusk/dawn null-gate removal; new low-altitude gate at `KsLowAltitudeGateDeg = 10°` for the K-S extinction-overdrive regime; Sky chart Y axis widened `[16, 22]` → `[16, 26]` to accommodate bandwidth-aware narrowband predictions). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
+Last updated 2026-05-26 (scrub-path progress bar shipped — `ChartCoordinator` now owns progress lifecycle via a default factory wired at construction; every Apply path drives `ProgressBar_MultiTargetProcessing` through one funnel, no per-callsite wrapping; warm-cache scrubs stay invisibly fast). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
 
 ## Currently open (priority order)
 
@@ -27,7 +27,7 @@ Migrated from CLAUDE.md so the agent-facing reference stays lean. Order is rough
 
 7. **Auto-paint chart on startup** — when TP launches and the image library auto-load completes, the post-load handler seeds `mSelection.SelectedSingle` to the first sorted target but nothing fires `mCoordinator?.Apply(SnapshotCurrent())`. Result: chart area paints blank-gray until the user clicks `Button_Graph` or checks a target. Documented behavior (CLAUDE.md "Button_Graph and the checked-set are independent views") but feels wrong now that auto-load happens by default — the user just configured an image library, presumably wants to see something. Small change in the auto-load post-handler in `MainForm.TargetLoadingPresenter`: after `mSelection.SelectedSingle` is seeded, fire one `Apply(SnapshotCurrent())`. Raised 2026-05-24 during user-test ("the day chart is complete gray on invoke with no targets checked"); deferred at the time to keep the K-S work scoped.
 
-8. **`ProgressBar_MultiTargetProcessing` during scrubs** — the progress bar surfaces during *load* paths (Browse / Load / drag-drop) via `BeginScanProgress` + `mChartBuildGeneration`, but stays dark during H/M/D-spinner scrubs, filter changes, moon-avoidance scrubs, and date/time/now changes. Wiring it to the scrub paths means threading progress reporting through `ChartCoordinator.Apply` / `ApplyImmediateAsync`, distinguishing "fast scrub that hits warm cache" from "scrub that triggers `EnsureAsync` rebuild" (only the latter wants the bar), and per-target progress during sub-chart `Render` passes. Roughly a day of focused work; deserves its own design pass + commit independent of feature work. Raised 2026-05-24 during user-test ("I'd like to see ProgressBar_MultiTargetProcessing be used during H/M/D srubs, filter changes, moon avoidance scrubs and date/time/now changes").
+8. ~~**`ProgressBar_MultiTargetProcessing` during scrubs**~~ — closed 2026-05-26 (commit `9ff3573`). `ChartCoordinator` owns the progress lifecycle via a `defaultProgressFactory` wired at construction; every Apply path — H/M/D scrubs, filter, moon, date/time/Now, location edits, `ResetForLocationChange`, graph-build — drives the bar through one funnel without per-callsite wrapping. Three progress shapes collapsed to two: chart pipeline (coordinator-owned `ChartProgressSink`) + load paths (`BeginScanProgress` / new `FinishScanProgress`). See the 2026-05-26 entry in §Recently shipped for details.
 
 ## Future-flagged TP-side work
 
@@ -69,6 +69,56 @@ The original 4-step sequencing plan (correctness audit → extract Astronomy.Cor
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+### 2026-05-26 — Scrub-path progress bar: coordinator-owned lifecycle
+
+ROADMAP item #8 closed (commit `9ff3573`). `ProgressBar_MultiTargetProcessing`
+now surfaces during every chart-pipeline scrub — H/M/D, filter, moon-avoidance,
+date/time/Now, location edits, and `ResetForLocationChange` — not just load
+paths and graph-build. Warm-cache scrubs (no stale axes per the cache's diff)
+keep the bar invisibly fast; cold scrubs show a per-target tick across cache
+prep + sub-chart Render combined.
+
+**Single architectural seam.** `ChartCoordinator` gained a
+`defaultProgressFactory: Func<IProgress<(int Done, int Total)>>` parameter
+wired at construction (`MainForm` passes `CreateChartProgress`). Every
+`Apply(ctx)` / `ApplyImmediateAsync(ctx)` without an explicit progress
+arg now builds a fresh `ChartProgressSink` and threads it through
+`mCache.EnsureAsync(ctx, dayKey, progress)` → wraps with `OffsetProgress`
+for `sc.Render(ctx, cache, progress)` so per-target ticks across all four
+sub-charts continue Done smoothly without a Maximum resize. Zero
+scrub-handler callsites were touched.
+
+**Cache-side work estimation.**  `ChartCacheStore.EnsureAsync` computes
+pessimistic `ensureWork = yearWork + fitWork + dayWork + moonWork` from
+its existing diff flags (`yearWork` + `dayWork` + `moonWork` gated by
+`locOrDate`; `fitWork` by `locOrDate || HdmChanged` since HdmKey is
+independent of Location/Date); `renderWork = targets.Count` adds the
+sub-chart pass. Total = ensureWork + renderWork sized once. If
+`ensureWork == 0` the cache skips the initial Report entirely so the
+sink's "show on first Report" semantic keeps the bar hidden. The sink
+auto-finishes at `Done == Total` with the existing 1 s hold + clear.
+
+**Progress shapes collapsed 3 → 2.** Chart pipeline (coordinator-owned
+sink) + load paths (`BeginScanProgress` + new `FinishScanProgress`). The
+deleted `BeginChartBuildProgress` / `FinishChartBuildProgress` helpers
+are gone; `RunGraphBuildAsync` no longer has explicit progress
+orchestration — just `Button_GraphTarget.Enabled` toggling around
+`ApplyImmediateAsync`. `ChartProgressSink` is a private nested class on
+`MainForm`; `OffsetProgress` is private nested on `ChartCoordinator`;
+`ActionProgress<T>` is private nested on `ChartCacheStore`. All single-
+use, all SoC-aligned (the coordinator owns the funnel, the cache owns
+work estimation, the sink owns the bar).
+
+Incidental fix: `ChartCoordinator.Apply(ctx, progress)`'s `progress`
+parameter was previously captured in `RunPipelineAsync` but never
+forwarded to `EnsureAsync` — the existing graph-build flow's claim of
+per-target ticks driving the bar was not actually true at runtime. Now
+it is.
+
+Build-clean (0/0); the bar's UX behavior across rapid scrubs + warm /
+cold / Sky-render edge cases was verified by the user before the commit
+landed.
 
 ### 2026-05-22 — LocationPresenter extraction
 
