@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using TargetPlanner.Support;
 using Velopack;
 using Velopack.Sources;
 
@@ -34,11 +35,14 @@ namespace TargetPlanner.Updates
                 await Manager.DownloadUpdatesAsync(updateInfo);
                 Manager.ApplyUpdatesAndRestart(updateInfo);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Startup path: silent on any failure. We don't want to greet the user with
-                // an error dialog every launch when their network is down. The manual menu
-                // path surfaces failures explicitly when the user asks.
+                // Startup path: silent to the user on any failure -- we don't want to greet
+                // them with an error dialog every launch when their network is down. The
+                // manual menu path surfaces failures explicitly when the user asks. Diagnostic
+                // trail in tp.log so "update prompts never appear" is one grep away from a
+                // root cause; user-facing silence requirement preserved.
+                Log.Warn("UpdateService.CheckOnStartupAsync swallowed exception (silent by design)", ex);
             }
         }
 

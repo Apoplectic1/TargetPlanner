@@ -66,7 +66,7 @@ namespace TargetPlanner.Caches
         {
             try
             {
-                TVal value = await mBuild(key, buildLocation);
+                TVal value = await mBuild(key, buildLocation).ConfigureAwait(false);
                 TryPublish(key, value, buildLocation);
                 return value;
             }
@@ -126,7 +126,7 @@ namespace TargetPlanner.Caches
                         TaskScheduler.Default));
                 }
             }
-            await Task.WhenAll(tasks);
+            await Task.WhenAll(tasks).ConfigureAwait(false);
         }
 
         // Reset the axis to empty for a location swap, returning the old

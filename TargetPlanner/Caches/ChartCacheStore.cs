@@ -231,7 +231,7 @@ namespace TargetPlanner.Caches
             //    every UI tick even for value-unchanged saves.
             if (locOrDate)
             {
-                await SetLocationAsync(ctx.Location, ctx.Observation.Utc);
+                await SetLocationAsync(ctx.Location, ctx.Observation.Utc).ConfigureAwait(false);
             }
 
             // 2a. Moon altitudes are TARGET-INDEPENDENT (function of Location +
@@ -241,7 +241,7 @@ namespace TargetPlanner.Caches
             //     inline fallback WARN.
             if (dayKey.Count > 0)
             {
-                await PrepareMoonAsync(dayKey);
+                await PrepareMoonAsync(dayKey).ConfigureAwait(false);
                 if (moonWork > 0)
                 {
                     int d = Interlocked.Increment(ref done);
@@ -255,15 +255,15 @@ namespace TargetPlanner.Caches
             //     per-key fast paths.
             if (ctx.Targets != null && ctx.Targets.Count > 0)
             {
-                await PrepareManyAsync(ctx.Targets, yearWork > 0 ? SubProgress() : null);
-                await PrepareFitsAsync(ctx.Targets, ctx.Hdm, fitWork > 0 ? SubProgress() : null);
+                await PrepareManyAsync(ctx.Targets, yearWork > 0 ? SubProgress() : null).ConfigureAwait(false);
+                await PrepareFitsAsync(ctx.Targets, ctx.Hdm, fitWork > 0 ? SubProgress() : null).ConfigureAwait(false);
 
                 // dayKey.Count == 0 sentinels "no valid Day window" (polar
                 // night). Day chart's Render handles the blank-chart case from
                 // cache.GetDayOrNull returning null; skip the prep.
                 if (dayKey.Count > 0)
                 {
-                    await PrepareDayAsync(ctx.Targets, dayKey, dayWork > 0 ? SubProgress() : null);
+                    await PrepareDayAsync(ctx.Targets, dayKey, dayWork > 0 ? SubProgress() : null).ConfigureAwait(false);
                 }
             }
 
@@ -439,7 +439,7 @@ namespace TargetPlanner.Caches
             // awaiting their completion.
             static async Task SafeAwait(Task task, string warnContext)
             {
-                try { await task; }
+                try { await task.ConfigureAwait(false); }
                 catch (Exception ex) { Log.Warn(warnContext, ex); }
             }
 
@@ -459,7 +459,7 @@ namespace TargetPlanner.Caches
             foreach (Task<MoonAltitudeEntry> t in oldInFlightMoon)
                 staleAwaits.Add(SafeAwait(t,
                     "Stale per-DayWindowKey moon altitude build threw during SetLocationAsync"));
-            await Task.WhenAll(staleAwaits);
+            await Task.WhenAll(staleAwaits).ConfigureAwait(false);
         }
 
         public void Dispose()
@@ -480,10 +480,10 @@ namespace TargetPlanner.Caches
 
         private async Task<TargetCacheEntry> BuildEntryAsync(Target target, Location location)
         {
-            NightCache night = await EnsureNightCacheAsync(location);
+            NightCache night = await EnsureNightCacheAsync(location).ConfigureAwait(false);
 
             IReadOnlyList<NightCacheEntry> yearDays = await Task.Run(
-                () => ComputeYearDays(target, location, night));
+                () => ComputeYearDays(target, location, night)).ConfigureAwait(false);
 
             return new TargetCacheEntry(target, yearDays);
         }
@@ -502,7 +502,7 @@ namespace TargetPlanner.Caches
         private async Task<TargetFitEntry> BuildFitEntryAsync(
             Target target, HdmKey key, Location location)
         {
-            TargetCacheEntry yearEntry = await mYearDaysAxis.GetOrBuildAsync(target);
+            TargetCacheEntry yearEntry = await mYearDaysAxis.GetOrBuildAsync(target).ConfigureAwait(false);
             IReadOnlyList<NightCacheEntry> yearDays = yearEntry.YearDays;
             IHorizonProfile horizon = key.LocalHorizon
                 ?? new ScalarHorizonProfile(key.HorizonDeg);
@@ -510,13 +510,13 @@ namespace TargetPlanner.Caches
             MoonAvoidanceProfile profile = key.MoonAvoidanceEnabled && key.ActiveFilter != null
                 ? key.ActiveFilter.ToProfile()
                 : null;
-            NightCache nightCache = await EnsureNightCacheAsync(location);
+            NightCache nightCache = await EnsureNightCacheAsync(location).ConfigureAwait(false);
             NightWindow starting = nightCache.Starting;
 
             (IReadOnlyList<NightFit> nights, NightFit tonight) = await Task.Run(
                 () => (
                     ComputeNightFits(target, location, yearDays, horizon, duration, profile),
-                    ComputeTonightFit(target, location, starting, horizon, duration, profile)));
+                    ComputeTonightFit(target, location, starting, horizon, duration, profile))).ConfigureAwait(false);
 
             TargetFitEntry entry = new TargetFitEntry(target, key, nights, tonight);
 
@@ -542,7 +542,7 @@ namespace TargetPlanner.Caches
             int count = key.Count;
 
             IReadOnlyList<double> altitudes = await Task.Run(
-                () => AltitudeCurve.Sample(target, location, startUtc, TimeSpan.FromMinutes(1), count));
+                () => AltitudeCurve.Sample(target, location, startUtc, TimeSpan.FromMinutes(1), count)).ConfigureAwait(false);
 
             return new TargetDayAltitudeEntry(target, key, altitudes);
         }
@@ -571,7 +571,7 @@ namespace TargetPlanner.Caches
                     arr[i] = AstroUtil.GetMoonAltitude(pointUtc, observer);
                 }
                 return arr;
-            });
+            }).ConfigureAwait(false);
 
             return new MoonAltitudeEntry(key, altitudes);
         }
