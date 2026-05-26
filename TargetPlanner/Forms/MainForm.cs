@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Astronomy.Core.Astrometry;
 using Astronomy.Core.Horizons;
@@ -392,6 +393,18 @@ is preserved.";
             // scan kicked off later in MainForm_Shown surfaces the bar via
             // BeginScanProgress, so first-paint still shows progress.
             ProgressBar_MultiTargetProcessing.Visible = false;
+
+            // Disable Aero visual styles on the progress bar so Value setter
+            // is instant -- under default visual styles, ProgressBar animates
+            // smoothly between Value sets over ~500 ms internally, and rapid
+            // chart-pipeline ticks (0 -> max in tens of ms) leave the visible
+            // bar lagging behind the setter. By the time the hold-then-reset
+            // fires, the visible animation has only reached ~40 % of the
+            // journey to max, then reverses. SetWindowTheme(handle, " ", " ")
+            // is the documented workaround -- the bar renders classic-style
+            // with no animation, and the visible state matches Value setter
+            // immediately on every tick.
+            SetWindowTheme(ProgressBar_MultiTargetProcessing.Handle, " ", " ");
 
             mAppSettings = SettingsStore.Load();
 
@@ -1424,7 +1437,15 @@ is preserved.";
         // a cold follow-on can claim the bar mid-hold without being
         // clobbered, and a warm follow-on still gets the hide (since the
         // outgoing pipeline retained ownership through to its delayed hide).
-        private const int ProgressBarHoldMs = 200;
+        private const int ProgressBarHoldMs = 1000;
+
+        // Disables Aero visual styles for a single control. Passing " " (a
+        // single space) for both subAppName and subIdList is the documented
+        // pattern. We use this on the ProgressBar to suppress the smooth-
+        // animation behaviour that lags behind rapid Value sets; see the
+        // SetWindowTheme call in the MainForm constructor for the rationale.
+        [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
+        private static extern int SetWindowTheme(IntPtr hWnd, string pszSubAppName, string pszSubIdList);
 
         private IProgress<(int Done, int Total)> CreateChartProgress()
         {
