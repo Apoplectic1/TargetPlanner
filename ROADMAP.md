@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-27 (cache contract documented at `docs/design/cache-contract.md`; `TargetPlanner.Tests/` now at **152 tests across Phases 1–3** in ~17 sec — Phase 1 shipped 89 Tier-A pure-logic tests, Phase 2 shipped 32 persistence tests with 3 path-overload refactors, Phase 3 shipped 31 cache-contract tests directly mapped from `cache-contract.md`'s invariant list, including the load-bearing stale-publish-via-`ReferenceEquals` discard, `EnsureAsync` diff matrix across all four axes, `DrainAndReset` semantics, faulted-build cleanup, and CAS-style mLastEnsureCtx stamp. 4-phase rollout plan at `docs/design/test-project-plan.md`; only Phase 4 (scanner/loader fixtures) remains). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
+Last updated 2026-05-27 (cache contract documented at `docs/design/cache-contract.md`; `TargetPlanner.Tests/` rollout complete at **187 tests across all 4 phases** in ~16 sec — Phase 1 shipped 89 Tier-A pure-logic tests, Phase 2 shipped 32 persistence tests + 3 path-overload refactors, Phase 3 shipped 31 cache-contract tests mapped 1:1 from `cache-contract.md`'s invariant list, Phase 4 shipped 35 scanner/loader tests with synthetic NINA `.json` + XISF fixtures generated per-test). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
 
 ## Currently open (priority order)
 
@@ -69,6 +69,71 @@ The original 4-step sequencing plan (correctness audit → extract Astronomy.Cor
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+### 2026-05-27 — TP-side test project (Phase 4 — scanner/loader fixtures)
+
+Last unshipped phase of the 4-phase rollout. 35 new tests across 3
+loader/scanner classes + 1 fixture helper. Total now 187 tests in ~16 sec.
+
+**Synthetic fixtures**: all 4 phases now generate test fixtures per-test
+via `TempDirectory` rather than committing binary blobs. JSON .NINA
+target files are hand-built strings; XISF files come from a new
+`Tests/Support/SyntheticXisf.cs` helper adapted from Library's
+`XisfHeaderReaderTests.WriteSyntheticXisf` (minimal valid XISF: 8-byte
+signature + 4-byte LE length-prefix + UTF-8 XML payload; no image
+attachment block since header-only parsing). Cross-repo duplication;
+sync if either drifts.
+
+**`TargetLoaderTests`** (11) — NINA `.json` parser:
+- Null/whitespace/missing path → null
+- Positive Dec (M31 canonical): sexagesimal RA + Dec assembled
+- `NegativeDec: true` flag flips magnitude to north=false via Target ctor
+- Sexagesimal RA assembly (12h 30m 30s → 12.5083 hours)
+- " Stars" suffix stripped via TargetIdentity.NormalizeName
+- Missing `Target` node / `TargetName` / `InputCoordinates` → null
+- Malformed JSON → null (no throw, log warn)
+- `Directory` field carries source path
+
+**`ImageLibraryLoaderTests`** (9) — `.xisf` light-frame parser via
+Library's `XisfHeaderReader`:
+- Null/whitespace/missing path → null
+- Light frame (IMAGETYP=LIGHT + OBJECT + RA + DEC) → Target; RA in
+  degrees converted to hours (M51 at 202.469625° → 13.498h)
+- Non-light frame (IMAGETYP=DARK) → null
+- Missing IMAGETYP → null (defensive: no-IMAGETYP files are outside
+  the user's pipeline; safer to skip)
+- Missing RA → null
+- " Stars" suffix in OBJECT keyword stripped via NormalizeName
+- Empty OBJECT falls back to filename stem
+- RA wraparound at 360° → stays in [0, 24)
+
+**`TargetScannerTests`** (14) — recursive walk + grouping:
+- Null/whitespace/None-kind → empty
+- Non-existent path / empty dir → empty (logs warn, no throw)
+- Standalone `.json` → 1 target
+- Mosaic Panel grouping: `Sh2-126 Panel 1.json` + `Panel 2.json` +
+  `Panel 3.json` → 1 target at centroid, named after the folder
+- Comet-prefixed `.json` excluded
+- Recursive nested-dir walk finds deep `.json` files
+- `.xisf` in `Captures/` collapses by target folder via spherical
+  centroid (two frames at slightly-offset coords → one target between)
+- `.xisf` outside `Captures/` (processing outputs, loose files) ignored
+- `Comet ...` target folder excluded before headers are read
+- Single-file scan (Browse picking one file) returns just that file
+- Single-file `.xisf` scan works without `Captures/` ancestor
+- `TargetFileKinds.Json` ignores `.xisf` siblings (and vice versa)
+- Cancelled `CancellationToken` → throws (OCE or TCE; tests
+  `Assert.ThrowsAnyAsync` to accept either)
+
+Total Phase 4: 35 tests + `SyntheticXisf.cs` helper (40 LOC).
+
+**Closes the 4-phase test-project rollout.** 187 tests total in
+~16 sec. The original deficiency ("no automated test surface for TP")
+is closed at the infrastructure layer (Phase 1), persistence layer
+(Phase 2), cache contract (Phase 3), and load/scan layer (Phase 4).
+ChartCoordinator + UI presenters + LC2 sub-charts stay deferred
+indefinitely per the rollout plan (require WinForms message pump /
+SKControl paint / Timer DI seam).
 
 ### 2026-05-27 — TP-side test project (Phase 3 — cache contract enforcement)
 

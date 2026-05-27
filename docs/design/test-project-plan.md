@@ -93,7 +93,7 @@ New helper: `Tests\Support\TestLocations.cs` — duplicated from `Library\Astron
 
 Estimated: ~30 tests across 2 classes + 1 helper. One PR.
 
-## Phase 4 — scanner / loader fixture-driven tests (TODO)
+## Phase 4 — scanner / loader fixture-driven tests (shipped 2026-05-27)
 
 | File | Coverage |
 |------|----------|
