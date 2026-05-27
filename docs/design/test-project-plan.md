@@ -46,7 +46,7 @@ Layout: `TargetPlanner.Tests\Tests\` for `[Fact]` classes. Ten classes, 89 tests
 
 No test helpers needed in Phase 1 — Tier-A surface is TP-only types with no location fixtures.
 
-## Phase 2 — persistence + 3 small refactors (TODO)
+## Phase 2 — persistence + 3 small refactors (shipped 2026-05-27)
 
 Production-code refactors needed before the persistence tests can land (additive overloads; no behavior change for existing callers):
 

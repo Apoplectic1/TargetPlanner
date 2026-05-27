@@ -7,11 +7,15 @@ using Target = Astronomy.Core.Targets.Target;
 
 namespace TargetPlanner.Settings
 {
-    // File-backed store for user-added (non-NINA) targets. Path:
+    // File-backed store for user-added (non-NINA) targets. Default path:
     // %AppData%\TargetPlanner\local-targets.json. Locally-added targets are additive
     // on top of NINA's loaded list -- MainForm merges them into KnownTargets after
     // every NINA Load(...) so a re-browse doesn't wipe them. Load/Save are best-
     // effort; corrupt or missing files yield an empty list and a tp.log entry.
+    //
+    // The parameterless Load() / Save(targets) overloads delegate to the path-taking
+    // forms passing FilePath. Tests use the path-taking forms against a TempDirectory
+    // to avoid touching %APPDATA%.
     public static class LocalTargetStore
     {
         public static readonly string DirectoryPath = Path.Combine(
@@ -20,13 +24,16 @@ namespace TargetPlanner.Settings
 
         public static readonly string FilePath = Path.Combine(DirectoryPath, "local-targets.json");
 
-        public static List<Target> Load()
+        public static List<Target> Load() => Load(FilePath);
+
+        public static List<Target> Load(string path)
         {
+            if (path == null) throw new ArgumentNullException(nameof(path));
             try
             {
-                if (File.Exists(FilePath))
+                if (File.Exists(path))
                 {
-                    string json = File.ReadAllText(FilePath);
+                    string json = File.ReadAllText(path);
                     List<LocalTargetDto> dtos = JsonConvert.DeserializeObject<List<LocalTargetDto>>(json);
                     if (dtos == null) return new List<Target>();
 
@@ -47,16 +54,20 @@ namespace TargetPlanner.Settings
             }
             catch (Exception ex)
             {
-                Log.Error("LocalTargetStore.Load failed at '" + FilePath + "'", ex);
+                Log.Error("LocalTargetStore.Load failed at '" + path + "'", ex);
             }
             return new List<Target>();
         }
 
-        public static void Save(IEnumerable<Target> targets)
+        public static void Save(IEnumerable<Target> targets) => Save(FilePath, targets);
+
+        public static void Save(string path, IEnumerable<Target> targets)
         {
+            if (path == null) throw new ArgumentNullException(nameof(path));
             try
             {
-                Directory.CreateDirectory(DirectoryPath);
+                string dir = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
                 var dtos = new List<LocalTargetDto>();
                 if (targets != null)
                 {
@@ -73,11 +84,11 @@ namespace TargetPlanner.Settings
                     }
                 }
                 string json = JsonConvert.SerializeObject(dtos, Formatting.Indented);
-                File.WriteAllText(FilePath, json);
+                File.WriteAllText(path, json);
             }
             catch (Exception ex)
             {
-                Log.Error("LocalTargetStore.Save failed at '" + FilePath + "'", ex);
+                Log.Error("LocalTargetStore.Save failed at '" + path + "'", ex);
             }
         }
 

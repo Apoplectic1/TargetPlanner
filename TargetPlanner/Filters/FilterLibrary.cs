@@ -100,13 +100,20 @@ namespace TargetPlanner.Filters
         /// unreadable, returns the in-code defaults (<see cref="DefaultLibrary"/>).
         /// Errors are silenced -- a corrupted user file should not block app launch.
         /// </summary>
-        public static FilterLibrary LoadOrDefault()
+        public static FilterLibrary LoadOrDefault() => LoadOrDefault(DefaultPath);
+
+        /// <summary>
+        /// Loads from an arbitrary path (testing / migration). Same semantics as the
+        /// parameterless overload: missing / malformed / unreadable -> defaults.
+        /// </summary>
+        public static FilterLibrary LoadOrDefault(string path)
         {
+            if (path == null) throw new ArgumentNullException(nameof(path));
             try
             {
-                if (File.Exists(DefaultPath))
+                if (File.Exists(path))
                 {
-                    string json = File.ReadAllText(DefaultPath);
+                    string json = File.ReadAllText(path);
                     Filter[] filters = JsonConvert.DeserializeObject<Filter[]>(json);
                     if (filters != null && filters.Length > 0)
                         return new FilterLibrary(MigrateLegacyFields(filters));
@@ -117,7 +124,7 @@ namespace TargetPlanner.Filters
                 // JSON corruption / IO error / permission denied. Fall through to defaults
                 // silently from the user's perspective, but log to tp.log so the root cause
                 // is recoverable.
-                Log.Error("FilterLibrary.LoadOrDefault failed at '" + DefaultPath + "'", ex);
+                Log.Error("FilterLibrary.LoadOrDefault failed at '" + path + "'", ex);
             }
             return DefaultLibrary();
         }

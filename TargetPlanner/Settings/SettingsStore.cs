@@ -7,8 +7,9 @@ using TargetPlanner.Support;
 
 namespace TargetPlanner.Settings
 {
-    // File-backed per-user settings store. Path: %AppData%\TargetPlanner\settings.json.
-    // Single source of truth for user state between sessions.
+    // File-backed per-user settings store. Default path:
+    // %AppData%\TargetPlanner\settings.json. Single source of truth for user state
+    // between sessions.
     //
     // Two paths through Load:
     //   1. settings.json missing -> seed from PersonalDefaults.BuildSeedSettings(),
@@ -19,6 +20,10 @@ namespace TargetPlanner.Settings
     //
     // Save is best-effort -- a write failure is logged but the in-memory state
     // is unchanged so the next save attempt picks up the same data.
+    //
+    // The parameterless Load() / Save(settings) overloads delegate to the
+    // path-taking forms passing FilePath. Tests use the path-taking forms
+    // against a TempDirectory to avoid touching %APPDATA%.
     public static class SettingsStore
     {
         public static readonly string DirectoryPath = Path.Combine(
@@ -27,19 +32,23 @@ namespace TargetPlanner.Settings
 
         public static readonly string FilePath = Path.Combine(DirectoryPath, "settings.json");
 
-        public static AppSettings Load()
+        public static AppSettings Load() => Load(FilePath);
+
+        public static AppSettings Load(string path)
         {
+            if (path == null) throw new ArgumentNullException(nameof(path));
+
             // No file -> first-run path: build from seed, save, return.
-            if (!File.Exists(FilePath))
+            if (!File.Exists(path))
             {
                 AppSettings seed = PersonalDefaults.BuildSeedSettings();
-                Save(seed);
+                Save(path, seed);
                 return seed;
             }
 
             try
             {
-                string json = File.ReadAllText(FilePath);
+                string json = File.ReadAllText(path);
                 AppSettings settings = JsonConvert.DeserializeObject<AppSettings>(json);
                 if (settings != null && settings.Version == AppSettings.CurrentVersion)
                 {
@@ -75,7 +84,7 @@ namespace TargetPlanner.Settings
                 if (settings != null)
                 {
                     Log.Error(
-                        "SettingsStore.Load: version mismatch at '" + FilePath +
+                        "SettingsStore.Load: version mismatch at '" + path +
                         "' (file=" + settings.Version + ", expected=" +
                         AppSettings.CurrentVersion + "); resetting to defaults");
                 }
@@ -84,27 +93,31 @@ namespace TargetPlanner.Settings
             {
                 // Corrupt JSON, permission denied, disk error -- log + fall through to
                 // seed so the app still launches.
-                Log.Error("SettingsStore.Load failed at '" + FilePath + "'", ex);
+                Log.Error("SettingsStore.Load failed at '" + path + "'", ex);
             }
 
             AppSettings fallback = PersonalDefaults.BuildSeedSettings();
-            Save(fallback);
+            Save(path, fallback);
             return fallback;
         }
 
-        public static void Save(AppSettings settings)
+        public static void Save(AppSettings settings) => Save(FilePath, settings);
+
+        public static void Save(string path, AppSettings settings)
         {
+            if (path == null) throw new ArgumentNullException(nameof(path));
             try
             {
-                Directory.CreateDirectory(DirectoryPath);
+                string dir = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
                 string json = JsonConvert.SerializeObject(settings, Formatting.Indented);
-                File.WriteAllText(FilePath, json);
+                File.WriteAllText(path, json);
             }
             catch (Exception ex)
             {
                 // Disk full, permission denied, antivirus lock -- silent failure for the user,
                 // but log to tp.log so the root cause is recoverable.
-                Log.Error("SettingsStore.Save failed at '" + FilePath + "'", ex);
+                Log.Error("SettingsStore.Save failed at '" + path + "'", ex);
             }
         }
     }

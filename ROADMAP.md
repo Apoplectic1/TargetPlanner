@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-27 (cache contract documented at `docs/design/cache-contract.md` — closing §3.A of the 2026-05-26 code-review's salvageable bits, with link-outs from `IChartCacheStore.cs`'s interface XML and `ARCHITECTURE.md` §Cache store; new `TargetPlanner.Tests/` xUnit project lands Phase 1 of the test-project rollout with 89 Tier-A pure-logic tests across 10 classes, closing the long-standing "no automated test surface" deficiency at the infrastructure layer — 4-phase rollout plan at `docs/design/test-project-plan.md`). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
+Last updated 2026-05-27 (cache contract documented at `docs/design/cache-contract.md` — closing §3.A of the 2026-05-26 code-review's salvageable bits, with link-outs from `IChartCacheStore.cs`'s interface XML and `ARCHITECTURE.md` §Cache store; `TargetPlanner.Tests/` Phase 1 shipped 89 Tier-A pure-logic tests + Phase 2 shipped 32 persistence tests covering `SettingsStore` / `LocalTargetStore` / `FilterLibrary` round-trips, Pattern C fill, "Custom" sentinel strip, `MigrateLegacyFields` zero-CenterNm fill, and version-mismatch fallback — 121 tests total in ~280 ms, 3 small additive `Load(string path)` / `Save(string path, ...)` overload refactors landed alongside; 4-phase rollout plan at `docs/design/test-project-plan.md`). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
 
 ## Currently open (priority order)
 
@@ -69,6 +69,54 @@ The original 4-step sequencing plan (correctness audit → extract Astronomy.Cor
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+### 2026-05-27 — TP-side test project (Phase 2 — persistence)
+
+Phase 2 of the test-project rollout: 32 new tests across 3 persistence
+classes + 1 helper, plus 3 small additive refactors that make %APPDATA%
+mocking trivial. Total now 121 tests in ~280 ms.
+
+**Refactors** (additive `Load(string path)` / `Save(string path, ...)`
+overloads; existing parameterless methods delegate via `FilePath` —
+zero behaviour change for production callers):
+
+- `Settings\SettingsStore.cs` — `Load(string path)` + `Save(string path, AppSettings)`
+- `Settings\LocalTargetStore.cs` — `Load(string path)` + `Save(string path, IEnumerable<Target>)`
+- `Filters\FilterLibrary.cs` — `LoadOrDefault(string path)` (`Save(string path)` already existed at line 153)
+
+Each parameterless method becomes `=> Method(FilePath, …)` one-liner.
+Both Save overloads create the parent directory if missing, so a fresh
+`%APPDATA%\TargetPlanner` install bootstraps cleanly.
+
+**New tests** (use the new `TempDirectory` helper for per-test
+GUID-scoped temp dirs, recursive Dispose-cleanup):
+
+- **SettingsStoreTests** (12) — missing-file → seed + save + file
+  exists; present-and-current round-trips user state; Pattern C fill on
+  null Roots; Pattern C fill on null OR empty NamedLocations; "Custom"
+  site stripped (incl. case-insens); corrupt JSON → fallback seed +
+  overwrite; version mismatch → fallback seed; null-path throws;
+  Save creates nested parent dirs.
+- **LocalTargetStorePersistenceTests** (11) — round-trip 0/1/N targets;
+  signed-hemisphere preservation (Dec magnitude positive, North flag
+  false for southern); null enumerable → empty JSON array; null target
+  in list skipped; whitespace-name DTO skipped on Load; corrupt JSON →
+  empty list; missing file → empty list (no file created); null path
+  throws.
+- **FilterLibraryPersistenceTests** (9) — Save→LoadOrDefault round-trip;
+  missing file → DefaultLibrary (no file created); corrupt JSON →
+  DefaultLibrary; empty array → DefaultLibrary; `MigrateLegacyFields`
+  fills CenterNm=0 from builtin (legacy filters.json predating CenterNm);
+  user-renamed filter keeps CenterNm=0; non-zero user value NOT
+  overwritten by migration; null-path throws; Save creates nested dirs.
+
+**Helper**:
+
+- `Tests\Support\TempDirectory.cs` — `IDisposable` wrapping
+  `Path.GetTempPath() + "TPTests_" + Guid.NewGuid()`. `using` block in
+  every test; recursive Dispose-cleanup is best-effort (swallowed
+  cleanup failures so antivirus / locked-handle issues during teardown
+  don't fail the test).
 
 ### 2026-05-27 — TP-side test project (Phase 1)
 
