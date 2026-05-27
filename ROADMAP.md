@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-27 (cache contract documented at `docs/design/cache-contract.md`; `TargetPlanner.Tests/` rollout complete at **187 tests across all 4 phases** in ~16 sec — Phase 1 shipped 89 Tier-A pure-logic tests, Phase 2 shipped 32 persistence tests + 3 path-overload refactors, Phase 3 shipped 31 cache-contract tests mapped 1:1 from `cache-contract.md`'s invariant list, Phase 4 shipped 35 scanner/loader tests with synthetic NINA `.json` + XISF fixtures generated per-test). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
+Last updated 2026-05-27 (MainForm.cs partial-class decomposition: 7 new presenter partials + Add/Remove relocation took MainForm.cs from **1669 to 959 lines (-42%)** across one continuous session; latent `Button_Now` resort omission surfaced and fixed during the refactor. Earlier same-day: cache contract documented at `docs/design/cache-contract.md`; `TargetPlanner.Tests/` rollout complete at **187 tests across all 4 phases** in ~16 sec — Phase 1 shipped 89 Tier-A pure-logic tests, Phase 2 shipped 32 persistence tests + 3 path-overload refactors, Phase 3 shipped 31 cache-contract tests mapped 1:1 from `cache-contract.md`'s invariant list, Phase 4 shipped 35 scanner/loader tests with synthetic NINA `.json` + XISF fixtures generated per-test.) Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
 
 ## Currently open (priority order)
 
@@ -69,6 +69,111 @@ The original 4-step sequencing plan (correctness audit → extract Astronomy.Cor
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+### 2026-05-27 — MainForm.cs partial-class decomposition (-710 lines, -42%)
+
+Eight-step pass on `Forms/MainForm.cs` taking it from 1669 to **959 lines**.
+Seven new presenter partials in `Forms/Presenters/`, plus the existing
+`TargetLoadingPresenter` absorbed Add/Remove. Behaviour is preserved exactly
+except for one latent-bug fix called out below; tests stay at 187/187, build
+clean throughout.
+
+**New presenter partials (in extraction order):**
+
+- `MainForm.ChartCoordinatorPresenter.cs` (102 lines, commit `dc0f348`) —
+  coordinator construction + `DayChartModeChanged` wiring + baseline-paint
+  kick. Constructor reduces to four sequenced calls; the post-apply hook
+  (the load-bearing piece — central seam for Render-adjacent side effects)
+  is now in an obvious file. Also dropped 3 unused usings from MainForm.cs
+  that the LSP flagged after the edit.
+- `MainForm.ObservationMomentPresenter.cs` (107 lines, commit `9f3bb17`) —
+  `DatePicker_ValueChanged` + `TimePicker_ValueChanged` + `DatePicker_KeyDown`
+  + `Button_Now_Click` + new `OnObservationMomentChanged(bool resortIfTimeKeyed)`
+  helper folding the common tail (label refresh + now-line update +
+  conditional resort + `mCoordinator?.Apply(SnapshotCurrent())`).
+- `MainForm.AppMenuPresenter.cs` (192 lines, commit `eceaa0e`) — Help
+  (Updates / About / Feedback) + File > Defaults (Edit / Clear) + the
+  `TryDeleteFile` / `TryDeleteDirectory` static helpers used only by Clear.
+  Self-contained subsystem; no chart state, no VM coupling.
+- `MainForm.ProgressBarPresenter.cs` (161 lines, commit `34c03f0`) —
+  `mChartBuildGeneration` / `mBarOwnerGen` fields + `ProgressBarHoldMs` const
+  + `CreateChartProgress` / `BeginScanProgress` / `FinishScanProgress`. The
+  shared generation counter that lets chart pipelines and scan paths
+  mutually invalidate each other's stale callbacks is now visibly
+  co-located with both producers.
+- `MainForm.TransientNoticePresenter.cs` (79 lines, commit `8a49694`) —
+  pooled transient-notice widget (`mTransientNotice` / `mTransientLabel` /
+  `mTransientTimer` fields + `ShowTransientMessage`). Fully self-contained
+  UI widget.
+- `MainForm.AstrometryLabelsPresenter.cs` (71 lines, commit `88d7000`) —
+  `RefreshAstrometryLabels` + `FormatZoned` formatter overloads. Pure
+  render-to-label logic for the dawn/dusk/sun/moon side panel.
+- `MainForm.SelectionCommandsPresenter.cs` (144 lines, commit `8cd0c54`) —
+  `ComboBox_SelectTarget_SelectedIndexChanged` + `Button_UncheckAll` /
+  `SelectAllTargets` / `ClearAllTargets` + `Button_VisibleTonight_Click`.
+  **Evaluated against `SelectionVmPresenter` as a possible home** and
+  declined: its header explicitly carves out "Other UI -> VM paths
+  (Button_*Click handlers, ...) live with their respective concerns." A
+  sibling presenter preserves that contract.
+
+**Existing presenter extended:**
+
+- `MainForm.TargetLoadingPresenter.cs` grew by 52 lines (commit `b16377b`)
+  to absorb `Button_AddTarget_Click` + `Button_RemoveTarget_Click`. They
+  fit the "every path that brings targets into the form" framing already
+  on the file: Add literally brings a transient target in, Remove is its
+  symmetric unwind, and both already share `LocalTargetStore.Save`
+  plumbing with the file-scan paths.
+
+**Latent-bug fix surfaced during the refactor** (commit `c1b888c`,
+between extractions 2 and 3): `Button_Now_Click` was silently NOT
+calling `ResortSelectedTargets` while `DatePicker_ValueChanged` /
+`TimePicker_ValueChanged` did. Result: snap-to-now on a Transit /
+Rise-sorted listbox left the display reflecting pre-snap ordering on a
+meaningful time change. Caught by the
+`OnObservationMomentChanged(bool resortIfTimeKeyed)` helper extraction
+making the divergence visible. Fix: `Button_Now` now passes
+`resortIfTimeKeyed: true` like the picker handlers. UI behaviour change
+not covered by unit tests; user-verified in the app.
+
+**Trailing cleanup** (commit `ff8fb9e`): dropped 5 unused usings from
+MainForm.cs that the six extractions made dead
+(`Astronomy.Core.Astrometry` / `.Night` / `.Sun`,
+`TargetPlanner.Forms`, `System.Threading.Tasks`). LSP flagged
+`TargetPlanner.Filters` as unused twice during the pass — both were
+false alarms; `FilterLibrary mFilterLibrary` still consumes it at the
+field declaration. The build is the source of truth; the LSP's stale
+intermediate state can mislead. Always verify with `dotnet build`
+before dropping a using the LSP flags.
+
+**MainForm.cs partial graph after this session:** 15 partial files
+(`MainForm.cs` itself plus 14 presenters under `Forms/Presenters/`).
+Roughly grouped by concern:
+
+| Presenter | Lines | Concern |
+|---|---|---|
+| `LocationPresenter` | 630 | Combo edit + settle debounce + equivalence + ResetForLocationChange |
+| `FilterMenuPresenter` | 587 | Filter menu construction + persistence + Lorentzian/moon-avoidance |
+| `TargetLoadingPresenter` | 416 | Load/Browse/drag-drop + Add/Remove + warmup |
+| `SelectionVmPresenter` | 379 | Bidirectional VM <-> UI sync + listbox paint |
+| `ChartBuildPresenter` | 362 | RunGraphBuildAsync + RenderArea + view-radio handlers |
+| `SortPresenter` | 310 | Sort modes + Resort |
+| `AppMenuPresenter` | 192 | Help / File menu handlers |
+| `ProgressBarPresenter` | 161 | ProgressBar lifecycle |
+| `SelectionCommandsPresenter` | 144 | Button commands that mutate selection |
+| `CoordinatePresenter` | 140 | Lat/Lon/RA/Dec CoordinateInput callbacks |
+| `ObservationMomentPresenter` | 107 | Date/Time/Now scrubs |
+| `ChartCoordinatorPresenter` | 102 | Coordinator construction + boot wiring |
+| `TransientNoticePresenter` | 79 | Auto-dismissing notice popup |
+| `AstrometryLabelsPresenter` | 71 | Side-panel astrometry labels |
+| **MainForm.cs** | **959** | Fields, constructor, dynamic-init, lifecycle, listbox helpers, SnapshotCurrent, GetObservationContext |
+
+Constructor flow in MainForm.cs is now substantially more navigable;
+the file's remaining content is genuinely form-shaped
+(`InitializeDynamicControls`, `MainForm_Load`, `MainForm_FormClosing`,
+listbox interaction helpers, the load-bearing `SnapshotCurrent`
+overloads). Further slimming candidates are smaller and less cohesive
+than the eight just shipped — natural stopping point.
 
 ### 2026-05-27 — TP-side test project (Phase 4 — scanner/loader fixtures)
 
