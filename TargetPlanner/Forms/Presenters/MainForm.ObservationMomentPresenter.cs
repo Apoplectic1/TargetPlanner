@@ -58,10 +58,10 @@ namespace TargetPlanner
         // a single explicit user action: set mObservation to now, push into the
         // pickers (without re-triggering their ValueChanged), refresh every label
         // via UpdateLocalDateTimeEvents, and reposition the chart's red now-line
-        // to the current X coordinate. Skips the time-dependent re-sort that the
-        // picker handlers do -- pre-extraction behavior preserved via
-        // resortIfTimeKeyed: false (revisit if a snap-to-now should also re-rank
-        // a Transit / Rise-sorted listbox).
+        // to the current X coordinate. Passes resortIfTimeKeyed: true so a
+        // Transit / Rise-sorted listbox re-ranks against the new "now" -- the
+        // pre-extraction code skipped this, leaving the listbox showing pre-snap
+        // ordering on a meaningful time change.
         private void Button_Now_Click(object sender, EventArgs e)
         {
             Log.Diag("UI", "Button_Now.Click");
@@ -76,7 +76,7 @@ namespace TargetPlanner
             DatePicker.ValueChanged += DatePicker_ValueChanged;
             TimePicker.ValueChanged += TimePicker_ValueChanged;
 
-            OnObservationMomentChanged(resortIfTimeKeyed: false);
+            OnObservationMomentChanged(resortIfTimeKeyed: true);
         }
 
         // Common tail for every handler that mutates mObservation: refresh
