@@ -49,7 +49,9 @@ TAGS
 # ever ending up in the repo.
 personal-defaults.json
 
-# Claude Code harness state (per-developer permission allowlist, scheduled-task locks).
-# Recreated by the harness; not project-relevant.
-.claude/
+# Claude Code: keep per-developer state out (permission allowlist,
+# scheduled-task locks, output-style overrides) but include shared
+# project skills / agents / commands / settings so they ride along with
+# the repo. settings.local.json holds the user-local permissions.
+.claude/settings.local.json
 
