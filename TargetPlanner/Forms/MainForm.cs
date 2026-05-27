@@ -445,6 +445,14 @@ is preserved.";
             var openNotesItem = new ToolStripMenuItem("&Open Notes Folder");
             openNotesItem.Click += (s, e) => HandleOpenNotesFolderClick();
             feedbackItem.DropDownItems.Add(openNotesItem);
+
+            // Capture-snapshot item: same as Ctrl+N. Discoverable for users +
+            // reliably drivable from UI automation (Ctrl+N's keystroke path is
+            // too foreground-flaky for scripted use).
+            var captureObsItem = new ToolStripMenuItem("&Capture Observation Snapshot");
+            captureObsItem.Click += (s, e) => HandleCaptureObservationClick();
+            feedbackItem.DropDownItems.Add(captureObsItem);
+
             HelpToolStripMenuItem_MainForm.DropDownItems.Add(feedbackItem);
 
             // Filters menu: load the per-filter library (or ship-defaults on first launch)

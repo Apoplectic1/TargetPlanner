@@ -47,6 +47,18 @@ namespace TargetPlanner
                 dlg.ShowDialog(this);
         }
 
+        // Help -> Feedback -> Capture Observation Snapshot... Opens the
+        // modeless UserObservationDialog (same dialog Ctrl+N opens via
+        // MainForm.ProcessCmdKey). Surfaced as a menu item so users without
+        // the keyboard shortcut can find it, and so UI-automation tooling
+        // (see .claude/skills/verify-ui/) can drive it via UIA's InvokePattern
+        // -- the keystroke path is too foreground-flaky for scripted snapshots.
+        private void HandleCaptureObservationClick()
+        {
+            Log.Diag("UI", "Menu Help.Feedback.CaptureObservation.Click");
+            UserObservationDialog.ShowOrFocus(this, GetObservationContext);
+        }
+
         // Help -> Feedback -> Open Notes Folder. Ensures the Logs folder
         // exists (it doesn't until the first Log.Append fires after rotation)
         // so the user always gets a real Explorer window rather than a
