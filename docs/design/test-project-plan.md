@@ -68,7 +68,7 @@ New helper: `Tests\Support\TempDirectory.cs` — `IDisposable` wrapping `Path.Ge
 
 Estimated: ~26 tests + 3 refactors + 1 helper. One PR.
 
-## Phase 3 — cache contract enforcement (TODO)
+## Phase 3 — cache contract enforcement (shipped 2026-05-27)
 
 Direct map from [`cache-contract.md`](cache-contract.md) invariants → test names. The cache-contract doc IS the test list.
 

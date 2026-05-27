@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-27 (cache contract documented at `docs/design/cache-contract.md` — closing §3.A of the 2026-05-26 code-review's salvageable bits, with link-outs from `IChartCacheStore.cs`'s interface XML and `ARCHITECTURE.md` §Cache store; `TargetPlanner.Tests/` Phase 1 shipped 89 Tier-A pure-logic tests + Phase 2 shipped 32 persistence tests covering `SettingsStore` / `LocalTargetStore` / `FilterLibrary` round-trips, Pattern C fill, "Custom" sentinel strip, `MigrateLegacyFields` zero-CenterNm fill, and version-mismatch fallback — 121 tests total in ~280 ms, 3 small additive `Load(string path)` / `Save(string path, ...)` overload refactors landed alongside; 4-phase rollout plan at `docs/design/test-project-plan.md`). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
+Last updated 2026-05-27 (cache contract documented at `docs/design/cache-contract.md`; `TargetPlanner.Tests/` now at **152 tests across Phases 1–3** in ~17 sec — Phase 1 shipped 89 Tier-A pure-logic tests, Phase 2 shipped 32 persistence tests with 3 path-overload refactors, Phase 3 shipped 31 cache-contract tests directly mapped from `cache-contract.md`'s invariant list, including the load-bearing stale-publish-via-`ReferenceEquals` discard, `EnsureAsync` diff matrix across all four axes, `DrainAndReset` semantics, faulted-build cleanup, and CAS-style mLastEnsureCtx stamp. 4-phase rollout plan at `docs/design/test-project-plan.md`; only Phase 4 (scanner/loader fixtures) remains). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
 
 ## Currently open (priority order)
 
@@ -69,6 +69,95 @@ The original 4-step sequencing plan (correctness audit → extract Astronomy.Cor
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+### 2026-05-27 — TP-side test project (Phase 3 — cache contract enforcement)
+
+Phase 3 of the rollout: 31 new tests across 2 cache classes + 1 helper +
+1 `InternalsVisibleTo` toggle. Total now 152 tests in ~17 sec (Phase 3 is
+where the wall-clock starts to matter — each `ChartCacheStoreTests` run
+exercises real Meeus + BestSession compute against M31 at PennsPark, so
+~50–200 ms per test).
+
+**The cache-contract.md doc IS the test list.** Every invariant in
+"Lifecycle invariants" + "EnsureAsync semantics" is a [Fact] by the same
+name on the contract side.
+
+**`CacheAxisTests`** (12 tests, via `InternalsVisibleTo` since
+`CacheAxis<TKey, TVal>` is internal):
+
+- Per-key dedupe: concurrent `GetOrBuildAsync("k")` returns the same Task
+  reference; build delegate runs exactly once.
+- Fast-path after publish: three sequential reads → one build.
+- Stale-publish discard: build started against `loc1`, swap to `loc2` via
+  mutable Location accessor, complete the build → `GetOrNull` returns
+  null (TryPublish's `ReferenceEquals(currentLocation, buildLocation)`
+  check fails).
+- Faulted-build cleanup: async lambda throws on call 1; second call
+  starts a fresh build. Subtle: production build delegates are async, so
+  the fault wraps into the returned Task — `DropOnFault` runs AFTER
+  mInFlight is populated. A synchronous-throw lambda runs `RunBuildAsync`'s
+  catch *before* mInFlight gets the key, leaving a stale faulted task;
+  test had to use `async (k, l) => { … throw; }` to match production
+  shape. Documented inline in the test.
+- `DrainAndReset` clears mStore + mInFlight; returns in-flight task list
+  for caller drain. **Pinned the location-swap requirement** explicitly:
+  a same-location DrainAndReset still lets orphan publishes land in the
+  new mStore dict; the stale-discard contract only holds when the
+  owning store swaps mLocation FIRST under the same lock (as
+  `ChartCacheStore.SetLocationAsync` does).
+- `PrepareAsync` fans out + ticks `IProgress<int>` per completion;
+  surfaces faults via `WhenAll`; null/empty key collections no-op.
+- `GetOrNull` returns null pre-build.
+
+**`ChartCacheStoreTests`** (19 tests):
+
+- **Construction** (2) — null location throws; ctor stores location;
+  `LocationNightCache` starts null (lazily built on first per-target
+  prep).
+- **Per-axis Prepare/Get round-trips** (5) — `PrepareManyAsync` publishes
+  yearDays AND builds NightCache; `PrepareFitsAsync` publishes fits;
+  `PrepareDayAsync` publishes 720-minute altitude arrays;
+  `PrepareMoonAsync` publishes singleton per DayWindowKey; different
+  DayWindowKeys yield independent moon entries.
+- **Lifecycle invariants** (4) — `GetOrNull(null)` returns null;
+  `SetLocationAsync(newLocation, …)` drops every axis atomically;
+  `SetLocationAsync` ref-equal-and-same-utc is no-op (preserves cache);
+  monotonic growth across multiple targets.
+- **Idempotence** (1) — `PrepareManyAsync` called twice returns the same
+  `TargetCacheEntry` instance (fast-path to published entry).
+- **EnsureAsync diff matrix** (7) — null ctx throws; first cold call
+  reports non-zero `EnsureWork`; warm call reports zero; location change
+  drops all axes; HdmKey change preserves yearDays + day, rebuilds fits;
+  DayWindowKey change preserves year + fits, rebuilds day + moon;
+  brightness inputs change flips `BrightnessInputsChanged` flag without
+  any axis flip (Bortle/ExtinctionK ride this path, not HdmKey);
+  empty-targets ctx still preps moon (boot baseline); polar-day sentinel
+  (`default(DayWindowKey).Count == 0`) skips Day + Moon prep but still
+  builds yearDays + fits.
+
+**Helper**:
+
+- `Tests/Support/TestLocations.cs` — adapted from
+  `Library/Astronomy.Core.Tests/Tests/TestLocations.cs`. Key change vs
+  the Library version: **cached as `static readonly` fields, not
+  expression-bodied properties**. The Library's `=> new Location(...)`
+  pattern returns a fresh instance per access — which breaks the cache's
+  internal `ReferenceEquals` checks (and downstream `Target.Default` /
+  `Assert.Same` assertions across multiple invocations within one test).
+  TP-side tests rely on reference identity for dict-key lookups + the
+  stale-discard contract. Static fields evaluate once at class init.
+  Same reasoning applied to `ChartCacheStoreTests`' shared `M31` static —
+  documented inline.
+
+**`TargetPlanner.csproj` change**:
+
+- Added `<InternalsVisibleTo Include="TargetPlanner.Tests" />` so the
+  generic `CacheAxis<TKey, TVal>` (internal sealed) is reachable from
+  the test assembly without lifting it to the public surface.
+
+`ChartCoordinator` is **deliberately not tested** in Phase 3 — its
+`System.Windows.Forms.Timer` dependency requires a message-pump fixture
+or an `ITimer` abstraction. Deferred per the rollout plan.
 
 ### 2026-05-27 — TP-side test project (Phase 2 — persistence)
 

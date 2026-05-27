@@ -68,6 +68,14 @@
     <ProjectReference Include="..\..\Library\Astronomy.NINA\Astronomy.NINA.csproj" />
   </ItemGroup>
 
+  <!-- Exposes internal types (currently just Caches/CacheAxis.cs) to the test
+       assembly. The CacheAxis generic implementation deserves direct tests for its
+       per-key dedupe / stale-publish-discard / DrainAndReset lifecycle without
+       requiring a full ChartCacheStore harness around every assertion. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="TargetPlanner.Tests" />
+  </ItemGroup>
+
   <!-- Preserve generator metadata so VS regenerates Resources.Designer.cs / Settings.Designer.cs
        when the corresponding .resx / .settings is edited. Using Update= (not Include=) because
        the SDK's default globs already included these files; we're only augmenting metadata. -->
