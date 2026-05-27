@@ -360,5 +360,57 @@ namespace TargetPlanner
                 }
             });
         }
+
+        // Merge the current SelectedSingle (combo's resolved target -- could be a
+        // NINA-known target or a transient one built from RA/Dec spinner edits) into
+        // the checked set. Transient targets are added to KnownTargets and persisted
+        // to the local-targets.json sidecar so they survive form-close + NINA reload.
+        private void Button_AddTarget_Click(object sender, EventArgs e)
+        {
+            Target t = mSelection?.SelectedSingle;
+            Log.Diag("UI", $"Button_AddTarget.Click target={t?.Name ?? "<null>"}");
+            if (t == null) { ShowTransientMessage("No Target"); return; }
+
+            bool wasNew = mSelection.AddKnownTarget(t);
+            mSelection.SetChecked(t, true);
+            if (wasNew)
+            {
+                mLocalTargets.Add(t);
+                LocalTargetStore.Save(mLocalTargets);
+            }
+
+            // Re-sort listbox + combo by the current ComboBox_SortTargets selection
+            // so the new target lands in its sorted position rather than wherever
+            // PopulateCheckedListBoxFromTargets's first repopulate placed it.
+            ResortSelectedTargets();
+
+            // Keep the combo focused on the just-added target. ResortSelectedTargets
+            // calls PopulateTargetComboFromTargets which preserves the prior text;
+            // re-write it here in case the prior text had drifted (e.g. NINA reload
+            // path reset combo to first sorted before this Add fired).
+            bool wasUpdating = mUpdatingUiFromVm;
+            mUpdatingUiFromVm = true;
+            try { ComboBox_SelectTarget.Text = t.Name; }
+            finally { mUpdatingUiFromVm = wasUpdating; }
+        }
+
+        // Remove the current SelectedSingle from KnownTargets entirely (combo +
+        // listbox both lose the entry). NINA-loaded targets re-appear on the next
+        // browse; locally-added targets are also dropped from the sidecar so they
+        // stay gone across restarts.
+        private void Button_RemoveTarget_Click(object sender, EventArgs e)
+        {
+            Target t = mSelection?.SelectedSingle;
+            Log.Diag("UI", $"Button_RemoveTarget.Click target={t?.Name ?? "<null>"}");
+            if (t == null) { ShowTransientMessage("No Target"); return; }
+
+            bool wasInLocal = mLocalTargets.Remove(t);
+            mSelection.RemoveKnownTarget(t);
+            if (wasInLocal) LocalTargetStore.Save(mLocalTargets);
+
+            // Re-sort listbox + combo by the current ComboBox_SortTargets selection
+            // so the survivor list stays in canonical order after the deletion.
+            ResortSelectedTargets();
+        }
     }
 }
