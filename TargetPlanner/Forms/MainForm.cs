@@ -1009,56 +1009,6 @@ is preserved.";
         }
 
 
-        private void DatePicker_ValueChanged(object sender, EventArgs e)
-        {
-            Log.Diag("UI", $"DatePicker.ValueChanged value={DatePicker.Value:yyyy-MM-dd}");
-            UpdateLocalDateTimeEvents();
-            // Immediate now-line update for live feedback during scrub. Coordinator's
-            // post-apply hook re-runs UpdateNowLine on settle (cheap; just shifts a
-            // section's X position).
-            if (mSubCharts != null)
-                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mObservation.Utc);
-            // Transit / Rise sort keys are time-dependent; Name is not. Skip the re-sort on
-            // Name to avoid a pointless Items.Clear+re-add round-trip on every scrub tick.
-            if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
-                ResortSelectedTargets();
-            // Coordinator: a date change trips the cache's mLastSetUtc diff ->
-            // SetLocationAsync -> full cache rebuild -> Render with fresh moon
-            // series, dusk/dawn, altitudes, and Tonight fits. Date-unchanged
-            // scrubs (TimePicker within the same UTC day) skip the rebuild and
-            // just bounce through the post-apply hook for label + now-line sync.
-            mCoordinator?.Apply(SnapshotCurrent());
-        }
-
-        private void TimePicker_ValueChanged(object sender, EventArgs e)
-        {
-            Log.Diag("UI", $"TimePicker.ValueChanged value={TimePicker.Value:HH:mm}");
-            UpdateLocalDateTimeEvents();
-            if (mSubCharts != null)
-                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mObservation.Utc);
-            if (ComboBox_SortTargets != null && ComboBox_SortTargets.SelectedIndex > 0)
-                ResortSelectedTargets();
-            mCoordinator?.Apply(SnapshotCurrent());
-        }
-
-        // Plain Up/Down on the DatePicker = +/-1 day with natural cascade across
-        // month/year boundaries (DateTime.AddDays). Setting Value programmatically
-        // fires ValueChanged which routes through Apply(SnapshotCurrent()) so the
-        // chart refreshes with the new date. Modifier keys (Shift/Ctrl/Alt + arrow)
-        // pass through to the default WinForms handler.
-        private void DatePicker_KeyDown(object sender, KeyEventArgs e)
-        {
-            if (e.Modifiers != Keys.None) return;
-            int delta;
-            if (e.KeyCode == Keys.Up) delta = 1;
-            else if (e.KeyCode == Keys.Down) delta = -1;
-            else return;
-            Log.Diag("UI", $"DatePicker.KeyDown key={e.KeyCode} delta={delta}d");
-            DatePicker.Value = DatePicker.Value.AddDays(delta);
-            e.Handled = true;
-            e.SuppressKeyPress = true;
-        }
-
         // No-arg overload: reads the shared "current targets" from the coordinator
         // (any area's stamp would carry the same target set, but using the dedicated
         // LastAppliedTargets property avoids the "Year never rendered, returns
@@ -1113,33 +1063,6 @@ is preserved.";
                 ActiveArea:   SelectedArea(),
                 TargetColors: mTargetColorsByTarget,
                 DayMode:      mDayChartMode);
-        }
-
-        // Snap the observation moment back to the current wall-clock time. Replaces the
-        // prior Now/SetDateTime/Hold trio plus the 5-second polling timer with a single
-        // explicit user action: set mLocalDateTime to now, push into the pickers (without
-        // re-triggering their ValueChanged), refresh every label via UpdateLocalDateTime-
-        // Events, and reposition the chart's red now-line to the current X coordinate.
-        private void Button_Now_Click(object sender, EventArgs e)
-        {
-            Log.Diag("UI", "Button_Now.Click");
-            TimeZoneInfo zone = mLocation?.TimeZoneInfo ?? TimeZoneInfo.Local;
-            mObservation = ObservationMoment.Now(zone);
-            DateTime localNow = TimeZoneInfo.ConvertTimeFromUtc(mObservation.Utc, zone);
-
-            DatePicker.ValueChanged -= DatePicker_ValueChanged;
-            TimePicker.ValueChanged -= TimePicker_ValueChanged;
-            DatePicker.Value = localNow;
-            TimePicker.Value = localNow;
-            DatePicker.ValueChanged += DatePicker_ValueChanged;
-            TimePicker.ValueChanged += TimePicker_ValueChanged;
-
-            UpdateLocalDateTimeEvents();
-
-            if (mSubCharts != null)
-                foreach (var sc in mSubCharts.Values) sc.UpdateNowLine(mObservation.Utc);
-
-            mCoordinator?.Apply(SnapshotCurrent());
         }
 
         private static decimal ClampToRange(NumericUpDown spinner, decimal value)
