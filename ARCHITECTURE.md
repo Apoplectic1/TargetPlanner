@@ -49,6 +49,8 @@ The form's `WireSelectionVm` subscribes the VM events to UI-update handlers (`On
 
 ### Cache store (`Caches/`)
 
+Caller-facing contract (invariants, threading, no-CT design, `EnsureAsync` semantics) lives at [`docs/design/cache-contract.md`](docs/design/cache-contract.md); the deep-dive below is the implementation narrative.
+
 Phase 3 of the SoC refactor (commit `3425f8e`) plus the follow-on fit-cache completion (`c74224f`) plus Day-axis addition (`3e12470`) plus the 2026-05-17 pipeline-collapse refactor (Moon axis + `EnsureAsync` single entry, commits `cafbf3c` / `d4fe74c`). Ten files:
 - `MoonSample` — public struct `(Utc, SepDeg, MoonAltDeg)`. Promoted from a private nested type in `AltitudeSeries`.
 - `NightCacheEntry` — public class holding per-target per-night precomputes (`Dusk` / `Dawn` / `LstDusk` / `LstDawn` / `AltDusk` / `AltDawn` / `TransitInNight` / `YearAlt` / `IsPolar` / `SentinelX` / `MoonSamples` / `MoonAgeDays`). Promoted to public.

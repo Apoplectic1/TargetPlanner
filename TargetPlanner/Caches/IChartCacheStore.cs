@@ -16,6 +16,10 @@ namespace TargetPlanner.Caches
     /// </summary>
     /// <remarks>
     /// <para>
+    /// Full caller contract — invariants, threading, no-CT design, EnsureAsync semantics —
+    /// at <c>docs/design/cache-contract.md</c>.
+    /// </para>
+    /// <para>
     /// Phase 3 of the SoC refactor introduced this seam. The renderer queries cache
     /// state and renders; it no longer owns its own cache.
     /// </para>
