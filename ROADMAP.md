@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-26 (`ProgressBar_Processing` now reliably reaches 100 % on cold pipelines — 1 s hold-then-reset masks Aero's ~500 ms animation lag, no `SetWindowTheme` workaround needed; chart paints a baseline at boot via `Apply(empty targets)` so axes / dusk-dawn / moon overlay show without implicitly plotting any target; `ChartCoordinator` owns progress lifecycle through a default `Progress<T>` factory so every Apply path drives the bar through one funnel; bar control renamed from `ProgressBar_MultiTargetProcessing` to `ProgressBar_Processing`; Filters Defaults transient popup removed; 5 missing `async void` handler wraps + `UpdateService.CheckOnStartupAsync` `Log.Warn` shipped from the 2026-05-26 code review's salvageable bits). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
+Last updated 2026-05-27 (cache contract documented at `docs/design/cache-contract.md` — closing §3.A of the 2026-05-26 code-review's salvageable bits, with link-outs from `IChartCacheStore.cs`'s interface XML and `ARCHITECTURE.md` §Cache store; new `TargetPlanner.Tests/` xUnit project lands Phase 1 of the test-project rollout with 89 Tier-A pure-logic tests across 10 classes, closing the long-standing "no automated test surface" deficiency at the infrastructure layer — 4-phase rollout plan at `docs/design/test-project-plan.md`). Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
 
 ## Currently open (priority order)
 
@@ -69,6 +69,70 @@ The original 4-step sequencing plan (correctness audit → extract Astronomy.Cor
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+### 2026-05-27 — TP-side test project (Phase 1)
+
+Closes the "no automated test surface" deficiency at the infrastructure
+layer. New `TargetPlanner.Tests/` xUnit project (matches Library house
+style: `net10.0-windows10.0.19041` x64, `OutputType=Exe`,
+`Nullable=disable`, raw `Assert.*`, no FluentAssertions/Moq) lands 89
+tests across 10 Tier-A pure-logic classes:
+
+- **HdmKeyTests** (12) — per-field equality matrix; `ReferenceEquals`
+  semantics for `LocalHorizon` (the cache-thrash mitigation that nulls
+  scalar profiles); GetHashCode stability.
+- **DayWindowKeyTests** (6) — tick+count equality; `ChartStartUtc`
+  preserves `DateTimeKind.Utc`; default-struct semantics matching
+  explicit zeros.
+- **ChartContextTests** (8) — `Hdm` derived property (ScalarHorizonProfile
+  nulled, polyline passed through, all 5 fields source from Policy);
+  record `with`; structural equality.
+- **PlanningPolicyTests** (6) — `WithScalarHorizon`; `MoonProfile == null`
+  when master toggle off or filter null; happy-path projects to
+  `ActiveFilter.ToProfile()`.
+- **PlanningPreferencesTests** (5) — `Default` (30°/240min); FromDto null
+  → Default; ToDto/FromDto round-trip.
+- **ChartEvaluationTests** (3) — required `BrightnessInputsChanged`;
+  record equality; `with`.
+- **TargetIdentityTests** (19) — `NormalizeName` (case-insens " Stars"
+  strip); `AreSameTarget` ~1 arcmin tolerance including 0h/24h RA wrap
+  and cos(dec) scaling at high latitudes; `SelectNewTargets` dedup +
+  bucket-by-name + existing-set screen + null skip + input-order
+  preservation.
+- **SkyCentroidTests** (8) — empty/null → ArgumentException; single-point
+  identity; 0h/24h seam (23.9h+0.1h → ~0h, not ~12h); RA wrap to [0,24);
+  pole behavior; symmetric-meridian centroid lands ABOVE input Dec by
+  ~0.21° (chord midpoint pulls toward the rotation axis when reprojected
+  to unit length -- caught a wrong intuition during test authoring).
+- **FilterTests** (6) — `ToProfile` drops Name/CenterNm/BandwidthNm;
+  record `with`; field-by-field structural equality (incl. Name and
+  BandwidthNm so HdmKey invalidation fires).
+- **FilterLibraryTests** (16, in-memory only) — Find / Add / RemoveAt /
+  Replace / ReplaceAll / ReplaceAll(null) → clear; `BuiltinDefaults`
+  H/O/S/L/R/G/B pinned; `FindBuiltinDefault` case-insens;
+  `DiffersFromBuiltinDefault` field-by-field across the 8-value
+  footprint; `DefaultLibrary` ≡ BuiltinDefaults.
+
+**TFM gotcha** caught during csproj authoring: the plan's bare
+`net10.0-windows` (which sibling `Astronomy.XISF.Tests` uses via
+`Directory.Build.props`) wouldn't work for TP because TP itself pins
+`net10.0-windows10.0.19041` (SkiaSharp / LiveCharts2 floor). TFM
+compatibility requires consumer ≥ producer on the platform-version axis,
+so the test project matches TP exactly.
+
+**Invocation** is project-scoped, not solution-scoped, so a future
+`Astronomy.PCL.Native` vcxproj reference doesn't break the test build:
+
+```
+dotnet test "TargetPlanner.Tests\TargetPlanner.Tests.csproj" -c Debug -p:Platform=x64
+```
+
+Phase 1 also includes: `TargetPlanner.sln` registers the test project
+(Debug|x64 + Release|x64 config rows); CLAUDE.md's "Tests live in the
+Library repo, not here" line flipped to point at TP-side coverage;
+4-phase rollout plan committed at `docs/design/test-project-plan.md`
+(Phases 2-4 enumerate the remaining ~78 tests: persistence + cache
+contract enforcement + scanner/loader fixtures).
 
 ### 2026-05-26 — Chart baseline paint at boot (empty-targets Apply)
 

@@ -11,6 +11,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Astronomy.XISF", "..\Librar
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Astronomy.NINA", "..\Library\Astronomy.NINA\Astronomy.NINA.csproj", "{C2A5D8E3-7F84-4B92-9D16-3E5A8C9B2D14}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TargetPlanner.Tests", "TargetPlanner.Tests\TargetPlanner.Tests.csproj", "{A8E4F1B9-2D63-4C58-AE17-9F4B5E3D8A26}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -33,6 +35,10 @@ Global
 		{C2A5D8E3-7F84-4B92-9D16-3E5A8C9B2D14}.Debug|x64.Build.0 = Debug|x64
 		{C2A5D8E3-7F84-4B92-9D16-3E5A8C9B2D14}.Release|x64.ActiveCfg = Release|x64
 		{C2A5D8E3-7F84-4B92-9D16-3E5A8C9B2D14}.Release|x64.Build.0 = Release|x64
+		{A8E4F1B9-2D63-4C58-AE17-9F4B5E3D8A26}.Debug|x64.ActiveCfg = Debug|x64
+		{A8E4F1B9-2D63-4C58-AE17-9F4B5E3D8A26}.Debug|x64.Build.0 = Debug|x64
+		{A8E4F1B9-2D63-4C58-AE17-9F4B5E3D8A26}.Release|x64.ActiveCfg = Release|x64
+		{A8E4F1B9-2D63-4C58-AE17-9F4B5E3D8A26}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
