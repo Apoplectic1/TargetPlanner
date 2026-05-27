@@ -34,6 +34,10 @@ Windows Forms desktop tool for astrophotography planning, plotting target altitu
 
 ## Build / run
 
+## Tool preference for symbol queries
+
+For C# symbol-level questions — "find every caller / implementation / definition / override of X", rename refactors, "where is type Y constructed" — prefer the `csharp-lsp` plugin tools (`mcp__csharp-lsp__find_references`, `mcp__csharp-lsp__definition`, etc.) over `Grep`. LSP follows C# semantics (using-aliases like `using Target = Astronomy.Core.Targets.Target;`, partial-class file splits, method overrides, interface implementations) that text search misses. Grep stays the right tool for non-symbol queries: string literals, comment text, file-path matching, build-config files.
+
 - Solution `TargetPlanner.sln` contains **one project authored here** plus two sibling-library projects listed for Solution Explorer visibility:
   - `TargetPlanner/TargetPlanner.csproj` — WinExe, `TargetFramework = net10.0-windows10.0.19041` (UseWindowsForms=true), entry point `TargetPlanner.Program.Main`. The Win10 2004 contract version is needed because `SkiaSharp.Views.WindowsForms 3.119.0` (transitive via LiveCharts2) only ships modern-.NET assets at `net8.0-windows10.0.19041`. Configurations: `Debug|AnyCPU`, `Release|AnyCPU`, `Debug|x64`, `Release|x64`. GC tuning (Server + Concurrent) lives in csproj properties — App.config was deleted in the .NET 10 migration since modern .NET ignores its `<runtime>` / `<startup>` sections.
   - `..\Library\Astronomy.Core\Astronomy.Core.csproj` + `..\Library\Astronomy.NINA\Astronomy.NINA.csproj` — **consumed** via csproj `<ProjectReference>`. `..\Library\Astronomy.XISF\` is sln-visible only and flows transitively through NINA.
