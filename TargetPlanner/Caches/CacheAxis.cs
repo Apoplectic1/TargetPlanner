@@ -130,9 +130,26 @@ namespace TargetPlanner.Caches
         }
 
         // Reset the axis to empty for a location swap, returning the old
-        // in-flight tasks so the caller can await them drain. MUST be called
-        // with mGate held — ChartCacheStore.SetLocationAsync calls it inside its
-        // single lock so all four axes + mLocation reset atomically.
+        // in-flight tasks so the caller can await them drain.
+        //
+        // Two preconditions MUST hold (caller is responsible -- this method
+        // doesn't enforce them):
+        //
+        //   1. mGate is held. ChartCacheStore.SetLocationAsync calls this
+        //      inside its single lock so all four axes + mLocation reset
+        //      atomically.
+        //
+        //   2. mCurrentLocation() ALREADY returns the new location. The
+        //      stale-publish discard at TryPublish is gated by
+        //      ReferenceEquals(mCurrentLocation(), buildLocation); if the
+        //      location hasn't moved, an in-flight build's TryPublish will
+        //      still see ref-equal and land its value in the post-drain
+        //      mStore -- silently re-populating what the caller just cleared.
+        //      ChartCacheStore.SetLocationAsync sets mLocation FIRST, THEN
+        //      calls DrainAndReset on every axis, so the contract holds.
+        //
+        // A future second caller (or a test author) that drains without
+        // swapping the location first will hit this trap.
         public List<Task<TVal>> DrainAndReset()
         {
             List<Task<TVal>> oldInFlight = mInFlight.Values.ToList();
