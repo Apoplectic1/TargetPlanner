@@ -21,15 +21,13 @@ namespace TargetPlanner.Tests.Tests
     // fixtures to keep per-test compute bounded. The yearDays sweep for a single
     // target is ~50-200ms; full Phase 3 settles in well under 30 sec for ~20 tests.
     //
-    // Reference-identity caveat: Astronomy.Core's Target.Default and
-    // TestLocations are expression-bodied properties on the Library side -- each
-    // access creates a fresh instance. The cache uses reference equality on these
-    // (Target as dict key in the per-(target, key) axes; Location via
-    // ReferenceEquals at publish time), so tests MUST capture each instance to
-    // a stable local / class-level field. M31 below is shared across every test
-    // in this class so the same Target instance threads through Prepare and
-    // GetOrNull on both sides of the assertion. TestLocations is already cached
-    // as static fields on the test-side helper -- see TestLocations.cs.
+    // M31 is held as a class-level static so every test in the file uses the
+    // same Target reference. The cache uses reference identity on Target
+    // (per-(target, key) dict keys) and Location (TryPublish's ReferenceEquals
+    // discard), so threading one shared instance through Prepare and GetOrNull
+    // is the cleanest pattern -- and a class-level field makes the canonical-
+    // fixture intent explicit even though Target.Default is now itself a
+    // static readonly singleton on the Library side.
     public class ChartCacheStoreTests
     {
         private static readonly DateTime SeedUtc =

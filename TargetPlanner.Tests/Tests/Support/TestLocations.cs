@@ -4,15 +4,11 @@ using Astronomy.Core.Locations;
 namespace TargetPlanner.Tests.Tests.Support
 {
     // Test-only location fixtures with stable, hand-picked coordinates. Adapted
-    // from Library\Astronomy.Core.Tests\Tests\TestLocations.cs.
-    //
-    // Difference from the Library version: cached as static fields instead of
-    // expression-bodied properties (=> new Location(...)). The cache tests rely
-    // on reference identity (CacheAxis keys publish via ReferenceEquals on the
-    // Location field), so a fresh instance per property access would break the
-    // store's internal stale-discard logic in ways the test wouldn't anticipate.
-    // Static fields evaluate once at class init so every access returns the same
-    // instance.
+    // from Library\Astronomy.Core.Tests\Tests\TestLocations.cs -- cross-repo
+    // duplication, sync if either drifts. Both copies are static readonly fields
+    // (not `=> new Location(...)` properties) so reference identity is stable
+    // across multiple test-method accesses; the cache's TryPublish discard and
+    // per-target dict keys both depend on that.
     public static class TestLocations
     {
         // The historical Location.Default site -- US east coast, mid-latitude N, suburban
