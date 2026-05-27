@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-27 (MainForm.cs partial-class decomposition: 7 new presenter partials + Add/Remove relocation took MainForm.cs from **1669 to 959 lines (-42%)** across one continuous session; latent `Button_Now` resort omission surfaced and fixed during the refactor. Earlier same-day: cache contract documented at `docs/design/cache-contract.md`; `TargetPlanner.Tests/` rollout complete at **187 tests across all 4 phases** in ~16 sec — Phase 1 shipped 89 Tier-A pure-logic tests, Phase 2 shipped 32 persistence tests + 3 path-overload refactors, Phase 3 shipped 31 cache-contract tests mapped 1:1 from `cache-contract.md`'s invariant list, Phase 4 shipped 35 scanner/loader tests with synthetic NINA `.json` + XISF fixtures generated per-test.) Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
+Last updated 2026-05-27 (verify-ui skill at `.claude/skills/verify-ui/` -- one-command UI handler verification for TP via UIA + Win32 messages + the existing UserObservationDialog flow; new `Help > Feedback > Capture Observation Snapshot` menu item surfacing the dialog discoverably; `.gitignore` flipped so `.claude/` rides along with the repo. Earlier same-day: MainForm.cs partial-class decomposition: 7 new presenter partials + Add/Remove relocation took MainForm.cs from **1669 to 959 lines (-42%)**; latent `Button_Now` resort omission surfaced and fixed during the refactor. Earlier same-day: cache contract documented at `docs/design/cache-contract.md`; `TargetPlanner.Tests/` rollout complete at **187 tests across all 4 phases** in ~16 sec — Phase 1 shipped 89 Tier-A pure-logic tests, Phase 2 shipped 32 persistence tests + 3 path-overload refactors, Phase 3 shipped 31 cache-contract tests mapped 1:1 from `cache-contract.md`'s invariant list, Phase 4 shipped 35 scanner/loader tests with synthetic NINA `.json` + XISF fixtures generated per-test.) Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
 
 ## Currently open (priority order)
 
@@ -69,6 +69,76 @@ The original 4-step sequencing plan (correctness audit → extract Astronomy.Cor
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+### 2026-05-27 — verify-ui skill + Capture Observation Snapshot menu item
+
+New project skill at `.claude/skills/verify-ui/` that drives TP's UI
+handlers programmatically -- launches the app, dispatches clicks / menu
+invocations / spinner sets / date picks via `System.Windows.Automation`
++ Win32 `SendMessage` + `PostMessage`, captures before/after snapshots
+through TP's existing `UserObservationDialog` flow, parses tp.log for
+`USER_OBS_END` entries with their ctx + screenshot paths. One-command
+verification of any handler in `Forms/` or `Forms/Presenters/*`. Twelve
+helper functions cover buttons, menus, combos, checkboxes, radios,
+spinners, textboxes, labels, date pickers, listboxes, and the snapshot
+dialog (`Start-TPApp`, `Send-TPSnapshot`, `Invoke-TPControl`,
+`Invoke-TPMenuItem`, `Set-TPDatePicker`, `Set-TPCheckboxState`, ...).
+Worked example in `SKILL.md` covers the Button_Now resort verification
+(the latent bug fixed earlier today as part of the MainForm
+decomposition).
+
+Two TP-side changes paired with the skill:
+
+- **Help > Feedback > Capture Observation Snapshot** menu item
+  surfacing the existing `UserObservationDialog` discoverably (commit
+  `5fe2342`). Same dialog Ctrl+N opens; the menu item exists for users
+  without the shortcut and for reliable UIA invocation from the skill.
+- `.gitignore` flipped from blanket `.claude/` to
+  `.claude/settings.local.json` so project skills / agents / commands /
+  settings ride along with the repo; only per-developer permission
+  state stays local (commit `9e27f2e`).
+
+Four UIA gotchas the skill discovered the hard way and now documents
+inline + in `SKILL.md` caveats:
+
+1. **Menu invocation > keystroke injection.** `SendInput`-style Ctrl+N
+   from non-foreground PowerShell is governed by Windows'
+   foreground-lock rules and lands on whichever window happens to hold
+   focus -- non-deterministic. Driving menu items via UIA's
+   `InvokePattern` takes a deterministic UIA-tree walk with no race
+   conditions.
+2. **PostMessage WM_KEYDOWN > Win32 DTM_SETSYSTEMTIME > UIA
+   ValuePattern** for `DateTimePicker`. UIA `ValuePattern.SetValue`
+   silently no-ops (long-standing WinForms accessibility-provider bug);
+   `DTM_SETSYSTEMTIME` returned 0 against the picker's
+   `NativeWindowHandle` in TP's WinForms version. `PostMessage`
+   `WM_KEYDOWN VK_UP/VK_DOWN` looped per day-delta fires
+   `DatePicker_KeyDown` reliably -- bypasses foreground locks.
+3. **Win32 LB_GETTEXT > UIA ListItem enumeration** for
+   `CheckedListBox`. The WinForms accessibility provider doesn't
+   reliably surface `ListItem` children in the UIA tree (list-
+   virtualization bug, worse with the `DupeAwareCheckedListBox`
+   subclass). `SendMessage(LB_GETCOUNT/LB_GETTEXT)` against the
+   listbox's HWND reads the item store directly.
+4. **TreeScope::Descendants > TreeScope::Children** for owned dialogs.
+   `UserObservationDialog.Show(owner=MainForm)` makes the dialog a
+   top-level owned window -- UIA represents it as a child of MainForm
+   in the tree, NOT a direct child of the desktop. Polling with
+   `Children` scope misses it.
+
+And one verification-design lesson, also caveat'd: **pick the right
+oracle.** The Button_Now resort verification's first attempt asserted
+on listbox-rank diff -- which gave a false "didn't change" signal even
+though the handler chain ran end-to-end, because Transit sort is
+RA-driven and date-invariant for small day-deltas. The right oracle
+was the date-sensitive astrometry labels: Lunar Illumination shifted
+65% -> 89% across a 3-day date jump, proving the full chain
+(`DatePicker_KeyDown` -> `Value` setter -> `ValueChanged` ->
+`OnObservationMomentChanged` -> `RefreshAstrometryLabels`) fired
+exactly as designed.
+
+Skill commits: `5fe2342` (TP menu), `9e27f2e` (gitignore + initial
+skill), `1c448b3` (full API + working DatePicker).
 
 ### 2026-05-27 — MainForm.cs partial-class decomposition (-710 lines, -42%)
 
