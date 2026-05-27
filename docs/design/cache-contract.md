@@ -18,12 +18,12 @@ The cache is **not** a brightness model (Sky's K-S walk runs inline per filter /
 
 Four cache axes, each a `(key) → value` store:
 
-| Axis | Key | Value | Invalidated on |
-|---|---|---|---|
-| yearDays | `Target` | 365 × `NightCacheEntry` | `SetLocationAsync` |
-| fits | `(Target, HdmKey)` | `TargetFitEntry` (year array + Tonight slot) | `SetLocationAsync` or new `HdmKey` |
-| day | `(Target, DayWindowKey)` | `TargetDayAltitudeEntry` (minute-spaced altitudes) | `SetLocationAsync` or new `DayWindowKey` |
-| moon | `DayWindowKey` | `MoonAltitudeEntry` (singleton per night) | `SetLocationAsync` or new `DayWindowKey` |
+| Axis     | Key                      | Value                                              | Invalidated on                           |
+|----------+--------------------------+----------------------------------------------------+------------------------------------------|
+| yearDays | `Target`                 | 365 × `NightCacheEntry`                            | `SetLocationAsync`                       |
+| fits     | `(Target, HdmKey)`       | `TargetFitEntry` (year array + Tonight slot)       | `SetLocationAsync` or new `HdmKey`       |
+| day      | `(Target, DayWindowKey)` | `TargetDayAltitudeEntry` (minute-spaced altitudes) | `SetLocationAsync` or new `DayWindowKey` |
+| moon     | `DayWindowKey`           | `MoonAltitudeEntry` (singleton per night)          | `SetLocationAsync` or new `DayWindowKey` |
 
 Per-axis methods:
 - `GetXxxOrNull(key)` — sync read; lock-protected; `null` ⇒ "not yet built" (caller skips the target). Safe on the UI thread on every Render.
@@ -79,14 +79,14 @@ Output (`ChartEvaluation`):
 
 Diff scope:
 
-| Change in `ctx` | Cache effect |
-|---|---|
-| Location geometry (lat / lon / N / W / elev) | `SetLocationAsync` — every axis drops |
-| Date anchor (`Observation.Utc.Date` or year-start-day) | `SetLocationAsync` — NightCache.Starting + YearStartDay both depend on the UTC anchor |
-| `HdmKey` change (TargetFloor / MinDuration / ActiveFilter / MoonAvoidanceEnabled / LocalHorizon) | fits axis rebuild only; year + day preserved |
-| `DayWindowKey` change (date / dusk-dawn window) | day + moon axes rebuild; year + fits preserved |
-| Brightness inputs (BortleClass / ExtinctionK / ActiveFilter) | `BrightnessInputsChanged = true`; no axis flips (Sky K-S walks inline) |
-| `Targets` reference change | Render ticks; cache is keyed per-target so the set diff is implicit |
+| Change in `ctx`                                                                                  | Cache effect                                                                          |
+|--------------------------------------------------------------------------------------------------+---------------------------------------------------------------------------------------|
+| Location geometry (lat / lon / N / W / elev)                                                     | `SetLocationAsync` — every axis drops                                                 |
+| Date anchor (`Observation.Utc.Date` or year-start-day)                                           | `SetLocationAsync` — NightCache.Starting + YearStartDay both depend on the UTC anchor |
+| `HdmKey` change (TargetFloor / MinDuration / ActiveFilter / MoonAvoidanceEnabled / LocalHorizon) | fits axis rebuild only; year + day preserved                                          |
+| `DayWindowKey` change (date / dusk-dawn window)                                                  | day + moon axes rebuild; year + fits preserved                                        |
+| Brightness inputs (BortleClass / ExtinctionK / ActiveFilter)                                     | `BrightnessInputsChanged = true`; no axis flips (Sky K-S walks inline)                |
+| `Targets` reference change                                                                       | Render ticks; cache is keyed per-target so the set diff is implicit                   |
 
 ## Caller obligations
 
