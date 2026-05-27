@@ -93,7 +93,15 @@ result → close TP → read log + PNGs → compare.
 | `Find-TPControl -Root $r -Name <name> [-TimeoutMs 3000]` | UIA element by AutomationId (= WinForms Control.Name). |
 | `Invoke-TPControl -Root $r -Name <name>` | Click a button or invokable control. |
 | `Set-TPComboIndex -Root $r -Name <name> -Index <n>` | Pick a ComboBox item by 0-based index. |
-| `Get-TPListboxItems -Root $r -Name <name>` | Read CheckedListBox items in display order as string[]. |
+| `Set-TPCheckboxState -Root $r -Name <name> -Checked $true/$false` | Toggle a CheckBox via TogglePattern (no-op if already in target state). |
+| `Get-TPCheckboxState -Root $r -Name <name>` | Read CheckBox state ($true/$false). |
+| `Set-TPRadioButton -Root $r -Name <name>` | Select a RadioButton via SelectionItemPattern (sibling radios auto-deselect). |
+| `Set-TPSpinnerValue -Root $r -Name <name> -Value <double>` | Set a NumericUpDown via RangeValuePattern (clamps to Min/Max). |
+| `Get-TPSpinnerValue -Root $r -Name <name>` | Read a NumericUpDown's current value. |
+| `Set-TPTextValue -Root $r -Name <name> -Value <string>` | Set a TextBox via ValuePattern. |
+| `Get-TPText -Root $r -Name <name>` | Read TextBox text (ValuePattern) or Label text (NameProperty fallback). |
+| `Set-TPDatePicker -Root $r -Name <name> -Date <DateTime>` | Set a DateTimePicker via Win32 DTM_SETSYSTEMTIME (fires ValueChanged). |
+| `Get-TPListboxItems -Root $r -Name <name>` | Read (Checked)ListBox items in display order via Win32 LB_GETTEXT. |
 | `Find-TPElementByName -Root $r -ControlType <t> -Name <name>` | Find any UIA element by ControlType + Name (used for menu items, dialog OK button). |
 | `Invoke-TPMenuItem -Root $r -Path "Help","Feedback","..."` | Walk a menu path: expand each non-leaf, invoke the leaf. |
 | `Send-TPSnapshot -Process $p [-Notes <s>]` | Help → Feedback → Capture Observation Snapshot → fill notes → click OK. Returns the 4-hex id. |

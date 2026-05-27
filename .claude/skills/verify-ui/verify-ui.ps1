@@ -34,9 +34,69 @@ if (-not ('VerifyUiNative' -as [type])) {
     Add-Type @'
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 public class VerifyUiNative {
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+    // SendMessage overloads -- two for ListBox queries (count + per-item text).
+    // CharSet.Auto + Unicode build of WinForms gives us the W variant under the hood.
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    public static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    public static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, StringBuilder lParam);
+
+    // DateTimePicker DTM_SETSYSTEMTIME: writes a new value into the control,
+    // which fires DTN_DATETIMECHANGE -> WinForms ValueChanged. That's what
+    // makes Set-TPDatePicker functionally equivalent to a user spinning the
+    // picker -- the form's handler chain (e.g. DatePicker_ValueChanged ->
+    // OnObservationMomentChanged) runs as a side effect.
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SYSTEMTIME {
+        public ushort wYear, wMonth, wDayOfWeek, wDay;
+        public ushort wHour, wMinute, wSecond, wMilliseconds;
+    }
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    public static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, ref SYSTEMTIME lParam);
+
+    public const int LB_GETCOUNT       = 0x018B;
+    public const int LB_GETTEXTLEN     = 0x018A;
+    public const int LB_GETTEXT        = 0x0189;
+    public const int DTM_SETSYSTEMTIME = 0x1002;
+    public const int GDT_VALID         = 0;
+
+    // PostMessage WM_KEYDOWN/WM_KEYUP for key injection targeted at a
+    // specific hwnd. Bypasses foreground-lock rules (which break SendInput
+    // from non-foreground PowerShell). Used by Set-TPDatePicker to walk
+    // the picker via the existing DatePicker_KeyDown handler.
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    public static extern bool PostMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
+
+    public const int WM_KEYDOWN = 0x0100;
+    public const int WM_KEYUP   = 0x0101;
+    public const ushort VK_UP   = 0x26;
+    public const ushort VK_DOWN = 0x28;
+
+    public static void PostKey(IntPtr hwnd, ushort vk) {
+        PostMessage(hwnd, WM_KEYDOWN, (IntPtr)vk, IntPtr.Zero);
+        PostMessage(hwnd, WM_KEYUP,   (IntPtr)vk, IntPtr.Zero);
+    }
+
+    public static bool SetDateTimePicker(IntPtr hwnd, DateTime dt) {
+        SYSTEMTIME st = new SYSTEMTIME {
+            wYear        = (ushort)dt.Year,
+            wMonth       = (ushort)dt.Month,
+            wDayOfWeek   = (ushort)dt.DayOfWeek,
+            wDay         = (ushort)dt.Day,
+            wHour        = (ushort)dt.Hour,
+            wMinute      = (ushort)dt.Minute,
+            wSecond      = (ushort)dt.Second,
+            wMilliseconds = (ushort)dt.Millisecond,
+        };
+        IntPtr r = SendMessage(hwnd, DTM_SETSYSTEMTIME, (IntPtr)GDT_VALID, ref st);
+        return r.ToInt32() != 0;
+    }
+
     [StructLayout(LayoutKind.Sequential)] public struct KEYBDINPUT {
         public ushort wVk; public ushort wScan; public uint dwFlags; public uint time; public IntPtr dwExtraInfo;
     }
@@ -59,6 +119,20 @@ public class VerifyUiNative {
         inputs[2].U.ki.wVk = vk; inputs[2].U.ki.dwFlags = KEYEVENTF_KEYUP;
         inputs[3].U.ki.wVk = VK_CONTROL; inputs[3].U.ki.dwFlags = KEYEVENTF_KEYUP;
         SendInput(4, inputs, Marshal.SizeOf(typeof(INPUT)));
+    }
+
+    public static string[] ReadListBoxItems(IntPtr hwnd) {
+        int count = SendMessage(hwnd, LB_GETCOUNT, IntPtr.Zero, IntPtr.Zero).ToInt32();
+        if (count <= 0) return new string[0];
+        string[] items = new string[count];
+        for (int i = 0; i < count; i++) {
+            int len = SendMessage(hwnd, LB_GETTEXTLEN, (IntPtr)i, IntPtr.Zero).ToInt32();
+            if (len < 0) { items[i] = string.Empty; continue; }
+            StringBuilder sb = new StringBuilder(len + 1);
+            SendMessage(hwnd, LB_GETTEXT, (IntPtr)i, sb);
+            items[i] = sb.ToString();
+        }
+        return items;
     }
 }
 '@
@@ -139,43 +213,209 @@ function Invoke-TPControl {
     $pat.Invoke()
 }
 
-# Set a ComboBox to the given index (0-based). WinForms ComboBox exposes the
-# SelectionItem pattern on its child ListItem elements.
+# Set a ComboBox to the given index (0-based). WinForms ComboBox only
+# exposes its items in the UIA tree when the dropdown is open, so we
+# Expand first, then enumerate at Descendants scope (the popup listbox
+# sits a level or two below the combo), select the item via
+# SelectionItemPattern (selection auto-collapses the dropdown in
+# WinForms' default DropDownStyle).
 function Set-TPComboIndex {
     param(
         [System.Windows.Automation.AutomationElement]$Root,
         [string]$Name,
         [int]$Index)
     $combo = Find-TPControl -Root $Root -Name $Name
-    $items = $combo.FindAll(
-        [System.Windows.Automation.TreeScope]::Children,
-        (New-Object System.Windows.Automation.PropertyCondition(
+    $expand = $combo.GetCurrentPattern(
+        [System.Windows.Automation.ExpandCollapsePattern]::Pattern)
+    $expand.Expand()
+    try {
+        # Wait for the dropdown's items to register with UIA.
+        $listItemType = [System.Windows.Automation.ControlType]::ListItem
+        $itemCond = New-Object System.Windows.Automation.PropertyCondition(
             [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
-            [System.Windows.Automation.ControlType]::ListItem)))
-    if ($Index -lt 0 -or $Index -ge $items.Count) {
-        throw "Index $Index out of range; combo '$Name' has $($items.Count) items."
+            $listItemType)
+        $items = $null
+        $deadline = (Get-Date).AddMilliseconds(2000)
+        while ((Get-Date) -lt $deadline) {
+            $items = $combo.FindAll(
+                [System.Windows.Automation.TreeScope]::Descendants,
+                $itemCond)
+            if ($items.Count -gt 0) { break }
+            Start-Sleep -Milliseconds 100
+        }
+        if ($Index -lt 0 -or $Index -ge $items.Count) {
+            throw "Index $Index out of range; combo '$Name' has $($items.Count) items."
+        }
+        $selPat = $items[$Index].GetCurrentPattern(
+            [System.Windows.Automation.SelectionItemPattern]::Pattern)
+        $selPat.Select()
+    } finally {
+        # Defensive collapse in case the Select didn't auto-collapse.
+        if ($expand.Current.ExpandCollapseState -eq
+            [System.Windows.Automation.ExpandCollapseState]::Expanded) {
+            $expand.Collapse()
+        }
     }
-    $item = $items[$Index]
-    $pat = $item.GetCurrentPattern(
-        [System.Windows.Automation.SelectionItemPattern]::Pattern)
-    $pat.Select()
 }
 
-# Read a CheckedListBox's items in display order. Returns string[] of item
-# Names (which for TargetRow rows is the target's .Name via ToString()).
+# Toggle a CheckBox to the desired Checked state via TogglePattern. No-op
+# if it's already in that state (avoids spurious CheckedChanged events).
+function Set-TPCheckboxState {
+    param(
+        [System.Windows.Automation.AutomationElement]$Root,
+        [string]$Name,
+        [bool]$Checked)
+    $el = Find-TPControl -Root $Root -Name $Name
+    $tog = $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+    $current = $tog.Current.ToggleState -eq
+        [System.Windows.Automation.ToggleState]::On
+    if ($current -ne $Checked) { $tog.Toggle() }
+}
+
+# Read a CheckBox's checked state. Returns $true / $false.
+function Get-TPCheckboxState {
+    param(
+        [System.Windows.Automation.AutomationElement]$Root,
+        [string]$Name)
+    $el = Find-TPControl -Root $Root -Name $Name
+    $tog = $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+    return ($tog.Current.ToggleState -eq
+        [System.Windows.Automation.ToggleState]::On)
+}
+
+# Select a RadioButton via SelectionItemPattern. Sibling radios are
+# automatically deselected by the SelectionItemPattern.Select semantics
+# (sibling radios share an implicit SelectionPattern container in WinForms).
+function Set-TPRadioButton {
+    param(
+        [System.Windows.Automation.AutomationElement]$Root,
+        [string]$Name)
+    $el = Find-TPControl -Root $Root -Name $Name
+    $sel = $el.GetCurrentPattern(
+        [System.Windows.Automation.SelectionItemPattern]::Pattern)
+    $sel.Select()
+}
+
+# Set a NumericUpDown's value via RangeValuePattern. The WinForms
+# AccessibilityObject for NumericUpDown clamps to Min/Max and fires
+# ValueChanged on the underlying control as a side effect.
+function Set-TPSpinnerValue {
+    param(
+        [System.Windows.Automation.AutomationElement]$Root,
+        [string]$Name,
+        [double]$Value)
+    $el = Find-TPControl -Root $Root -Name $Name
+    $rv = $el.GetCurrentPattern(
+        [System.Windows.Automation.RangeValuePattern]::Pattern)
+    $rv.SetValue($Value)
+}
+
+# Read a NumericUpDown's current value as double.
+function Get-TPSpinnerValue {
+    param(
+        [System.Windows.Automation.AutomationElement]$Root,
+        [string]$Name)
+    $el = Find-TPControl -Root $Root -Name $Name
+    $rv = $el.GetCurrentPattern(
+        [System.Windows.Automation.RangeValuePattern]::Pattern)
+    return [double]$rv.Current.Value
+}
+
+# Set a TextBox's text via ValuePattern. Fires TextChanged. WinForms
+# multiline textboxes work too; values with newlines round-trip cleanly.
+function Set-TPTextValue {
+    param(
+        [System.Windows.Automation.AutomationElement]$Root,
+        [string]$Name,
+        [string]$Value)
+    $el = Find-TPControl -Root $Root -Name $Name
+    $vp = $el.GetCurrentPattern(
+        [System.Windows.Automation.ValuePattern]::Pattern)
+    $vp.SetValue($Value)
+}
+
+# Read text content from a TextBox or Label. ValuePattern (TextBox) is
+# tried first; falls back to NameProperty (Label, immutable text labels
+# don't expose ValuePattern). Returns the displayed text as a string.
+function Get-TPText {
+    param(
+        [System.Windows.Automation.AutomationElement]$Root,
+        [string]$Name)
+    $el = Find-TPControl -Root $Root -Name $Name
+    $vp = $null
+    try {
+        $vp = $el.GetCurrentPattern(
+            [System.Windows.Automation.ValuePattern]::Pattern)
+    } catch { $vp = $null }
+    if ($null -ne $vp) { return [string]$vp.Current.Value }
+    return [string]$el.Current.Name
+}
+
+# Walk a DateTimePicker to a target date by PostMessage'ing WM_KEYDOWN
+# VK_UP/VK_DOWN to its hwnd. Each key press fires the picker's KeyDown
+# handler -- TP's DatePicker_KeyDown subtracts/adds 1 day per arrow
+# press -- which runs the full handler chain (Value setter ->
+# ValueChanged -> OnObservationMomentChanged) just like a user keyboard
+# press would.
+#
+# Why not simpler approaches:
+#   - ValuePattern.SetValue silently no-ops on WinForms DateTimePicker
+#     (long-standing accessibility-provider bug; SetValue returns S_OK
+#     but the control doesn't update).
+#   - Win32 DTM_SETSYSTEMTIME returns 0 against the picker's hwnd in
+#     this WinForms version (possibly a wrapped vs inner-hwnd issue).
+#   - SendInput-style keyboard injection respects foreground-lock rules
+#     and lands on whichever window has focus -- non-deterministic.
+# PostMessage delivers directly to the picker's window queue regardless
+# of foreground state, so the test isn't focus-dependent.
+function Set-TPDatePicker {
+    param(
+        [System.Windows.Automation.AutomationElement]$Root,
+        [string]$Name,
+        [DateTime]$Date)
+    $picker = Find-TPControl -Root $Root -Name $Name
+    $hwnd = [IntPtr]$picker.Current.NativeWindowHandle
+    if ($hwnd -eq [IntPtr]::Zero) {
+        throw "DateTimePicker '$Name' has no NativeWindowHandle."
+    }
+    # Parse current displayed value to compute day delta.
+    $current = ($picker.GetCurrentPattern(
+        [System.Windows.Automation.ValuePattern]::Pattern)).Current.Value
+    $currentDt = [DateTime]::Parse($current)
+    $delta = ($Date.Date - $currentDt.Date).Days
+    if ($delta -eq 0) { return }
+    $vk = if ($delta -lt 0) { [VerifyUiNative]::VK_DOWN } else { [VerifyUiNative]::VK_UP }
+    $steps = [Math]::Abs($delta)
+    for ($i = 0; $i -lt $steps; $i++) {
+        [VerifyUiNative]::PostKey($hwnd, $vk)
+        # Small inter-key gap so each press's handler (which calls
+        # mCoordinator.Apply -> debounced render) doesn't stack up
+        # ahead of the next press.
+        Start-Sleep -Milliseconds 30
+    }
+}
+
+# Read a (Checked)ListBox's items in display order. Returns string[] of
+# item Names (each item's ToString() in WinForms -- TargetRow rows
+# resolve to the Target's .Name).
+#
+# Uses raw Win32 SendMessage(LB_GETCOUNT) + LB_GETTEXT against the
+# listbox's HWND, not UIA. WinForms ListBox / CheckedListBox / the
+# DupeAwareCheckedListBox subclass don't reliably expose ListItem
+# children in their UIA tree (the WinForms accessibility provider is
+# bugged around list virtualization). Win32 messages target the control
+# directly and return whatever the listbox's item-store contains --
+# faithful to what's on screen.
 function Get-TPListboxItems {
     param(
         [System.Windows.Automation.AutomationElement]$Root,
         [string]$Name)
     $lb = Find-TPControl -Root $Root -Name $Name
-    $items = $lb.FindAll(
-        [System.Windows.Automation.TreeScope]::Children,
-        (New-Object System.Windows.Automation.PropertyCondition(
-            [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
-            [System.Windows.Automation.ControlType]::ListItem)))
-    $out = New-Object System.Collections.Generic.List[string]
-    foreach ($it in $items) { [void]$out.Add($it.Current.Name) }
-    return ,$out.ToArray()
+    $hwnd = [IntPtr]$lb.Current.NativeWindowHandle
+    if ($hwnd -eq [IntPtr]::Zero) {
+        throw "ListBox '$Name' has no NativeWindowHandle; cannot read items."
+    }
+    return ,[VerifyUiNative]::ReadListBoxItems($hwnd)
 }
 
 # Find any UIA element of the given ControlType + Name (text) under $Root.
