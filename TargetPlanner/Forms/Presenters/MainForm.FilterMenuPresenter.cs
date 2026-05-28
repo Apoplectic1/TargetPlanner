@@ -5,7 +5,6 @@ using System.Windows.Forms;
 using Astronomy.Core.Moon;
 using TargetPlanner.Filters;
 using TargetPlanner.Forms;
-using TargetPlanner.State;
 using TargetPlanner.Support;
 
 using TpFilter = TargetPlanner.Filters.Filter;
@@ -81,6 +80,21 @@ namespace TargetPlanner
                     firstFilterItem = item;
                 }
             }
+
+            // Discoverable equivalent of right-clicking a filter item / radio. Pre-selects
+            // the active filter when present so the dialog opens on the user's current
+            // working filter. Not added to mFilterMenuItems -- RefreshFilterMenuLabels
+            // and the SetActiveFilter Checked-sync walk that list by parallel index with
+            // mFilterLibrary.Filters; the Edit item is a separate concern.
+            if (mFilterLibrary.Filters.Count > 0)
+                FiltersToolStripMenuItem_MainForm.DropDownItems.Add(new ToolStripSeparator());
+            ToolStripMenuItem editItem = new ToolStripMenuItem("&Edit Filters...");
+            editItem.Click += (s, e) =>
+            {
+                Log.Diag("UI", "Menu Filters.Edit.Click");
+                OpenEditFiltersDialog(mActiveFilter != null ? mActiveFilter.Name : null);
+            };
+            FiltersToolStripMenuItem_MainForm.DropDownItems.Add(editItem);
 
             // Pre-select the first library filter visually and write its values into
             // the Lorentzian controls so the GroupBox has sensible defaults from the
