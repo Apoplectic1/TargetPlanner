@@ -388,6 +388,14 @@ namespace TargetPlanner
         {
             if (mSyncingLocationUI) return;
 
+            // No mObservation re-seat needed here (unlike ResetForLocationChange):
+            // lat / lon / N/W / elevation edits don't change the location's TZ.
+            // TZ changes flow through ComboBox_TimeZone_SelectedIndexChanged which
+            // already reseats mObservation in lockstep; ComboBox_Location picks
+            // route through ResetForLocationChange which calls
+            // UpdateLocalDateTimeEvents. So mObservation.Zone is always in sync
+            // with mLocation.TimeZoneInfo by the time we land here.
+
             // Per-edit label refresh. Cheap (~150 us); fires on every spinner tick so
             // the dependent readouts (dusk/dawn, sun/moon altitude, moon rise/set,
             // illumination, phase) track the live mLocation values without lag.

@@ -199,7 +199,7 @@ namespace TargetPlanner.State
                 {
                     Log.Diag("Coord",
                         $"Pipeline enter activeArea={ctx.ActiveArea} dayKey.Count={dayKey.Count} " +
-                        $"obs={ctx.Observation.Utc:yyyy-MM-dd HH:mm}Z");
+                        $"obs={ctx.Observation.Utc:yyyy-MM-dd HH:mm}Z zone={ctx.Observation.Zone?.Id ?? "(null)"}");
                 }
                 ChartEvaluation eval = await mCache.EnsureAsync(ctx, dayKey, progress);
 
