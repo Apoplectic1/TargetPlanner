@@ -463,6 +463,12 @@ namespace TargetPlanner.Charts
                 GeometrySize = 0,
                 IsHoverable = false,
                 IsVisibleAtLegend = false,
+                // Inherit the host curve's visibility at creation so re-create
+                // paths (Render -> RefreshActiveOverlays / EnsureGlobalApplied
+                // after a mode flip, H/D/M scrub, or ToggleAll) carry forward
+                // the legend-toggled hidden state instead of defaulting to true.
+                // Runtime legend toggles still flow through SyncTickVisibility.
+                IsVisible = series.IsVisible,
             };
             mTickSeries[series] = tick;
             AddSeriesToChart(tick);
