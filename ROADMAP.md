@@ -1,6 +1,6 @@
 # TargetPlanner — Roadmap
 
-Last updated 2026-05-27 (verify-ui skill at `.claude/skills/verify-ui/` -- one-command UI handler verification for TP via UIA + Win32 messages + the existing UserObservationDialog flow; new `Help > Feedback > Capture Observation Snapshot` menu item surfacing the dialog discoverably; `.gitignore` flipped so `.claude/` rides along with the repo. Earlier same-day: MainForm.cs partial-class decomposition: 7 new presenter partials + Add/Remove relocation took MainForm.cs from **1669 to 959 lines (-42%)**; latent `Button_Now` resort omission surfaced and fixed during the refactor. Earlier same-day: cache contract documented at `docs/design/cache-contract.md`; `TargetPlanner.Tests/` rollout complete at **187 tests across all 4 phases** in ~16 sec — Phase 1 shipped 89 Tier-A pure-logic tests, Phase 2 shipped 32 persistence tests + 3 path-overload refactors, Phase 3 shipped 31 cache-contract tests mapped 1:1 from `cache-contract.md`'s invariant list, Phase 4 shipped 35 scanner/loader tests with synthetic NINA `.json` + XISF fixtures generated per-test.) Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
+Last updated 2026-05-28 (MoonEphemeris + AltitudeCurve.Sample reshape in AL + per-night cache axes rekeyed from `DayWindowKey` to `NightDate` in TP: per-minute observational compute extracted into pure-function AL primitives (`MoonEphemeris.Sample` returning `IReadOnlyList<MoonSample>` with topocentric parallax + apparent altitude; `AltitudeCurve.Sample` returning `IReadOnlyList<AltAzSample>` with geometric + apparent altitudes). TP's `mDayAxis` → `(Target, NightDate) → TargetTrajectoryEntry` and `mMoonAxis` → `NightDate → MoonEphemerisEntry`. `DayWindowKey` survives only as the chart's render-time X-axis bounds carried inside each entry's `Window` field. AL + TP shipped as paired commits (`4a0f309` + `c3ca26b`); aligns TP's cache shape with the planned IS Plugin (ISP) cache. 468 AL tests + 187 TP tests green; UI smoke confirmed via Penns Park boot + 5-target VisibleTonight render.) Earlier "Last updated" entries archived to the per-date "Recently shipped" sections below.
 
 ## Currently open (priority order)
 
@@ -69,6 +69,99 @@ The original 4-step sequencing plan (correctness audit → extract Astronomy.Cor
 ## Recently shipped
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
+
+### 2026-05-28 — MoonEphemeris + AltitudeCurve reshape; TP cache axes rekey
+
+Extracted the per-minute observational compute that TP rolled inline
+into pure-function AL primitives, then rekeyed TP's two per-night cache
+axes to consume them. One PR each side; AL shipped first
+(`Library 4a0f309`), TP commits against the new surface (`TP c3ca26b`).
+Aligns TP's cache shape with the planned IS Plugin (ISP) cache so the
+AL primitive surface is stable before ISP design starts.
+
+**AL primitives** (new + reshaped, pure functions; no AL-side caching
+per the "no static mutable state in Core" contract):
+
+- `Astronomy.Core.Moon.MoonEphemeris.Sample(location, startUtc, step,
+  count)` returning `IReadOnlyList<MoonSample>`. Each `MoonSample`
+  carries topocentric `AltDegGeometric` + `AltDegApparent` + `AzDeg`
+  + `DistanceKm` + `AgeDays` + `PhaseAngleDeg` + `IlluminatedFrac` —
+  all positions parallax-aware via `MoonPosition.Topocentric`;
+  apparent altitude via `Refraction.SaemundssonDeg`. Reuses existing
+  `MoonPosition`, `LunarAge`, `Saemundsson` primitives internally.
+- Reshaped `Astronomy.Core.Session.AltitudeCurve.Sample` from
+  `IReadOnlyList<double>` to `IReadOnlyList<AltAzSample>` (each sample
+  carries `AltDegGeometric` + `AltDegApparent` + `AzDeg`). Internal
+  linear LST advance optimization keeps the per-sample cost flat
+  versus per-sample LST recompute.
+
+**TP cache shape** (`Caches/`):
+
+- New `NightDate` value type: `readonly record struct
+  NightDate(DateOnly DuskDate)`. The local calendar date on which the
+  night's astronomical dusk occurs, evaluated under the site's
+  `TimeZoneInfo`. Static factory `NightDate.Of(NightWindow, TimeZoneInfo)`
+  returns `default(NightDate)` for invalid polar-night windows;
+  `EnsureAsync` treats `default` as the skip sentinel for trajectory +
+  moon prep (year + fits still build).
+- `mMoonAxis` rekeyed `DayWindowKey → NightDate`. Entry type renamed
+  `MoonAltitudeEntry → MoonEphemerisEntry`; builder delegates to
+  `MoonEphemeris.Sample`.
+- `mDayAxis` rekeyed `(Target, DayWindowKey) → (Target, NightDate)`.
+  Entry type renamed `TargetDayAltitudeEntry → TargetTrajectoryEntry`;
+  builder delegates to reshaped `AltitudeCurve.Sample`.
+- `BuildDayWindowForDate(Location, NightDate)` is the cache-internal
+  helper that resolves the night's chart-window UTC bounds from the
+  date (local-noon UTC anchor → `NightCalculator.ComputeNight` →
+  `ChartLayout.BuildDayWindow`). The resulting `DayWindowKey` rides
+  inside each entry's `Window` field, so consumers needing render-time
+  X bounds still have them.
+- `DayWindowKey` survives only as the render-time X-axis bounds carried
+  inside the cache entries; `ChartLayout.BuildDayWindow` remains the
+  single producer.
+- TP-side `MoonSample` (the year-day moon-sweep sample carried by
+  `NightCacheEntry`) renamed to `MoonSweepSample` to avoid collision
+  with the new `Astronomy.Core.Moon.MoonSample`.
+
+**TP consumers** (`Charts/`, `State/`):
+
+- `ChartCoordinator.RunPipelineAsync` derives `nightDate` via
+  `NightDate.Of(NightCalculator.ComputeNight(ctx.Location,
+  ctx.Observation.Utc), ctx.Observation.Zone)` and passes it to
+  `EnsureAsync(ctx, nightDate, progress)`.
+- `AltitudeSubChart_Day` + `AltitudeSubChart_Sky` derive `nightDate`
+  the same way and pull samples off `GetTrajectoryOrNull` /
+  `GetMoonOrNull`. The Day chart reads `Samples[i].AltDegGeometric`;
+  Sky's K-S walk gates on the same fit decision as before but the moon
+  overlay now reads from the shared cache entry.
+- `MoonOverlay.FetchOrCompute` consumes `MoonSample.AltDegGeometric`
+  off the cached entry. The defensive inline fallback (cache-miss race)
+  calls `MoonEphemeris.Sample` directly so the inline path is
+  byte-identical to the cached one (no more parallel `AstroUtil.GetMoonAltitude`
+  walk).
+
+**Verification**:
+
+- AL: 468 tests pass (`Astronomy.Core.Tests`), 26 XISF, 67 NINA.
+- TP: 187 tests pass (`TargetPlanner.Tests`) including `ChartCacheStoreTests`
+  rewritten against the new key + entry shapes.
+- UI smoke: Penns Park boot loaded clean, `Button_VisibleTonight`
+  rendered 5 targets, `nightDate=2026-05-28` logged through the Coord
+  pipeline, all cache lookups hit (`dayEntryNull=0 fitEntryNull=0`),
+  no `MoonOverlay.FetchOrCompute` cache-miss WARNs fired.
+
+**Out-of-scope follow-ups** (unlocked, not landed):
+
+- BLUE-check could now read from cached `AltAzSample` instead of
+  recomputing — the new shape unblocks the optimization but doesn't
+  force it.
+- ISP scaffolding can begin against the stable AL surface.
+- Sky chart moon-toggle UX: K-S brightness curves don't change when
+  the moon-avoidance toggle flips (correct physics — moon scattered
+  light is always present; toggle gates fit decisions, not the
+  brightness compute). A future design could split per-target curves
+  into "moon-clear" vs "moon-affected" segments so the toggle has a
+  visual effect.
 
 ### 2026-05-27 — verify-ui skill + Capture Observation Snapshot menu item
 
