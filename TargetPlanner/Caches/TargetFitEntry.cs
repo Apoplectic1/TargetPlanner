@@ -79,5 +79,9 @@ namespace TargetPlanner.Caches
         public DateTime? EndUtc { get; init; }
         public DateTime? CenteredStartUtc { get; init; }
         public DateTime? CenteredEndUtc { get; init; }
+        // Upper-transit UTC for this night (HA = 0 at or after AstronomicalDusk).
+        // Independent of H/D/M; carried here because NightFit is the natural
+        // per-night slot consumers (Day chart HD-overlay transit tick) read from.
+        public DateTime? TransitUtc { get; init; }
     }
 }

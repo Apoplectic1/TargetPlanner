@@ -787,6 +787,11 @@ namespace TargetPlanner.Caches
                     centered.Value.Start, centered.Value.End);
             }
 
+            // Upper transit at or after dusk. Analytic (constant cost), independent
+            // of H/D/M -- carried here so the Day chart's HD-overlay can mark transit
+            // X on the floor bar without re-deriving from RA + sidereal time at paint.
+            DateTime transit = TransitTime.UtcAtOrAfter(target, location, nw.AstronomicalDusk);
+
             return new NightFit
             {
                 Ceiling = ceiling,
@@ -796,6 +801,7 @@ namespace TargetPlanner.Caches
                 EndUtc   = session?.End,
                 CenteredStartUtc = centered?.Start,
                 CenteredEndUtc   = centered?.End,
+                TransitUtc = transit,
             };
         }
     }

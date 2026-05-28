@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using LiveChartsCore;
 using LiveChartsCore.Defaults;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.WinForms;
@@ -29,8 +30,13 @@ namespace TargetPlanner.Charts
         // precise probe.
         public const double MaxClickDistanceDeg = 5.0;
 
+        // Vertical tick height drawn DOWNWARD from the floor bar's top edge at the
+        // target's transit X. Approximates "5 px" at the Day chart's fixed plot-area
+        // pixel scale (Y axis spans [0, 90]°).
+        private const double TickHeightDeg = 3.0;
+
         private readonly CartesianChart mChart;
-        private readonly Func<LineSeries<ObservablePoint>, (double startOA, double endOA, double floor)?> mWindowFor;
+        private readonly Func<LineSeries<ObservablePoint>, (double startOA, double endOA, double floor, double? transitOA)?> mWindowFor;
         private readonly Func<IEnumerable<LineSeries<ObservablePoint>>> mTargetSeries;
         private readonly Action<string> mReportStatus;
 
@@ -38,6 +44,16 @@ namespace TargetPlanner.Charts
         // the snapshot/restore cycle — coercing to 0 would lose them.
         private readonly Dictionary<LineSeries<ObservablePoint>, double?[]> mBackups
             = new Dictionary<LineSeries<ObservablePoint>, double?[]>();
+
+        // Tick decoration LineSeries per active overlay. Lifecycle parallel to
+        // mBackups: created by ApplyOverlay alongside the line-series mutation,
+        // dropped wherever a backup is dropped (restore branches, Prune, no-window
+        // RefreshActiveOverlays branch). Each entry is a 2-point LineSeries drawing
+        // a short vertical line from (transitX, floor) down to (transitX, floor -
+        // TickHeightDeg), in the host series's stroke color. Added to mChart.Series
+        // so LC2 paints it; removed by reassigning mChart.Series sans the tick.
+        private readonly Dictionary<LineSeries<ObservablePoint>, LineSeries<ObservablePoint>> mTickSeries
+            = new Dictionary<LineSeries<ObservablePoint>, LineSeries<ObservablePoint>>();
 
         // True if the most recent activation was via ToggleAll's apply path
         // (right-click apply-all). Cleared by RestoreAll, ClearAll, by
@@ -82,7 +98,7 @@ namespace TargetPlanner.Charts
         public OverlayController(
             CartesianChart chart,
             Func<IEnumerable<LineSeries<ObservablePoint>>> targetSeries,
-            Func<LineSeries<ObservablePoint>, (double startOA, double endOA, double floor)?> windowFor,
+            Func<LineSeries<ObservablePoint>, (double startOA, double endOA, double floor, double? transitOA)?> windowFor,
             Action<string> reportStatus)
         {
             mChart = chart;
@@ -130,6 +146,10 @@ namespace TargetPlanner.Charts
                     // overlay intent on the way through "no fit" and they'd
                     // have to re-click after every such cycle. Right-click
                     // (RestoreAll) is still the explicit way to clear intent.
+                    // The tick decoration goes with the bar visually -- drop it
+                    // here too; ApplyOverlay will recreate it when the target
+                    // re-enters fit.
+                    RemoveTickFor(series);
                     continue;
                 }
                 // Re-apply step function. ApplyOverlay re-snapshots into mBackups
@@ -148,7 +168,7 @@ namespace TargetPlanner.Charts
             // scrub; toggle-on removes the exception. Right-click (ToggleAll)
             // remains the bulk clear / bulk apply gesture.
             LineSeries<ObservablePoint> best = null;
-            (double startOA, double endOA, double floor)? bestWin = null;
+            (double startOA, double endOA, double floor, double? transitOA)? bestWin = null;
 
             // Sticky fast-path: if the mouse hasn't moved since the last
             // successful toggle, re-toggle the same target without a hit-test.
@@ -163,7 +183,7 @@ namespace TargetPlanner.Charts
             // mode-filter swap (Floor -> Meridian/Wall) can drop the sticky
             // target from view, in which case we want to fall through to the
             // normal hit-test rather than toggle an invisible series' backup.
-            (double, double, double)? stickyWin = mLastToggled != null
+            (double, double, double, double?)? stickyWin = mLastToggled != null
                 ? mWindowFor(mLastToggled)
                 : null;
             if (mLastToggled != null
@@ -216,6 +236,7 @@ namespace TargetPlanner.Charts
                 for (int i = 0; i < backup.Length && i < bdata.Count; i++)
                     bdata[i] = new ObservablePoint(bdata[i].X, backup[i]);
                 mBackups.Remove(best);
+                RemoveTickFor(best);
                 if (wasGlobal) mGlobalOptOuts.Add(best);
                 // Draining the last backup exits global mode cleanly; opt-out
                 // bookkeeping becomes meaningless once global intent is gone.
@@ -265,6 +286,17 @@ namespace TargetPlanner.Charts
                 var backup = kv.Value;
                 for (int i = 0; i < backup.Length && i < data.Count; i++)
                     data[i] = new ObservablePoint(data[i].X, backup[i]);
+            }
+            // Drop every tick decoration alongside the backups; reassigns
+            // mChart.Series once stripping all known ticks (more efficient than
+            // per-tick removes).
+            if (mTickSeries.Count > 0)
+            {
+                var ticks = new HashSet<ISeries>(mTickSeries.Values);
+                mTickSeries.Clear();
+                var existing = mChart.Series;
+                if (existing != null)
+                    mChart.Series = existing.Where(s => !ticks.Contains(s)).ToList();
             }
             var n = mBackups.Count;
             mBackups.Clear();
@@ -320,10 +352,17 @@ namespace TargetPlanner.Charts
         // and stale opt-outs don't suppress a later EnsureGlobalApplied.
         public void PruneStaleBackups(IEnumerable<LineSeries<ObservablePoint>> activeSeries)
         {
-            if (mBackups.Count == 0 && mGlobalOptOuts.Count == 0 && mLastToggled == null) return;
+            if (mBackups.Count == 0 && mGlobalOptOuts.Count == 0 && mLastToggled == null
+                && mTickSeries.Count == 0) return;
             var active = new HashSet<LineSeries<ObservablePoint>>(activeSeries);
             var staleBackups = mBackups.Keys.Where(s => !active.Contains(s)).ToList();
             foreach (var s in staleBackups) mBackups.Remove(s);
+            // Tick dict tracks the same series keys as mBackups -- prune stale
+            // ticks in lockstep so a series removed from the active set doesn't
+            // leak its tick reference. The actual ISeries in mChart.Series is
+            // already gone (Render reassigned mChart.Series with a fresh list).
+            var staleTicks = mTickSeries.Keys.Where(s => !active.Contains(s)).ToList();
+            foreach (var s in staleTicks) mTickSeries.Remove(s);
             var staleOptOuts = mGlobalOptOuts.Where(s => !active.Contains(s)).ToList();
             foreach (var s in staleOptOuts) mGlobalOptOuts.Remove(s);
             if (mLastToggled != null && !active.Contains(mLastToggled)) mLastToggled = null;
@@ -359,10 +398,16 @@ namespace TargetPlanner.Charts
         // (horizontal bar). Single points immediately adjacent to the
         // window edges: Y = 0 (anchor for the vertical drop line). All
         // other outside-window points: Y = null (gap).
+        //
+        // If win.transitOA is non-null, also publishes a 2-point tick LineSeries
+        // hanging downward from (transitOA, floor) by TickHeightDeg in the host
+        // series's stroke color. Caller clips transitOA to inside-window upstream
+        // (AltitudeSubChart_Day derives transitOA from NightFit.TransitUtc and
+        // nulls it when transit is outside the window).
         private void ApplyOverlay(
             LineSeries<ObservablePoint> series,
             ObservableCollection<ObservablePoint> bdata,
-            (double startOA, double endOA, double floor) win)
+            (double startOA, double endOA, double floor, double? transitOA) win)
         {
             var snapshot = bdata.Select(p => p.Y).ToArray();
             mBackups[series] = snapshot;
@@ -389,6 +434,56 @@ namespace TargetPlanner.Charts
                 }
                 bdata[i] = new ObservablePoint(x, newY);
             }
+
+            // Replace any prior tick for this series, then publish the new one.
+            // Sharing series.Stroke ties the tick to the target's overlay color
+            // automatically (ApplyTargetVisibility rebuilds the stroke per-render;
+            // we hold the same IPaint instance the curve does at apply time).
+            RemoveTickFor(series);
+            if (!win.transitOA.HasValue) return;
+            var tick = new LineSeries<ObservablePoint>
+            {
+                Name = series.Name + " (transit)",
+                Values = new ObservableCollection<ObservablePoint>
+                {
+                    new ObservablePoint(win.transitOA.Value, win.floor),
+                    new ObservablePoint(win.transitOA.Value, win.floor - TickHeightDeg),
+                },
+                Stroke = series.Stroke,
+                Fill = null,
+                GeometrySize = 0,
+                IsHoverable = false,
+                IsVisibleAtLegend = false,
+            };
+            mTickSeries[series] = tick;
+            AddSeriesToChart(tick);
+        }
+
+        // Drop a tick from both mTickSeries and mChart.Series. No-op when no tick
+        // is currently active for the given main series.
+        private void RemoveTickFor(LineSeries<ObservablePoint> series)
+        {
+            if (!mTickSeries.TryGetValue(series, out var tick)) return;
+            mTickSeries.Remove(series);
+            RemoveSeriesFromChart(tick);
+        }
+
+        // mChart.Series setter triggers an LC2 redraw. The list may be a List
+        // (Render's seriesList) or an Array (ClearAll / construction); we re-
+        // materialize as a List unconditionally so subsequent removes can locate
+        // the entry. Reassignment frequency is bounded by user toggle gestures.
+        private void AddSeriesToChart(ISeries deco)
+        {
+            var list = mChart.Series?.ToList() ?? new List<ISeries>();
+            list.Add(deco);
+            mChart.Series = list;
+        }
+
+        private void RemoveSeriesFromChart(ISeries deco)
+        {
+            var existing = mChart.Series;
+            if (existing == null) return;
+            mChart.Series = existing.Where(s => !ReferenceEquals(s, deco)).ToList();
         }
     }
 }

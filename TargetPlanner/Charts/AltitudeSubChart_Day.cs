@@ -84,9 +84,12 @@ namespace TargetPlanner.Charts
 
         // Per-target best D-hour window for the HD overlay click handler.
         // Keyed by LineSeries (not Target) because OverlayController operates on
-        // the LineSeries it found via hit-test.
-        private readonly Dictionary<LineSeries<ObservablePoint>, (double startOA, double endOA, double floor)>
-            mTargetWindows = new Dictionary<LineSeries<ObservablePoint>, (double, double, double)>();
+        // the LineSeries it found via hit-test. The trailing transitOA is the
+        // per-target upper-transit X for the HD-overlay's downward tick decoration,
+        // already clipped to [startOA, endOA] (null when transit falls outside the
+        // window -- typically Floor-mode wall-pushed placements).
+        private readonly Dictionary<LineSeries<ObservablePoint>, (double startOA, double endOA, double floor, double? transitOA)>
+            mTargetWindows = new Dictionary<LineSeries<ObservablePoint>, (double, double, double, double?)>();
 
         private LineSeries<ObservablePoint> mMoonSeries;
 
@@ -102,8 +105,12 @@ namespace TargetPlanner.Charts
         // SnapshotCurrent and a DayMode flip flows through the coordinator's
         // Apply pipeline as a normal Render (cache eval surfaces
         // DayModeChanged=true for any future short-circuit consumer).
-        private readonly RadioButton mFloorRadio;
-        private readonly RadioButton mTransitRadio;
+        private readonly RadioButton mTonightRadio;
+        private readonly RadioButton mSymetricTransitRadio;
+        // Shared ToolTip component for the mode radios. WinForms ToolTip is a
+        // Component (not a Control); kept as a field so it stays alive past the
+        // ctor (a GC'd ToolTip silently stops showing tips on its attached controls).
+        private readonly ToolTip mModeTooltip = new ToolTip();
         // Suppress DayChartModeChanged event during programmatic radio updates
         // (constructor seed, future external SetMode calls) so the form's
         // subscription doesn't trigger a spurious snapshot+apply on startup.
@@ -198,7 +205,7 @@ namespace TargetPlanner.Charts
                 mChart,
                 () => mSeriesByTarget.Values,
                 series => mTargetWindows.TryGetValue(series, out var w)
-                    ? ((double, double, double)?)w
+                    ? ((double, double, double, double?)?)w
                     : null,
                 s => Log.Diag("Overlay", s));
             // Custom curve tooltip so the hover time reads the site's wall clock.
@@ -227,16 +234,18 @@ namespace TargetPlanner.Charts
             // plot area's chrome margin. BringToFront() ensures they paint above
             // the chart in WinForms Z-order.
             mSuppressModeChangedEvent = true;
-            mFloorRadio   = MakeModeRadio("Floor",   DayChartMode.Floor,   isChecked: true);
-            mTransitRadio = MakeModeRadio("Transit", DayChartMode.Transit, isChecked: false);
+            mTonightRadio = MakeModeRadio("Tonight",   DayChartMode.Floor,   isChecked: true,
+                                          "Targets filtered by 'Target Floor', 'Duration' and 'Moon Avoidance' spinners");
+            mSymetricTransitRadio = MakeModeRadio("Centered Transit", DayChartMode.Transit, isChecked: false,
+                                          "Tonight's targets further filtered by symmetric transit - *right click*");
             int radioY = ChartLayout.TopChromePx + 2;
             int radioX = ChartLayout.LeftChromePx + 5;
-            mFloorRadio.Location   = new Point(radioX,       radioY);
-            mTransitRadio.Location = new Point(radioX + 60,  radioY);
-            mContainer.Controls.Add(mFloorRadio);
-            mContainer.Controls.Add(mTransitRadio);
-            mFloorRadio.BringToFront();
-            mTransitRadio.BringToFront();
+            mTonightRadio.Location = new Point(radioX, radioY);
+            mSymetricTransitRadio.Location = new Point(radioX + 70,  radioY);
+            mContainer.Controls.Add(mTonightRadio);
+            mContainer.Controls.Add(mSymetricTransitRadio);
+            mTonightRadio.BringToFront();
+            mSymetricTransitRadio.BringToFront();
             mSuppressModeChangedEvent = false;
         }
 
@@ -244,7 +253,7 @@ namespace TargetPlanner.Charts
         // into the chart background; AutoSize keeps label width tight regardless
         // of font metrics. The Tag holds the DayChartMode value so the shared
         // CheckedChanged handler can route without per-radio handlers.
-        private RadioButton MakeModeRadio(string label, DayChartMode mode, bool isChecked)
+        private RadioButton MakeModeRadio(string label, DayChartMode mode, bool isChecked, string tooltip)
         {
             var radio = new RadioButton
             {
@@ -257,6 +266,7 @@ namespace TargetPlanner.Charts
                 Checked = isChecked,
             };
             radio.CheckedChanged += OnModeRadioCheckedChanged;
+            mModeTooltip.SetToolTip(radio, tooltip);
             return radio;
         }
 
@@ -450,10 +460,22 @@ namespace TargetPlanner.Charts
                     // OADate. OverlayController compares these bounds against the
                     // per-minute data-point Xs (also UTC OADate), so the frames
                     // match without any zone conversion here.
-                    mTargetWindows[series] = (
-                        w.startUtc.ToOADate(),
-                        w.endUtc.ToOADate(),
-                        w.floor);
+                    //
+                    // transitOA carries the per-target upper-transit X for the
+                    // overlay's downward tick decoration. Clipped to the window
+                    // here so OverlayController never receives an out-of-window
+                    // transit (the tick is meaningful only when it hangs from the
+                    // floor bar, not in empty chart space).
+                    double startOA = w.startUtc.ToOADate();
+                    double endOA   = w.endUtc.ToOADate();
+                    double? transitOA = null;
+                    DateTime? transitUtc = tonight?.TransitUtc;
+                    if (transitUtc.HasValue)
+                    {
+                        double tOA = transitUtc.Value.ToOADate();
+                        if (tOA >= startOA && tOA <= endOA) transitOA = tOA;
+                    }
+                    mTargetWindows[series] = (startOA, endOA, w.floor, transitOA);
                     seriesList.Add(series);
                     dbgWindowAdded++;
                 }
