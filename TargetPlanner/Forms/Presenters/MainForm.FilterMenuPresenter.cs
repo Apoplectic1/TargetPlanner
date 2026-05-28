@@ -583,6 +583,14 @@ namespace TargetPlanner
         {
             if (NumericUpDown_Moon_Separation == null) return;
 
+            // Filter selection strip lives alongside the Lorentzian controls in
+            // the moon-avoidance UX cluster; disabling the GroupBox cascades to
+            // every RadioButton + the Defaults button inside it. The menubar
+            // Filters menu stays available -- mirrors the existing pattern where
+            // only in-form moon-avoidance widgets follow the master toggle.
+            if (GroupBox_Moon_Filters != null)
+                GroupBox_Moon_Filters.Enabled = avoidanceEnabled;
+
             Label_Moon_Separation.Enabled         = avoidanceEnabled;
             NumericUpDown_Moon_Separation.Enabled  = avoidanceEnabled;
             Label_Moon_Width.Enabled              = avoidanceEnabled;
