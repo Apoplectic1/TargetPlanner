@@ -55,6 +55,18 @@ namespace TargetPlanner.State
         IHorizonProfile LocalHorizon)
     {
         /// <summary>
+        /// The raw per-site polyline horizon (NINA <c>.hrz</c>), independent
+        /// of <see cref="TargetFloorDeg"/>. <see langword="null"/> when the
+        /// active site has no configured polyline. Used by the cache's
+        /// geometric-visibility (BLUE) check — "is this target ever physically
+        /// above the polyline at any azimuth during the night?" — which is
+        /// filter-independent and must NOT include the user's TargetFloorDeg
+        /// scalar (that's the SLATE/GREEN distinction inside the H/D/M filter).
+        /// </summary>
+        public IHorizonProfile PolylineHorizon { get; init; }
+
+
+        /// <summary>
         /// Derived moon-clear gate profile. Returns <see langword="null"/> when
         /// the master toggle is off or no filter is active — placement primitives
         /// interpret that as "moon-blind" and skip the gate.

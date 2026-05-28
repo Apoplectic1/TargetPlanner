@@ -62,6 +62,10 @@ namespace TargetPlanner
                 defaultProgressFactory: CreateChartProgress,
                 postApplyHook: (ctx, eval) =>
                 {
+                    // Listbox painter state -- stamps mLastAppliedCtx / DayKey,
+                    // rebuilds mGeoVisCache, and Invalidates the listbox.
+                    RefreshAfterPostApply(ctx);
+
                     RefreshAstrometryLabels();
                     foreach (var sc in mSubCharts.Values)
                     {
@@ -83,6 +87,9 @@ namespace TargetPlanner
                     // Render (if Sky is active) or get a fresh walk the next
                     // time Sky activates (Render is the authoritative refresh).
                     if (eval.BrightnessInputsChanged) PushSkyKSInputs(ctx);
+
+                    // Refresh the listbox so the tints reflect the new fit state.
+                    CheckedListBox_SelectedTargets?.Invalidate();
                 });
         }
 

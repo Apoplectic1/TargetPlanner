@@ -96,50 +96,14 @@ namespace TargetPlanner
         private System.Collections.Generic.HashSet<Astronomy.Core.Targets.Target> mLocalTargets =
             new System.Collections.Generic.HashSet<Astronomy.Core.Targets.Target>();
 
-        // Per-target dupe-set background colors for CheckedListBox_SelectedTargets.
-        // Targets sharing (RA, Dec, North) form a dupe-set; each set gets a stable
-        // pastel from DupeSetPalette so the user can spot multi-coord coincidences
-        // at a glance. Recomputed on every KnownTargetsChanged. Targets not in any
-        // dupe-set are absent from the dict; the owner-draw handler reads missing as
-        // "use default background".
-        private System.Collections.Generic.Dictionary<Astronomy.Core.Targets.Target, System.Drawing.Color> mDupeSetColors =
-            new System.Collections.Generic.Dictionary<Astronomy.Core.Targets.Target, System.Drawing.Color>();
-
-        // Targets last tagged "visible tonight" by a Button_VisibleTonight click.
-        // Keyed by Target identity so the tint follows the target across sort
-        // changes. Replaced (not unioned) on each Visible click; pruned to current
-        // KnownTargets on any KnownTargets change (IntersectWith in
-        // OnVmKnownTargetsChanged); cleared by right-click on the listbox. Dupe
-        // colors take precedence over this tint at paint time so manual dupe-
-        // hunting isn't masked by a Visible flag.
-        private readonly System.Collections.Generic.HashSet<Astronomy.Core.Targets.Target> mVisibleTaggedTargets =
-            new System.Collections.Generic.HashSet<Astronomy.Core.Targets.Target>();
-
-        // Muted-success-green tint painted into the checkbox interior by
-        // DupeAwareCheckedListBox for Visible-tonight rows. Independent of
-        // the dupe-set row tint (different paint surfaces) so both can show
-        // simultaneously on a row that is duped AND visible-tagged.
-        private static readonly System.Drawing.Color VisibleTintColor =
-            System.Drawing.Color.FromArgb(0x6E, 0xBE, 0x6E);
-
-        // Pastel palette indexed by stable hash of (RoundedRa, RoundedDec, North)
-        // so the same coord set lands on the same color across sort changes and
-        // re-populates. Alpha is muted so listbox row text stays readable on the
-        // OS theme regardless of light / dark.
-        // Opaque pastels; GDI+ alpha-blending against a system-themed CheckedListBox
-        // background renders inconsistently across Windows themes, so we mix the
-        // tints into the OS Window color directly rather than relying on alpha.
-        private static readonly System.Drawing.Color[] DupeSetPalette = new[]
-        {
-            System.Drawing.Color.FromArgb(190, 220, 250),  // soft blue
-            System.Drawing.Color.FromArgb(250, 230, 180),  // soft amber
-            System.Drawing.Color.FromArgb(240, 210, 240),  // soft magenta
-            System.Drawing.Color.FromArgb(200, 240, 220),  // soft teal
-            System.Drawing.Color.FromArgb(250, 210, 200),  // soft salmon
-            System.Drawing.Color.FromArgb(230, 240, 200),  // soft lime
-            System.Drawing.Color.FromArgb(220, 210, 250),  // soft lavender
-            System.Drawing.Color.FromArgb(240, 240, 200),  // soft pale yellow-green
-        };
+        // CheckedListBox_SelectedTargets paint state (DupeSetPalette,
+        // mDupeSetColors, mGeoVisCache, VisibleTintColor, SlateInteriorColor,
+        // mLastAppliedCtx, mLastAppliedDayKey) lives in
+        // Forms/Presenters/MainForm.CheckboxTintPresenter.cs alongside the
+        // GetCheckboxInteriorTint / GetDupeRowBackground callbacks and the
+        // RefreshAfterPostApply / RecomputeDupeSetColors / OnSelectedTargetsMouseDown
+        // entry points -- partial-class file split, same pattern as the
+        // other presenter partials.
 
         // Phase 3 of the SoC refactor: ChartCacheStore owns the per-(Location, Target)
         // year cache + per-Location NightCache. After GetNinaTargets completes we kick
@@ -834,7 +798,16 @@ is preserved.";
                 MinDuration:           mPlanningPreferences.MinDuration,
                 ActiveFilter:          mActiveFilter,
                 MoonAvoidanceEnabled:  moonAvoidanceEnabled,
-                LocalHorizon:          horizon);
+                LocalHorizon:          horizon)
+            {
+                // Raw polyline (no TargetFloorDeg composed in); null when the
+                // active site has no .hrz. Used by the BLUE geometric-visibility
+                // check on the listbox painter -- "ever above the site's
+                // physical obstructions, independent of the user's planning
+                // floor." Distinct from LocalHorizon above which folds in the
+                // scalar floor for H/D/M fit decisions.
+                PolylineHorizon = mLocalHorizon,
+            };
 
             return new ChartContext(
                 Location:     mLocation,

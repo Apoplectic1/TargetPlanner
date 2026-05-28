@@ -1,8 +1,5 @@
 using System;
 using System.Linq;
-using Astronomy.Core.Horizons;
-using Astronomy.Core.Night;
-using Astronomy.Core.Session;
 using TargetPlanner.Support;
 
 using Target = Astronomy.Core.Targets.Target;
@@ -65,73 +62,29 @@ namespace TargetPlanner
         }
 
         // Check exactly the targets that have a contiguous window of at least
-        // NumericUpDown_TargetDuration above NumericUpDown_TargetFloor during the night
-        // bracketing mObservation.Utc. NightCalculator's bracket logic walks forward to
-        // tomorrow's dawn or back to yesterday's dusk depending on whether the moment is
-        // past today's dawn -- so a 2 AM mObservation yields the night that's currently
-        // in progress, while a 10 PM value yields the night just starting.
+        // Bulk-check every target that currently passes the H/D/M/F filter
+        // (a non-null Tonight.Floor in the cache under the last-applied Hdm).
+        // "Visible tonight" under this model means "GREEN-painted in the
+        // listbox" -- targets that would render under the current planning
+        // policy. Targets that are SLATE (above polyline but no D-hour fit)
+        // and BLUE (below polyline) are deliberately excluded; if the user
+        // wants those, they can relax H or D and click again.
+        //
+        // SetCheckedSet fires CheckedSetChanged -> multi-graph debounce, so
+        // the chart auto-renders the new set after the standard delay. The
+        // checkbox-interior tints already reflect this set's GREEN-ness; the
+        // user gesture is the bulk-check shortcut, not a new tint.
         private void Button_VisibleTonight_Click(object sender, EventArgs e)
         {
             Log.Diag("UI", "Button_VisibleTonight.Click");
             if (mSelection == null || mSelection.KnownTargets.Count == 0) return;
-            if (mLocation == null) return;
+            if (mCache == null || mLastAppliedCtx == null) return;
 
-            DateTime anchorUtc = mObservation.Utc;
-            NightWindow night = NightCalculator.ComputeNight(mLocation, anchorUtc);
-
-            // Clip the night window to "observation-moment forward". A target that
-            // was above the horizon early in the night but is already (and remains)
-            // below it by the picked moment should not count as visible from this
-            // point on. If the moment is past dawn there's no remaining night --
-            // invalidate so the visibility check returns false for every target.
-            if (night.IsValid)
-            {
-                if (anchorUtc >= night.AstronomicalDawn)
-                {
-                    night = night with { AstronomicalDusk = DateTime.MinValue, AstronomicalDawn = DateTime.MinValue };
-                }
-                else if (anchorUtc > night.AstronomicalDusk)
-                {
-                    night = night with { AstronomicalDusk = anchorUtc };
-                }
-            }
-
-            // "Visible tonight" = above mathematical horizon (0°) for at least the smallest
-            // practical imaging session (15 min = 0.25 h), independent of HMD spinners.
-            // The button populates the maximum candidate pool ("what's potentially observable
-            // tonight"); HMD scrubs filter the rendered charts visually via the universal
-            // hide-on-no-fit rule -- changing H/D/M after this click never re-keys the
-            // checked set, so the user can iterate H/D/M without losing their candidate pool.
-            //
-            // The 0° + 15-min thresholds are intentionally hard-coded here: H=0 because the
-            // user's NumericUpDown_TargetFloor is the H of HMD (a render filter, not a
-            // visibility gate), D=15 min because shorter visibility is fleeting and not
-            // worth flagging as a candidate. See ROADMAP.md "Local Horizon vs Target Floor"
-            // for the future polyline-of-(Alt, Az) physical-obstruction support that would
-            // sit alongside Target Floor as a second gate.
-            //
-            // SetCheckedSet fires CheckedSetChanged -> debounce -> multi-graph: the
-            // visible-tonight chart appears automatically ~250 ms after the click. The
-            // combo / RA / Dec inputs stay pointing at whatever single target the user
-            // had selected before the click -- they describe the single-target view, not
-            // the visible-set view, and the two paradigms are independent (see
-            // Button_Graph_Click + WireSelectionVm).
-            IHorizonProfile mathHorizon = new ScalarHorizonProfile(0.0);
-            TimeSpan minDuration = TimeSpan.FromMinutes(15);
-
-            var visible = mSelection.KnownTargets
-                .Where(t => CoarseVisibility.IsAboveHorizonForAtLeast(
-                    t, mLocation, night, mathHorizon, minDuration))
+            var green = mSelection.KnownTargets
+                .Where(t => t != null
+                         && mCache.GetFitOrNull(t, mLastAppliedCtx.Hdm)?.Tonight.Floor != null)
                 .ToList();
-            mSelection.SetCheckedSet(visible);
-
-            // Replace (not union) the Visible-tonight tint set. Persists across
-            // Clear All by design; cleared by another Visible click (this same
-            // path), KnownTargets change (IntersectWith in OnVmKnownTargetsChanged),
-            // or right-click on the listbox (OnSelectedTargetsMouseDown).
-            mVisibleTaggedTargets.Clear();
-            mVisibleTaggedTargets.UnionWith(visible);
-            CheckedListBox_SelectedTargets?.Invalidate();
+            mSelection.SetCheckedSet(green);
         }
     }
 }

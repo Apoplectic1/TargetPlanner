@@ -275,18 +275,14 @@ namespace TargetPlanner
 
             mCheckedToggleDebounce?.Stop();
 
-            // Drop the Visible-Tonight tint set. Those tags were computed against
-            // the prior site's visibility window; the new site's "visible tonight"
-            // is a different set entirely, so the tinted checkbox interiors would
-            // be misleading until the user re-clicks Button_VisibleTonight. The
-            // checked state itself stays put -- the user's target picks carry over
-            // to the new site, and the chart's universal hide-on-no-fit rule will
-            // drop curves that don't qualify under the new geometry.
-            if (mVisibleTaggedTargets.Count > 0)
-            {
-                mVisibleTaggedTargets.Clear();
-                CheckedListBox_SelectedTargets?.Invalidate();
-            }
+            // Checkbox-interior tints are cache-driven; the coordinator's
+            // post-apply hook calls RefreshAfterPostApply which rebuilds
+            // mGeoVisCache + Invalidates the listbox, so the new site's
+            // BLUE / SLATE / GREEN paint themselves correctly without an
+            // explicit clear here. The checked state itself stays put -- the
+            // user's target picks carry over to the new site, and the chart's
+            // universal hide-on-no-fit rule will drop curves that don't qualify
+            // under the new geometry.
 
             // Re-render the active area with the surviving checked set under the
             // new location. The no-arg SnapshotCurrent() reads LastAppliedTargets

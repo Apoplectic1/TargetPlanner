@@ -1,9 +1,7 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
 using TargetPlanner.Support;
-using TargetPlanner.Targets;
 
 using Target = Astronomy.Core.Targets.Target;
 
@@ -11,13 +9,9 @@ namespace TargetPlanner
 {
     // Selection-VM <-> UI sync concern: every method that mirrors TargetSelection
     // state into / out of the target controls (CheckedListBox_SelectedTargets,
-    // ComboBox_SelectTarget, the RA/Dec inputs) and the per-target visual state
-    // the listbox paints (color palette, duplicate-set tint, Visible-tonight
-    // tint). Split out of MainForm.cs (ROADMAP item 8) -- partial-class file
-    // split, same pattern as SortPresenter / CoordinatePresenter /
-    // TargetLoadingPresenter: the methods orchestrate the VM + several controls
-    // + the visual state, and constructor-injecting all of that is heavier
-    // ceremony than the relocation.
+    // ComboBox_SelectTarget, the RA/Dec inputs). Split out of MainForm.cs
+    // (ROADMAP item 8) -- partial-class file split, same pattern as
+    // SortPresenter / CoordinatePresenter / TargetLoadingPresenter.
     //
     // Wiring topology:
     //   * VM -> UI: WireSelectionVm subscribes the three TargetSelection events
@@ -30,10 +24,9 @@ namespace TargetPlanner
     //     Changed route listbox events into VM mutators. Other UI -> VM paths
     //     (Button_*Click handlers, RA/Dec CoordinateInput callbacks,
     //     ComboBox_SortTargets) live with their respective concerns.
-    //   * Listbox paint: GetDupeRowBackground / GetCheckboxInteriorTint are
-    //     Func<int, Color?> callbacks DupeAwareCheckedListBox calls per row
-    //     paint; they read mDupeSetColors / mVisibleTaggedTargets, populated
-    //     by RecomputeDupeSetColors + Button_VisibleTonight_Click.
+    //
+    // Listbox paint (DupeSetPalette / mGeoVisCache / mLastApplied / tint
+    // callbacks) lives in CheckboxTintPresenter -- separate concern.
     //
     // Fields stay in MainForm.cs (the partial-class-split pattern); only the
     // methods relocate.
@@ -100,14 +93,9 @@ namespace TargetPlanner
 
             // Compute duplicate-set tint colors for the listbox owner-draw handler.
             // Recomputed any time KnownTargets changes (load, Add, Remove); see
-            // RecomputeDupeSetColors for the TargetIdentity-based grouping.
+            // CheckboxTintPresenter.RecomputeDupeSetColors for the
+            // TargetIdentity-based grouping.
             RecomputeDupeSetColors();
-
-            // Prune the Visible-tonight tint set to current KnownTargets. A load
-            // adds, so tags survive it; Clear All empties the catalog and the tag
-            // set with it; Remove drops just the removed target. Listbox repaint
-            // follows from PopulateCheckedListBoxFromTargets above.
-            mVisibleTaggedTargets.IntersectWith(mSelection.KnownTargets);
 
             // When nothing is selected yet -- the first populate, or after Clear All
             // emptied the catalog -- establish a default by picking the *first sorted*
@@ -245,135 +233,10 @@ namespace TargetPlanner
             }
         }
 
-        // Group KnownTargets into duplicate-sets and give each set of two or more
-        // a stable pastel from DupeSetPalette. "Duplicate" is the app-wide
-        // definition in TargetIdentity.AreSameTarget -- equal stars-stripped names
-        // AND coordinates within ~1 arcminute. Membership is transitive (T1~T2 and
-        // T2~T3 puts all three in one set), resolved with a disjoint-set union.
-        //
-        // Loads collapse duplicates as they arrive (TargetIdentity.SelectNewTargets),
-        // so in practice this tints what manual Add / RA-Dec entry has created --
-        // the same "spot a target you typed twice" cue the listbox has always
-        // given. Targets in no duplicate-set are absent from mDupeSetColors; the
-        // listbox owner-draw handler reads "missing" as "use the OS background".
-        private void RecomputeDupeSetColors()
-        {
-            mDupeSetColors.Clear();
-            var targets = mSelection?.KnownTargets.Where(t => t != null).ToList()
-                          ?? new List<Target>();
-            int n = targets.Count;
-            if (n == 0)
-            {
-                CheckedListBox_SelectedTargets?.Invalidate();
-                return;
-            }
-
-            // DSU.
-            var parent = new int[n];
-            for (int i = 0; i < n; i++) parent[i] = i;
-            int Find(int x)
-            {
-                while (parent[x] != x) { parent[x] = parent[parent[x]]; x = parent[x]; }
-                return x;
-            }
-            void Union(int a, int b)
-            {
-                int ra = Find(a), rb = Find(b);
-                if (ra != rb) parent[ra] = rb;
-            }
-
-            // Two targets can only be duplicates when their normalized names
-            // match, so bucket indices by name and run the coordinate test only
-            // within a bucket -- O(n) tiny buckets instead of an O(n^2) sweep.
-            var byName = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase);
-            for (int i = 0; i < n; i++)
-            {
-                string key = TargetIdentity.NormalizeName(targets[i].Name);
-                if (!byName.TryGetValue(key, out var indices))
-                {
-                    indices = new List<int>();
-                    byName[key] = indices;
-                }
-                indices.Add(i);
-            }
-            foreach (var indices in byName.Values)
-            {
-                for (int a = 0; a < indices.Count; a++)
-                    for (int b = a + 1; b < indices.Count; b++)
-                        if (TargetIdentity.AreSameTarget(targets[indices[a]], targets[indices[b]]))
-                            Union(indices[a], indices[b]);
-            }
-
-            // Collect connected components.
-            var groups = new Dictionary<int, List<int>>();
-            for (int i = 0; i < n; i++)
-            {
-                int root = Find(i);
-                if (!groups.TryGetValue(root, out var members))
-                {
-                    members = new List<int>();
-                    groups[root] = members;
-                }
-                members.Add(i);
-            }
-
-            int paletteSize = DupeSetPalette.Length;
-            foreach (var kv in groups)
-            {
-                if (kv.Value.Count < 2) continue;
-                // Order-independent hash of group members, so the same set of
-                // targets always lands on the same palette index regardless of
-                // KnownTargets insertion order.
-                int hash = 0;
-                foreach (int idx in kv.Value)
-                {
-                    Target t = targets[idx];
-                    hash ^= System.HashCode.Combine(
-                        t.Name,
-                        System.Math.Round(t.RightAscension, 6),
-                        System.Math.Round(t.Declination, 6),
-                        t.North);
-                }
-                int colorIdx = (hash & 0x7FFFFFFF) % paletteSize;
-                System.Drawing.Color c = DupeSetPalette[colorIdx];
-                foreach (int idx in kv.Value) mDupeSetColors[targets[idx]] = c;
-            }
-            CheckedListBox_SelectedTargets?.Invalidate();
-        }
-
-        // RowBackground callback wired into DupeAwareCheckedListBox. Returns the
-        // dupe-set tint for a row, or null when the row's target isn't in any
-        // dupe-set. The listbox subclass owns the actual painting; we just look
-        // up by row index -> Items[idx].ToString() (the target name) -> Target.
-        private System.Drawing.Color? GetDupeRowBackground(int rowIndex)
-        {
-            Target row = TargetForRow(rowIndex);
-            if (row == null) return null;
-            return mDupeSetColors.TryGetValue(row, out var c) ? (System.Drawing.Color?)c : null;
-        }
-
-        // Checkbox-interior tint callback for the Visible-tonight tag. Returns
-        // VisibleTintColor for tagged rows; the listbox subclass paints a
-        // custom checkbox with that interior color so the tag shows on the
-        // glyph without touching the row background. Independent from the
-        // dupe-set row tint (different paint surfaces), so both signals are
-        // visible simultaneously on a row that's duped AND visible-tagged.
-        private System.Drawing.Color? GetCheckboxInteriorTint(int rowIndex)
-        {
-            Target row = TargetForRow(rowIndex);
-            if (row == null) return null;
-            return mVisibleTaggedTargets.Contains(row) ? (System.Drawing.Color?)VisibleTintColor : null;
-        }
-
-        // Right-click on the listbox: explicit "clear the Visible-tonight tint
-        // set" gesture. Left-click delegates to standard CheckedListBox check /
-        // selection behavior (this handler returns early on non-right).
-        private void OnSelectedTargetsMouseDown(object sender, MouseEventArgs e)
-        {
-            if (e.Button != MouseButtons.Right) return;
-            if (mVisibleTaggedTargets.Count == 0) return;
-            mVisibleTaggedTargets.Clear();
-            CheckedListBox_SelectedTargets?.Invalidate();
-        }
+        // RecomputeDupeSetColors / GetDupeRowBackground / GetCheckboxInteriorTint /
+        // OnSelectedTargetsMouseDown moved to
+        // Forms/Presenters/MainForm.CheckboxTintPresenter.cs alongside the rest
+        // of the listbox-paint state (mDupeSetColors / mGeoVisCache / palette /
+        // last-applied capture). Same partial-class-file-split pattern.
     }
 }
