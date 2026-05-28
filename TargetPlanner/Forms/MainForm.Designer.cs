@@ -108,8 +108,8 @@
             RadioButton_Year = new System.Windows.Forms.RadioButton();
             RadioButton_Day = new System.Windows.Forms.RadioButton();
             Button_VisibleTargets = new System.Windows.Forms.Button();
-            Button_SelectAllTargets = new System.Windows.Forms.Button();
-            Button_UncheckAll = new System.Windows.Forms.Button();
+            Button_CheckAllTargets = new System.Windows.Forms.Button();
+            Button_UnCheckAllTargets = new System.Windows.Forms.Button();
             Button_ClearAllTargets = new System.Windows.Forms.Button();
             Label_SortBy = new System.Windows.Forms.Label();
             ComboBox_SortTargets = new System.Windows.Forms.ComboBox();
@@ -122,6 +122,7 @@
             Button_AddTarget = new System.Windows.Forms.Button();
             Button_CheckedTargets = new System.Windows.Forms.Button();
             GroupBox_MoonAvoidance = new System.Windows.Forms.GroupBox();
+            Label_Moon_WidthDays = new System.Windows.Forms.Label();
             CheckBox_Moon_AvoidanceEnable = new System.Windows.Forms.CheckBox();
             Label_Moon_Separation = new System.Windows.Forms.Label();
             NumericUpDown_Moon_Separation = new System.Windows.Forms.NumericUpDown();
@@ -144,7 +145,6 @@
             GroupBox_Altitude = new System.Windows.Forms.GroupBox();
             CheckBox_Sky = new System.Windows.Forms.CheckBox();
             ProgressBar_Processing = new System.Windows.Forms.ProgressBar();
-            Label_Moon_WidthDays = new System.Windows.Forms.Label();
             GroupBox_Local.SuspendLayout();
             GroupBox_Location.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)NumericUpDown_Extinction).BeginInit();
@@ -1094,29 +1094,29 @@
             Button_VisibleTargets.UseVisualStyleBackColor = true;
             Button_VisibleTargets.Click += Button_VisibleTonight_Click;
             // 
-            // Button_SelectAllTargets
+            // Button_CheckAllTargets
             // 
-            Button_SelectAllTargets.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
-            Button_SelectAllTargets.Location = new System.Drawing.Point(992, 22);
-            Button_SelectAllTargets.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            Button_SelectAllTargets.Name = "Button_SelectAllTargets";
-            Button_SelectAllTargets.Size = new System.Drawing.Size(75, 27);
-            Button_SelectAllTargets.TabIndex = 9;
-            Button_SelectAllTargets.Text = "Select All";
-            Button_SelectAllTargets.UseVisualStyleBackColor = true;
-            Button_SelectAllTargets.Click += Button_SelectAllTargets_Click;
+            Button_CheckAllTargets.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
+            Button_CheckAllTargets.Location = new System.Drawing.Point(992, 22);
+            Button_CheckAllTargets.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            Button_CheckAllTargets.Name = "Button_CheckAllTargets";
+            Button_CheckAllTargets.Size = new System.Drawing.Size(75, 27);
+            Button_CheckAllTargets.TabIndex = 9;
+            Button_CheckAllTargets.Text = "Check All";
+            Button_CheckAllTargets.UseVisualStyleBackColor = true;
+            Button_CheckAllTargets.Click += Button_SelectAllTargets_Click;
             // 
-            // Button_UncheckAll
+            // Button_UnCheckAllTargets
             // 
-            Button_UncheckAll.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
-            Button_UncheckAll.Location = new System.Drawing.Point(912, 22);
-            Button_UncheckAll.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            Button_UncheckAll.Name = "Button_UncheckAll";
-            Button_UncheckAll.Size = new System.Drawing.Size(75, 27);
-            Button_UncheckAll.TabIndex = 8;
-            Button_UncheckAll.Text = "Uncheck All";
-            Button_UncheckAll.UseVisualStyleBackColor = true;
-            Button_UncheckAll.Click += Button_UncheckAll_Click;
+            Button_UnCheckAllTargets.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
+            Button_UnCheckAllTargets.Location = new System.Drawing.Point(912, 22);
+            Button_UnCheckAllTargets.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            Button_UnCheckAllTargets.Name = "Button_UnCheckAllTargets";
+            Button_UnCheckAllTargets.Size = new System.Drawing.Size(75, 27);
+            Button_UnCheckAllTargets.TabIndex = 8;
+            Button_UnCheckAllTargets.Text = "UnCheck All";
+            Button_UnCheckAllTargets.UseVisualStyleBackColor = true;
+            Button_UnCheckAllTargets.Click += Button_UncheckAll_Click;
             // 
             // Button_ClearAllTargets
             // 
@@ -1227,13 +1227,13 @@
             GroupBox_Target.Controls.Add(Button_LoadJsonTargets);
             GroupBox_Target.Controls.Add(Label_LocalHorizon);
             GroupBox_Target.Controls.Add(NumericUpDown_RaHours);
-            GroupBox_Target.Controls.Add(Button_SelectAllTargets);
+            GroupBox_Target.Controls.Add(Button_CheckAllTargets);
             GroupBox_Target.Controls.Add(CheckedListBox_SelectedTargets);
             GroupBox_Target.Controls.Add(NumericUpDown_TargetFloor);
             GroupBox_Target.Controls.Add(ComboBox_SortTargets);
             GroupBox_Target.Controls.Add(NumericUpDown_RaMinutes);
             GroupBox_Target.Controls.Add(Label_DecMinuteColon);
-            GroupBox_Target.Controls.Add(Button_UncheckAll);
+            GroupBox_Target.Controls.Add(Button_UnCheckAllTargets);
             GroupBox_Target.Controls.Add(Button_ClearAllTargets);
             GroupBox_Target.Controls.Add(Label_SortBy);
             GroupBox_Target.Controls.Add(NumericUpDown_TargetDuration);
@@ -1301,6 +1301,15 @@
             GroupBox_MoonAvoidance.TabIndex = 42;
             GroupBox_MoonAvoidance.TabStop = false;
             GroupBox_MoonAvoidance.Text = "Moon Avoidance";
+            // 
+            // Label_Moon_WidthDays
+            // 
+            Label_Moon_WidthDays.AutoSize = true;
+            Label_Moon_WidthDays.Location = new System.Drawing.Point(237, 51);
+            Label_Moon_WidthDays.Name = "Label_Moon_WidthDays";
+            Label_Moon_WidthDays.Size = new System.Drawing.Size(32, 15);
+            Label_Moon_WidthDays.TabIndex = 13;
+            Label_Moon_WidthDays.Text = "Days";
             // 
             // CheckBox_Moon_AvoidanceEnable
             // 
@@ -1532,15 +1541,6 @@
             ProgressBar_Processing.Size = new System.Drawing.Size(1570, 21);
             ProgressBar_Processing.TabIndex = 40;
             // 
-            // Label_Moon_WidthDays
-            // 
-            Label_Moon_WidthDays.AutoSize = true;
-            Label_Moon_WidthDays.Location = new System.Drawing.Point(237, 51);
-            Label_Moon_WidthDays.Name = "Label_Moon_WidthDays";
-            Label_Moon_WidthDays.Size = new System.Drawing.Size(32, 15);
-            Label_Moon_WidthDays.TabIndex = 13;
-            Label_Moon_WidthDays.Text = "Days";
-            // 
             // MainForm
             // 
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
@@ -1680,8 +1680,8 @@
         private System.Windows.Forms.Label Label_TargetName;
         private System.Windows.Forms.Label Label_Phase;
         private System.Windows.Forms.ComboBox ComboBox_SelectTarget;
-        private System.Windows.Forms.Button Button_SelectAllTargets;
-        private System.Windows.Forms.Button Button_UncheckAll;
+        private System.Windows.Forms.Button Button_CheckAllTargets;
+        private System.Windows.Forms.Button Button_UnCheckAllTargets;
         private System.Windows.Forms.Button Button_ClearAllTargets;
         private System.Windows.Forms.ProgressBar ProgressBar_Processing;
         private System.Windows.Forms.Button Button_VisibleTargets;
