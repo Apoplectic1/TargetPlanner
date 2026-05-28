@@ -107,6 +107,15 @@ namespace TargetPlanner.Charts
             mReportStatus = reportStatus;
         }
 
+        // Mirror the main series's IsVisible onto the tick decoration. Called by the
+        // host's legend-click handler after the main series's IsVisible flips so the
+        // tick hides/shows alongside the floor bar. No-op when no tick is active for
+        // the given series (no overlay applied -> nothing to sync).
+        public void SyncTickVisibility(LineSeries<ObservablePoint> main, bool visible)
+        {
+            if (mTickSeries.TryGetValue(main, out var tick)) tick.IsVisible = visible;
+        }
+
         // Discard ALL backup + opt-out tracking. Caller invokes before a full
         // Render() so stale entries (series whose data collection is being
         // repopulated) don't leak across render cycles. Implemented as a prune

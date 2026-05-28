@@ -535,7 +535,13 @@ namespace TargetPlanner.Charts
                 entries.Add(new ChartLegendPanel.LegendEntry(
                     target.Name, color,
                     () => series.IsVisible,
-                    () => series.IsVisible = !series.IsVisible));
+                    () =>
+                    {
+                        series.IsVisible = !series.IsVisible;
+                        // Mirror onto any active HD-overlay tick so the legend toggle
+                        // hides/shows the floor bar's transit marker alongside the curve.
+                        mOverlay.SyncTickVisibility(series, series.IsVisible);
+                    }));
             }
             mLegend.SetItems(entries);
         }
