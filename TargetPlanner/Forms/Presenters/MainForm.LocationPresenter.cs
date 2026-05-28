@@ -259,6 +259,16 @@ namespace TargetPlanner
         // CheckedListBox toggles, etc.) to draw fresh series.
         private async Task ResetForLocationChange()
         {
+            // Re-seat mObservation under the new site's TZ. UTC instant is
+            // preserved; the wall-clock time-of-day reinterprets against
+            // mLocation.TimeZoneInfo so subsequent label formatting (dusk /
+            // dawn / rise / set) uses the new zone instead of the prior site's.
+            // Also refreshes the astrometry labels eagerly so the side panel
+            // updates without waiting for the coordinator's post-apply hook --
+            // important on a location swap because the hook runs against an
+            // empty target set first.
+            UpdateLocalDateTimeEvents();
+
             // Cancel any in-flight pipeline (chart build or scrub-debounce tick)
             // so its post-await effects can't paint stale geometry.
             mCoordinator?.Cancel();
@@ -329,11 +339,11 @@ namespace TargetPlanner
                 {
                     NamedSite named = mAppSettings.NamedLocations.Find(x => x.Name == name);
                     if (named == null) return;
-                    // The user's observation moment is independent of site -- mObservation
-                    // stays put across the swap. The picked site's own TimeZoneInfo
-                    // becomes the new Location.TimeZoneInfo; if the user wants the
-                    // picker to reinterpret the wall-clock time against the new zone
-                    // they'll click Button_Now or re-pick the date/time.
+                    // mObservation.Utc is preserved across the swap (same instant);
+                    // ResetForLocationChange's call to UpdateLocalDateTimeEvents
+                    // then reseats mObservation.Zone to the new site's TZ so the
+                    // displayed wall-clock time + astrometry labels reflect the
+                    // picked site instead of the prior one.
                     mLocation = named.ToLocation();
                     // Per-site planning preferences come over with the site -- the
                     // Horizon/Duration spinners snap to the new site's values.
