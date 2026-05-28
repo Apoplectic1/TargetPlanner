@@ -33,7 +33,7 @@ namespace TargetPlanner.Charts
         // Vertical tick height drawn DOWNWARD from the floor bar's top edge at the
         // target's transit X. Approximates "5 px" at the Day chart's fixed plot-area
         // pixel scale (Y axis spans [0, 90]°).
-        private const double TickHeightDeg = 3.0;
+        private const double TickHeightDeg = 1.5;
 
         private readonly CartesianChart mChart;
         private readonly Func<LineSeries<ObservablePoint>, (double startOA, double endOA, double floor, double? transitOA)?> mWindowFor;
@@ -455,8 +455,8 @@ namespace TargetPlanner.Charts
                 Name = series.Name + " (transit)",
                 Values = new ObservableCollection<ObservablePoint>
                 {
-                    new ObservablePoint(win.transitOA.Value, win.floor),
-                    new ObservablePoint(win.transitOA.Value, win.floor - TickHeightDeg),
+                    new ObservablePoint(win.transitOA.Value, win.floor + TickHeightDeg/2.0),
+                    new ObservablePoint(win.transitOA.Value, win.floor - TickHeightDeg/2.0),
                 },
                 Stroke = series.Stroke,
                 Fill = null,

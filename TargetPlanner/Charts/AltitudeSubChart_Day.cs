@@ -105,8 +105,8 @@ namespace TargetPlanner.Charts
         // SnapshotCurrent and a DayMode flip flows through the coordinator's
         // Apply pipeline as a normal Render (cache eval surfaces
         // DayModeChanged=true for any future short-circuit consumer).
-        private readonly RadioButton mTonightRadio;
-        private readonly RadioButton mSymetricTransitRadio;
+        private readonly RadioButton mAllRadio;
+        private readonly RadioButton mCenteredTransitRadio;
         // Shared ToolTip component for the mode radios. WinForms ToolTip is a
         // Component (not a Control); kept as a field so it stays alive past the
         // ctor (a GC'd ToolTip silently stops showing tips on its attached controls).
@@ -234,18 +234,18 @@ namespace TargetPlanner.Charts
             // plot area's chrome margin. BringToFront() ensures they paint above
             // the chart in WinForms Z-order.
             mSuppressModeChangedEvent = true;
-            mTonightRadio = MakeModeRadio("Tonight",   DayChartMode.Floor,   isChecked: true,
-                                          "Targets filtered by 'Target Floor', 'Duration' and 'Moon Avoidance' spinners");
-            mSymetricTransitRadio = MakeModeRadio("Centered Transit", DayChartMode.Transit, isChecked: false,
+            mAllRadio = MakeModeRadio("All",   DayChartMode.Floor,   isChecked: true,
+                                          "Tonight's targets filtered by 'Target Floor', 'Duration' and 'Moon Avoidance' spinners");
+            mCenteredTransitRadio = MakeModeRadio("Centered Transit", DayChartMode.Transit, isChecked: false,
                                           "Tonight's targets further filtered by symmetric transit - *right click*");
             int radioY = ChartLayout.TopChromePx + 2;
             int radioX = ChartLayout.LeftChromePx + 5;
-            mTonightRadio.Location = new Point(radioX, radioY);
-            mSymetricTransitRadio.Location = new Point(radioX + 70,  radioY);
-            mContainer.Controls.Add(mTonightRadio);
-            mContainer.Controls.Add(mSymetricTransitRadio);
-            mTonightRadio.BringToFront();
-            mSymetricTransitRadio.BringToFront();
+            mAllRadio.Location = new Point(radioX, radioY);
+            mCenteredTransitRadio.Location = new Point(radioX + 38,  radioY);
+            mContainer.Controls.Add(mAllRadio);
+            mContainer.Controls.Add(mCenteredTransitRadio);
+            mAllRadio.BringToFront();
+            mCenteredTransitRadio.BringToFront();
             mSuppressModeChangedEvent = false;
         }
 
