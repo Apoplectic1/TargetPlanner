@@ -582,10 +582,10 @@
             Label_Phase.Size = new System.Drawing.Size(74, 15);
             Label_Phase.TabIndex = 41;
             Label_Phase.Text = "Lunar Phase:";
-            //
+            // 
             // DatePicker
             // 
-            DatePicker.Location = new System.Drawing.Point(153, 31);
+            DatePicker.Location = new System.Drawing.Point(204, 31);
             DatePicker.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             DatePicker.Name = "DatePicker";
             DatePicker.Size = new System.Drawing.Size(243, 23);
@@ -604,7 +604,7 @@
             // 
             // Button_Now
             // 
-            Button_Now.Location = new System.Drawing.Point(50, 30);
+            Button_Now.Location = new System.Drawing.Point(101, 30);
             Button_Now.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             Button_Now.Name = "Button_Now";
             Button_Now.Size = new System.Drawing.Size(77, 27);
