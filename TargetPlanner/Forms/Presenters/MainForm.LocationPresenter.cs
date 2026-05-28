@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Astronomy.Core.Horizons;
@@ -10,7 +11,6 @@ using TargetPlanner.State;
 using TargetPlanner.Support;
 
 using Location = Astronomy.Core.Locations.Location;
-using Target   = Astronomy.Core.Targets.Target;
 
 namespace TargetPlanner
 {
@@ -273,25 +273,28 @@ namespace TargetPlanner
             // so its post-await effects can't paint stale geometry.
             mCoordinator?.Cancel();
 
-            mSelection.SetAllChecked(false);
             mCheckedToggleDebounce?.Stop();
 
-            // Drop the Visible-Tonight tint set too. Those tags were computed against
-            // the prior site's visibility window; the new site's "visible tonight" is
-            // a different set entirely, so the tinted checkbox interiors would be
-            // misleading until the user re-clicks Button_VisibleTonight. Same gesture
-            // as the listbox's right-click clear, just tied to the location swap.
+            // Drop the Visible-Tonight tint set. Those tags were computed against
+            // the prior site's visibility window; the new site's "visible tonight"
+            // is a different set entirely, so the tinted checkbox interiors would
+            // be misleading until the user re-clicks Button_VisibleTonight. The
+            // checked state itself stays put -- the user's target picks carry over
+            // to the new site, and the chart's universal hide-on-no-fit rule will
+            // drop curves that don't qualify under the new geometry.
             if (mVisibleTaggedTargets.Count > 0)
             {
                 mVisibleTaggedTargets.Clear();
                 CheckedListBox_SelectedTargets?.Invalidate();
             }
 
-            // Explicit empty targets so the active area re-renders blank under the
-            // new location. The no-arg SnapshotCurrent() would inherit the prior
-            // last-applied target list (i.e., the old location's targets) -- not
-            // what we want on a deliberate reset.
-            await mCoordinator.ApplyImmediateAsync(SnapshotCurrent(Array.Empty<Target>()));
+            // Re-render the active area with the surviving checked set under the
+            // new location. The no-arg SnapshotCurrent() reads LastAppliedTargets
+            // which may diverge from the live checked set after VM mutations;
+            // mSelection.Checked is the authoritative source for "what the user
+            // currently wants on the chart."
+            await mCoordinator.ApplyImmediateAsync(
+                SnapshotCurrent(mSelection.Checked.ToArray()));
         }
 
         // Compare the two locations on the fields that key the chart cache: pure
