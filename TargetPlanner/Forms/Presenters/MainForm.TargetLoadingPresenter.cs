@@ -357,6 +357,17 @@ namespace TargetPlanner
                 {
                     await mCache.PrepareManyAsync(targets);
                     await mCache.PrepareFitsAsync(targets, hdm);
+                    // The warmup bypasses the coordinator's EnsureAsync seam, so
+                    // the post-apply hook didn't fire. Marshal back to the UI
+                    // thread and re-stamp the listbox painter's last-applied
+                    // snapshot against the Hdm we actually built fits for --
+                    // without this the 3-state checkbox tint stays SLATE for
+                    // every row at boot because the painter looks up
+                    // GetFitOrNull with the stale boot-Apply Hdm (F=(none)).
+                    if (IsHandleCreated && !IsDisposed)
+                    {
+                        BeginInvoke((Action)(() => RefreshAfterPostApply(warmupCtx)));
+                    }
                 }
             });
         }
