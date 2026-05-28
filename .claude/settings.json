@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//e/Projects/VisualStudio/Astronomy/Library/**)",
+      "Edit(//e/Projects/VisualStudio/Astronomy/TargetPlanner/**)",
+      "Write(//e/Projects/VisualStudio/Astronomy/TargetPlanner/**)",
+      "Bash(git *)",
+      "Bash(git -C \"E:/Projects/VisualStudio/Astronomy/Library\" branch -vv)",
+      "Bash(git -C \"E:/Projects/VisualStudio/Astronomy/Library\" log --oneline -1)",
+      "Bash(git -C \"E:/Projects/VisualStudio/Astronomy/Library/PCL\" branch -vv)",
+      "Bash(git -C \"E:/Projects/VisualStudio/Astronomy/Library/PCL\" remote -v)",
+      "Bash(git -C \"E:/Projects/VisualStudio/Astronomy/Library/PCL\" log --oneline -1)",
+      "Bash(dotnet build *)",
+      "Bash(dotnet test *)",
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/18/Enterprise/MSBuild/Current/Bin/MSBuild.exe\" \"E:/Projects/VisualStudio/Astronomy/Library/Astronomy.Core.Tests/Astronomy.Core.Tests.csproj\" -p:Configuration=Debug -restore -nologo -v:m)",
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/18/Enterprise/MSBuild/Current/Bin/MSBuild.exe\" \"E:/Projects/VisualStudio/Astronomy/Library/Astronomy.Core.Tests/Astronomy.Core.Tests.csproj\" -p:Configuration=Debug -p:Platform=x64 -restore -nologo -v:m)",
+      "Bash(E:/Projects/VisualStudio/Astronomy/TargetPlanner/TargetPlanner/bin/x64/Debug/net10.0-windows10.0.19041/TargetPlanner.exe *)",
+      "PowerShell(Test-Path *)",
+      "PowerShell(dotnet test *)",
+      "PowerShell(Get-Process *)"
+    ]
+  }
+}
