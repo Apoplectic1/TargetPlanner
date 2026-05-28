@@ -350,10 +350,11 @@ namespace TargetPlanner.Charts
             // Moon altitude overlay -- shared across all targets; built before
             // the per-target loop so it lands first in mChart.Series (ZIndex=-1
             // also puts it behind the target curves). FetchOrCompute reads the
-            // per-DayWindowKey cache entry, falling back to inline compute on
+            // per-NightDate cache entry, falling back to inline compute on
             // a cache miss (defensive only -- EnsureAsync prepares this).
+            NightDate nightDate = NightDate.Of(night, ctx.Observation.Zone);
             IReadOnlyList<double> moonAltitudes = MoonOverlay.FetchOrCompute(
-                cache, dayKey, location, startUtc, count, "Sky");
+                cache, nightDate, location, startUtc, count, "Sky");
             mMoonSeries = MoonOverlay.BuildSeries(
                 moonAltitudes, startUtc, count, night.LunarIlluminationFraction,
                 alt => SkyAxisMinMag + (alt / 90.0) * (SkyAxisMaxMag - SkyAxisMinMag), "Sky");

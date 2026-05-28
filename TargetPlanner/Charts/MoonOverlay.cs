@@ -74,38 +74,41 @@ namespace TargetPlanner.Charts
             return series;
         }
 
-        // Day/Sky moon-altitude source: the per-DayWindowKey cache entry, or a
-        // defensive inline recompute when the cache misses (a race where Render
-        // runs before PrepareMoonAsync's await settled -- logs a WARN). The
-        // caller passes the result to BuildSeries; diagLabel ("Day" / "Sky")
-        // tags the cache-miss WARN.
+        // Day/Sky moon-altitude source: the per-NightDate cache entry, or a
+        // defensive inline recompute via MoonEphemeris.Sample when the cache
+        // misses (a race where Render runs before PrepareMoonAsync's await
+        // settled -- logs a WARN). The caller passes the result to BuildSeries;
+        // diagLabel ("Day" / "Sky") tags the cache-miss WARN. Pulls geometric
+        // moon altitudes from MoonSample to match the legacy double-altitude
+        // shape consumers expect.
         public static IReadOnlyList<double> FetchOrCompute(
-            IChartCacheStore cache, DayWindowKey dayKey, Location location,
+            IChartCacheStore cache, NightDate nightDate, Location location,
             DateTime startUtc, int count, string diagLabel)
         {
-            IReadOnlyList<double> altitudes = cache?.GetMoonOrNull(dayKey)?.AltitudesPerMinute;
-            if (altitudes != null && altitudes.Count == count) return altitudes;
+            IReadOnlyList<MoonSample> samples = cache?.GetMoonOrNull(nightDate)?.Samples;
+            if (samples != null && samples.Count == count)
+            {
+                double[] altitudes = new double[count];
+                for (int i = 0; i < count; i++) altitudes[i] = samples[i].AltDegGeometric;
+                return altitudes;
+            }
             Log.Warn($"{diagLabel} moon cache miss; inline fallback " +
-                $"(dayKey.Count={count}, cached={altitudes?.Count ?? -1})");
+                $"(count={count}, cached={samples?.Count ?? -1})");
             return ComputeAltitudesInline(location, startUtc, count);
         }
 
-        // Defensive fallback when the moon cache misses. Matches
-        // ChartCacheStore.BuildMoonEntryAsync's compute path so the result is
-        // byte-identical to the cached version.
+        // Defensive fallback when the moon cache misses. Calls the same
+        // MoonEphemeris.Sample primitive that ChartCacheStore.BuildMoonEphemerisAsync
+        // uses so the result is byte-identical to the cached version. Returns
+        // geometric altitudes (drops the rest of the MoonSample fields the
+        // legacy double-altitude caller doesn't read).
         private static IReadOnlyList<double> ComputeAltitudesInline(
             Location location, DateTime startUtc, int count)
         {
-            double latSigned = location.LatSigned();
-            double lonEast   = location.LonEast();
-            ObserverInfo observer = new ObserverInfo(latSigned, lonEast, location.Elevation);
+            IReadOnlyList<MoonSample> samples = MoonEphemeris.Sample(
+                location, startUtc, TimeSpan.FromMinutes(1), count);
             double[] altitudes = new double[count];
-            for (int i = 0; i < count; i++)
-            {
-                DateTime pointUtc = DateTime.SpecifyKind(
-                    startUtc.AddMinutes(i), DateTimeKind.Utc);
-                altitudes[i] = AstroUtil.GetMoonAltitude(pointUtc, observer);
-            }
+            for (int i = 0; i < count; i++) altitudes[i] = samples[i].AltDegGeometric;
             return altitudes;
         }
     }

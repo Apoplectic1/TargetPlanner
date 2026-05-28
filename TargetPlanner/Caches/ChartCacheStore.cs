@@ -57,14 +57,15 @@ namespace TargetPlanner.Caches
         // yearDays is per-target; fits per-(target, HdmKey) -- an HdmKey change
         // invalidates fits but preserves yearDays so H/D/M scrubs don't re-pay
         // the per-(target, location) moon-sample sweep; day is per-(target,
-        // DayWindowKey) -- the Day chart's altitude polyline, independent of
-        // HdmKey; moon is per-DayWindowKey -- target-independent (the moon is
-        // shared across all targets at a location). SetLocationAsync drains +
-        // resets all four. Constructed in the ctor after mLocation is seeded.
+        // NightDate) -- the Day chart's trajectory polyline (AltAz per minute),
+        // independent of HdmKey; moon is per-NightDate -- target-independent (the
+        // moon is shared across all targets at a location). SetLocationAsync
+        // drains + resets all four. Constructed in the ctor after mLocation is
+        // seeded.
         private readonly CacheAxis<Target, TargetCacheEntry> mYearDaysAxis;
         private readonly CacheAxis<(Target, HdmKey), TargetFitEntry> mFitsAxis;
-        private readonly CacheAxis<(Target, DayWindowKey), TargetDayAltitudeEntry> mDayAxis;
-        private readonly CacheAxis<DayWindowKey, MoonAltitudeEntry> mMoonAxis;
+        private readonly CacheAxis<(Target, NightDate), TargetTrajectoryEntry> mDayAxis;
+        private readonly CacheAxis<NightDate, MoonEphemerisEntry> mMoonAxis;
 
         // Last ChartContext successfully applied via EnsureAsync; drives the
         // per-axis diff flags returned in the next ChartEvaluation. Null until
@@ -99,12 +100,12 @@ namespace TargetPlanner.Caches
             mFitsAxis = new CacheAxis<(Target, HdmKey), TargetFitEntry>(
                 mGate, () => mLocation,
                 (key, loc) => BuildFitEntryAsync(key.Item1, key.Item2, loc));
-            mDayAxis = new CacheAxis<(Target, DayWindowKey), TargetDayAltitudeEntry>(
+            mDayAxis = new CacheAxis<(Target, NightDate), TargetTrajectoryEntry>(
                 mGate, () => mLocation,
-                (key, loc) => BuildDayEntryAsync(key.Item1, key.Item2, loc));
-            mMoonAxis = new CacheAxis<DayWindowKey, MoonAltitudeEntry>(
+                (key, loc) => BuildTrajectoryAsync(key.Item1, key.Item2, loc));
+            mMoonAxis = new CacheAxis<NightDate, MoonEphemerisEntry>(
                 mGate, () => mLocation,
-                (key, loc) => BuildMoonEntryAsync(key, loc));
+                (key, loc) => BuildMoonEphemerisAsync(key, loc));
         }
 
         public Location CurrentLocation
@@ -146,13 +147,13 @@ namespace TargetPlanner.Caches
                 targetCompleteProgress);
         }
 
-        public TargetDayAltitudeEntry GetDayOrNull(Target t, DayWindowKey key)
+        public TargetTrajectoryEntry GetTrajectoryOrNull(Target t, NightDate key)
         {
             if (t == null) return null;
             return mDayAxis.GetOrNull((t, key));
         }
 
-        public Task PrepareDayAsync(IEnumerable<Target> targets, DayWindowKey key,
+        public Task PrepareTrajectoryAsync(IEnumerable<Target> targets, NightDate key,
             IProgress<int> targetCompleteProgress = null)
         {
             if (targets == null) return Task.CompletedTask;
@@ -161,16 +162,16 @@ namespace TargetPlanner.Caches
                 targetCompleteProgress);
         }
 
-        public MoonAltitudeEntry GetMoonOrNull(DayWindowKey key)
+        public MoonEphemerisEntry GetMoonOrNull(NightDate key)
         {
             return mMoonAxis.GetOrNull(key);
         }
 
-        public Task PrepareMoonAsync(DayWindowKey key) => mMoonAxis.GetOrBuildAsync(key);
+        public Task PrepareMoonAsync(NightDate key) => mMoonAxis.GetOrBuildAsync(key);
 
         // -------------- single-entry pipeline --------------
 
-        public async Task<ChartEvaluation> EnsureAsync(ChartContext ctx, DayWindowKey dayKey,
+        public async Task<ChartEvaluation> EnsureAsync(ChartContext ctx, NightDate nightDate,
             IProgress<(int Done, int Total)> progress = null)
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
@@ -184,28 +185,30 @@ namespace TargetPlanner.Caches
 
             CacheDiff diff = ComputeDiff(prev, ctx, prevUtc);
 
+            bool nightValid = nightDate != default;
+
             if (Log.IsDiagEnabled("Cache"))
             {
                 Log.Diag("Cache",
                     $"EnsureAsync enter prevNull={prev == null} locChanged={diff.LocationChanged} " +
                     $"dateChanged={diff.DateChanged} tgtChanged={diff.TargetsChanged} hdmChanged={diff.HdmChanged} " +
                     $"dayModeChanged={diff.DayModeChanged} brightnessChanged={diff.BrightnessChanged} " +
-                    $"targets={ctx.Targets?.Count ?? 0} dayKey.Count={dayKey.Count}");
+                    $"targets={ctx.Targets?.Count ?? 0} nightDate={nightDate}");
             }
 
             // Pessimistic work estimate from the diff. Per-axis cost is targets
             // * (axis stale), summed across the three per-target axes plus 1
-            // for the moon axis when dayKey valid. SetLocationAsync drops every
-            // cache entry, so locOrDate forces a full rebuild on all axes; an
-            // HdmKey-only change re-keys fits but preserves year + day. Render
-            // adds one tick per target so the bar advances smoothly into the
-            // sub-chart pass without a Maximum resize.
+            // for the moon axis when the night is valid. SetLocationAsync drops
+            // every cache entry, so locOrDate forces a full rebuild on all axes;
+            // an HdmKey-only change re-keys fits but preserves year + trajectory.
+            // Render adds one tick per target so the bar advances smoothly into
+            // the sub-chart pass without a Maximum resize.
             int n = ctx.Targets?.Count ?? 0;
             bool locOrDate = diff.LocationChanged || diff.DateChanged;
             int yearWork  = (locOrDate && n > 0) ? n : 0;
             int fitWork   = ((locOrDate || diff.HdmChanged) && n > 0) ? n : 0;
-            int dayWork   = (locOrDate && n > 0 && dayKey.Count > 0) ? n : 0;
-            int moonWork  = (locOrDate && dayKey.Count > 0) ? 1 : 0;
+            int dayWork   = (locOrDate && n > 0 && nightValid) ? n : 0;
+            int moonWork  = (locOrDate && nightValid) ? 1 : 0;
             int ensureWork = yearWork + fitWork + dayWork + moonWork;
             int renderWork = (n > 0) ? n : 0;
             int totalWork = ensureWork + renderWork;
@@ -234,14 +237,14 @@ namespace TargetPlanner.Caches
                 await SetLocationAsync(ctx.Location, ctx.Observation.Utc);
             }
 
-            // 2a. Moon altitudes are TARGET-INDEPENDENT (function of Location +
-            //     night only). Prep unconditionally when dayKey is valid so
+            // 2a. Moon ephemeris is TARGET-INDEPENDENT (function of Location +
+            //     night only). Prep unconditionally when the night is valid so
             //     Day's startup Render (with empty targets, before NINA load
             //     completes) hits a warm moon cache instead of the defensive
             //     inline fallback WARN.
-            if (dayKey.Count > 0)
+            if (nightValid)
             {
-                await PrepareMoonAsync(dayKey);
+                await PrepareMoonAsync(nightDate);
                 if (moonWork > 0)
                 {
                     int d = Interlocked.Increment(ref done);
@@ -249,7 +252,7 @@ namespace TargetPlanner.Caches
                 }
             }
 
-            // 2b. Per-target prep: yearDays + fits + per-night Day altitudes.
+            // 2b. Per-target prep: yearDays + fits + per-night trajectories.
             //     Each Prepare path is internally idempotent per cache key, so
             //     repeated EnsureAsync calls with the same ctx settle in the
             //     per-key fast paths.
@@ -258,12 +261,13 @@ namespace TargetPlanner.Caches
                 await PrepareManyAsync(ctx.Targets, yearWork > 0 ? SubProgress() : null);
                 await PrepareFitsAsync(ctx.Targets, ctx.Hdm, fitWork > 0 ? SubProgress() : null);
 
-                // dayKey.Count == 0 sentinels "no valid Day window" (polar
-                // night). Day chart's Render handles the blank-chart case from
-                // cache.GetDayOrNull returning null; skip the prep.
-                if (dayKey.Count > 0)
+                // nightDate == default sentinels "no valid night" (polar /
+                // sub-horizon-anchor). Day chart's Render handles the
+                // blank-chart case from cache.GetTrajectoryOrNull returning
+                // null; skip the prep.
+                if (nightValid)
                 {
-                    await PrepareDayAsync(ctx.Targets, dayKey, dayWork > 0 ? SubProgress() : null);
+                    await PrepareTrajectoryAsync(ctx.Targets, nightDate, dayWork > 0 ? SubProgress() : null);
                 }
             }
 
@@ -400,8 +404,8 @@ namespace TargetPlanner.Caches
             Task<NightCache> oldNightTask;
             List<Task<TargetCacheEntry>> oldInFlight;
             List<Task<TargetFitEntry>> oldInFlightFits;
-            List<Task<TargetDayAltitudeEntry>> oldInFlightDay;
-            List<Task<MoonAltitudeEntry>> oldInFlightMoon;
+            List<Task<TargetTrajectoryEntry>> oldInFlightDay;
+            List<Task<MoonEphemerisEntry>> oldInFlightMoon;
 
             lock (mGate)
             {
@@ -453,10 +457,10 @@ namespace TargetPlanner.Caches
             foreach (Task<TargetFitEntry> t in oldInFlightFits)
                 staleAwaits.Add(SafeAwait(t,
                     "Stale per-(target, HdmKey) fit build threw during SetLocationAsync"));
-            foreach (Task<TargetDayAltitudeEntry> t in oldInFlightDay)
+            foreach (Task<TargetTrajectoryEntry> t in oldInFlightDay)
                 staleAwaits.Add(SafeAwait(t,
                     "Stale per-(target, DayWindowKey) altitude build threw during SetLocationAsync"));
-            foreach (Task<MoonAltitudeEntry> t in oldInFlightMoon)
+            foreach (Task<MoonEphemerisEntry> t in oldInFlightMoon)
                 staleAwaits.Add(SafeAwait(t,
                     "Stale per-DayWindowKey moon altitude build threw during SetLocationAsync"));
             await Task.WhenAll(staleAwaits);
@@ -531,49 +535,61 @@ namespace TargetPlanner.Caches
             return entry;
         }
 
-        // Per-(target, DayWindowKey) altitude-curve build. AltitudeCurve.Sample on a
-        // threadpool thread; the result is the minute-spaced altitudes the Day chart
-        // paints. Independent of HdmKey (altitude is a function of geometry + time,
-        // not user policy), so the cache hits across HDM scrubs.
-        private async Task<TargetDayAltitudeEntry> BuildDayEntryAsync(
-            Target target, DayWindowKey key, Location location)
+        // Per-(target, NightDate) trajectory build. AltitudeCurve.Sample on a
+        // threadpool thread; the result is the minute-spaced (Alt, Az) the Day
+        // chart paints + the BLUE check / future polyline-gating paths consume.
+        // Independent of HdmKey (geometry is policy-free), so the cache hits
+        // across HDM scrubs. Samples span the chart's render window for the
+        // night (DayWindowKey.Count minutes from DayWindowKey.ChartStartUtc),
+        // not just dusk-to-dawn -- consumers reading the night-only range slice
+        // the corresponding indices.
+        private async Task<TargetTrajectoryEntry> BuildTrajectoryAsync(
+            Target target, NightDate key, Location location)
         {
-            DateTime startUtc = key.ChartStartUtc;
-            int count = key.Count;
+            DayWindowKey window = BuildDayWindowForDate(location, key);
+            if (window.Count <= 0)
+                return new TargetTrajectoryEntry(target, key, window, Array.Empty<AltAzSample>());
 
-            IReadOnlyList<double> altitudes = await Task.Run(
-                () => AltitudeCurve.Sample(target, location, startUtc, TimeSpan.FromMinutes(1), count));
+            IReadOnlyList<AltAzSample> samples = await Task.Run(
+                () => AltitudeCurve.Sample(
+                    target, location, window.ChartStartUtc, TimeSpan.FromMinutes(1), window.Count));
 
-            return new TargetDayAltitudeEntry(target, key, altitudes);
+            return new TargetTrajectoryEntry(target, key, window, samples);
         }
 
-        // Per-DayWindowKey moon altitude-curve build. Singleton per night-window
-        // (the moon is shared across all targets at a location). AstroUtil.GetMoonAltitude
-        // on a threadpool thread; the result is the minute-spaced geometric altitudes
-        // the Day chart's moon plot reads. Stored geometric -- callers needing
-        // apparent altitude (K-S brightness gate) apply Saemundsson refraction.
-        private async Task<MoonAltitudeEntry> BuildMoonEntryAsync(
-            DayWindowKey key, Location location)
+        // Per-NightDate moon ephemeris build. Singleton per night (the moon is
+        // shared across all targets at a location). MoonEphemeris.Sample on a
+        // threadpool thread; the result is the minute-spaced topocentric moon
+        // state (AltAz + distance + age + phase + illumination) the Day chart's
+        // moon plot, Sky chart's K-S walk, and moon-clear gate all read.
+        private async Task<MoonEphemerisEntry> BuildMoonEphemerisAsync(
+            NightDate key, Location location)
         {
-            DateTime startUtc = key.ChartStartUtc;
-            int count = key.Count;
-            double latSigned = location.LatSigned();
-            double lonEast = location.LonEast();
-            ObserverInfo observer = new ObserverInfo(latSigned, lonEast, location.Elevation);
+            DayWindowKey window = BuildDayWindowForDate(location, key);
+            if (window.Count <= 0)
+                return new MoonEphemerisEntry(key, window, Array.Empty<MoonSample>());
 
-            IReadOnlyList<double> altitudes = await Task.Run(() =>
-            {
-                double[] arr = new double[count];
-                for (int i = 0; i < count; i++)
-                {
-                    DateTime pointUtc = DateTime.SpecifyKind(
-                        startUtc.AddMinutes(i), DateTimeKind.Utc);
-                    arr[i] = AstroUtil.GetMoonAltitude(pointUtc, observer);
-                }
-                return arr;
-            });
+            IReadOnlyList<MoonSample> samples = await Task.Run(
+                () => MoonEphemeris.Sample(
+                    location, window.ChartStartUtc, TimeSpan.FromMinutes(1), window.Count));
 
-            return new MoonAltitudeEntry(key, altitudes);
+            return new MoonEphemerisEntry(key, window, samples);
+        }
+
+        // Resolve a NightDate to the DayWindowKey covering its chart-visible
+        // window. Builder helper: receives just (Location, NightDate) from the
+        // cache axis pipeline and needs to derive the time range to sample.
+        // Returns an empty/zero-Count window for invalid (polar) nights so
+        // builders short-circuit cleanly.
+        private static DayWindowKey BuildDayWindowForDate(Location location, NightDate key)
+        {
+            if (key == default) return default;
+            TimeZoneInfo zone = location.TimeZoneInfo;
+            DateTime localAnchor = key.DuskDate.ToDateTime(new TimeOnly(12, 0));
+            DateTime utcAnchor = TimeZoneInfo.ConvertTimeToUtc(localAnchor, zone);
+            NightWindow night = NightCalculator.ComputeNight(location, utcAnchor);
+            if (!night.IsValid) return default;
+            return Charts.ChartLayout.BuildDayWindow(night, zone).Key;
         }
 
         private Task<NightCache> EnsureNightCacheAsync(Location location)
@@ -641,7 +657,7 @@ namespace TargetPlanner.Caches
                     entry.IsPolar   = true;
                     entry.SentinelX = startDay.AddDays(day).AddHours(12);
                     entry.YearAlt   = -90.0;
-                    entry.MoonSamples = new List<MoonSample>(0);
+                    entry.MoonSamples = new List<MoonSweepSample>(0);
                     cache.Add(entry);
                     continue;
                 }
@@ -664,12 +680,12 @@ namespace TargetPlanner.Caches
                 // target on a typical night. Each is one MoonSeparation.ObserveAt call --
                 // now lock-free (Meeus-backed AstroUtil) so the per-target sweeps run in
                 // parallel across threadpool cores.
-                List<MoonSample> samples = new List<MoonSample>(720);
+                List<MoonSweepSample> samples = new List<MoonSweepSample>(720);
                 DateTime sampleUtc = entry.Dusk;
                 while (sampleUtc <= entry.Dawn)
                 {
                     var observed = MoonSeparation.ObserveAt(target, location, sampleUtc);
-                    samples.Add(new MoonSample(
+                    samples.Add(new MoonSweepSample(
                         utc:        sampleUtc,
                         sepDeg:     observed.SeparationDeg,
                         moonAltDeg: observed.MoonAltDeg));

@@ -405,10 +405,11 @@ namespace TargetPlanner.Charts
             mTargetColors.Clear();
 
             // Moon altitudes from cache (prepared by ChartCacheStore.EnsureAsync ->
-            // PrepareMoonAsync alongside per-target Day altitudes); FetchOrCompute
+            // PrepareMoonAsync alongside per-target trajectories); FetchOrCompute
             // falls back to inline compute if the cache misses.
+            NightDate nightDate = NightDate.Of(night, ctx.Observation.Zone);
             IReadOnlyList<double> moonAltitudes = MoonOverlay.FetchOrCompute(
-                cache, dayKey, location, startUtc, count, "Day");
+                cache, nightDate, location, startUtc, count, "Day");
             mMoonSeries = MoonOverlay.BuildSeries(
                 moonAltitudes, startUtc, count, night.LunarIlluminationFraction,
                 alt => alt, "Day");
@@ -434,16 +435,19 @@ namespace TargetPlanner.Charts
                 Color c = ChartLayout.ResolveTargetColor(ctx.TargetColors, target, t);
                 mTargetColors[target] = c;
 
-                // Altitude curve lives in the cache, keyed by (target, dayKey).
-                // Coordinator's PrepareDayAsync await guarantees it's published
-                // (modulo a raced location swap -- GetDayOrNull returns null in
-                // that case and the target is skipped silently).
-                TargetDayAltitudeEntry dayEntry = cache?.GetDayOrNull(target, dayKey);
-                if (dayEntry == null) { dbgDayEntryNull++; continue; }
-                IReadOnlyList<double> altitudes = dayEntry.AltitudesPerMinute;
+                // Trajectory (per-minute AltAz) lives in the cache, keyed by
+                // (target, NightDate). Coordinator's PrepareTrajectoryAsync
+                // await guarantees it's published (modulo a raced location swap
+                // -- GetTrajectoryOrNull returns null in that case and the
+                // target is skipped silently). Day chart paints altitude only;
+                // azimuth available in the same entry for future polyline
+                // gating / sky-position consumers.
+                TargetTrajectoryEntry trajEntry = cache?.GetTrajectoryOrNull(target, nightDate);
+                if (trajEntry == null) { dbgDayEntryNull++; continue; }
+                IReadOnlyList<AltAzSample> samples = trajEntry.Samples;
 
                 var series = GetOrCreateTargetSeries(target, c);
-                FillTargetSeriesData(series, startUtc, count, altitudes);
+                FillTargetSeriesData(series, startUtc, count, samples);
 
                 // Tonight's fit lives on TargetFitEntry.Tonight (computed once at
                 // BuildFitEntryAsync time); we read Start/End/Floor straight off
@@ -607,7 +611,7 @@ namespace TargetPlanner.Charts
             LineSeries<ObservablePoint> series,
             DateTime startUtc,
             int count,
-            IReadOnlyList<double> altitudes)
+            IReadOnlyList<AltAzSample> samples)
         {
             var data = series.Values as ObservableCollection<ObservablePoint>;
             if (data == null)
@@ -617,7 +621,7 @@ namespace TargetPlanner.Charts
             }
             for (int i = 0; i < count; i++)
             {
-                double alt = altitudes[i];
+                double alt = samples[i].AltDegGeometric;
                 double? plotY = alt < 0 ? (double?)null : alt;
                 // UTC-internal X axis: sample i is at startUtc + i minutes.
                 var p = new ObservablePoint(startUtc.AddMinutes(i).ToOADate(), plotY);

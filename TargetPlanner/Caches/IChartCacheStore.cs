@@ -42,12 +42,12 @@ namespace TargetPlanner.Caches
         /// <summary>Single-entrypoint pre-render pipeline. Diffs <paramref name="ctx"/>
         /// against the last successfully-applied ctx, runs the necessary internal
         /// Prepare paths (location swap, per-target year, per-(target, HdmKey)
-        /// fits, per-(target, DayWindowKey) day altitudes, per-DayWindowKey moon
-        /// altitudes), and returns a <see cref="ChartEvaluation"/> describing
-        /// what changed. <paramref name="dayKey"/> identifies the Day chart's
-        /// current minute-spaced sampling window (the caller derives this from
-        /// the night's <c>NightWindow</c>); pass <c>default(DayWindowKey)</c>
-        /// to skip the Day/Moon prep on polar or empty-targets nights.
+        /// fits, per-(target, NightDate) trajectories, per-NightDate moon
+        /// ephemeris), and returns a <see cref="ChartEvaluation"/> describing
+        /// what changed. <paramref name="nightDate"/> identifies the current
+        /// night (the caller derives this via <see cref="NightDate.Of"/> from
+        /// the night's <c>NightWindow</c> + zone); pass <c>default(NightDate)</c>
+        /// to skip the trajectory/moon prep on polar or empty-targets nights.
         /// <paramref name="progress"/> receives <c>(Done, Total)</c> ticks for
         /// cache-prep + sub-chart Render work combined. The cache sizes
         /// <c>Total</c> from its staleness diff (pessimistic upper bound) and
@@ -60,7 +60,7 @@ namespace TargetPlanner.Caches
         /// no-op on warm cache). The returned eval reflects the diff from the
         /// previous EnsureAsync; sub-charts use the flags to decide whether
         /// to short-circuit their own Render work.</remarks>
-        Task<ChartEvaluation> EnsureAsync(ChartContext ctx, DayWindowKey dayKey,
+        Task<ChartEvaluation> EnsureAsync(ChartContext ctx, NightDate nightDate,
             IProgress<(int Done, int Total)> progress = null);
 
         /// <summary>Location all current cache entries are keyed against.</summary>
@@ -99,26 +99,26 @@ namespace TargetPlanner.Caches
         Task PrepareFitsAsync(IEnumerable<Target> targets, HdmKey key,
             IProgress<int> targetCompleteProgress = null);
 
-        /// <summary>Returns the published per-night altitude curve for
+        /// <summary>Returns the published per-night trajectory for
         /// <paramref name="t"/> at <paramref name="key"/>, or <see langword="null"/>
         /// if not yet built. Synchronous, lock-protected.</summary>
-        TargetDayAltitudeEntry GetDayOrNull(Target t, DayWindowKey key);
+        TargetTrajectoryEntry GetTrajectoryOrNull(Target t, NightDate key);
 
-        /// <summary>Pre-build Day altitude entries for many targets at <paramref name="key"/>
+        /// <summary>Pre-build trajectory entries for many targets at <paramref name="key"/>
         /// in parallel. Optional progress reports a 1-based completion count
-        /// as each target's altitude build finishes.</summary>
-        Task PrepareDayAsync(IEnumerable<Target> targets, DayWindowKey key,
+        /// as each target's trajectory build finishes.</summary>
+        Task PrepareTrajectoryAsync(IEnumerable<Target> targets, NightDate key,
             IProgress<int> targetCompleteProgress = null);
 
-        /// <summary>Returns the published per-minute moon altitude entry at
+        /// <summary>Returns the published per-minute moon ephemeris entry at
         /// <paramref name="key"/>, or <see langword="null"/> if not yet built.
-        /// Singleton per <see cref="DayWindowKey"/> (the moon is not target-keyed).
+        /// Singleton per <see cref="NightDate"/> (the moon is not target-keyed).
         /// Synchronous, lock-protected.</summary>
-        MoonAltitudeEntry GetMoonOrNull(DayWindowKey key);
+        MoonEphemerisEntry GetMoonOrNull(NightDate key);
 
-        /// <summary>Pre-build the moon altitude entry at <paramref name="key"/>.
+        /// <summary>Pre-build the moon ephemeris entry at <paramref name="key"/>.
         /// No-op when already published.</summary>
-        Task PrepareMoonAsync(DayWindowKey key);
+        Task PrepareMoonAsync(NightDate key);
 
         /// <summary>Drop every cached entry and switch to <paramref name="newLocation"/>,
         /// re-anchoring the NightCache against <paramref name="startingUtc"/>. In-flight

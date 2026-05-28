@@ -3,8 +3,11 @@ using System;
 namespace TargetPlanner.Caches
 {
     /// <summary>
-    /// One moon-position observation captured during cache build, used at render time
-    /// by the moon-aware curves (Day-chart HD overlay, Sessions-chart placement).
+    /// One per-minute moon sample captured during the year-day moon-clear sweep
+    /// (target-moon separation + moon altitude) inside <see cref="NightCacheEntry"/>.
+    /// Distinct from the canonical <c>Astronomy.Core.Moon.MoonSample</c> which
+    /// carries the full moon state (AltAz + age + phase + illumination) for
+    /// downstream brightness / gate consumers.
     /// </summary>
     /// <remarks>
     /// Sampled at 1-minute cadence between Dusk and Dawn for each per-target
@@ -12,9 +15,9 @@ namespace TargetPlanner.Caches
     /// at render time and apply the active <see cref="Astronomy.Core.Moon.MoonAvoidanceProfile"/>
     /// to compute moon-clear intervals. Storing raw samples (instead of pre-evaluated
     /// rejection booleans) keeps the cache profile-independent so profile scrubs avoid
-    /// re-hitting CoordinateSharp.
+    /// re-hitting the underlying primitives.
     /// </remarks>
-    public readonly struct MoonSample
+    public readonly struct MoonSweepSample
     {
         /// <summary>Sample instant. <see cref="DateTimeKind.Utc"/>.</summary>
         public DateTime Utc { get; }
@@ -25,7 +28,7 @@ namespace TargetPlanner.Caches
         /// <summary>Moon altitude in degrees, range [-90, +90].</summary>
         public double MoonAltDeg { get; }
 
-        public MoonSample(DateTime utc, double sepDeg, double moonAltDeg)
+        public MoonSweepSample(DateTime utc, double sepDeg, double moonAltDeg)
         {
             Utc = utc;
             SepDeg = sepDeg;

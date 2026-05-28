@@ -188,20 +188,16 @@ namespace TargetPlanner.State
                 // targets disappear from Day. NightCalculator.ComputeNight is
                 // sub-millisecond Meeus math; recomputing per pipeline is
                 // cheap insurance against stale-key bugs.
-                DayWindowKey dayKey = default;
                 NightWindow night = NightCalculator.ComputeNight(ctx.Location, ctx.Observation.Utc);
-                if (night.IsValid)
-                {
-                    dayKey = ChartLayout.BuildDayWindow(night, ctx.Observation.Zone).Key;
-                }
+                NightDate nightDate = NightDate.Of(night, ctx.Observation.Zone);
 
                 if (Log.IsDiagEnabled("Coord"))
                 {
                     Log.Diag("Coord",
-                        $"Pipeline enter activeArea={ctx.ActiveArea} dayKey.Count={dayKey.Count} " +
+                        $"Pipeline enter activeArea={ctx.ActiveArea} nightDate={nightDate} " +
                         $"obs={ctx.Observation.Utc:yyyy-MM-dd HH:mm}Z zone={ctx.Observation.Zone?.Id ?? "(null)"}");
                 }
-                ChartEvaluation eval = await mCache.EnsureAsync(ctx, dayKey, progress);
+                ChartEvaluation eval = await mCache.EnsureAsync(ctx, nightDate, progress);
 
                 // Generation guard: a newer Apply has come in while we awaited; bail.
                 if (gen != Volatile.Read(ref mGeneration)) return;

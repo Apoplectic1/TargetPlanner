@@ -68,16 +68,13 @@ namespace TargetPlanner.Tests.Tests
                 TargetColors: new Dictionary<Target, Color>(),
                 DayMode: DayChartMode.Floor);
 
-        // Day window for SeedUtc as a synthetic key -- the cache treats this as an
-        // opaque identifier, so it doesn't need to correspond to a real dusk-dawn
-        // pair (we're not exercising the per-minute altitude semantics, only that
-        // the day axis dedupes / drops by key).
-        private static DayWindowKey MakeDayKey(int offsetMinutes = 0) =>
-            new DayWindowKey
-            {
-                ChartStartUtcTicks = SeedUtc.AddMinutes(offsetMinutes).Ticks,
-                Count = 720,
-            };
+        // Synthetic NightDate at a fixed local-date offset from the SeedUtc's
+        // local-date interpretation. NightDate carries just DateOnly; tests use
+        // it as an opaque per-night cache key without re-deriving dusk.
+        private static NightDate MakeNightDate(int dayOffset = 0) =>
+            new NightDate(DateOnly.FromDateTime(
+                TimeZoneInfo.ConvertTimeFromUtc(SeedUtc, TestLocations.PennsPark.TimeZoneInfo))
+                .AddDays(dayOffset));
 
         // -------- Construction --------
 
@@ -128,37 +125,39 @@ namespace TargetPlanner.Tests.Tests
         }
 
         [Fact]
-        public async Task PrepareDayAsync_PublishesDayAltitudes()
+        public async Task PrepareTrajectoryAsync_PublishesTrajectorySamples()
         {
             using ChartCacheStore store = new ChartCacheStore(TestLocations.PennsPark, SeedUtc);
-            DayWindowKey dayKey = MakeDayKey();
+            NightDate nightDate = MakeNightDate();
 
-            await store.PrepareDayAsync(new[] { M31 }, dayKey);
+            await store.PrepareTrajectoryAsync(new[] { M31 }, nightDate);
 
-            TargetDayAltitudeEntry day = store.GetDayOrNull(M31, dayKey);
-            Assert.NotNull(day);
-            Assert.Equal(720, day.AltitudesPerMinute.Count);
+            TargetTrajectoryEntry traj = store.GetTrajectoryOrNull(M31, nightDate);
+            Assert.NotNull(traj);
+            Assert.NotEmpty(traj.Samples);
+            Assert.Equal(traj.Window.Count, traj.Samples.Count);
         }
 
         [Fact]
         public async Task PrepareMoonAsync_PublishesSingletonForKey()
         {
             using ChartCacheStore store = new ChartCacheStore(TestLocations.PennsPark, SeedUtc);
-            DayWindowKey dayKey = MakeDayKey();
+            NightDate nightDate = MakeNightDate();
 
-            await store.PrepareMoonAsync(dayKey);
+            await store.PrepareMoonAsync(nightDate);
 
-            MoonAltitudeEntry moon = store.GetMoonOrNull(dayKey);
+            MoonEphemerisEntry moon = store.GetMoonOrNull(nightDate);
             Assert.NotNull(moon);
-            Assert.Equal(720, moon.AltitudesPerMinute.Count);
+            Assert.NotEmpty(moon.Samples);
+            Assert.Equal(moon.Window.Count, moon.Samples.Count);
         }
 
         [Fact]
         public async Task PrepareMoonAsync_DifferentKey_DifferentEntry()
         {
             using ChartCacheStore store = new ChartCacheStore(TestLocations.PennsPark, SeedUtc);
-            DayWindowKey k1 = MakeDayKey(offsetMinutes: 0);
-            DayWindowKey k2 = MakeDayKey(offsetMinutes: 60);
+            NightDate k1 = MakeNightDate(dayOffset: 0);
+            NightDate k2 = MakeNightDate(dayOffset: 1);
 
             await store.PrepareMoonAsync(k1);
             await store.PrepareMoonAsync(k2);
@@ -174,7 +173,7 @@ namespace TargetPlanner.Tests.Tests
             using ChartCacheStore store = new ChartCacheStore(TestLocations.PennsPark, SeedUtc);
             Assert.Null(store.GetOrNull(null));
             Assert.Null(store.GetFitOrNull(null, default));
-            Assert.Null(store.GetDayOrNull(null, default));
+            Assert.Null(store.GetTrajectoryOrNull(null, default));
         }
 
         // -------- Lifecycle invariants (cache-contract.md §Lifecycle invariants) --------
@@ -184,13 +183,13 @@ namespace TargetPlanner.Tests.Tests
         {
             using ChartCacheStore store = new ChartCacheStore(TestLocations.PennsPark, SeedUtc);
             HdmKey hdm = MakeCtx(TestLocations.PennsPark, new[] { M31 }, MakePolicy()).Hdm;
-            DayWindowKey dayKey = MakeDayKey();
+            NightDate nightDate = MakeNightDate();
 
             // Warm every axis.
             await store.PrepareManyAsync(new[] { M31 });
             await store.PrepareFitsAsync(new[] { M31 }, hdm);
-            await store.PrepareDayAsync(new[] { M31 }, dayKey);
-            await store.PrepareMoonAsync(dayKey);
+            await store.PrepareTrajectoryAsync(new[] { M31 }, nightDate);
+            await store.PrepareMoonAsync(nightDate);
 
             await store.SetLocationAsync(TestLocations.Sydney, SeedUtc);
 
@@ -198,8 +197,8 @@ namespace TargetPlanner.Tests.Tests
             Assert.Same(TestLocations.Sydney, store.CurrentLocation);
             Assert.Null(store.GetOrNull(M31));
             Assert.Null(store.GetFitOrNull(M31, hdm));
-            Assert.Null(store.GetDayOrNull(M31, dayKey));
-            Assert.Null(store.GetMoonOrNull(dayKey));
+            Assert.Null(store.GetTrajectoryOrNull(M31, nightDate));
+            Assert.Null(store.GetMoonOrNull(nightDate));
             Assert.Null(store.LocationNightCache);
         }
 
@@ -261,7 +260,7 @@ namespace TargetPlanner.Tests.Tests
             using ChartCacheStore store = new ChartCacheStore(TestLocations.PennsPark, SeedUtc);
             ChartContext ctx = MakeCtx(TestLocations.PennsPark, new[] { M31 }, MakePolicy());
 
-            ChartEvaluation eval = await store.EnsureAsync(ctx, MakeDayKey());
+            ChartEvaluation eval = await store.EnsureAsync(ctx, MakeNightDate());
 
             Assert.True(eval.EnsureWork > 0,
                 $"Expected EnsureWork > 0 on first call, got {eval.EnsureWork}");
@@ -273,10 +272,10 @@ namespace TargetPlanner.Tests.Tests
         {
             using ChartCacheStore store = new ChartCacheStore(TestLocations.PennsPark, SeedUtc);
             ChartContext ctx = MakeCtx(TestLocations.PennsPark, new[] { M31 }, MakePolicy());
-            DayWindowKey dayKey = MakeDayKey();
+            NightDate nightDate = MakeNightDate();
 
-            await store.EnsureAsync(ctx, dayKey);
-            ChartEvaluation second = await store.EnsureAsync(ctx, dayKey);
+            await store.EnsureAsync(ctx, nightDate);
+            ChartEvaluation second = await store.EnsureAsync(ctx, nightDate);
 
             // Warm-cache fast path: every axis's diff says no work needed.
             Assert.Equal(0, second.EnsureWork);
@@ -290,11 +289,11 @@ namespace TargetPlanner.Tests.Tests
         {
             using ChartCacheStore store = new ChartCacheStore(TestLocations.PennsPark, SeedUtc);
             ChartContext ctx1 = MakeCtx(TestLocations.PennsPark, new[] { M31 }, MakePolicy());
-            await store.EnsureAsync(ctx1, MakeDayKey());
+            await store.EnsureAsync(ctx1, MakeNightDate());
 
             // New Location instance (different geometry) -> all axes drop.
             ChartContext ctx2 = ctx1 with { Location = TestLocations.Sydney };
-            await store.EnsureAsync(ctx2, MakeDayKey());
+            await store.EnsureAsync(ctx2, MakeNightDate());
 
             // Verify by ref-equal CurrentLocation -- the store atomically swapped.
             Assert.Same(TestLocations.Sydney, store.CurrentLocation);
@@ -307,24 +306,24 @@ namespace TargetPlanner.Tests.Tests
 
             ChartContext ctx1 = MakeCtx(
                 TestLocations.PennsPark, new[] { M31 }, MakePolicy(floorDeg: 30.0));
-            DayWindowKey dayKey = MakeDayKey();
-            await store.EnsureAsync(ctx1, dayKey);
+            NightDate nightDate = MakeNightDate();
+            await store.EnsureAsync(ctx1, nightDate);
 
             TargetCacheEntry yearBefore = store.GetOrNull(M31);
-            TargetDayAltitudeEntry dayBefore = store.GetDayOrNull(M31, dayKey);
+            TargetTrajectoryEntry trajBefore = store.GetTrajectoryOrNull(M31, nightDate);
             HdmKey hdm1 = ctx1.Hdm;
 
             // Change only the floor (the H of H/D/M) -> different HdmKey, but
-            // Location + Date + DayWindowKey identical.
+            // Location + NightDate identical.
             ChartContext ctx2 = ctx1 with { Policy = MakePolicy(floorDeg: 35.0) };
-            await store.EnsureAsync(ctx2, dayKey);
+            await store.EnsureAsync(ctx2, nightDate);
             HdmKey hdm2 = ctx2.Hdm;
             Assert.NotEqual(hdm1, hdm2);
 
-            // yearDays + day axis preserved (year compute is per-(target, location),
-            // independent of HdmKey; day altitudes are also independent of HdmKey).
+            // yearDays + trajectory axis preserved (year compute is per-(target, location),
+            // independent of HdmKey; trajectory is also independent of HdmKey).
             Assert.Same(yearBefore, store.GetOrNull(M31));
-            Assert.Same(dayBefore, store.GetDayOrNull(M31, dayKey));
+            Assert.Same(trajBefore, store.GetTrajectoryOrNull(M31, nightDate));
 
             // Fits keyed under both old and new HdmKey are present (monotonic growth).
             Assert.NotNull(store.GetFitOrNull(M31, hdm1));
@@ -332,12 +331,12 @@ namespace TargetPlanner.Tests.Tests
         }
 
         [Fact]
-        public async Task EnsureAsync_DayWindowKeyChange_RebuildsDayAndMoon_PreservesYearAndFits()
+        public async Task EnsureAsync_NightDateChange_RebuildsTrajectoryAndMoon_PreservesYearAndFits()
         {
             using ChartCacheStore store = new ChartCacheStore(TestLocations.PennsPark, SeedUtc);
             ChartContext ctx = MakeCtx(TestLocations.PennsPark, new[] { M31 }, MakePolicy());
-            DayWindowKey k1 = MakeDayKey(offsetMinutes: 0);
-            DayWindowKey k2 = MakeDayKey(offsetMinutes: 60);
+            NightDate k1 = MakeNightDate(dayOffset: 0);
+            NightDate k2 = MakeNightDate(dayOffset: 1);
 
             await store.EnsureAsync(ctx, k1);
             TargetCacheEntry yearBefore = store.GetOrNull(M31);
@@ -346,8 +345,8 @@ namespace TargetPlanner.Tests.Tests
 
             Assert.Same(yearBefore, store.GetOrNull(M31));
             Assert.Same(fitsBefore, store.GetFitOrNull(M31, ctx.Hdm));
-            Assert.NotNull(store.GetDayOrNull(M31, k1));
-            Assert.NotNull(store.GetDayOrNull(M31, k2));
+            Assert.NotNull(store.GetTrajectoryOrNull(M31, k1));
+            Assert.NotNull(store.GetTrajectoryOrNull(M31, k2));
             Assert.NotNull(store.GetMoonOrNull(k1));
             Assert.NotNull(store.GetMoonOrNull(k2));
         }
@@ -370,13 +369,13 @@ namespace TargetPlanner.Tests.Tests
                 extinctionK:  TestLocations.PennsPark.ExtinctionK);
 
             ChartContext ctx1 = MakeCtx(TestLocations.PennsPark, new[] { M31 }, MakePolicy());
-            DayWindowKey dayKey = MakeDayKey();
-            await store.EnsureAsync(ctx1, dayKey);
+            NightDate nightDate = MakeNightDate();
+            await store.EnsureAsync(ctx1, nightDate);
             TargetCacheEntry yearBefore = store.GetOrNull(M31);
             TargetFitEntry fitsBefore = store.GetFitOrNull(M31, ctx1.Hdm);
 
             ChartContext ctx2 = ctx1 with { Location = dimmer };
-            ChartEvaluation eval = await store.EnsureAsync(ctx2, dayKey);
+            ChartEvaluation eval = await store.EnsureAsync(ctx2, nightDate);
 
             // Brightness moved -> flag set.
             Assert.True(eval.BrightnessInputsChanged);
@@ -391,31 +390,31 @@ namespace TargetPlanner.Tests.Tests
             using ChartCacheStore store = new ChartCacheStore(TestLocations.PennsPark, SeedUtc);
             ChartContext ctx = MakeCtx(
                 TestLocations.PennsPark, Array.Empty<Target>(), MakePolicy());
-            DayWindowKey dayKey = MakeDayKey();
+            NightDate nightDate = MakeNightDate();
 
-            ChartEvaluation eval = await store.EnsureAsync(ctx, dayKey);
+            ChartEvaluation eval = await store.EnsureAsync(ctx, nightDate);
 
             // Boot-baseline path: chart paints scaffolding (moon overlay on Day)
             // without any targets. Moon axis is target-independent, so it preps
             // even with zero targets.
-            Assert.NotNull(store.GetMoonOrNull(dayKey));
+            Assert.NotNull(store.GetMoonOrNull(nightDate));
             Assert.Equal(0, eval.RenderWork);
         }
 
         [Fact]
-        public async Task EnsureAsync_PolarDaySentinel_SkipsDayAndMoonPrep()
+        public async Task EnsureAsync_PolarDaySentinel_SkipsTrajectoryAndMoonPrep()
         {
             using ChartCacheStore store = new ChartCacheStore(TestLocations.PennsPark, SeedUtc);
             ChartContext ctx = MakeCtx(TestLocations.PennsPark, new[] { M31 }, MakePolicy());
 
-            // default(DayWindowKey).Count == 0 is the polar-night / empty-targets
-            // sentinel; EnsureAsync must skip Day + Moon prep entirely.
+            // default(NightDate) is the polar-night / empty-night sentinel;
+            // EnsureAsync must skip trajectory + moon prep entirely.
             await store.EnsureAsync(ctx, default);
 
-            Assert.NotNull(store.GetOrNull(M31));                  // year still built
-            Assert.NotNull(store.GetFitOrNull(M31, ctx.Hdm));      // fits still built
-            Assert.Null(store.GetDayOrNull(M31, default));         // day skipped
-            Assert.Null(store.GetMoonOrNull(default));             // moon skipped
+            Assert.NotNull(store.GetOrNull(M31));                          // year still built
+            Assert.NotNull(store.GetFitOrNull(M31, ctx.Hdm));              // fits still built
+            Assert.Null(store.GetTrajectoryOrNull(M31, default));          // trajectory skipped
+            Assert.Null(store.GetMoonOrNull(default));                     // moon skipped
         }
     }
 }
