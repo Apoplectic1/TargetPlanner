@@ -3,7 +3,6 @@ using System.Linq;
 using Astronomy.Core.Horizons;
 using Astronomy.Core.Night;
 using Astronomy.Core.Session;
-using Astronomy.Core.Time;
 using TargetPlanner.Support;
 
 using Target = Astronomy.Core.Targets.Target;
@@ -66,33 +65,27 @@ namespace TargetPlanner
         }
 
         // Check exactly the targets that have a contiguous window of at least
-        // NumericUpDown_TargetDuration above NumericUpDown_TargetFloor during the night bracketing
-        // the moment picked in DatePicker + TimePicker. NightCalculator's bracket logic
-        // walks forward to tomorrow's dawn or back to yesterday's dusk depending on
-        // whether the moment is past today's dawn -- so a 2 AM TimePicker value yields
-        // the night that's currently in progress, while a 10 PM value yields the night
-        // just starting. Matches the rest of the form's
-        // "DatePicker.Value.Date + TimePicker.Value.TimeOfDay" pattern.
+        // NumericUpDown_TargetDuration above NumericUpDown_TargetFloor during the night
+        // bracketing mObservation.Utc. NightCalculator's bracket logic walks forward to
+        // tomorrow's dawn or back to yesterday's dusk depending on whether the moment is
+        // past today's dawn -- so a 2 AM mObservation yields the night that's currently
+        // in progress, while a 10 PM value yields the night just starting.
         private void Button_VisibleTonight_Click(object sender, EventArgs e)
         {
             Log.Diag("UI", "Button_VisibleTonight.Click");
             if (mSelection == null || mSelection.KnownTargets.Count == 0) return;
             if (mLocation == null) return;
 
-            DateTime tonightAnchor = DatePicker.Value.Date + TimePicker.Value.TimeOfDay;
-            ObservationMoment tonightObs = ObservationMoment.FromLocal(
-                tonightAnchor, mLocation?.TimeZoneInfo ?? TimeZoneInfo.Local);
+            DateTime anchorUtc = mObservation.Utc;
+            NightWindow night = NightCalculator.ComputeNight(mLocation, anchorUtc);
 
-            NightWindow night = NightCalculator.ComputeNight(mLocation, tonightObs.Utc);
-
-            // Clip the night window to "picker-time forward". A target that was above the
-            // horizon early in the night but is already (and remains) below it by the picker
-            // time should not count as visible from this point on. If the picker is past dawn
-            // there's no remaining night -- invalidate so the visibility check returns false
-            // for every target.
+            // Clip the night window to "observation-moment forward". A target that
+            // was above the horizon early in the night but is already (and remains)
+            // below it by the picked moment should not count as visible from this
+            // point on. If the moment is past dawn there's no remaining night --
+            // invalidate so the visibility check returns false for every target.
             if (night.IsValid)
             {
-                DateTime anchorUtc = DateTime.SpecifyKind(tonightAnchor, DateTimeKind.Local).ToUniversalTime();
                 if (anchorUtc >= night.AstronomicalDawn)
                 {
                     night = night with { AstronomicalDusk = DateTime.MinValue, AstronomicalDawn = DateTime.MinValue };

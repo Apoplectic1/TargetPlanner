@@ -59,10 +59,11 @@ namespace TargetPlanner
         // rule -- Button_Graph and the checked-set are independent views, switching
         // between them is the user's explicit action.
         //
-        // mObservation is kept in sync with the pickers via UpdateLocalDateTimeEvents
-        // (called from DatePicker/TimePicker ValueChanged and Button_Now_Click).
-        // Don't overwrite with ObservationMoment.Now here -- that was the pre-refactor
-        // assumption when the app was always "live now" by default.
+        // mObservation is the single source of truth -- snapped by Button_Now /
+        // startup, carried forward across DatePicker changes via
+        // UpdateLocalDateTimeEvents. Don't overwrite with ObservationMoment.Now
+        // here -- that was the pre-refactor assumption when the app was always
+        // "live now" by default.
         private async void Button_Graph_Click(object sender, EventArgs e)
         {
             // async void: wrap entire body so a synchronous throw doesn't crash the process.

@@ -1,10 +1,7 @@
 using System;
-using System.Collections.Generic;
 using System.Windows.Forms;
 using TargetPlanner.Caches;
 using TargetPlanner.State;
-
-using Target = Astronomy.Core.Targets.Target;
 
 namespace TargetPlanner.Charts
 {
@@ -38,11 +35,11 @@ namespace TargetPlanner.Charts
         event EventHandler IdealHeightChanged;
 
         // Live update -- mutates the red now-line's X position in place.
-        // Wired to fire from DatePicker / TimePicker / Button_Now without
-        // debounce; data series do NOT recompute. All four sub-charts use a
-        // UTC-internal X axis (every plotted X is the OADate of a UTC instant),
-        // so the caller passes ObservationMoment.Utc and the implementation
-        // plots nowUtc.ToOADate() directly -- no zone conversion needed.
+        // Wired to fire from DatePicker / Button_Now without debounce; data
+        // series do NOT recompute. All four sub-charts use a UTC-internal X
+        // axis (every plotted X is the OADate of a UTC instant), so the
+        // caller passes ObservationMoment.Utc and the implementation plots
+        // nowUtc.ToOADate() directly -- no zone conversion needed.
         void UpdateNowLine(DateTime nowUtc);
 
         // Live update -- mutates the green horizon line's Y position in place.

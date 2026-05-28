@@ -6,16 +6,21 @@ using TargetPlanner.Support;
 namespace TargetPlanner
 {
     // Observation-moment concern: every handler that mutates mObservation
-    // (DatePicker / TimePicker scrubs, Button_Now snap-to-now, DatePicker
-    // arrow-key nav). Lifted out of MainForm.cs -- partial-class file split,
-    // same pattern as the other presenter partials.
+    // (DatePicker scrubs, Button_Now snap-to-now, DatePicker arrow-key nav).
+    // Lifted out of MainForm.cs -- partial-class file split, same pattern as
+    // the other presenter partials.
     //
-    // The three "moment changed" handlers share a common tail (refresh labels,
-    // shift now-lines on every sub-chart, conditionally re-sort the listbox if
-    // a time-dependent sort key is active, hand a snapshot to the coordinator).
+    // The "moment changed" handlers share a common tail (refresh labels, shift
+    // now-lines on every sub-chart, conditionally re-sort the listbox if a
+    // time-dependent sort key is active, hand a snapshot to the coordinator).
     // OnObservationMomentChanged folds that tail. DatePicker_KeyDown is a
     // UI-delta handler (Up/Down = +/-1 day); it mutates DatePicker.Value and
     // lets DatePicker_ValueChanged do the actual work.
+    //
+    // SnapMomentToNow is the single seam where the wall-clock at the site is
+    // sampled. Called from Button_Now_Click (user gesture) and from the
+    // constructor in MainForm.cs (implicit startup snap) so first-paint state
+    // is current real now under the resolved site TZ.
     public partial class MainForm
     {
         private void DatePicker_ValueChanged(object sender, EventArgs e)
@@ -23,16 +28,24 @@ namespace TargetPlanner
             Log.Diag("UI", $"DatePicker.ValueChanged value={DatePicker.Value:yyyy-MM-dd}");
             // A date change trips the cache's mLastSetUtc diff -> SetLocationAsync
             // -> full cache rebuild -> Render with fresh moon series, dusk/dawn,
-            // altitudes, and Tonight fits. Date-unchanged scrubs (TimePicker within
-            // the same UTC day) skip the rebuild and just bounce through the
-            // post-apply hook for label + now-line sync.
+            // altitudes, and Tonight fits.
             OnObservationMomentChanged(resortIfTimeKeyed: true);
         }
 
-        private void TimePicker_ValueChanged(object sender, EventArgs e)
+        // Snap mObservation to wall-clock-now at the site. Used by Button_Now and
+        // the startup implicit snap so first-paint state = current real now at the
+        // selected location's TZ. Also reseats DatePicker.Value at site-today (with
+        // ValueChanged silenced to avoid a spurious re-entry through
+        // DatePicker_ValueChanged -- the broader tail is run by the caller via
+        // OnObservationMomentChanged when appropriate).
+        private void SnapMomentToNow()
         {
-            Log.Diag("UI", $"TimePicker.ValueChanged value={TimePicker.Value:HH:mm}");
-            OnObservationMomentChanged(resortIfTimeKeyed: true);
+            TimeZoneInfo zone = mLocation?.TimeZoneInfo ?? TimeZoneInfo.Local;
+            mObservation = ObservationMoment.Now(zone);
+            DateTime localToday = TimeZoneInfo.ConvertTimeFromUtc(mObservation.Utc, zone).Date;
+            DatePicker.ValueChanged -= DatePicker_ValueChanged;
+            DatePicker.Value = localToday;
+            DatePicker.ValueChanged += DatePicker_ValueChanged;
         }
 
         // Plain Up/Down on the DatePicker = +/-1 day with natural cascade across
@@ -53,29 +66,13 @@ namespace TargetPlanner
             e.SuppressKeyPress = true;
         }
 
-        // Snap the observation moment back to the current wall-clock time. Replaces
-        // the prior Now/SetDateTime/Hold trio plus the 5-second polling timer with
-        // a single explicit user action: set mObservation to now, push into the
-        // pickers (without re-triggering their ValueChanged), refresh every label
-        // via UpdateLocalDateTimeEvents, and reposition the chart's red now-line
-        // to the current X coordinate. Passes resortIfTimeKeyed: true so a
-        // Transit / Rise-sorted listbox re-ranks against the new "now" -- the
-        // pre-extraction code skipped this, leaving the listbox showing pre-snap
-        // ordering on a meaningful time change.
+        // Snap the observation moment back to wall-clock-now at the site.
+        // Passes resortIfTimeKeyed: true so a Transit / Rise-sorted listbox
+        // re-ranks against the new "now".
         private void Button_Now_Click(object sender, EventArgs e)
         {
             Log.Diag("UI", "Button_Now.Click");
-            TimeZoneInfo zone = mLocation?.TimeZoneInfo ?? TimeZoneInfo.Local;
-            mObservation = ObservationMoment.Now(zone);
-            DateTime localNow = TimeZoneInfo.ConvertTimeFromUtc(mObservation.Utc, zone);
-
-            DatePicker.ValueChanged -= DatePicker_ValueChanged;
-            TimePicker.ValueChanged -= TimePicker_ValueChanged;
-            DatePicker.Value = localNow;
-            TimePicker.Value = localNow;
-            DatePicker.ValueChanged += DatePicker_ValueChanged;
-            TimePicker.ValueChanged += TimePicker_ValueChanged;
-
+            SnapMomentToNow();
             OnObservationMomentChanged(resortIfTimeKeyed: true);
         }
 

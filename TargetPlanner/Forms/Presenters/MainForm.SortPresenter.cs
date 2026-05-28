@@ -23,7 +23,7 @@ namespace TargetPlanner
     // Wired into MainForm via the Designer event handler ComboBox_SortTargets_
     // SelectedIndexChanged below, and called from the form's lifecycle methods
     // (OnVmKnownTargetsChanged, Button_AddTarget_Click, Button_RemoveTarget_Click,
-    // DatePicker / TimePicker ValueChanged when the active mode is time-dependent).
+    // DatePicker ValueChanged when the active mode is time-dependent).
     public partial class MainForm
     {
         // Repopulates ComboBox_SelectTarget.Items in the order produced by
@@ -213,9 +213,7 @@ namespace TargetPlanner
 
             if ((mode == 1 || mode == 2) && mLocation != null)
             {
-                DateTime anchorUtc = DateTime.SpecifyKind(
-                    DatePicker.Value.Date + TimePicker.Value.TimeOfDay,
-                    DateTimeKind.Local).ToUniversalTime();
+                DateTime anchorUtc = mObservation.Utc;
 
                 if (mode == 1)
                 {
@@ -287,7 +285,7 @@ namespace TargetPlanner
         // TargetDuration spinner edits, Location combo + lat/lon/elev/N/W/Bortle/Extinction
         // edits, filter / moon-profile edits, polyline horizon reload). Returns early when
         // the active sort mode doesn't depend on these inputs -- Name / Transit / Rise are
-        // either input-independent or already re-fired on DatePicker/TimePicker scrubs.
+        // either input-independent or already re-fired on DatePicker scrubs.
         // Callers can no-op-call this freely; the gate is here, not at the call sites, so
         // adding a new SessionSolvers mode in future doesn't require sweeping every callsite.
         private void MaybeResortForSessionSolversInputChange()

@@ -62,7 +62,6 @@
             NumericUpDown_LatitudeSeconds = new System.Windows.Forms.NumericUpDown();
             GroupBox_LocalDateTime = new System.Windows.Forms.GroupBox();
             Label_Phase = new System.Windows.Forms.Label();
-            TimePicker = new System.Windows.Forms.DateTimePicker();
             DatePicker = new System.Windows.Forms.DateTimePicker();
             Label_LunarPhaseValue = new System.Windows.Forms.Label();
             Button_Now = new System.Windows.Forms.Button();
@@ -548,7 +547,6 @@
             // GroupBox_LocalDateTime
             // 
             GroupBox_LocalDateTime.Controls.Add(Label_Phase);
-            GroupBox_LocalDateTime.Controls.Add(TimePicker);
             GroupBox_LocalDateTime.Controls.Add(DatePicker);
             GroupBox_LocalDateTime.Controls.Add(Label_LunarPhaseValue);
             GroupBox_LocalDateTime.Controls.Add(Button_Now);
@@ -584,17 +582,7 @@
             Label_Phase.Size = new System.Drawing.Size(74, 15);
             Label_Phase.TabIndex = 41;
             Label_Phase.Text = "Lunar Phase:";
-            // 
-            // TimePicker
-            // 
-            TimePicker.CustomFormat = "";
-            TimePicker.Location = new System.Drawing.Point(404, 31);
-            TimePicker.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            TimePicker.Name = "TimePicker";
-            TimePicker.Size = new System.Drawing.Size(96, 23);
-            TimePicker.TabIndex = 1;
-            TimePicker.ValueChanged += TimePicker_ValueChanged;
-            // 
+            //
             // DatePicker
             // 
             DatePicker.Location = new System.Drawing.Point(153, 31);
@@ -1600,7 +1588,6 @@
         #endregion
 
         private System.Windows.Forms.GroupBox GroupBox_Local;
-        private System.Windows.Forms.DateTimePicker TimePicker;
         private System.Windows.Forms.DateTimePicker DatePicker;
         private System.Windows.Forms.TextBox TextBox_Longitude;
         private System.Windows.Forms.TextBox TextBox_Latitude;

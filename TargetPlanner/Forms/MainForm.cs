@@ -24,10 +24,11 @@ namespace TargetPlanner
     public partial class MainForm : Form
     {
         private Location mLocation;
-        // Per-session observation moment (UTC + site zone). Replaces the legacy
-        // (DateTime When, TimeZoneInfo Zone) tuple field; matches AL's named-
-        // immutable-type convention so consumers thread the (Utc, Zone) pair
-        // around without losing the invariant that they travel together.
+        // Per-session observation moment (UTC + site zone). Single source of truth
+        // for "when the user is planning for." Snapped to wall-clock-at-site by
+        // Button_Now (and by startup); DatePicker-change carries the time-of-day
+        // forward to the picked date so the moment behaves as "selected date at
+        // the time I last said Now."
         private ObservationMoment mObservation;
 
         // Per-site user planning preferences (target floor degrees, minimum
@@ -355,10 +356,6 @@ is preserved.";
         public MainForm()
         {
             InitializeComponent();
-            TimePicker.Format = DateTimePickerFormat.Time;
-            TimePicker.ShowUpDown = true;
-            TimePicker.Format = DateTimePickerFormat.Custom;
-            TimePicker.CustomFormat = "  hh:mm tt";
 
             // Hidden-when-idle: load paths and the chart pipeline both flip
             // Visible=true at the start of work and back to false after the
@@ -370,8 +367,11 @@ is preserved.";
 
             mAppSettings = SettingsStore.Load();
 
-            mObservation = ObservationMoment.Now(TimeZoneInfo.Local);
             mLocation = PickStartupLocation();
+            // Implicit "Now" snap at startup: mObservation = wall-clock-now under
+            // the resolved site's TZ, DatePicker reseats to site-today. First-paint
+            // state is current real now without the user needing to click Button_Now.
+            SnapMomentToNow();
             // Per-site user preferences (target floor + minimum duration) for the
             // boot location. PickStartupPreferences mirrors PickStartupLocation --
             // both resolve from the same NamedSite entry so the spinner
@@ -750,10 +750,18 @@ is preserved.";
             InitializeLocalHorizonControls();
         }
 
+        // Reconcile mObservation with DatePicker after a user date pick.
+        // Carries the existing site-local time-of-day forward onto the new date:
+        // mObservation stays "selected date at the time I last said Now."
+        // Called from DatePicker_ValueChanged via OnObservationMomentChanged;
+        // also called from SnapMomentToNow (no-op there -- the snap already set
+        // both mObservation and DatePicker consistently, but rerunning is cheap
+        // and refreshes the labels for the chart pipeline).
         private void UpdateLocalDateTimeEvents()
         {
-            DateTime local = DatePicker.Value.Date + TimePicker.Value.TimeOfDay;
             TimeZoneInfo zone = mLocation?.TimeZoneInfo ?? TimeZoneInfo.Local;
+            TimeSpan timeOfDay = TimeZoneInfo.ConvertTimeFromUtc(mObservation.Utc, zone).TimeOfDay;
+            DateTime local = DatePicker.Value.Date + timeOfDay;
             mObservation = ObservationMoment.FromLocal(local, zone);
             RefreshAstrometryLabels();
         }
