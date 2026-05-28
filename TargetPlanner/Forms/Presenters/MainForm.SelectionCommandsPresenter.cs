@@ -45,10 +45,22 @@ namespace TargetPlanner
             mSelection.SetAllChecked(false);
         }
 
+        // Check every target that isn't geometrically BLUE (below the local
+        // horizon polyline at every Az during tonight's night). BLUE targets
+        // can't be observed at this site/date by definition; including them in
+        // the check-set would add them to ctx.Targets, force a no-op per-target
+        // cache fit walk, and produce hide-on-no-fit chart series -- all with
+        // no user-visible result. Defensive default: a target absent from
+        // mGeoVisCache (e.g., during the boot window before the first
+        // post-apply hook fires) counts as visible to avoid hiding a real
+        // target the painter just hasn't classified yet.
         private void Button_SelectAllTargets_Click(object sender, EventArgs e)
         {
             Log.Diag("UI", "Button_SelectAllTargets.Click");
-            mSelection.SetAllChecked(true);
+            var nonBlue = mSelection.KnownTargets
+                .Where(t => t != null && (!mGeoVisCache.TryGetValue(t, out var v) || v))
+                .ToList();
+            mSelection.SetCheckedSet(nonBlue);
         }
 
         // Empties the known-target list entirely (combo + listbox cleared, charts
