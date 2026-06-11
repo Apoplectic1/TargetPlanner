@@ -392,7 +392,7 @@ is preserved.";
 
             // Help -> Feedback: appended programmatically rather than via the
             // Designer (which is don't-touch per project convention). Tooltip
-            // surfaces the Ctrl+N observation feature for discoverability.
+            // surfaces the Ctrl+N diagnostics feature for discoverability.
             // Single child opens the Logs folder in Explorer so the user can
             // delete a session's notes (tp.log + screenshots/) with one
             // selection or attach the captured PNGs to a bug report.
@@ -401,10 +401,9 @@ is preserved.";
             {
                 ToolTipText =
                     "Open the Logs folder containing diagnostic logs and screenshots " +
-                    "captured via Ctrl+N (the observation dialog). The dialog lets you " +
-                    "tick what you observed + write notes + auto-attaches a screenshot " +
-                    "and current planner state. One delete of the Logs folder clears " +
-                    "every captured note.",
+                    "captured via Ctrl+N (the diagnostics dialog). The dialog lets you " +
+                    "write notes + auto-attaches a screenshot and current planner state. " +
+                    "One delete of the Logs folder clears every captured note.",
             };
             var openNotesItem = new ToolStripMenuItem("&Open Notes Folder");
             openNotesItem.Click += (s, e) => HandleOpenNotesFolderClick();
@@ -413,9 +412,9 @@ is preserved.";
             // Capture-snapshot item: same as Ctrl+N. Discoverable for users +
             // reliably drivable from UI automation (Ctrl+N's keystroke path is
             // too foreground-flaky for scripted use).
-            var captureObsItem = new ToolStripMenuItem("&Capture Observation Snapshot");
-            captureObsItem.Click += (s, e) => HandleCaptureObservationClick();
-            feedbackItem.DropDownItems.Add(captureObsItem);
+            var captureDiagItem = new ToolStripMenuItem("&Capture Diagnostics Snapshot");
+            captureDiagItem.Click += (s, e) => HandleCaptureDiagnosticsClick();
+            feedbackItem.DropDownItems.Add(captureDiagItem);
 
             HelpToolStripMenuItem_MainForm.DropDownItems.Add(feedbackItem);
 
@@ -883,7 +882,7 @@ is preserved.";
             mToolTip.SetToolTip(CheckedListBox_SelectedTargets, found.Directory);
         }
 
-        // Ctrl+N opens (or focuses) the user-observation dialog. Modeless +
+        // Ctrl+N opens (or focuses) the diagnostics dialog. Modeless +
         // TopMost so the user can interact with the main UI while the dialog
         // stays open; USER_OBS_START / USER_OBS_END / USER_OBS_CANCEL
         // markers in tp.log bracket the user's actions chronologically.
@@ -891,16 +890,16 @@ is preserved.";
         {
             if (keyData == (Keys.Control | Keys.N))
             {
-                Forms.UserObservationDialog.ShowOrFocus(this, GetObservationContext);
+                Forms.DiagnosticsDialog.ShowOrFocus(this, GetDiagnosticsContext);
                 return true;
             }
             return base.ProcessCmdKey(ref msg, keyData);
         }
 
         // Builds the context snapshot string included in the USER_OBS_END
-        // line. Called by the observation dialog at OK time so the report
+        // line. Called by the diagnostics dialog at OK time so the report
         // carries the planner state without the user having to type it.
-        private string GetObservationContext()
+        private string GetDiagnosticsContext()
         {
             try
             {
@@ -922,7 +921,7 @@ is preserved.";
             }
             catch (Exception ex)
             {
-                Log.Warn("GetObservationContext threw", ex);
+                Log.Warn("GetDiagnosticsContext threw", ex);
                 return "context unavailable";
             }
         }

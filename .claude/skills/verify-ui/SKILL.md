@@ -18,11 +18,11 @@ Skip when the change is:
   unit tests cover those.
 - Behaviour-equivalent comment / rename work.
 
-## The leverage point: TP's observation dialog (menu-driven)
+## The leverage point: TP's diagnostics dialog (menu-driven)
 
 TP ships a screenshot+context-capture primitive via the
-`UserObservationDialog`. Users invoke it via Ctrl+N (wired through
-`MainForm.ProcessCmdKey`) **or** Help → Feedback → Capture Observation
+`DiagnosticsDialog`. Users invoke it via Ctrl+N (wired through
+`MainForm.ProcessCmdKey`) **or** Help → Feedback → Capture Diagnostics
 Snapshot. This skill drives the menu path; the keystroke path was tried
 first and abandoned (foreground-lock rules + scheduling races made
 `SendInput Ctrl+N` non-deterministic from non-foreground PowerShell —
@@ -104,7 +104,7 @@ result → close TP → read log + PNGs → compare.
 | `Get-TPListboxItems -Root $r -Name <name>` | Read (Checked)ListBox items in display order via Win32 LB_GETTEXT. |
 | `Find-TPElementByName -Root $r -ControlType <t> -Name <name>` | Find any UIA element by ControlType + Name (used for menu items, dialog OK button). |
 | `Invoke-TPMenuItem -Root $r -Path "Help","Feedback","..."` | Walk a menu path: expand each non-leaf, invoke the leaf. |
-| `Send-TPSnapshot -Process $p [-Notes <s>]` | Help → Feedback → Capture Observation Snapshot → fill notes → click OK. Returns the 4-hex id. |
+| `Send-TPSnapshot -Process $p [-Notes <s>]` | Help → Feedback → Capture Diagnostics Snapshot → fill notes → click OK. Returns the 4-hex id. |
 | `Get-TPObservations` | Parse current-session `USER_OBS_END` lines from tp.log. |
 | `Read-TPScreenshot -Id <hex>` | Screenshot path for a given observation id. |
 
@@ -168,7 +168,7 @@ order changes.
   use `Invoke-TPMenuItem` / `Find-TPElementByName` (which match on
   Text/Name property) instead.
 - **Modeless dialogs appear at Descendants scope, not Children.**
-  `UserObservationDialog` (and any other `Show(owner=mainForm)` dialog)
+  `DiagnosticsDialog` (and any other `Show(owner=mainForm)` dialog)
   is a top-level owned window — UIA tree-parent is MainForm, NOT the
   desktop. Polling with `TreeScope::Children` misses it; use
   `TreeScope::Descendants`. `Send-TPSnapshot` already handles this.

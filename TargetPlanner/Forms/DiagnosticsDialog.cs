@@ -35,11 +35,11 @@ namespace TargetPlanner.Forms
     //
     // Logging + screen capture come from the shared Astronomy.Diagnostics
     // (global using) — formerly TargetPlanner.Support.Log.
-    internal sealed class UserObservationDialog : Form
+    internal sealed class DiagnosticsDialog : Form
     {
         // Static instance tracker so re-trigger focuses the existing dialog
         // instead of stacking. Cleared on FormClosing.
-        private static UserObservationDialog sCurrent;
+        private static DiagnosticsDialog sCurrent;
 
         private readonly string mId;
         private readonly Form mOwnerForm;
@@ -55,13 +55,13 @@ namespace TargetPlanner.Forms
         // handlers (which fire FormClosing themselves).
         private bool mTerminationLogged;
 
-        private UserObservationDialog(Form ownerForm, Func<string> contextProvider)
+        private DiagnosticsDialog(Form ownerForm, Func<string> contextProvider)
         {
             mId = Guid.NewGuid().ToString("N").Substring(0, 4);
             mOwnerForm = ownerForm;
             mContextProvider = contextProvider ?? (() => string.Empty);
 
-            Text = "Observation (id=" + mId + ")";
+            Text = "Diagnostics (id=" + mId + ")";
             FormBorderStyle = FormBorderStyle.SizableToolWindow;
             StartPosition = FormStartPosition.CenterParent;
             MinimizeBox = false;
@@ -71,19 +71,10 @@ namespace TargetPlanner.Forms
             ClientSize = new Size(420, 220);
             Padding = new Padding(10);
 
-            var lblNotes = new Label
-            {
-                Text = "Notes (free-form, Ctrl+Enter for newline). Capture grabs the main window now " +
-                       "(repeatable). Leave blank for a checkpoint:",
-                AutoSize = false,
-                Location = new Point(10, 8),
-                Size = new Size(400, 18),
-            };
-
             mNotes = new TextBox
             {
-                Location = new Point(10, 30),
-                Size = new Size(400, 140),
+                Location = new Point(10, 8),
+                Size = new Size(400, 162),
                 Multiline = true,
                 AcceptsReturn = false,
                 ScrollBars = ScrollBars.Vertical,
@@ -135,7 +126,6 @@ namespace TargetPlanner.Forms
             AcceptButton = mOk;
             CancelButton = mCancel;
 
-            Controls.Add(lblNotes);
             Controls.Add(mNotes);
             Controls.Add(mCapture);
             Controls.Add(mStatus);
@@ -159,7 +149,7 @@ namespace TargetPlanner.Forms
                 return;
             }
 
-            var dlg = new UserObservationDialog(owner, contextProvider);
+            var dlg = new DiagnosticsDialog(owner, contextProvider);
             sCurrent = dlg;
             Log.UserObservationStart(dlg.mId);
             dlg.Show(owner);

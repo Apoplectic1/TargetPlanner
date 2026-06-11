@@ -108,7 +108,7 @@ Estimated: ~22 tests across 3 classes + 1 shared XISF fixture. One PR.
 ## What does NOT go in
 
 - **`ChartCoordinator`** — `System.Windows.Forms.Timer` dependency. Deferred indefinitely.
-- **MainForm + presenter partials, `Charts\AltitudeSubChart_*`, `OverlayController`, `EditFiltersForm`, `UserObservationDialog`** — WinForms message pump / LC2 SKControl paint required.
+- **MainForm + presenter partials, `Charts\AltitudeSubChart_*`, `OverlayController`, `EditFiltersForm`, `DiagnosticsDialog`** — WinForms message pump / LC2 SKControl paint required.
 - **`Designer.cs`, Velopack, `Log.*`, `UpdateService`** — generated / external lifecycle / infrastructure.
 - **Benchmarks** — defer until a TP-side hot path needs profiling (Library benchmarks cover the math hot paths).
 

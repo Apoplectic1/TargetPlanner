@@ -70,6 +70,27 @@ The original 4-step sequencing plan (correctness audit → extract Astronomy.Cor
 
 Archived from CLAUDE.md's "Open follow-ups" and "What shipped" sections so the file stays under the perf-warning threshold; preserve commit hashes for future archaeology.
 
+### 2026-06-11 — Rename Ctrl+N "Observation" dialog → "Diagnostics"; drop helper label
+
+Mirrors the same-day TCM rename (TCM commit `ca97d89`) so both apps name the Ctrl+N
+screenshot/notes feature "Diagnostics" — disambiguating it from TP's *domain* "observation"
+(the `ObservationMoment` / observing-the-sky vocabulary, untouched). The shared
+`Astronomy.Diagnostics` **log protocol keeps its `USER_OBS_*` marker names** (`UserObservationStart`/
+`End`/`Cancel`/`Capture`), so existing `tp.log` parsing and `Get-TPObservations` are unaffected.
+
+- `Forms/UserObservationDialog.cs` → `Forms/DiagnosticsDialog.cs` (class + file); window title
+  `"Observation (id=…)"` → `"Diagnostics (id=…)"`; removed the helper-notes `Label` (notes box now
+  fills the dialog).
+- `MainForm`: `GetObservationContext` → `GetDiagnosticsContext`; `HandleCaptureObservationClick` →
+  `HandleCaptureDiagnosticsClick`; menu item **"Capture Observation Snapshot"** → **"Capture
+  Diagnostics Snapshot"**; Feedback tooltip reworded (also fixed stale "tick what you observed" — the
+  checklist was dropped 2026-05-19).
+- **verify-ui skill updated in lockstep** (`verify-ui.ps1` matched two now-changed literals: the menu
+  path and the `'Observation (id=*'` title filter) so UI-automation keeps working; `SKILL.md` refs too.
+- Current-state docs updated (`CLAUDE.md`, `ARCHITECTURE.md`, `test-project-plan.md`); dated history
+  left intact. The 2026-05-27 "Capture Observation Snapshot menu item" entry below records the
+  original name.
+
 ### 2026-05-28 — MoonEphemeris + AltitudeCurve reshape; TP cache axes rekey
 
 Extracted the per-minute observational compute that TP rolled inline

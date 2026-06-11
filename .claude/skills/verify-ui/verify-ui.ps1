@@ -443,7 +443,7 @@ function Find-TPElementByName {
     throw "$ControlType '$Name' not found within ${TimeoutMs}ms."
 }
 
-# Walk a menu path (e.g. "Help","Feedback","Capture Observation Snapshot"):
+# Walk a menu path (e.g. "Help","Feedback","Capture Diagnostics Snapshot"):
 # expand each non-leaf via ExpandCollapsePattern, invoke the leaf. Drives
 # WinForms ToolStripMenuItems reliably (no keystroke games, no foreground
 # focus dependency). WinForms exposes ToolStripMenuItem.Text as the UIA
@@ -468,8 +468,8 @@ function Invoke-TPMenuItem {
     $invoke.Invoke()
 }
 
-# Drive Help > Feedback > Capture Observation Snapshot → fill notes → click OK
-# on UserObservationDialog. Writes one USER_OBS_START + one USER_OBS_END pair
+# Drive Help > Feedback > Capture Diagnostics Snapshot → fill notes → click OK
+# on DiagnosticsDialog. Writes one USER_OBS_START + one USER_OBS_END pair
 # to tp.log; returns the 4-hex id.
 #
 # Originally tried Ctrl+N via SendInput. Two reliability problems killed it:
@@ -484,10 +484,10 @@ function Send-TPSnapshot {
         [string]$Notes = '')
 
     $mainWindow = Get-TPMainWindow -Process $Process
-    Invoke-TPMenuItem -Root $mainWindow -Path 'Help', 'Feedback', 'Capture Observation Snapshot'
+    Invoke-TPMenuItem -Root $mainWindow -Path 'Help', 'Feedback', 'Capture Diagnostics Snapshot'
 
     # Poll for the dialog under TP's pid. Critically: TreeScope::Descendants,
-    # NOT ::Children. UserObservationDialog uses Show(owner=MainForm), which
+    # NOT ::Children. DiagnosticsDialog uses Show(owner=MainForm), which
     # makes it a top-level owned window -- UIA represents that as a child of
     # MainForm in the tree, not a direct child of the desktop. Filtering by
     # Children excludes the dialog even though it's visible on screen.
@@ -506,10 +506,10 @@ function Send-TPSnapshot {
         Start-Sleep -Milliseconds 150
         $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $dlgNameCond)
         foreach ($w in $windows) {
-            if ($w.Current.Name -like 'Observation (id=*') { $dlg = $w; break }
+            if ($w.Current.Name -like 'Diagnostics (id=*') { $dlg = $w; break }
         }
     }
-    if ($null -eq $dlg) { throw "UserObservationDialog did not appear after menu invoke." }
+    if ($null -eq $dlg) { throw "DiagnosticsDialog did not appear after menu invoke." }
 
     $title = $dlg.Current.Name
     $id = if ($title -match 'id=([0-9a-fA-F]{4})') { $matches[1] } else { '????' }
