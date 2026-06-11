@@ -1,9 +1,6 @@
 using System;
 using System.Drawing;
-using System.Drawing.Imaging;
-using System.IO;
 using System.Windows.Forms;
-using TargetPlanner.Support;
 
 namespace TargetPlanner.Forms
 {
@@ -17,6 +14,7 @@ namespace TargetPlanner.Forms
     //
     //   USER_OBS_START id=4f2a build=1.0.0+abc1234
     //   DIAG/UI CheckBox_Sky.CheckedChanged checked=True
+    //   USER_OBS_CAP id=4f2a screenshot=...           (each mid-session Capture)
     //   DIAG/Sky Render exit ...
     //   USER_OBS_END id=4f2a ctx=(area=Day, ...) screenshot=... notes="..."
     //
@@ -24,11 +22,19 @@ namespace TargetPlanner.Forms
     // Cancellation (Cancel button or close-X) writes USER_OBS_CANCEL with the
     // same id so every START has a matching terminator.
     //
+    // Capture grabs the main window on demand and stays open, so one session can
+    // interleave several timestamped shots with notes (capture -> change UI ->
+    // capture -> type -> OK); since every line is local-time stamped, images and
+    // notes can be ordered against each other after the fact.
+    //
     // Empty / whitespace-only notes is the "all-okay checkpoint" gesture: the
     // log line carries notes="(checkpoint)" so grep finds those moments cleanly.
     //
     // Singleton: re-pressing Ctrl+N while the dialog is already open focuses
     // the existing instance (no second dialog, no second START marker).
+    //
+    // Logging + screen capture come from the shared Astronomy.Diagnostics
+    // (global using) — formerly TargetPlanner.Support.Log.
     internal sealed class UserObservationDialog : Form
     {
         // Static instance tracker so re-trigger focuses the existing dialog
@@ -41,6 +47,9 @@ namespace TargetPlanner.Forms
         private readonly TextBox mNotes;
         private readonly Button mOk;
         private readonly Button mCancel;
+        private readonly Button mCapture;
+        private readonly Label mStatus;
+        private int mCaptureCount;
         // True when we logged END/CANCEL ourselves; suppresses the FormClosing
         // handler from double-logging if Form.Close was called from button
         // handlers (which fire FormClosing themselves).
@@ -64,9 +73,11 @@ namespace TargetPlanner.Forms
 
             var lblNotes = new Label
             {
-                Text = "Notes (free-form, Ctrl+Enter for newline). Leave blank for a checkpoint:",
-                AutoSize = true,
-                Location = new Point(10, 10),
+                Text = "Notes (free-form, Ctrl+Enter for newline). Capture grabs the main window now " +
+                       "(repeatable). Leave blank for a checkpoint:",
+                AutoSize = false,
+                Location = new Point(10, 8),
+                Size = new Size(400, 18),
             };
 
             mNotes = new TextBox
@@ -87,6 +98,22 @@ namespace TargetPlanner.Forms
                     e.Handled = true;
                     e.SuppressKeyPress = true;
                 }
+            };
+
+            // Capture stays open and re-shows itself after the grab; OK / Cancel are terminal.
+            mCapture = new Button
+            {
+                Text = "Capture",
+                Location = new Point(10, 180),
+                Size = new Size(90, 28),
+            };
+            mCapture.Click += OnCaptureClick;
+
+            mStatus = new Label
+            {
+                Location = new Point(108, 185),
+                AutoSize = true,
+                ForeColor = SystemColors.GrayText,
             };
 
             mOk = new Button
@@ -110,6 +137,8 @@ namespace TargetPlanner.Forms
 
             Controls.Add(lblNotes);
             Controls.Add(mNotes);
+            Controls.Add(mCapture);
+            Controls.Add(mStatus);
             Controls.Add(mOk);
             Controls.Add(mCancel);
 
@@ -134,6 +163,30 @@ namespace TargetPlanner.Forms
             sCurrent = dlg;
             Log.UserObservationStart(dlg.mId);
             dlg.Show(owner);
+        }
+
+        // Capture button: take a mid-session shot and stay open. Hide this TopMost
+        // dialog so it isn't in the shot, force the owner to repaint the area it was
+        // occluding, grab, then re-show + refocus the notes. Repeatable -- each shot
+        // is a USER_OBS_CAP line plus a bump to the status readout.
+        private void OnCaptureClick(object sender, EventArgs e)
+        {
+            Hide();
+            if (mOwnerForm != null && !mOwnerForm.IsDisposed) mOwnerForm.Refresh();
+            string path = TryCaptureScreenshot();
+            Show();
+            mNotes.Focus();
+
+            if (path != null)
+            {
+                mCaptureCount++;
+                Log.UserObservationCapture(mId, path);
+                mStatus.Text = string.Format("captured {0} - {1:HH:mm:ss}", mCaptureCount, DateTime.Now);
+            }
+            else
+            {
+                mStatus.Text = "capture failed - see tp.log";
+            }
         }
 
         private void OnOkClick(object sender, EventArgs e)
@@ -181,38 +234,15 @@ namespace TargetPlanner.Forms
             if (ReferenceEquals(sCurrent, this)) sCurrent = null;
         }
 
-        // Capture the main form's screen pixels (full window bounds) and
-        // save as PNG under %APPDATA%\TargetPlanner\screenshots\.
-        // CopyFromScreen is used because LiveCharts2's SKControl paints via
-        // Skia and Control.DrawToBitmap returns blank for it -- the screen
-        // grab captures the actual rendered pixels regardless of the
-        // underlying paint mechanism.
+        // Adapt the owner form's screen bounds to the shared screen capture + the shared
+        // obs-<id>-<stamp> filename convention; Astronomy.Diagnostics owns the grab, encode,
+        // local-time stamp, and best-effort failure path (it captures the literal rendered
+        // pixels regardless of LiveCharts2's Skia paint, like the old CopyFromScreen did).
         private string TryCaptureScreenshot()
         {
-            try
-            {
-                if (mOwnerForm == null || mOwnerForm.IsDisposed) return null;
-                string dir = Path.Combine(Log.NotesFolderPath, "screenshots");
-                Directory.CreateDirectory(dir);
-                string name = string.Format("obs-{0}-{1:yyyyMMddHHmmss}.png",
-                    mId, DateTime.UtcNow);
-                string path = Path.Combine(dir, name);
-                Rectangle bounds = mOwnerForm.Bounds;
-                using (var bmp = new Bitmap(bounds.Width, bounds.Height))
-                {
-                    using (var g = Graphics.FromImage(bmp))
-                    {
-                        g.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size);
-                    }
-                    bmp.Save(path, ImageFormat.Png);
-                }
-                return path;
-            }
-            catch (Exception ex)
-            {
-                Log.Warn("Observation screenshot capture failed", ex);
-                return null;
-            }
+            if (mOwnerForm == null || mOwnerForm.IsDisposed) return null;
+            Rectangle b = mOwnerForm.Bounds;
+            return ScreenCapture.ToPng(b.X, b.Y, b.Width, b.Height, Log.NewObservationScreenshotPath(mId));
         }
     }
 }

@@ -70,7 +70,7 @@ namespace TargetPlanner
             Log.Diag("UI", "Menu Help.Feedback.OpenNotesFolder.Click");
             try
             {
-                string path = Log.NotesFolderPath;
+                string path = Log.LogFolderPath;
                 Directory.CreateDirectory(path);
                 Process.Start(new ProcessStartInfo
                 {
@@ -155,7 +155,7 @@ namespace TargetPlanner
                 "  - " + SettingsStore.FilePath + "\n" +
                 "  - " + FilterLibrary.DefaultPath + "\n" +
                 "  - " + LocalTargetStore.FilePath + "\n" +
-                "  - " + Log.NotesFolderPath + " (entire folder: tp.log + screenshots + .prev)\n\n" +
+                "  - " + Log.LogFolderPath + " (entire folder: tp.log + screenshots + .prev)\n\n" +
                 "TargetPlanner will close after the reset; relaunch to boot from defaults.\n\n" +
                 "This cannot be undone.";
 
@@ -166,7 +166,7 @@ namespace TargetPlanner
             TryDeleteFile(SettingsStore.FilePath);
             TryDeleteFile(FilterLibrary.DefaultPath);
             TryDeleteFile(LocalTargetStore.FilePath);
-            TryDeleteDirectory(Log.NotesFolderPath);
+            TryDeleteDirectory(Log.LogFolderPath);
 
             // Confirm prompt above already told the user TP will close; skip a
             // second "Reset complete" dialog and just exit. Suppress flag stops

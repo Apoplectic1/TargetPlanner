@@ -66,6 +66,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Library\Astronomy.Core\Astronomy.Core.csproj" />
     <ProjectReference Include="..\..\Library\Astronomy.NINA\Astronomy.NINA.csproj" />
+    <!-- Shared diagnostics: the logging + screen-capture contract (replaces the former Support\Log.cs copy). -->
+    <ProjectReference Include="..\..\Library\Astronomy.Diagnostics\Astronomy.Diagnostics.csproj" />
   </ItemGroup>
 
   <!-- Exposes internal types (currently just Caches/CacheAxis.cs) to the test

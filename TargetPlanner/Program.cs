@@ -20,8 +20,15 @@ namespace TargetPlanner
             // Environment.GetCommandLineArgs() internally; no need to pass them here.
             VelopackApp.Build().Run();
 
-            // Rotate tp.log -> tp.log.prev and start fresh. Each run's diag
-            // trail is self-contained; one run back is preserved for postmortem.
+            // Configure the shared diagnostics log for this app, then rotate tp.log -> tp.log.prev and start
+            // fresh. Each run's diag trail is self-contained; one run back is preserved for postmortem. Diag
+            // channels default to all in Debug / off in Release; TP_DIAG overrides either at runtime.
+#if DEBUG
+            const DiagDefault diag = DiagDefault.All;
+#else
+            const DiagDefault diag = DiagDefault.None;
+#endif
+            Log.Init(new AppLogIdentity("TargetPlanner", "tp.log", "TP_DIAG", diag));
             Log.StartNewSession();
 
             Application.EnableVisualStyles();
