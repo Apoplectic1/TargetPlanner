@@ -98,12 +98,12 @@ Estimated: ~30 tests across 2 classes + 1 helper. One PR.
 | File | Coverage |
 |------|----------|
 | `TargetLoaderTests.cs` | 3–4 hand-curated `.json` fixtures: positive Dec, negative Dec (NegativeDec flag), sexagesimal RA assembly, missing fields, malformed JSON |
-| `ImageLibraryLoaderTests.cs` | `.xisf` header fixture (reuse Library's `test.xisf` via `<Link>` per `Astronomy.Core.Tests.csproj` pattern); IMAGETYP=Light gate; non-Light file skipped |
+| `ImageLibraryLoaderTests.cs` | synthetic `.xisf` header fixtures generated per-test; IMAGETYP=Light gate; non-Light file skipped |
 | `TargetScannerTests.cs` | recursive walk; mosaic Panel grouping; comet folder exclusion; centroid aggregation across 2 frames; unreadable-dir tolerance |
 
-Fixture maintenance: `TargetPlanner.Tests\TestData\` with `CopyToOutputDirectory=PreserveNewest`. Reuse Library's `test.xisf` via `<Link>` (same pattern as `Library\Astronomy.Core.Tests\Astronomy.Core.Tests.csproj`).
+Fixture generation: `Tests\Support\SyntheticXisf.cs` — writes a minimal valid XISF (8-byte ASCII signature + 4-byte LE XML length + 4-byte reserved + UTF-8 XML payload, header-only, no image attachment block) with caller-supplied FITS keywords, adapted from `Library\Astronomy.XISF.Tests\XisfHeaderReaderTests.cs`'s `WriteSyntheticXisf` helper (cross-repo duplication, sync if either drifts). No `TestData\` folder and no `<Link>` to Library's `test.xisf` — each test builds its own fixture file on demand via `SyntheticXisf.Write` + `SyntheticXisf.LightFrameKeywords`.
 
-Estimated: ~22 tests across 3 classes + 1 shared XISF fixture. One PR.
+Estimated: ~22 tests across 3 classes + 1 shared synthetic-fixture helper. One PR.
 
 ## What does NOT go in
 

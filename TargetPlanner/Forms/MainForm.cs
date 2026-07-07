@@ -302,7 +302,7 @@ is preserved.";
         // Stop+Start; CheckedToggleDebounce_Tick fires after 250 ms of quiet and runs
         // RunGraphBuildAsync over the current Checked set. Button_Graph_Click also
         // calls Stop() so a still-pending tick can't clobber a just-rendered single
-        // graph (see plan: mode-removal-against-current-dev.md, Edge case 4).
+        // graph.
         private System.Windows.Forms.Timer mCheckedToggleDebounce;
         private const int CheckedToggleDebounceMs = 250;
 

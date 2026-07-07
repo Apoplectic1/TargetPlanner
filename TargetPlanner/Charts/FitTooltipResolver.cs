@@ -13,7 +13,7 @@ namespace TargetPlanner.Charts
     /// its cached <see cref="NightFit"/> via the same <c>Hdm</c>-keyed lookup.
     /// </summary>
     /// <remarks>
-    /// Audit cleanup (item 2 from <c>docs/code-quality-audit.md</c>): the two
+    /// Audit cleanup (item 2 from <c>docs/2026-05-19-code-quality-audit.md</c>): the two
     /// tooltip formatters previously inlined identical 4-line lookups. Extracting
     /// here names the pattern and prevents future drift between the Year and
     /// Sessions implementations.

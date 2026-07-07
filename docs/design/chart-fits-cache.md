@@ -31,12 +31,13 @@ public readonly struct HdmKey : IEquatable<HdmKey>
 {
     public double HorizonDeg { get; init; }
     public long DurationTicks { get; init; }
-    public MoonAvoidanceProfile Profile { get; init; }  // reference identity
-    public double FilterCenterNm { get; init; }
+    public TpFilter ActiveFilter { get; init; }         // record; structural equality
+    public bool MoonAvoidanceEnabled { get; init; }
+    public IHorizonProfile LocalHorizon { get; init; }  // reference identity
 }
 ```
 
-`MoonAvoidanceProfile` is immutable; reference identity is the cheap-equality fast path. Bortle / ExtinctionK are intentionally excluded — they affect Sky's K-S brightness, not fit decisions.
+`ActiveFilter` is a `Filters.Filter` record; structural equality flows through `HdmKey` for free. `LocalHorizon` compares by reference identity — the cheap-equality fast path for the polyline/obstruction-table case. Bortle / ExtinctionK are intentionally excluded — they affect Sky's K-S brightness, not fit decisions.
 
 ```csharp
 // Caches/TargetFitEntry.cs
@@ -45,6 +46,7 @@ public sealed class TargetFitEntry
     public Target Target { get; }
     public HdmKey Key { get; }
     public IReadOnlyList<NightFit> Nights { get; }  // index-aligned with YearDays
+    public NightFit Tonight { get; }                // single-night slot for Day/Sky
 }
 
 public readonly struct NightFit
@@ -52,6 +54,11 @@ public readonly struct NightFit
     public double? Ceiling { get; init; }
     public double? Floor { get; init; }
     public double? CenteredFloor { get; init; }
+    public DateTime? StartUtc { get; init; }
+    public DateTime? EndUtc { get; init; }
+    public DateTime? CenteredStartUtc { get; init; }
+    public DateTime? CenteredEndUtc { get; init; }
+    public DateTime? TransitUtc { get; init; }
 }
 ```
 
@@ -61,7 +68,6 @@ One `NightFit` per (target, night) carries everything both Year and Sessions nee
 
 ```csharp
 TargetFitEntry GetFitOrNull(Target t, HdmKey key);
-Task<TargetFitEntry> GetFitOrBuildAsync(Target t, HdmKey key);
 Task PrepareFitsAsync(IEnumerable<Target> targets, HdmKey key,
                       IProgress<int> progress = null);
 ```

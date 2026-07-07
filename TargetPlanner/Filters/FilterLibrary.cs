@@ -179,9 +179,10 @@ namespace TargetPlanner.Filters
         }
 
         /// <summary>
-        /// First-launch in-code defaults: <c>H/O/S</c> at narrowband <c>(60°, 7d)</c>;
-        /// <c>L/R/G/B</c> at broadband <c>(120°, 14d)</c>. Bandwidth values are typical
-        /// for amateur kits; the user is expected to override via Edit Filters.
+        /// First-launch in-code defaults: narrowband filters (<c>H/O/S</c>) at
+        /// <c>(30-60°, 5d)</c>; broadband filters (<c>L/R/G/B</c>) at <c>(60-90°, 10d)</c>.
+        /// See <see cref="sBuiltinDefaults"/> for the authoritative per-filter values.
+        /// The user is expected to override via Edit Filters.
         /// </summary>
         public static FilterLibrary DefaultLibrary() => new FilterLibrary(sBuiltinDefaults);
 

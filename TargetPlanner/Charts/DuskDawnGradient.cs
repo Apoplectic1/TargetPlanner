@@ -12,7 +12,7 @@ namespace TargetPlanner.Charts
     // night's UTC bounds. The dusk gradient fades opaque-at-the-left-edge to
     // transparent-at-astronomical-dusk; the dawn gradient mirrors it on the
     // right. Extracted from byte-identical copies in AltitudeSubChart_Day/_Sky
-    // (code-quality-audit.md Tier 4).
+    // (docs/2026-05-19-code-quality-audit.md Tier 4).
     public sealed class DuskDawnGradient : IDisposable
     {
         // Yellow gradient endpoints (matches the legacy MS Charts areas).

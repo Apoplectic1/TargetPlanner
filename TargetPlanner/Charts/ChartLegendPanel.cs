@@ -14,7 +14,7 @@ namespace TargetPlanner.Charts
     // chart, and dims/brightens the label. Owns IdealHeight + IdealHeightChanged
     // (the form resizes when the legend wraps to a new row). Extracted from
     // near-identical — and drifted — copies in the four AltitudeSubChart_*.cs
-    // (code-quality-audit.md Tier 4).
+    // (docs/2026-05-19-code-quality-audit.md Tier 4).
     public sealed class ChartLegendPanel
     {
         // One legend row. Toggle flips the underlying series visibility — one

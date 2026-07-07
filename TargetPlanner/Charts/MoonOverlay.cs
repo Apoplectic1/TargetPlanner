@@ -19,7 +19,7 @@ namespace TargetPlanner.Charts
     // plots raw altitude on its 0–90° axis, Sky remaps it into its inverted
     // magnitude range — captured by the altitudeToPlotY delegate. Extracted
     // from near-identical copies in AltitudeSubChart_Day/_Sky
-    // (code-quality-audit.md Tier 4).
+    // (docs/2026-05-19-code-quality-audit.md Tier 4).
     public static class MoonOverlay
     {
         // Build the moon overlay series fresh: a translucent grey filled area

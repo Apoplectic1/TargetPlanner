@@ -247,7 +247,7 @@ namespace TargetPlanner.Charts
             return separators;
         }
 
-        // --- Shared Axis factories (code-quality-audit.md Tier 4) -------------
+        // --- Shared Axis factories (docs/2026-05-19-code-quality-audit.md Tier 4) -------------
         // The four sub-charts built near-identical Axis objects inline; these
         // factories are the single source of truth.
 
@@ -306,7 +306,7 @@ namespace TargetPlanner.Charts
                 NamePaint = new SolidColorPaint(SKColors.LightGray),
             };
 
-        // --- Render-body shared helpers (code-quality-audit.md Tier 6) --------
+        // --- Render-body shared helpers (docs/2026-05-19-code-quality-audit.md Tier 6) --------
 
         // The series-dictionary swap every sub-chart's Render does at commit:
         // replace `persistent` wholesale with the freshly-built `fresh`. When

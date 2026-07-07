@@ -2,8 +2,6 @@
 
 Windows Forms desktop tool for astrophotography target planning. Plots a deep-sky target's altitude across a single night, scans a year for the best dates, and overlays multiple targets loaded from NINA sequence files or your `.xisf` image library.
 
-![TargetPlanner v1.0.0 showing the Day altitude chart for Abell 21](docs/screenshot.png)
-
 ## What it does
 
 - **Four chart areas** — *Day* (minute-by-minute altitude across the coming night, with twilight shading and a live "now" line), *Sky* (Krisciunas–Schaefer sky brightness in mag/arcsec² across the same night), *Year* (per-night altitude across 12 months), *Sessions* (Ceiling / Floor / Symmetric placement curves per night).
@@ -19,9 +17,9 @@ Four chart areas swap behind the **Day / Sky / Year / Sessions** radios beside t
 
 **Day chart.** Minute-by-minute altitude through the coming night. Left edge is the hour boundary before astronomical dusk; right edge is the hour boundary after astronomical dawn. Yellow→gray gradient at left marks dusk twilight; gray→yellow gradient at right marks dawn. A red vertical line shows the current moment, refreshed by the **Now** button. A shared gray filled area shows moon altitude across the night. Click a curve to overlay its best window for tonight (see *HD Overlay* below).
 
-**Sky chart.** Per-target sky-brightness curves in mag/arcsec² on a reversed Y axis (brighter sky reads higher). Same time axis as Day. Y range is 16–22 mag/arcsec². See [Sky brightness](#sky-brightness) below for the K-S model details.
+**Sky chart.** Per-target sky-brightness curves in mag/arcsec² on a reversed Y axis (brighter sky reads higher). Same time axis as Day. Y range is 16–26 mag/arcsec² (widened to cover narrowband K-S predictions, which run brighter than 22 at most Bortle classes). See [Sky brightness](#sky-brightness) below for the K-S model details.
 
-**Year chart.** Per-night session-floor altitude across 12 months, one curve per target. X axis runs from the 1st of the current month to the 1st of the same month next year, with month-boundary tick labels. Hover any point: tooltip shows `{Target}\n{date}\nFloor: {alt}°` (or `(no fit)` for nights where no D-hour window meets the active Horizon / Duration / Moon filter).
+**Year chart.** Per-night session-floor altitude across 12 months, one curve per target. X axis runs from the 1st of the current month to the 1st of the same month next year, with month-boundary tick labels. Hover any point: tooltip shows `{Target}\n{date}\nFloor: {alt}°`, falling back to a no-fit message for nights where no D-hour window meets the active Horizon / Duration / Moon filter, or a `(polar period)` note for nights inside a polar-day/polar-night span where the window can't be evaluated at all.
 
 **Sessions chart.** Three per-target curves describe how well a Duration-long imaging window fits inside each night's visibility arc, given your Horizon floor:
 - **Ceiling** — peak altitude reached inside any qualifying window.
@@ -47,7 +45,7 @@ Hover any of the three curves to see all three values for that night.
 
 Two selection modes:
 
-- **Single mode** — combo + RA/Dec inputs drive one target at a time. Default: M31.
+- **Single mode** — combo + RA/Dec inputs drive one target at a time. No selection until a load completes (the image-library / NINA auto-load on startup picks the first sorted target); typing coordinates works before that. M31 survives only as the RA/Dec fallback used when nothing is selected.
 - **Multi mode** — the checkbox listbox drives a set of targets. Checkboxes default to **none-checked** so you opt targets in rather than out.
 
 ### Loading targets
@@ -75,7 +73,7 @@ Per-location fields:
 - **Bortle class (1–9)** — drives the moonless dark-sky baseline V₀ used by the Sky-brightness overlay. Picking a class also pre-fills a typical extinction value.
 - **Extinction *k*** at 500 nm (mag/airmass) — drives airmass attenuation in the Sky-brightness overlay.
 
-**The personal-default location always boots.** The app launches at the location named by `PersonalDefaults.LocationName` (or the neutral `Custom` preset on a public binary), regardless of which location you used last, so the chart loads in a known state. Pick any other saved location after start-up freely.
+**The last-selected location boots.** The app launches at whichever location you had selected when you last closed it (`settings.json`'s `LastSelectedLocationName`). On a fresh install with no prior state, `PersonalDefaults.BuildSeedSettings()` seeds this to "Penns Park" as a starting point — not a fixed personal default that returns on every launch. Pick any other saved location after start-up freely.
 
 ## Filters & moon avoidance
 
@@ -83,9 +81,14 @@ Filters serve two purposes: they pin the active wavelength for the Sky-brightnes
 
 A master **Enable** checkbox in the Moon Avoidance group gates moon-avoidance globally. When off, all curves render moon-blind.
 
-The filter library ships with:
-- **H / O / S** — narrowband, 60° / 7-day Lorentzian, line-centre wavelengths.
-- **L / R / G / B** — broadband, 120° / 14-day Lorentzian, Bessell-ish centres.
+The filter library ships with (separation° / avoidance-days):
+- **H** — narrowband, 30° / 5-day, line-centre wavelength.
+- **O** — narrowband, 60° / 5-day, line-centre wavelength.
+- **S** — narrowband, 30° / 5-day, line-centre wavelength.
+- **L** — broadband, 90° / 10-day, Bessell-ish centre.
+- **R** — broadband, 60° / 10-day, Bessell-ish centre.
+- **G** — broadband, 60° / 10-day, Bessell-ish centre.
+- **B** — broadband, 90° / 10-day, Bessell-ish centre.
 
 Two parallel filter-selection surfaces stay in sync: a **Filters** dropdown in the menubar, and a radio strip beside the Lorentzian controls.
 
@@ -97,7 +100,7 @@ Lorentzian-control edits on the main form auto-save the active filter on a 500 m
 
 ## Sky brightness
 
-Click the **Sky** radio (peer of Day / Year / Sessions) to switch to the per-target sky-brightness chart in mag/arcsec². The Y axis range is 16–22 mag/arcsec² with brighter sky reading higher.
+Click the **Sky** radio (peer of Day / Year / Sessions) to switch to the per-target sky-brightness chart in mag/arcsec². The Y axis range is 16–26 mag/arcsec² with brighter sky reading higher.
 
 Sky brightness composes three contributions in linear (nanolambert) space:
 - **Dark-sky baseline** V₀ — driven by the location's Bortle class, scaled by target airmass and extinction.
@@ -122,7 +125,7 @@ The app checks for updates on startup and prompts before downloading. You can al
 
 ## Build from source
 
-Requires Visual Studio 2022+ (or the .NET 10 SDK + MSBuild) plus the **Astronomy.Core** library at `..\..\Library\Astronomy.Core\` relative to this repo, referenced via `ProjectReference`. The Library is its own git repo; clone it next to this one or the build fails.
+Requires Visual Studio 2022+ (or the .NET 10 SDK + MSBuild) plus the **Astronomy.Core** library, referenced via `ProjectReference`. The Library is its own git repo; clone it as a sibling of this repo (`..\Library\` next to `TargetPlanner\`) or the build fails.
 
 The TP project targets `net10.0-windows10.0.19041` (the Win10 2004 contract version is required for SkiaSharp.Views.WindowsForms 3.119.0 — the bare `net10.0-windows` would fall back to a `net462` lib that doesn't load on .NET 10). See [`CLAUDE.md`](CLAUDE.md) for architecture and coding-agent guidance.
 
@@ -136,8 +139,8 @@ Or open `TargetPlanner.sln` in Visual Studio and F5.
 
 First-run defaults are seeded into `settings.json` from `PersonalDefaults.BuildSeedSettings()` — a C# factory (see [Locations](#locations)):
 
-- Default target: **M31**.
-- Default location: the last-selected site (`settings.json`'s `LastSelectedLocationName`, seeded on first run). TargetPlanner relaunches onto whatever site you last picked.
+- Default target: none — Single mode has no selection until a load completes and auto-picks the first sorted target; **M31** survives only as the RA/Dec fallback used when nothing is selected.
+- Default location: the last-selected site (`settings.json`'s `LastSelectedLocationName`, seeded on first run to "Penns Park"). TargetPlanner relaunches onto whatever site you last picked.
 - Default selection in Multi mode: **none checked** after a NINA load.
 - NINA targets root: `settings.json`'s `NinaTargetsRoot`, seeded on first run; `MainForm.NinaTargetsRootPath` is the single read-site.
 

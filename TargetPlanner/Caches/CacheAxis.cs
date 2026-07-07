@@ -14,7 +14,7 @@ namespace TargetPlanner.Caches
     // against a location that SetLocationAsync has since swapped — discard
     // themselves at publish via the ReferenceEquals(currentLocation, buildLocation)
     // check. Extracted from four byte-identical axes in ChartCacheStore
-    // (code-quality-audit.md Tier 5); the genuinely-distinct part — the actual
+    // (docs/2026-05-19-code-quality-audit.md Tier 5); the genuinely-distinct part — the actual
     // compute — stays in the store as the injected build delegate.
     internal sealed class CacheAxis<TKey, TVal> where TVal : class
     {

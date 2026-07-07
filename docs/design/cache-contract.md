@@ -22,15 +22,15 @@ Four cache axes, each a `(key) → value` store:
 |----------+--------------------------+----------------------------------------------------+------------------------------------------|
 | yearDays | `Target`                 | 365 × `NightCacheEntry`                            | `SetLocationAsync`                       |
 | fits     | `(Target, HdmKey)`       | `TargetFitEntry` (year array + Tonight slot)       | `SetLocationAsync` or new `HdmKey`       |
-| day      | `(Target, DayWindowKey)` | `TargetDayAltitudeEntry` (minute-spaced altitudes) | `SetLocationAsync` or new `DayWindowKey` |
-| moon     | `DayWindowKey`           | `MoonAltitudeEntry` (singleton per night)          | `SetLocationAsync` or new `DayWindowKey` |
+| day      | `(Target, NightDate)`    | `TargetTrajectoryEntry` (minute-spaced AltAz samples) | `SetLocationAsync` or new `NightDate` |
+| moon     | `NightDate`              | `MoonEphemerisEntry` (singleton per night)         | `SetLocationAsync` or new `NightDate`     |
 
 Per-axis methods:
 - `GetXxxOrNull(key)` — sync read; lock-protected; `null` ⇒ "not yet built" (caller skips the target). Safe on the UI thread on every Render.
 - `PrepareXxxAsync(keys, IProgress<int>?)` — fan out builds; await all completions; ticks progress per build-completed.
 
 Pipeline + lifecycle methods:
-- `EnsureAsync(ctx, dayKey, IProgress<(int,int)>?)` — single pre-render entry point; returns `ChartEvaluation`. See §EnsureAsync semantics.
+- `EnsureAsync(ctx, nightDate, IProgress<(int,int)>?)` — single pre-render entry point; returns `ChartEvaluation`. See §EnsureAsync semantics.
 - `SetLocationAsync(loc, startingUtc)` — drains every axis, swaps in the new location + UTC anchor, awaits in-flight stale tasks.
 
 Observation properties:
@@ -40,10 +40,10 @@ Observation properties:
 ## Lifecycle invariants
 
 1. **Single-location at a time.** Every published entry is keyed implicitly against `CurrentLocation`. A `SetLocationAsync` drops every entry across every axis atomically (one lock acquisition) before the new location is observable.
-2. **Monotonic growth within a location.** Entries don't get evicted while the location is stable — H/D/M scrubs accumulate `HdmKey`s in the fits axis; date scrubs accumulate `DayWindowKey`s in day/moon. Scrub-up-then-scrub-back is free after the first crossing.
+2. **Monotonic growth within a location.** Entries don't get evicted while the location is stable — H/D/M scrubs accumulate `HdmKey`s in the fits axis; date scrubs accumulate `NightDate`s in day/moon. Scrub-up-then-scrub-back is free after the first crossing.
 3. **First-build idempotence.** Within a location, `PrepareXxxAsync(...)` called twice with the same keys joins the existing in-flight task on the second call; it never double-computes.
 4. **Stale-build silent discard.** A build started against an old location runs to completion on the threadpool, then drops its result at publish via `ReferenceEquals(currentLocation, buildLocation)`. Callers see nothing.
-5. **EnsureAsync is idempotent.** `EnsureAsync(ctx, dayKey)` called twice with the same `(ctx, dayKey)` settles in every axis's per-key fast paths on the second call.
+5. **EnsureAsync is idempotent.** `EnsureAsync(ctx, nightDate)` called twice with the same `(ctx, nightDate)` settles in every axis's per-key fast paths on the second call.
 
 ## Threading and cancellation
 
@@ -70,7 +70,7 @@ Constraints — when to revisit:
 
 Inputs:
 - `ctx: ChartContext` — full immutable snapshot of pipeline inputs (Location / Targets / Policy / Observation / ActiveArea / TargetColors / DayMode).
-- `dayKey: DayWindowKey` — the Day chart's minute-spaced window for the active night. Pass `default(DayWindowKey)` (`Count == 0`) to skip Day/Moon prep on polar nights or empty-targets boots.
+- `nightDate: NightDate` — the local calendar date (under the site's `TimeZoneInfo`) on which the night's astronomical dusk occurs, derived via `NightDate.Of`. Pass `default(NightDate)` to skip Day/Moon prep on polar nights or empty-targets boots.
 - `progress: IProgress<(int Done, int Total)>?` — optional ticks for combined prep + render work. The cache sizes `Total` from its staleness diff (pessimistic upper bound: `yearWork + fitWork + dayWork + moonWork + renderWork`) and ticks `Done` per axis-completion. **When ensure-work is zero, no Report fires** — a warm-cache scrub never surfaces the progress UI.
 
 Output (`ChartEvaluation`):
@@ -84,7 +84,7 @@ Diff scope:
 | Location geometry (lat / lon / N / W / elev)                                                     | `SetLocationAsync` — every axis drops                                                 |
 | Date anchor (`Observation.Utc.Date` or year-start-day)                                           | `SetLocationAsync` — NightCache.Starting + YearStartDay both depend on the UTC anchor |
 | `HdmKey` change (TargetFloor / MinDuration / ActiveFilter / MoonAvoidanceEnabled / LocalHorizon) | fits axis rebuild only; year + day preserved                                          |
-| `DayWindowKey` change (date / dusk-dawn window)                                                  | day + moon axes rebuild; year + fits preserved                                        |
+| `NightDate` change (`ObservationMoment.Utc.Date`, gated via `ComputeDiff`'s `DateChanged`)       | day + moon axes rebuild; year + fits preserved                                        |
 | Brightness inputs (BortleClass / ExtinctionK / ActiveFilter)                                     | `BrightnessInputsChanged = true`; no axis flips (Sky K-S walks inline)                |
 | `Targets` reference change                                                                       | Render ticks; cache is keyed per-target so the set diff is implicit                   |
 
