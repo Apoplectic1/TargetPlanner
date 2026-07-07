@@ -30,4 +30,4 @@ Test-strategy detail + phase roll-out: [`docs/design/test-project-plan.md`](docs
 
 ## Perf guardrail
 
-Cache pre-population budget: **2–4 s for 44 targets** (yearDays) + a few seconds for fits. Any cache-path change should be sanity-checked against this ceiling (boot with the image library is the natural probe).
+Cache pre-population budget: **~2 s for a ~77-target library** (yearDays-dominated; boot fits near-free — the boot Hdm has no active filter; measured 2026-07-07, Release). Any cache-path change should be sanity-checked against this ceiling (boot with the image library is the natural probe — a `Warmup complete … totalMs=` line lands in `tp.log` under the `Cache` DIAG channel).

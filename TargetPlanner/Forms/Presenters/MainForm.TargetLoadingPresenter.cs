@@ -355,8 +355,17 @@ namespace TargetPlanner
 
                 async Task WarmupAsync()
                 {
+                    System.Diagnostics.Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
                     await mCache.PrepareManyAsync(targets);
+                    long yearDaysMs = sw.ElapsedMilliseconds;
                     await mCache.PrepareFitsAsync(targets, hdm);
+                    long totalMs = sw.ElapsedMilliseconds;
+                    if (Log.IsDiagEnabled("Cache"))
+                    {
+                        Log.Diag("Cache",
+                            $"Warmup complete targets={targets.Count} " +
+                            $"yearDaysMs={yearDaysMs} fitsMs={totalMs - yearDaysMs} totalMs={totalMs}");
+                    }
                     // The warmup bypasses the coordinator's EnsureAsync seam, so
                     // the post-apply hook didn't fire. Marshal back to the UI
                     // thread and re-stamp the listbox painter's last-applied

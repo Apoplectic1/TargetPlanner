@@ -33,8 +33,8 @@ namespace TargetPlanner.Caches
     /// <para>
     /// Cancellation: the cache itself does not cancel in-flight builds; on a
     /// <see cref="SetLocationAsync"/>, stale builds run to completion and drop their
-    /// results via a publish-time location check. Compute is short (~1-2 sec for 44
-    /// targets); the wasted CPU is bounded and acceptable for the simpler code path.
+    /// results via a publish-time location check. Compute is short (~2 sec for a
+    /// ~77-target library; measured 2026-07-07); the wasted CPU is bounded and acceptable for the simpler code path.
     /// </para>
     /// </remarks>
     public interface IChartCacheStore

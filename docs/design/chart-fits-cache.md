@@ -19,7 +19,7 @@ This document is the design rationale for the cache-completion pass that lifts f
 1. **Lift fit compute into `ChartCacheStore`** alongside yearDays. Cache stores `mFits: Dictionary<(Target, HdmKey), TargetFitEntry>`. Sub-charts call `cache.GetFitOrNull(target, hdmKey)` and paint synchronously.
 2. **Remove cancellation infrastructure**: post-CS-removal, compute is fast enough that the elaborate CTS plumbing is overkill. Generation-counter supersession on the coordinator side; publish-time stale check on the cache side.
 
-In-flight builds whose inputs are superseded (e.g. a Location changed mid-yearDays-build) run to completion and either publish-and-get-discarded or land in a cache slot whose key is no longer the current one. CPU waste is small (~1-2 sec for 44 targets) and bounded because builds dedupe per-key. The simpler code path is worth the trade.
+In-flight builds whose inputs are superseded (e.g. a Location changed mid-yearDays-build) run to completion and either publish-and-get-discarded or land in a cache slot whose key is no longer the current one. CPU waste is small (~2 sec for a ~77-target library) and bounded because builds dedupe per-key. The simpler code path is worth the trade.
 
 ## Architecture
 

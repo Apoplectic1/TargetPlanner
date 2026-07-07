@@ -31,8 +31,8 @@ namespace TargetPlanner.Caches
     /// dicts under the lock and starts fresh. Builds that were running against the
     /// old location keep going on the threadpool and discard themselves at publish
     /// time via the <c>ReferenceEquals(mLocation, location)</c> check inside
-    /// <see cref="BuildEntryAsync"/>. Compute is short (~1-2 sec for 44 targets
-    /// post-CS-removal); the wasted CPU is bounded by per-(target, location) build
+    /// <see cref="BuildEntryAsync"/>. Compute is short (~2 sec for a ~77-target library
+    /// post-CS-removal; measured 2026-07-07); the wasted CPU is bounded by per-(target, location) build
     /// dedupe and by the fact that location swaps are user-initiated and infrequent.
     /// </para>
     /// </remarks>
