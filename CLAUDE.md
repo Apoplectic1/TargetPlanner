@@ -26,11 +26,17 @@ Windows Forms desktop tool for astrophotography planning, plotting target altitu
 - **D-hour window** — `Astronomy.Core.Session.BestSession.For`. `PlanningPreferences.MinDuration` is the floor.
 - **Ceiling / Floor / Symmetric** — three `LineSeries<ObservablePoint>` per target on `AltitudeSubChart_Sessions`. ONE legend item per target toggles all three's `IsVisible`; `BestSession.ResolveCandidates` resolves visibility ∩ moon-clear once per night so `PlaceBest` (Ceiling/Floor) and `PlaceCentered` (Symmetric) see identical inputs.
 
-## Build / run
+## Docs map
+
+- **Reference (current truth, edited in place):** [ARCHITECTURE.md](ARCHITECTURE.md) — subsystem mechanics; [ROADMAP.md](ROADMAP.md) — open follow-ups + "Recently shipped" digest (git is the changelog — no CHANGELOG.md); [README.md](README.md) — user-facing behaviour, defaults, chart UX; [DOMAIN.md](DOMAIN.md) — observing context (sites, rig, NINA/TS workflow TP serves); [VERIFICATION.md](VERIFICATION.md) — how to verify a change; [RELEASING.md](RELEASING.md) — Velopack release flow. `docs/design/*.md` are living design references (cache contract, fits-cache rationale, test-project plan) — same tier, routed from the sections that need them.
+- **Journal (dated capture, find via glob/grep — never enumerated here):** small empirical findings from doing the work → [NOTEBOOK.md](NOTEBOOK.md) (chronological lab notebook); substantial standalone records (design / review / decision) → `docs/YYYY-MM-DD-<slug>.md`.
+- **`docs/archive/`** is archival-only (superseded, no longer design-relevant); never route shipped history there. `docs/reference-material/` is third-party source material, not authored docs. Excluded from doc governance: `packages/`, `Releases/`, `bin`/`obj`, `.claude/`.
 
 ## Tool preference for symbol queries
 
 For C# symbol-level questions — "find every caller / implementation / definition / override of X", rename refactors, "where is type Y constructed" — prefer the `csharp-lsp` plugin tools (`mcp__csharp-lsp__find_references`, `mcp__csharp-lsp__definition`, etc.) over `Grep`. LSP follows C# semantics (using-aliases like `using Target = Astronomy.Core.Targets.Target;`, partial-class file splits, method overrides, interface implementations) that text search misses. Grep stays the right tool for non-symbol queries: string literals, comment text, file-path matching, build-config files.
+
+## Build / run
 
 - Solution `TargetPlanner.sln` contains **one project authored here** plus two sibling-library projects listed for Solution Explorer visibility:
   - `TargetPlanner/TargetPlanner.csproj` — WinExe, `TargetFramework = net10.0-windows10.0.19041` (UseWindowsForms=true), entry point `TargetPlanner.Program.Main`. The Win10 2004 contract version is needed because `SkiaSharp.Views.WindowsForms 3.119.0` (transitive via LiveCharts2) only ships modern-.NET assets at `net8.0-windows10.0.19041`. Configurations: `Debug|AnyCPU`, `Release|AnyCPU`, `Debug|x64`, `Release|x64`. GC tuning (Server + Concurrent) lives in csproj properties — App.config was deleted in the .NET 10 migration since modern .NET ignores its `<runtime>` / `<startup>` sections.
