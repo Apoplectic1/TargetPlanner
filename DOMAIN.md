@@ -31,4 +31,27 @@ The author's four personal presets are checked into `Settings/PersonalDefaults.c
 
 ## Rig
 
-*Not yet captured here — imaging rig specifics (camera / sensor + pixel scale, OTA, mount, filter wheel) aren't recorded in the repo. Fill in when a domain decision depends on them (e.g. the K-S bandwidth defaults or a pixel-scale-dependent FWHM gate). Until then, the filter set `H / O / S / L / R / G / B` (`Filters/FilterLibrary.cs`) is the known rig-facing surface.*
+Source of truth is **XFM's typed equipment models** (`XisfFileManager/Models/Telescopes/*.cs`, `Models/Cameras/*.cs` — XFM stamps these into XISF `TELESCOP`/`FOCALLEN`/`APTDIA` keywords); this section is the planning-facing summary. **Default combination: APM107R + Z183** (the "R" suffix = Riccardi 0.75× reducer, per `TelescopeConfiguration.GetTelescopeName`).
+
+**OTAs** — each usable native or with the shared Riccardi 0.75× reducer:
+
+| Name | What | Aperture | Native FL (f/) | Reduced FL (f/) |
+|---|---|---|---|---|
+| **APM107** | APM 107 mm Super ED refractor | 107 mm | 700 mm (f/6.5) | **531 mm (f/5.0)** ← default as APM107R |
+| **EVO150** | Sky-Watcher EvoStar 150 refractor | 150 mm | 1000 mm (f/6.7) | 750 mm (f/5.0) |
+| **NWT254** | 10″ Newtonian | 254 mm | 1100 mm (f/4.3) | 825 mm (f/3.2) |
+
+**Cameras** (pixel scale on the default 531 mm):
+
+| Name | What | Pixels | Scale @531 mm | Gain/Offset presets |
+|---|---|---|---|---|
+| **Z183** | ZWO ASI183MM Pro (2019, mono, QE 84%) | 2.4 µm (4.8 bin2) | **0.93″/px** (1.86 bin2) ← default | NB (111, 10) / BB (53, 10) |
+| **Z533** | ZWO ASI533MC Pro (2021, OSC RGGB, QE 91%) | 3.76 µm | 1.46″/px | (100, 50) |
+| **Q178** | QHY5III178M (2018, mono, QE 81%) | 2.4 µm | 0.93″/px | (40, 15) |
+| **A144** | Atik Infinity (2018, colour RGGB, QE 70%) | 6.45 µm | 2.51″/px | — |
+
+Default combo (Z183 @531 mm): ~0.93″/px, FOV ≈ **1.4° × 1.0°** (5496×3672 on the 13.2×8.8 mm sensor); native 700 mm tightens to 0.71″/px. The Z183 NB-vs-BB gain split (111 vs 53) is the capture-side echo of the narrowband-vs-broadband moon strategy above.
+
+**Filters + wheel** — Starlight Xpress USB 7-position, 1.25″ (XFM `Keyword/KeywordList.cs`): Astrodon 3 nm Hα + [O III], Chroma 3 nm SII, Astrodon E-Series LRGB. TP's `Filters/FilterLibrary.cs` builtin `CenterNm`/`BandwidthNm` values (H 656.3/3, O 500.7/3, S 672.4/3, L 550/300, R 650/60, G 525/65, B 450/100) describe exactly this physical set — they're the K-S bandwidth inputs, so a filter swap on the wheel should be mirrored there.
+
+**Mount** — not recorded in any repo (NINA on BIRDWATCHER owns pointing/guiding; TP plans purely from sky geometry). Add here only if a planning decision comes to depend on it (e.g. meridian-flip windows in TPS).
