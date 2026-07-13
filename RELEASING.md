@@ -31,10 +31,10 @@ Distribution: [GitHub Releases on Apoplectic1/TargetPlanner](https://github.com/
    What it does:
    - Reads the version from `git describe --tags --abbrev=0` (drops the `v`).
    - Builds `Release|x64` (which MinVer stamps with the same version into the assembly).
-   - `vpk pack` produces `Releases/Setup.exe` plus a delta package and `RELEASES` manifest.
+   - `vpk pack` produces `Releases/TargetPlanner-win-Setup.exe` plus a delta package and `RELEASES` manifest.
    - `vpk upload github --publish` uploads everything to a new GitHub release.
 
-4. Verify on https://github.com/Apoplectic1/TargetPlanner/releases that the release shows up with `Setup.exe`, `TargetPlanner-X.Y.Z-full.nupkg`, and `RELEASES`.
+4. Verify on https://github.com/Apoplectic1/TargetPlanner/releases that the release shows up with `TargetPlanner-win-Setup.exe`, `TargetPlanner-X.Y.Z-full.nupkg`, and `RELEASES`.
 
 5. Existing installs will detect the release on next launch (or via `Help → Check for Updates...`).
 
@@ -44,7 +44,7 @@ Distribution: [GitHub Releases on Apoplectic1/TargetPlanner](https://github.com/
 .\scripts\release.ps1 -NoUpload
 ```
 
-Output lands in `.\Releases\`. Run `.\Releases\Setup.exe` to install locally and confirm the install / shortcuts / Apps & Features entry. Bump the tag, rebuild, and re-launch the previously-installed app to verify the in-app update prompt.
+Output lands in `.\Releases\`. Run `.\Releases\TargetPlanner-win-Setup.exe` to install locally and confirm the install / shortcuts / Apps & Features entry. Bump the tag, rebuild, and re-launch the previously-installed app to verify the in-app update prompt.
 
 ## Versioning notes
 

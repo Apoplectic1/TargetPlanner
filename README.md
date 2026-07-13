@@ -5,7 +5,7 @@ Windows Forms desktop tool for astrophotography target planning. Plots a deep-sk
 ## What it does
 
 - **Four chart areas** — *Day* (minute-by-minute altitude across the coming night, with twilight shading and a live "now" line), *Sky* (Krisciunas–Schaefer sky brightness in mag/arcsec² across the same night), *Year* (per-night altitude across 12 months), *Sessions* (Ceiling / Floor / Symmetric placement curves per night).
-- **Multi-target overlay** — graph many targets at once. Filter via *Visible Tonight* / *Select All* / *Clear All*; sort by name, RA, declination, or transit time.
+- **Multi-target overlay** — graph many targets at once. Filter via *Visible* / *Check All* / *UnCheck All*; sort by name, transit time, rise time, longest session, or highest altitude.
 - **Target ingestion** — load targets from NINA `.json` sequence files and `.xisf` images: the **Load** buttons scan your configured roots, **Browse** scans any file or folder, and you can drag files or folders onto the list. Loads add to the list and collapse duplicates — one entry per object even when it was imaged through many filters.
 - **Picker-driven moment** — Date / Time pickers drive the observation moment; *Now* snaps back to the current instant and moves the red now-line on the chart.
 - **Sky brightness** — its own chart area (peer of Day / Year / Sessions). Krisciunas–Schaefer sky brightness in mag/arcsec², with per-Bortle baseline, atmospheric extinction, and per-filter wavelength scaling.
@@ -58,7 +58,7 @@ Targets come from two on-disk formats — NINA `.json` sequence files and `.xisf
 
 Every load *adds* to the list rather than replacing it, so you can build a set from several sources. An object imaged through many filters — or a mosaic's panels — collapses to a single target, placed at the centre of all its frames. Comet folders are skipped. **Clear All Targets** empties the list; **Uncheck All** just clears the checkboxes.
 
-*Visible Tonight* / *Select All* / *Uncheck All* filter the listbox; sort by name, RA, declination, or transit time. Click **Graph** to (re)render the chart — the chart panel is blank at launch until Graph is clicked.
+*Visible* / *Check All* / *UnCheck All* filter the listbox; sort by name, transit time, rise time, longest session, or highest altitude. Click **Graph** to (re)render the chart — the chart panel is blank at launch until Graph is clicked.
 
 ## Locations
 
@@ -93,7 +93,7 @@ The filter library ships with (separation° / avoidance-days):
 Two parallel filter-selection surfaces stay in sync: a **Filters** dropdown in the menubar, and a radio strip beside the Lorentzian controls.
 
 - **Right-click any filter** (menu item or radio) — opens the Edit Filters dialog pre-positioned on that filter. Add / Remove / per-row Defaults restore.
-- A **Defaults** button beside the filter strip restores the active filter to factory defaults.
+- A **Defaults** button beside the filter strip restores **all** built-in filters to factory defaults (custom tuning on every library filter is reset, not just the active one).
 - A trailing `*` on a filter's name indicates it differs from the shipped factory defaults; the top-level **Filters** menu shows `*` if any filter is modified.
 
 Lorentzian-control edits on the main form auto-save the active filter on a 500 ms debounce; the Edit Filters dialog uses a transactional Save against a shadow copy.
