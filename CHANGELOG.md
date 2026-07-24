@@ -24,8 +24,10 @@ conventions (decided 2026-07-24):** (1) Enter now types a newline and **Ctrl+Ent
 for shooting light-dismiss menus/dropdowns (dialog widened 420→480 px); (3) status text becomes
 the shared `captured N · HH:mm:ss` / `capture failed — see tp.log` wording (was ASCII `-`).
 Log-line grammar unchanged. Verified: sln builds, TargetPlanner.Tests 184/184; **visual pass
-pending** (both entry points, instant capture, no ghost/unrepainted hole, chart pixels in PNG,
-key semantics, delayed capture over an open menu, one-terminator log audit).
+complete** (2026-07-24, session id=d162: instant capture + delayed capture + checkpoint END, one
+terminator, build stamp = this commit). The pass caught one layout bug — the status text
+overlapped OK at 480 px — fixed same day (client 480→600 + MinimumSize floor, `532d659`) and
+re-verified.
 
 ### 2026-07-24 — K-S Δmag moon gate migration (Library `9e16469`)
 
