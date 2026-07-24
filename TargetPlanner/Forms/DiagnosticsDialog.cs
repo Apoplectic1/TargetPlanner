@@ -81,13 +81,16 @@ namespace TargetPlanner.Forms
             MaximizeBox = false;
             ShowInTaskbar = false;
             TopMost = true;
-            ClientSize = new Size(480, 220);
+            ClientSize = new Size(600, 220);
+            // Floor at the initial size: the sizable tool window must not shrink the single button
+            // row into overlap (status label is AutoSize; OK/Cancel are right-anchored).
+            MinimumSize = Size;
             Padding = new Padding(10);
 
             mNotes = new TextBox
             {
                 Location = new Point(10, 8),
-                Size = new Size(460, 162),
+                Size = new Size(580, 162),
                 Multiline = true,
                 AcceptsReturn = true,   // Enter = newline (TSM convention, adopted 2026-07-24)
                 ScrollBars = ScrollBars.Vertical,
@@ -138,7 +141,7 @@ namespace TargetPlanner.Forms
             mOk = new Button
             {
                 Text = "OK",
-                Location = new Point(315, 180),
+                Location = new Point(435, 180),
                 Size = new Size(75, 28),
                 Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
             };
@@ -147,7 +150,7 @@ namespace TargetPlanner.Forms
             mCancel = new Button
             {
                 Text = "Cancel",
-                Location = new Point(395, 180),
+                Location = new Point(515, 180),
                 Size = new Size(75, 28),
                 Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
             };
