@@ -1,20 +1,99 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+# Project context — injected into every artifact generation.
+# Source of truth is CLAUDE.md / ARCHITECTURE.md; keep this a distillation, not a fork.
+context: |
+  TargetPlanner (TP) — Windows Forms desktop app for astrophotography planning. Plots
+  target altitude over time with multi-target overlay. Targets load from NINA sequence
+  `.json` files and `.xisf` images, scanned recursively and resolved to one Target per
+  file-group at the spherical centroid.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+  ## Tech stack
+  - C# / .NET 10, TFM `net10.0-windows10.0.19041`, x64 only (no AnyCPU configurations).
+  - WinForms. Charts are LiveCharts2 v2.1.0-dev-365 over SkiaSharp. MS Charts
+    (`System.Windows.Forms.DataVisualization`) was removed — never reintroduce it.
+  - Newtonsoft.Json, MinVer (tag-derived versions), Velopack (releases).
+  - Tests: xUnit in `TargetPlanner.Tests/` — `OutputType=Exe`, `Nullable=disable`, raw
+    `Assert.*`. No FluentAssertions, no Moq.
+  - Build: `dotnet build "TargetPlanner.sln" -c Debug`
+  - Test:  `dotnet test "TargetPlanner.Tests\TargetPlanner.Tests.csproj" -c Debug -p:Platform=x64`
+
+  ## Repo boundary — read before proposing
+  `Astronomy.Core`, `Astronomy.NINA` and `Astronomy.Diagnostics` come from a SEPARATE
+  SIBLING GIT REPO at `..\Library\` (the Astronomy Library, "AL"), consumed via
+  ProjectReference. Astronomical math, session solving, moon avoidance and logging live
+  THERE, not here. A change touching Library code is a cross-repo change with its own
+  tests and its own commit — say so explicitly rather than silently assuming one repo.
+
+  AL is multi-consumer (TP, TSM, XFM, a planned NINA scheduler plugin). Never introduce
+  TP-specific names or UI terminology into Library code or its doc comments — use
+  "caller" / "consumer" framing.
+
+  ## Architecture (this repo)
+  - Selection state: `State/TargetSelection.cs` — observable VM owning KnownTargets,
+    SelectedSingle, Checked. UI controls are views behind an echo guard.
+  - Cache: `Caches/ChartCacheStore.cs` — single-writer four-axis cache. Its
+    `EnsureAsync(ctx, nightDate) -> ChartEvaluation` is THE single pre-render staleness
+    gate. Do not add a second one.
+  - Orchestration: `State/ChartCoordinator.cs` — every UI handler reduces to
+    `mCoordinator.Apply(SnapshotCurrent(...))`, 150 ms debounce, generation supersedence.
+    Never special-case around this dispatch funnel.
+  - Rendering: `Charts/` — four `IAltitudeSubChart` implementations (Day / Sky / Year /
+    Sessions). Sub-charts are RENDER-ONLY: they read the cache and must never call
+    `BestSession.For`, `AltAz.At` or moon-altitude helpers on the UI thread.
+  - Immutable input records thread through the pipeline: `ChartContext`,
+    `PlanningPolicy`, `PlanningPreferences`.
+  - Threading: the UI thread owns form events, VM mutation, the coordinator pipeline,
+    render passes and chart paint. Off-thread work is `Task.Run` inside the cache's
+    per-axis builders only.
+
+  ## Conventions
+  - RA is decimal hours `[0, 24)`. Latitude / Longitude / Declination are stored as
+    positive magnitudes paired with a `North` / `West` flag; Library helpers take SIGNED
+    degrees and the caller resolves the flag (`AltAz.At` is the canonical idiom).
+  - Every `DateTime` reaching a Library time primitive must be `DateTimeKind.Utc` —
+    `JulianDate.FromUtc` throws otherwise. Funnel instants through `ObservationMoment`
+    (`FromLocal(local, zone)` / `Now(zone)`), never `.ToUniversalTime()` on an
+    Unspecified instant.
+  - No static mutable state (one deliberate exception: `DiagnosticsDialog.sCurrent`).
+  - Logging is `Astronomy.Diagnostics`. `Log.Diag(category, message)` writes to `tp.log`
+    tagged `DIAG/<category>`; guard expensive interpolation with `Log.IsDiagEnabled(...)`.
+    Categories: Coord, Cache, Day, UI, Overlay.
+  - `Forms/MainForm.Designer.cs` is generated — edit via the VS designer, never by hand.
+  - Conventional commits (`feat:` `fix:` `docs:` `chore:` `test:`, `!` for breaking).
+
+  ## Hard rules — these override general best practice
+  - NO BACKWARD COMPATIBILITY. Sole consumer with full control of every deployment.
+    Never write migration code, version gates, `[Obsolete]` shims or old-format
+    fallbacks. Build for the target state and assume a from-scratch rebuild (wiped
+    settings, cleared caches, reinstalled dependencies). If a change requires a manual
+    reset step, state it as a one-line operational note — but ship ZERO compatibility code.
+  - FAIL FAST on input-contract violations. When a documented contract is violated
+    (required field missing, blank or unparseable), abort with an informative console
+    message AND a log entry. No `|| default`, no `isNaN(x) ? fallback : x`, no
+    warn-and-continue, no skip-the-item. Prefer ONE central contract gate up front over
+    scattered per-read guards.
+  - Perf budget: cache pre-population is ~2 s for a ~77-target library. Any change
+    touching the cache must be designed against that ceiling.
+  - Docs are load-bearing and ship in the SAME commit as the code. Update `CLAUDE.md` /
+    `ROADMAP.md` / `ARCHITECTURE.md` / `README.md` as the change warrants — never a
+    separate docs-only follow-up commit.
+  - Build + unit tests do not establish UI correctness. Always separate what was
+    verified mechanically from what needs human visual confirmation.
+
+# Per-artifact rules
+rules:
+  proposal:
+    - State explicitly whether the change is TP-only or also touches the sibling Astronomy Library at ..\Library.
+    - Always include a "Non-goals" section.
+    - Never propose migration, compatibility or upgrade-path work — a from-scratch rebuild is always assumed.
+  design:
+    - Name the landing zone for each new piece — State/, Caches/, Charts/, Targets/, Filters/, Forms/, or the Library repo.
+    - Route all UI-triggered work through the existing ChartCoordinator funnel; never introduce a parallel dispatch path.
+    - Treat any UI-thread astronomical computation or second staleness gate as a defect, not a tradeoff.
+  specs:
+    - Describe observable behaviour and which contract violations abort the run, not implementation detail.
+  tasks:
+    - Include a verification task running dotnet build plus dotnet test on TargetPlanner.Tests (-c Debug -p:Platform=x64).
+    - Include a docs task updating CLAUDE.md / ROADMAP.md in the same commit as the code.
+    - Mark UI-visible tasks as requiring human visual verification.
