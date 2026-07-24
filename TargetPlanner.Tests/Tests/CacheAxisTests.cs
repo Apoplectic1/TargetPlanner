@@ -192,14 +192,28 @@ namespace TargetPlanner.Tests.Tests
 
         // -------- PrepareAsync --------
 
+        // Synchronous IProgress<int> double. The BCL's Progress<T> POSTS callbacks
+        // (to the captured SynchronizationContext, or with none -- xUnit -- to the
+        // threadpool's global queue), so counting ticks through it races the
+        // scheduler: a Task.Yield polling loop drains the resuming thread's LOCAL
+        // queue first and can spin dry while the global-queue callbacks sit
+        // unexecuted (observed under pool saturation, 2026-07-24: Expected 3,
+        // Actual 0). The subject here is PrepareAsync's one-tick-per-completion
+        // contract, not Progress<T>'s marshalling -- counting synchronously at
+        // Report time makes the test deterministic.
+        private sealed class SyncCountingProgress : IProgress<int>
+        {
+            private int mTicks;
+            public int Ticks => Volatile.Read(ref mTicks);
+            public void Report(int value) => Interlocked.Increment(ref mTicks);
+        }
+
         [Fact]
         public async Task PrepareAsync_FansOutAndTicksProgressPerCompletion()
         {
             AxisFixture f = new AxisFixture((k, l) => Task.FromResult("v_" + k));
 
-            int progressTicks = 0;
-            IProgress<int> progress = new Progress<int>(_ =>
-                Interlocked.Increment(ref progressTicks));
+            SyncCountingProgress progress = new SyncCountingProgress();
 
             await f.Axis.PrepareAsync(new[] { "a", "b", "c" }, progress);
 
@@ -207,14 +221,9 @@ namespace TargetPlanner.Tests.Tests
             Assert.Equal("v_b", f.Axis.GetOrNull("b"));
             Assert.Equal("v_c", f.Axis.GetOrNull("c"));
             Assert.Equal(3, f.BuildInvocations);
-            // Progress<T> marshalls via SynchronizationContext; in an xUnit test
-            // without a UI context the callback runs on the threadpool. Either
-            // way every completed build ticks once -- so the tick count must
-            // converge to 3 by the time WhenAll returns. Give Progress<T>'s
-            // continuation a brief window to run (it's ContinueWith-backed).
-            for (int i = 0; i < 50 && progressTicks < 3; i++)
-                await Task.Yield();
-            Assert.Equal(3, progressTicks);
+            // Every Report has run synchronously inside PrepareAsync's build
+            // completions, so the count is exact the moment the await returns.
+            Assert.Equal(3, progress.Ticks);
         }
 
         [Fact]
