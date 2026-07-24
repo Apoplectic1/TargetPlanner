@@ -38,13 +38,6 @@ namespace TargetPlanner.Caches
     /// </remarks>
     public sealed class ChartCacheStore : IChartCacheStore, IDisposable
     {
-        // Moon-sample sweep cadence inside ComputeYearDays. Matches the cadence
-        // BestSession.MoonClearIntersect uses for the Day-chart path. 1-minute cadence
-        // mirrors what ISP will use, so TP's gate decisions align minute-for-minute with
-        // the Sky chart's per-minute K-S compute (no Sky-chart-vs-gate disagreement on
-        // narrow moon transitions).
-        private static readonly TimeSpan MoonSampleStep = TimeSpan.FromMinutes(1);
-
         private readonly object mGate = new object();
 
         private Location mLocation;
@@ -511,7 +504,7 @@ namespace TargetPlanner.Caches
             IHorizonProfile horizon = key.LocalHorizon
                 ?? new ScalarHorizonProfile(key.HorizonDeg);
             TimeSpan duration = TimeSpan.FromTicks(key.DurationTicks);
-            MoonAvoidanceProfile profile = key.MoonAvoidanceEnabled && key.ActiveFilter != null
+            MoonLimitProfile profile = key.MoonAvoidanceEnabled && key.ActiveFilter != null
                 ? key.ActiveFilter.ToProfile()
                 : null;
             NightCache nightCache = await EnsureNightCacheAsync(location);
@@ -657,7 +650,6 @@ namespace TargetPlanner.Caches
                     entry.IsPolar   = true;
                     entry.SentinelX = startDay.AddDays(day).AddHours(12);
                     entry.YearAlt   = -90.0;
-                    entry.MoonSamples = new List<MoonSweepSample>(0);
                     cache.Add(entry);
                     continue;
                 }
@@ -673,27 +665,11 @@ namespace TargetPlanner.Caches
                 entry.LstDawn = SiderealTime.Local(entry.Dawn.ToUniversalTime(), lonDegEast);
                 if (entry.LstDawn < entry.LstDusk) entry.LstDawn += 24.0;
 
-                // Moon-aware Sessions-chart rebuild path needs per-night moon state. Sampled
-                // at 1-minute cadence between Dusk and Dawn so the cache stays profile-
-                // independent: the Lorentzian decision is evaluated at render time against
-                // these raw samples, not pre-decided per night. ~600 samples per night per
-                // target on a typical night. Each is one MoonSeparation.ObserveAt call --
-                // now lock-free (Meeus-backed AstroUtil) so the per-target sweeps run in
-                // parallel across threadpool cores.
-                List<MoonSweepSample> samples = new List<MoonSweepSample>(720);
-                DateTime sampleUtc = entry.Dusk;
-                while (sampleUtc <= entry.Dawn)
-                {
-                    var observed = MoonSeparation.ObserveAt(target, location, sampleUtc);
-                    samples.Add(new MoonSweepSample(
-                        utc:        sampleUtc,
-                        sepDeg:     observed.SeparationDeg,
-                        moonAltDeg: observed.MoonAltDeg));
-                    sampleUtc = sampleUtc.Add(MoonSampleStep);
-                }
-                entry.MoonSamples = samples;
-                DateTime midUtc = entry.Dusk.AddTicks((entry.Dawn - entry.Dusk).Ticks / 2);
-                entry.MoonAgeDays = LunarAge.DaysAt(midUtc);
+                // (The per-night 1-minute moon sweep that used to populate
+                // entry.MoonSamples here was deleted 2026-07-24 with the K-S Δmag gate
+                // migration: it was written on every year-pass and read nowhere — the
+                // real gate evaluation lives inside BestSession.MoonClearIntersect,
+                // which derives its own moon state.)
 
                 entry.TransitInNight = false;
                 for (int k = -1; k <= 1; k++)
@@ -726,7 +702,7 @@ namespace TargetPlanner.Caches
         // null-fit row directly without touching BestSession at all.
         private static IReadOnlyList<NightFit> ComputeNightFits(
             Target target, Location location, IReadOnlyList<NightCacheEntry> yearDays,
-            IHorizonProfile horizonProfile, TimeSpan duration, MoonAvoidanceProfile profile)
+            IHorizonProfile horizonProfile, TimeSpan duration, MoonLimitProfile profile)
         {
             // Scalar lower bound for the geometric pre-rejection. For a scalar
             // profile this equals TargetFloorDeg; for a polyline profile it's the
@@ -762,7 +738,7 @@ namespace TargetPlanner.Caches
         // Sky's hide-on-no-fit.
         private static NightFit ComputeTonightFit(
             Target target, Location location, NightWindow starting,
-            IHorizonProfile horizonProfile, TimeSpan duration, MoonAvoidanceProfile profile)
+            IHorizonProfile horizonProfile, TimeSpan duration, MoonLimitProfile profile)
         {
             if (duration <= TimeSpan.Zero || !starting.IsValid) return default;
             return ComputeOneFit(target, location, starting, horizonProfile, duration, profile);
@@ -776,7 +752,7 @@ namespace TargetPlanner.Caches
         // duration / IsValid for tonight) before calling in.
         private static NightFit ComputeOneFit(
             Target target, Location location, NightWindow nw,
-            IHorizonProfile horizonProfile, TimeSpan duration, MoonAvoidanceProfile profile)
+            IHorizonProfile horizonProfile, TimeSpan duration, MoonLimitProfile profile)
         {
             var candidates = BestSession.ResolveCandidates(
                 target, location, nw, horizonProfile, profile);

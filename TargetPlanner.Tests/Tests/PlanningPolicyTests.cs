@@ -14,7 +14,7 @@ namespace TargetPlanner.Tests.Tests
     public class PlanningPolicyTests
     {
         private static Filter MakeFilter() =>
-            new Filter("H", 30.0, 5.0, false, -15.0, 5.0, 0.0, 656.3, 3.0);
+            new Filter("H", 1.0, 656.3, 3.0);
 
         [Fact]
         public void WithScalarHorizon_WrapsFloorInScalarProfile()
@@ -54,8 +54,8 @@ namespace TargetPlanner.Tests.Tests
                 30.0, TimeSpan.FromMinutes(240), f, moonAvoidanceEnabled: true);
             var profile = p.MoonProfile;
             Assert.NotNull(profile);
-            Assert.Equal(f.SeparationDeg, profile.SeparationDeg);
-            Assert.Equal(f.WidthDays, profile.WidthDays);
+            Assert.Equal(f.ToleranceMag, profile.ToleranceMag);
+            Assert.Equal(f.CenterNm, profile.CenterNm);
             Assert.True(profile.Enabled);
         }
 

@@ -52,11 +52,5 @@ namespace TargetPlanner.Caches
 
         /// <summary>X-axis coordinate used for Year/Sessions series points (DateTime ticks).</summary>
         public DateTime SentinelX;
-
-        /// <summary>Per-night moon samples at 1-minute cadence between Dusk and Dawn.</summary>
-        public IReadOnlyList<MoonSweepSample> MoonSamples;
-
-        /// <summary>Lunar age (days since most recent new moon) at the night's midpoint.</summary>
-        public double MoonAgeDays;
     }
 }

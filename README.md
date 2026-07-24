@@ -9,7 +9,7 @@ Windows Forms desktop tool for astrophotography target planning. Plots a deep-sk
 - **Target ingestion** — load targets from NINA `.json` sequence files and `.xisf` images: the **Load** buttons scan your configured roots, **Browse** scans any file or folder, and you can drag files or folders onto the list. Loads add to the list and collapse duplicates — one entry per object even when it was imaged through many filters.
 - **Picker-driven moment** — Date / Time pickers drive the observation moment; *Now* snaps back to the current instant and moves the red now-line on the chart.
 - **Sky brightness** — its own chart area (peer of Day / Year / Sessions). Krisciunas–Schaefer sky brightness in mag/arcsec², with per-Bortle baseline, atmospheric extinction, and per-filter wavelength scaling.
-- **Moon avoidance** — per-filter Lorentzian moon-avoidance gates the Sessions-chart curves and Day-chart best-window overlay.
+- **Moon limit** — a per-filter K-S Δmag tolerance (how much moon-driven sky brightening is acceptable) gates the Sessions-chart curves and Day-chart best-window overlay.
 
 ## Charts
 
@@ -77,7 +77,7 @@ Per-location fields:
 
 ## Filters & moon avoidance
 
-Filters serve two purposes: they pin the active wavelength for the Sky-brightness overlay (via centre-nm) and they carry the per-filter Lorentzian moon-avoidance parameters used by the Sessions-chart curves and Day-chart HD overlay.
+Filters serve two purposes: they pin the active wavelength for the Sky-brightness overlay (via centre-nm) and they carry the per-filter moon-limit tolerance (K-S Δmag; defaults: narrowband 1.0 mag ≈ sky ×2.5, broadband 0.30 mag ≈ sky ×1.32) used by the Sessions-chart curves and Day-chart HD overlay.
 
 A master **Enable** checkbox in the Moon Avoidance group gates moon-avoidance globally. When off, all curves render moon-blind.
 
@@ -90,13 +90,13 @@ The filter library ships with (separation° / avoidance-days):
 - **G** — broadband, 60° / 10-day, Bessell-ish centre.
 - **B** — broadband, 90° / 10-day, Bessell-ish centre.
 
-Two parallel filter-selection surfaces stay in sync: a **Filters** dropdown in the menubar, and a radio strip beside the Lorentzian controls.
+Two parallel filter-selection surfaces stay in sync: a **Filters** dropdown in the menubar, and a radio strip beside the tolerance control.
 
 - **Right-click any filter** (menu item or radio) — opens the Edit Filters dialog pre-positioned on that filter. Add / Remove / per-row Defaults restore.
 - A **Defaults** button beside the filter strip restores **all** built-in filters to factory defaults (custom tuning on every library filter is reset, not just the active one).
 - A trailing `*` on a filter's name indicates it differs from the shipped factory defaults; the top-level **Filters** menu shows `*` if any filter is modified.
 
-Lorentzian-control edits on the main form auto-save the active filter on a 500 ms debounce; the Edit Filters dialog uses a transactional Save against a shadow copy.
+Tolerance edits on the main form auto-save the active filter on a 500 ms debounce; the Edit Filters dialog uses a transactional Save against a shadow copy.
 
 ## Sky brightness
 

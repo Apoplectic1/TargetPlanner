@@ -32,22 +32,24 @@ namespace TargetPlanner.Filters
         // Calibrated to a specific Astrodon Gen 2 E-Series LRGB + Astrodon 3nm Hα/OIII +
         // Chroma 3nm SII filter set (~$3K of premium glass, 2020-vintage). Center/bandwidth
         // per manufacturer datasheets; Chroma SII centered between the 671.6 / 673.1 doublet
-        // lines (not on the 671.6 spectroscopic line). Lorentzian moon-avoidance defaults
-        // are per-filter rather than uniform: H/S at 30°/5d (premium 3nm rejects moonlight
-        // well), but OIII keeps 60°/5d because the OIII passband catches the [O III] 500.7nm
-        // airglow line that moonlight-scattered atmosphere brightens. R/G keep 60°/10d (the
-        // 560-620nm Astrodon E-Series gap blocks sodium streetlights but not moonlight); L/B
-        // at 90°/10d since they catch more broadband moon scatter.
+        // lines (not on the 671.6 spectroscopic line).
+        // ToleranceMag = the K-S Δmag moon gate's acceptance budget (Library calibration
+        // 2026-07-24, cycle-median anchored): narrowband 1.0 (sky ×2.5 — line signal
+        // doesn't scale with sky continuum), broadband 0.30 (sky ×1.32). Family-level is
+        // enough: the per-filter distinctions the old Lorentzian table hand-encoded (OIII
+        // stricter than Hα/SII because moonlight brightens the 500.7nm airglow) now emerge
+        // from the physics — K-S scales extinction by center wavelength, so O's blue
+        // center sees ~3× Hα's scatter for the same moon. Tune per-filter via Edit Filters.
         private static readonly Filter[] sBuiltinDefaults = new[]
         {
-            //          name  sep   width  relax  rMin   rMax  rScl  centerNm  bandwidthNm
-            new Filter("H",   30.0, 5.0,   false, -15.0, 5.0,  0.0,  656.3,    3.0),     // Astrodon 3nm Hα
-            new Filter("O",   60.0, 5.0,   false, -15.0, 5.0,  0.0,  500.7,    3.0),     // Astrodon 3nm [O III] (60° sep — [OIII] airglow line at 500.7nm)
-            new Filter("S",   30.0, 5.0,   false, -15.0, 5.0,  0.0,  672.4,    3.0),     // Chroma 3nm SII (centered between 671.6 / 673.1 doublet)
-            new Filter("L",   90.0, 10.0,  false, -15.0, 5.0,  0.0,  550.0,  300.0),     // Astrodon E-Series Luminance
-            new Filter("R",   60.0, 10.0,  false, -15.0, 5.0,  0.0,  650.0,   60.0),     // Astrodon E-Series Red
-            new Filter("G",   60.0, 10.0,  false, -15.0, 5.0,  0.0,  525.0,   65.0),     // Astrodon E-Series Green
-            new Filter("B",   90.0, 10.0,  false, -15.0, 5.0,  0.0,  450.0,  100.0),     // Astrodon E-Series Blue
+            //          name  tolMag  centerNm  bandwidthNm
+            new Filter("H",   1.0,    656.3,      3.0),     // Astrodon 3nm Hα
+            new Filter("O",   1.0,    500.7,      3.0),     // Astrodon 3nm [O III]
+            new Filter("S",   1.0,    672.4,      3.0),     // Chroma 3nm SII (671.6/673.1 doublet)
+            new Filter("L",   0.30,   550.0,    300.0),     // Astrodon E-Series Luminance
+            new Filter("R",   0.30,   650.0,     60.0),     // Astrodon E-Series Red
+            new Filter("G",   0.30,   525.0,     65.0),     // Astrodon E-Series Green
+            new Filter("B",   0.30,   450.0,    100.0),     // Astrodon E-Series Blue
         };
 
         private readonly List<Filter> mFilters;
@@ -116,7 +118,7 @@ namespace TargetPlanner.Filters
                     string json = File.ReadAllText(path);
                     Filter[] filters = JsonConvert.DeserializeObject<Filter[]>(json);
                     if (filters != null && filters.Length > 0)
-                        return new FilterLibrary(MigrateLegacyFields(filters));
+                        return new FilterLibrary(filters);
                 }
             }
             catch (Exception ex)
@@ -127,30 +129,6 @@ namespace TargetPlanner.Filters
                 Log.Error("FilterLibrary.LoadOrDefault failed at '" + path + "'", ex);
             }
             return DefaultLibrary();
-        }
-
-        // Mirrors SettingsStore.MergeBuiltins's auto-fill pattern. Filters loaded from
-        // older filters.json files predating CenterNm deserialize with CenterNm = 0.0
-        // (the C# default for missing JSON fields). Walk the deserialized array and for
-        // each filter whose Name matches a builtin AND whose CenterNm is 0, fill in the
-        // builtin's CenterNm. Negative wavelengths are unphysical and 0 is the
-        // unmistakable "field was missing" tell, so the heuristic is safe -- a user
-        // can't legitimately set CenterNm = 0. User-renamed builtins or user-created
-        // filters land at 0 and the user can fix via Edit Filters.
-        private static Filter[] MigrateLegacyFields(Filter[] filters)
-        {
-            Filter[] result = new Filter[filters.Length];
-            for (int i = 0; i < filters.Length; i++)
-            {
-                Filter f = filters[i];
-                if (f.CenterNm == 0.0)
-                {
-                    Filter b = FindBuiltinDefault(f.Name);
-                    if (b != null) f = f with { CenterNm = b.CenterNm };
-                }
-                result[i] = f;
-            }
-            return result;
         }
 
         /// <summary>Save the library to <see cref="DefaultPath"/>, creating directories as needed.</summary>
@@ -179,8 +157,8 @@ namespace TargetPlanner.Filters
         }
 
         /// <summary>
-        /// First-launch in-code defaults: narrowband filters (<c>H/O/S</c>) at
-        /// <c>(30-60°, 5d)</c>; broadband filters (<c>L/R/G/B</c>) at <c>(60-90°, 10d)</c>.
+        /// First-launch in-code defaults: narrowband filters (<c>H/O/S</c>) at moon
+        /// tolerance <c>1.0</c> mag; broadband filters (<c>L/R/G/B</c>) at <c>0.30</c>.
         /// See <see cref="sBuiltinDefaults"/> for the authoritative per-filter values.
         /// The user is expected to override via Edit Filters.
         /// </summary>
@@ -203,22 +181,17 @@ namespace TargetPlanner.Filters
 
         /// <summary>
         /// True iff <paramref name="f"/> has a built-in factory default by name AND any of
-        /// its value fields (separation, width, relaxation params, bandwidth) differ from
-        /// that baseline. User-created filters (no factory baseline) always return false.
+        /// its value fields (moon tolerance, center, bandwidth) differ from that baseline.
+        /// User-created filters (no factory baseline) always return false.
         /// </summary>
         public static bool DiffersFromBuiltinDefault(Filter f)
         {
             if (f == null) return false;
             Filter b = FindBuiltinDefault(f.Name);
             if (b == null) return false;
-            return f.SeparationDeg  != b.SeparationDeg
-                || f.WidthDays      != b.WidthDays
-                || f.RelaxEnabled   != b.RelaxEnabled
-                || f.RelaxMinAltDeg != b.RelaxMinAltDeg
-                || f.RelaxMaxAltDeg != b.RelaxMaxAltDeg
-                || f.RelaxScale     != b.RelaxScale
-                || f.CenterNm       != b.CenterNm
-                || f.BandwidthNm    != b.BandwidthNm;
+            return f.ToleranceMag != b.ToleranceMag
+                || f.CenterNm     != b.CenterNm
+                || f.BandwidthNm  != b.BandwidthNm;
         }
     }
 }

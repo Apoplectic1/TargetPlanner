@@ -54,15 +54,10 @@ namespace TargetPlanner.Forms
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
             };
 
-            mGrid.Columns.Add(NewTextColumn(nameof(FilterRow.Name),           "Name",           60));
-            mGrid.Columns.Add(NewTextColumn(nameof(FilterRow.SeparationDeg),  "Sep",            55));
-            mGrid.Columns.Add(NewTextColumn(nameof(FilterRow.WidthDays),      "Width",          55));
-            mGrid.Columns.Add(NewCheckColumn(nameof(FilterRow.RelaxEnabled),  "Relax",          50));
-            mGrid.Columns.Add(NewTextColumn(nameof(FilterRow.RelaxMinAltDeg), "RelaxMin",       70));
-            mGrid.Columns.Add(NewTextColumn(nameof(FilterRow.RelaxMaxAltDeg), "RelaxMax",       70));
-            mGrid.Columns.Add(NewTextColumn(nameof(FilterRow.RelaxScale),     "RelaxScale",     80));
-            mGrid.Columns.Add(NewTextColumn(nameof(FilterRow.CenterNm),       "Center (nm)",    80));
-            mGrid.Columns.Add(NewTextColumn(nameof(FilterRow.BandwidthNm),    "Bandwidth (nm)", 110));
+            mGrid.Columns.Add(NewTextColumn(nameof(FilterRow.Name),         "Name",              60));
+            mGrid.Columns.Add(NewTextColumn(nameof(FilterRow.ToleranceMag), "Tolerance (mag)",  100));
+            mGrid.Columns.Add(NewTextColumn(nameof(FilterRow.CenterNm),     "Center (nm)",       80));
+            mGrid.Columns.Add(NewTextColumn(nameof(FilterRow.BandwidthNm),  "Bandwidth (nm)",   110));
 
             // Per-row Defaults button. Click restores the row's values to the matching
             // factory built-in if one exists; silent no-op for user-created filters.
@@ -174,14 +169,9 @@ namespace TargetPlanner.Forms
             Filter builtin = FilterLibrary.FindBuiltinDefault(row.Name);
             if (builtin == null) return;  // user-created filter -- silent no-op
 
-            row.SeparationDeg  = builtin.SeparationDeg;
-            row.WidthDays      = builtin.WidthDays;
-            row.RelaxEnabled   = builtin.RelaxEnabled;
-            row.RelaxMinAltDeg = builtin.RelaxMinAltDeg;
-            row.RelaxMaxAltDeg = builtin.RelaxMaxAltDeg;
-            row.RelaxScale     = builtin.RelaxScale;
-            row.CenterNm       = builtin.CenterNm;
-            row.BandwidthNm    = builtin.BandwidthNm;
+            row.ToleranceMag = builtin.ToleranceMag;
+            row.CenterNm     = builtin.CenterNm;
+            row.BandwidthNm  = builtin.BandwidthNm;
             mGrid.InvalidateRow(e.RowIndex);
         }
 
@@ -204,16 +194,6 @@ namespace TargetPlanner.Forms
         private static DataGridViewTextBoxColumn NewTextColumn(
             string dataPropertyName, string headerText, int width)
             => new DataGridViewTextBoxColumn
-            {
-                DataPropertyName = dataPropertyName,
-                HeaderText = headerText,
-                Width = width,
-                SortMode = DataGridViewColumnSortMode.NotSortable,
-            };
-
-        private static DataGridViewCheckBoxColumn NewCheckColumn(
-            string dataPropertyName, string headerText, int width)
-            => new DataGridViewCheckBoxColumn
             {
                 DataPropertyName = dataPropertyName,
                 HeaderText = headerText,
@@ -274,52 +254,32 @@ namespace TargetPlanner.Forms
         // freshly-added row isn't all-zeros.
         private class FilterRow
         {
-            public string Name           { get; set; }
-            public double SeparationDeg  { get; set; }
-            public double WidthDays      { get; set; }
-            public bool   RelaxEnabled   { get; set; }
-            public double RelaxMinAltDeg { get; set; }
-            public double RelaxMaxAltDeg { get; set; }
-            public double RelaxScale     { get; set; }
-            public double CenterNm       { get; set; }
-            public double BandwidthNm    { get; set; }
+            public string Name         { get; set; }
+            public double ToleranceMag { get; set; }
+            public double CenterNm     { get; set; }
+            public double BandwidthNm  { get; set; }
 
             public static FilterRow From(Filter f) => new FilterRow
             {
-                Name           = f.Name,
-                SeparationDeg  = f.SeparationDeg,
-                WidthDays      = f.WidthDays,
-                RelaxEnabled   = f.RelaxEnabled,
-                RelaxMinAltDeg = f.RelaxMinAltDeg,
-                RelaxMaxAltDeg = f.RelaxMaxAltDeg,
-                RelaxScale     = f.RelaxScale,
-                CenterNm       = f.CenterNm,
-                BandwidthNm    = f.BandwidthNm,
+                Name         = f.Name,
+                ToleranceMag = f.ToleranceMag,
+                CenterNm     = f.CenterNm,
+                BandwidthNm  = f.BandwidthNm,
             };
 
             public static FilterRow NewDefault() => new FilterRow
             {
-                Name           = "NewFilter",
-                SeparationDeg  = 60.0,
-                WidthDays      = 7.0,
-                RelaxEnabled   = false,
-                RelaxMinAltDeg = -15.0,
-                RelaxMaxAltDeg = 5.0,
-                RelaxScale     = 0.0,
-                CenterNm       = 550.0,
-                BandwidthNm    = 3.0,
+                Name         = "NewFilter",
+                ToleranceMag = 1.0,
+                CenterNm     = 550.0,
+                BandwidthNm  = 3.0,
             };
 
             public Filter ToFilter() => new Filter(
-                Name:           Name,
-                SeparationDeg:  SeparationDeg,
-                WidthDays:      WidthDays,
-                RelaxEnabled:   RelaxEnabled,
-                RelaxMinAltDeg: RelaxMinAltDeg,
-                RelaxMaxAltDeg: RelaxMaxAltDeg,
-                RelaxScale:     RelaxScale,
-                CenterNm:       CenterNm,
-                BandwidthNm:    BandwidthNm);
+                Name:         Name,
+                ToleranceMag: ToleranceMag,
+                CenterNm:     CenterNm,
+                BandwidthNm:  BandwidthNm);
         }
     }
 }

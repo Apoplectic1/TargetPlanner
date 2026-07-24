@@ -19,7 +19,7 @@ namespace TargetPlanner.Tests.Tests
     public class ChartContextTests
     {
         private static Filter Filter() =>
-            new Filter("H", 30.0, 5.0, false, -15.0, 5.0, 0.0, 656.3, 3.0);
+            new Filter("H", 1.0, 656.3, 3.0);
 
         private static Location Location() => new Location(
             name: "Test",
@@ -92,7 +92,7 @@ namespace TargetPlanner.Tests.Tests
         [Fact]
         public void Hdm_PullsActiveFilterFromPolicy()
         {
-            Filter f = new Filter("O", 60.0, 5.0, false, -15.0, 5.0, 0.0, 500.7, 3.0);
+            Filter f = new Filter("O", 1.0, 500.7, 3.0);
             PlanningPolicy policy = PlanningPolicy.WithScalarHorizon(
                 30.0, TimeSpan.FromMinutes(240), f, true);
             Assert.Equal(f, MakeCtx(policy).Hdm.ActiveFilter);

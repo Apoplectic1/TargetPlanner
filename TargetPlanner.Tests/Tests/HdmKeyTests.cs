@@ -14,7 +14,7 @@ namespace TargetPlanner.Tests.Tests
     public class HdmKeyTests
     {
         private static Filter MakeFilter(string name = "H") =>
-            new Filter(name, 30.0, 5.0, false, -15.0, 5.0, 0.0, 656.3, 3.0);
+            new Filter(name, 1.0, 656.3, 3.0);
 
         private static HdmKey MakeKey(
             double horizonDeg = 30.0,

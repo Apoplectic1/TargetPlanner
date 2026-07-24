@@ -6,13 +6,12 @@ namespace TargetPlanner.Tests.Tests
 {
     // FilterLibrary in-memory behaviour: Find / mutation primitives, BuiltinDefaults
     // factory identity, DiffersFromBuiltinDefault drift detection, and FindBuiltinDefault
-    // case-insensitivity. Persistence (Save/Load round-trip, MigrateLegacyFields) is
-    // Phase 2 -- those tests need temp-directory plumbing and live in
-    // FilterLibraryPersistenceTests.
+    // case-insensitivity. Persistence (Save/Load round-trip) lives in
+    // FilterLibraryPersistenceTests (temp-directory plumbing).
     public class FilterLibraryTests
     {
         private static Filter MakeFilter(string name) =>
-            new Filter(name, 30.0, 5.0, false, -15.0, 5.0, 0.0, 656.3, 3.0);
+            new Filter(name, 1.0, 656.3, 3.0);
 
         [Fact]
         public void Ctor_NullEnumerable_TreatedAsEmpty()
@@ -84,9 +83,9 @@ namespace TargetPlanner.Tests.Tests
         public void BuiltinDefaults_Contains_HOSLRGB()
         {
             // Pin the seven shipped builtins so a future edit that drops or renames
-            // one trips this test loudly. The values themselves are calibrated to a
-            // specific filter kit; let the per-filter values change without trip if
-            // the user changes their kit (don't test exact Lorentzian numbers here).
+            // one trips this test loudly. The band values are calibrated to a specific
+            // filter kit; let per-filter values change without trip if the user
+            // changes their kit (don't pin exact numbers here).
             string[] expected = { "H", "O", "S", "L", "R", "G", "B" };
             Assert.Equal(expected, FilterLibrary.BuiltinDefaults.Select(f => f.Name).ToArray());
         }
@@ -112,7 +111,7 @@ namespace TargetPlanner.Tests.Tests
         {
             // User-created filter (no factory baseline) is never "modified" --
             // there's nothing to differ from.
-            Filter custom = new Filter("CustomNarrowband", 45.0, 7.0, false, -10.0, 5.0, 0.0, 489.0, 3.0);
+            Filter custom = new Filter("CustomNarrowband", 0.8, 489.0, 3.0);
             Assert.False(FilterLibrary.DiffersFromBuiltinDefault(custom));
         }
 
@@ -123,14 +122,9 @@ namespace TargetPlanner.Tests.Tests
             Assert.False(FilterLibrary.DiffersFromBuiltinDefault(h));
 
             // Each value field flips DiffersFromBuiltinDefault to true independently.
-            Assert.True(FilterLibrary.DiffersFromBuiltinDefault(h with { SeparationDeg  = h.SeparationDeg  + 1 }));
-            Assert.True(FilterLibrary.DiffersFromBuiltinDefault(h with { WidthDays      = h.WidthDays      + 1 }));
-            Assert.True(FilterLibrary.DiffersFromBuiltinDefault(h with { RelaxEnabled   = !h.RelaxEnabled }));
-            Assert.True(FilterLibrary.DiffersFromBuiltinDefault(h with { RelaxMinAltDeg = h.RelaxMinAltDeg - 1 }));
-            Assert.True(FilterLibrary.DiffersFromBuiltinDefault(h with { RelaxMaxAltDeg = h.RelaxMaxAltDeg + 1 }));
-            Assert.True(FilterLibrary.DiffersFromBuiltinDefault(h with { RelaxScale     = h.RelaxScale     + 1 }));
-            Assert.True(FilterLibrary.DiffersFromBuiltinDefault(h with { CenterNm       = h.CenterNm       + 1 }));
-            Assert.True(FilterLibrary.DiffersFromBuiltinDefault(h with { BandwidthNm    = h.BandwidthNm    + 1 }));
+            Assert.True(FilterLibrary.DiffersFromBuiltinDefault(h with { ToleranceMag = h.ToleranceMag + 0.1 }));
+            Assert.True(FilterLibrary.DiffersFromBuiltinDefault(h with { CenterNm     = h.CenterNm     + 1 }));
+            Assert.True(FilterLibrary.DiffersFromBuiltinDefault(h with { BandwidthNm  = h.BandwidthNm  + 1 }));
         }
 
         [Fact]

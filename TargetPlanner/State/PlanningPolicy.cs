@@ -9,7 +9,7 @@ namespace TargetPlanner.State
     /// Per-session imaging-planning inputs: what altitude threshold counts as
     /// "above the horizon" (<see cref="TargetFloorDeg"/> /
     /// <see cref="LocalHorizon"/>), how long a target must stay above it
-    /// (<see cref="MinDuration"/>), and the active filter + moon-avoidance master
+    /// (<see cref="MinDuration"/>), and the active filter + moon-gate master
     /// toggle that gate per-night fit decisions.
     /// </summary>
     /// <remarks>
@@ -25,8 +25,9 @@ namespace TargetPlanner.State
     /// </para>
     /// <para>
     /// <see cref="ActiveFilter"/> is the single source of truth for filter inputs
-    /// to both K-S sky-brightness (CenterNm + BandwidthNm) and the Lorentzian
-    /// moon-clear gate (Lorentzian + Relax fields, surfaced via <see cref="MoonProfile"/>).
+    /// to both the K-S sky-brightness chart (CenterNm + BandwidthNm) and the K-S
+    /// Δmag moon gate (ToleranceMag + CenterNm, surfaced via <see cref="MoonProfile"/>
+    /// — the gate is bandwidth-independent by construction).
     /// <see cref="MoonAvoidanceEnabled"/> is the master on/off toggle from the UI;
     /// when false the derived <see cref="MoonProfile"/> returns <see langword="null"/>
     /// and the placement-primitive moon gate short-circuits to the visibility result.
@@ -67,11 +68,11 @@ namespace TargetPlanner.State
 
 
         /// <summary>
-        /// Derived moon-clear gate profile. Returns <see langword="null"/> when
+        /// Derived moon-gate profile. Returns <see langword="null"/> when
         /// the master toggle is off or no filter is active — placement primitives
         /// interpret that as "moon-blind" and skip the gate.
         /// </summary>
-        public MoonAvoidanceProfile MoonProfile
+        public MoonLimitProfile MoonProfile
             => MoonAvoidanceEnabled && ActiveFilter != null
                 ? ActiveFilter.ToProfile()
                 : null;

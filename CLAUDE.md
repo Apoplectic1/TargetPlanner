@@ -2,13 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> **⚠ PENDING MIGRATION (2026-07-24): TP does not build against the current Library.** The
-> Library replaced the Lorentzian moon-avoidance model with the K-S Δmag gate
-> (`MoonLimitProfile`; Library commit `9e16469`). The complete migration map — Filter record
-> reshape, UI collapse, cache/dead-code deletions, new tolerance defaults, expected chart
-> behavior shift — is **[docs/2026-07-24-ks-dmag-migration.md](docs/2026-07-24-ks-dmag-migration.md)**.
-> Do that migration first; remove this banner when it lands.
-
 ## What this is
 
 Windows Forms desktop tool for astrophotography planning, plotting target altitude over time with multi-target overlay. Targets load from two on-disk formats — NINA sequence files (`.json`) and `.xisf` images — recursively scanned by `Targets/TargetScanner.cs`, which groups each target's files (capture frames, mosaic panels) and resolves one `Target` at the spherical centroid of the group (`Targets/SkyCentroid.cs`). **User-facing behaviour, defaults, and chart UX live in [README.md](README.md)** — this file focuses on code organisation, conventions, and gotchas for a coding agent. Settings-resolved target roots: `MainForm.NinaTargetsRootPath` / `MainForm.ImageLibraryRootPath`. User-driven render entry point: `Button_Graph_Click` → `mCoordinator.ApplyImmediateAsync(SnapshotCurrent(targets))`; boot also fires one empty-target baseline paint (`FireBaselinePaint`) so sub-charts show scaffolding before any click. On startup the image library auto-loads (async, `GetImageLibraryTargets`); the post-load handler seeds `mSelection.SelectedSingle` to the first sorted target.

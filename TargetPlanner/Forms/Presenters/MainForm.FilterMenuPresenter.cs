@@ -12,7 +12,7 @@ using TpFilter = TargetPlanner.Filters.Filter;
 namespace TargetPlanner
 {
     // Filter-library / moon-avoidance concern: Filters menu + GroupBox_Moon_Filters
-    // radio strip + Lorentzian control scrub auto-save + Edit Filters dialog
+    // radio strip + tolerance control scrub auto-save + Edit Filters dialog
     // wiring. Largest of the three presenter file splits (~625 lines) -- the
     // cluster covers initial menu build, radio-strip sync, auto-save debounce,
     // master enable-checkbox, defaults restore, and the dialog round-trip.
@@ -97,7 +97,7 @@ namespace TargetPlanner
             FiltersToolStripMenuItem_MainForm.DropDownItems.Add(editItem);
 
             // Pre-select the first library filter visually and write its values into
-            // the Lorentzian controls so the GroupBox has sensible defaults from the
+            // the moon-limit controls so the GroupBox has sensible defaults from the
             // start. Whether avoidance actually applies is gated on
             // CheckBox_Moon_AvoidanceEnable.
             //
@@ -105,7 +105,7 @@ namespace TargetPlanner
             // calls mCoordinator?.Apply, whose pipeline can run while the chart's
             // year caches are still being built (the M31 seed's async BuildSeriesList
             // is still mid-flight at construction time). Just stash mActiveFilter and
-            // mirror its Lorentzian into the controls; SnapshotCurrent will pick it up
+            // mirror its tolerance into the controls; SnapshotCurrent will pick it up
             // on the next legitimate Apply. The post-Edit-Filters caller in
             // OpenEditFiltersDialog explicitly fires Apply afterward, when caches are
             // guaranteed populated.
@@ -122,7 +122,7 @@ namespace TargetPlanner
                 // Empty library: nothing checked, no active filter.
                 mActiveFilter = null;
             }
-            SetLorentzianControlsEnabled(avoidanceOn);
+            SetToleranceControlsEnabled(avoidanceOn);
 
             // Build the parallel radio strip in GroupBox_Moon_Filters and stamp the
             // initial '*' state across all surfaces (menu items, radios, top-level title).
@@ -259,7 +259,7 @@ namespace TargetPlanner
 
             // Re-resolve mActiveFilter by name -- if it was a builtin, the Replace
             // above swapped its instance; if user-created it's unchanged. Either way
-            // SetActiveFilter pushes the (possibly-reset) values into the Lorentzian
+            // SetActiveFilter pushes the (possibly-reset) values into the moon-limit
             // controls + chart.
             TpFilter newActive = activeName != null ? mFilterLibrary.Find(activeName) : null;
             if (newActive != null) SetActiveFilter(newActive);
@@ -342,7 +342,7 @@ namespace TargetPlanner
         // Re-resolve mActiveFilter to a Filter instance in the post-dialog mFilterLibrary
         // by case-insensitive name match against priorActiveName. Falls back to the
         // first library filter when priorActiveName has been renamed or removed.
-        // Routes through SetActiveFilter so the menu radio + Lorentzian controls + chart
+        // Routes through SetActiveFilter so the menu radio + moon-limit controls + chart
         // pick up the (possibly modified) values.
         private void RefreshActiveFilterAfterDialogSave(string priorActiveName)
         {
@@ -372,7 +372,7 @@ namespace TargetPlanner
 
         // Activate the named filter on both UI surfaces (menu items + groupbox radios):
         // resolve the index once, then walk each surface setting Checked = (i == idx).
-        // Populates the Lorentzian controls from the filter's profile, pushes the profile
+        // Populates the moon-limit controls from the filter's profile, pushes the profile
         // to the chart (gated on the master Enable), and sets mActiveFilter -- the
         // auto-save target that scrubbing the controls will mutate via
         // FilterAutoSaveDebounce_Tick.
@@ -381,7 +381,7 @@ namespace TargetPlanner
             if (filter == null) return;
 
             mActiveFilter = filter;
-            MoonAvoidanceProfile profile = filter.ToProfile();
+            MoonLimitProfile profile = filter.ToProfile();
 
             int idx = -1;
             for (int i = 0; i < mFilterLibrary.Filters.Count; i++)
@@ -411,22 +411,22 @@ namespace TargetPlanner
             }
 
             // WriteProfileToControls raises mSuppressFilterEvents internally so its
-            // writes don't trigger OnLorentzianControlChanged's auto-save debounce.
+            // writes don't trigger OnToleranceControlChanged's auto-save debounce.
             WriteProfileToControls(profile);
 
             bool avoidanceOn = CheckBox_Moon_AvoidanceEnable != null
                             && CheckBox_Moon_AvoidanceEnable.Checked;
-            SetLorentzianControlsEnabled(avoidanceOn);
+            SetToleranceControlsEnabled(avoidanceOn);
 
             // mActiveFilter is the single source of truth for both K-S inputs
-            // (CenterNm + BandwidthNm) and the Lorentzian moon-clear gate
+            // (CenterNm + BandwidthNm) and the K-S Dmag moon gate
             // (via ToProfile()). Apply funnels through SnapshotCurrent which reads
             // mActiveFilter into PlanningPolicy.ActiveFilter; the coordinator's
             // post-apply hook calls PushSkyKSInputs(ctx) to push center+bandwidth
             // into the Sky chart's per-minute K-S walk.
             mCoordinator?.Apply(SnapshotCurrent());
             // SessionSolvers modes consume Policy.MoonProfile (and indirectly the active
-            // filter via the moon-avoidance Lorentzian) -- re-rank when the active
+            // filter via the moon gate) -- re-rank when the active
             // filter changes. Helper short-circuits when sort mode isn't Longest/Highest.
             MaybeResortForSessionSolversInputChange();
         }
@@ -440,7 +440,7 @@ namespace TargetPlanner
             if (mSubCharts == null) return;
 
             bool enabled = CheckBox_Moon_AvoidanceEnable.Checked;
-            SetLorentzianControlsEnabled(enabled);
+            SetToleranceControlsEnabled(enabled);
             // Coordinator's internal debounce collapses a fast Enable-Disable-
             // Enable click sequence into one trailing-edge pipeline run.
             mCoordinator?.Apply(SnapshotCurrent());
@@ -450,43 +450,26 @@ namespace TargetPlanner
             MaybeResortForSessionSolversInputChange();
         }
 
-        // User scrubbed a Lorentzian control. Eagerly mutate mActiveFilter (via record
-        // `with`) so SnapshotCurrent sees the live values, then start the auto-save
-        // debounce -- after 500 ms idle, the tick handler persists mActiveFilter to
-        // filters.json. Returns early under mSuppressFilterEvents
+        // User scrubbed the moon-tolerance spinner. Eagerly mutate mActiveFilter (via
+        // record `with`) so SnapshotCurrent sees the live value, then start the
+        // auto-save debounce -- after 500 ms idle, the tick handler persists
+        // mActiveFilter to filters.json. Returns early under mSuppressFilterEvents
         // (WriteProfileToControls is the writer; its writes aren't user edits).
-        private void OnLorentzianControlChanged(object sender, EventArgs e)
+        private void OnToleranceControlChanged(object sender, EventArgs e)
         {
             if (mSuppressFilterEvents) return;
-            if (NumericUpDown_Moon_Separation == null) return;
+            if (NumericUpDown_Moon_Tolerance == null) return;
             if (mActiveFilter == null) return;
 
             mActiveFilter = mActiveFilter with
             {
-                SeparationDeg  = (double)NumericUpDown_Moon_Separation.Value,
-                WidthDays      = (double)NumericUpDown_Moon_Width.Value,
-                RelaxEnabled   = CheckBox_Moon_RelaxEnabled.Checked,
-                RelaxMinAltDeg = (double)NumericUpDown_Moon_RelaxMin.Value,
-                RelaxMaxAltDeg = (double)NumericUpDown_Moon_RelaxMax.Value,
-                RelaxScale     = (double)NumericUpDown_Moon_RelaxScale.Value,
+                ToleranceMag = (double)NumericUpDown_Moon_Tolerance.Value,
             };
             RestartFilterAutoSaveDebounce();
             mCoordinator?.Apply(SnapshotCurrent());
         }
 
-        // CheckBox_Moon_RelaxEnabled toggled: re-gate the relaxation Min/Max/Scale
-        // params (enabled only while this is checked), then run the standard
-        // Lorentzian-changed path -- the avoidance profile carries RelaxEnabled, so
-        // the chart must rebuild.
-        private void OnRelaxEnabledChanged(object sender, EventArgs e)
-        {
-            bool avoidanceOn = CheckBox_Moon_AvoidanceEnable != null
-                            && CheckBox_Moon_AvoidanceEnable.Checked;
-            SetLorentzianControlsEnabled(avoidanceOn);
-            OnLorentzianControlChanged(sender, e);
-        }
-
-        // Lazily-constructed shared Timer for the Lorentzian-scrub auto-save. Same
+        // Lazily-constructed shared Timer for the tolerance-scrub auto-save. Same
         // restart-on-edit pattern as RestartSessionsRebuildDebounce: ValueChanged calls
         // Stop()+Start() to reset the interval, so rapid edits collapse to one
         // trailing-edge Tick.
@@ -501,8 +484,8 @@ namespace TargetPlanner
             mFilterAutoSaveDebounce.Start();
         }
 
-        // Trailing-edge tick for the Lorentzian-scrub auto-save. mActiveFilter already
-        // holds the live values (OnLorentzianControlChanged eagerly mutates it via
+        // Trailing-edge tick for the tolerance-scrub auto-save. mActiveFilter already
+        // holds the live values (OnToleranceControlChanged eagerly mutates it via
         // record `with`); the tick just commits the current mActiveFilter into
         // mFilterLibrary + persists to disk + refreshes the menu '*' labels.
         // Suppressed while the EditFiltersForm modal is open; the dialog has its own
@@ -525,7 +508,7 @@ namespace TargetPlanner
         }
 
         // Locate the active filter's index in mFilterLibrary by Name. Reference equality
-        // would fail because OnLorentzianControlChanged constructs new Filter instances
+        // would fail because OnToleranceControlChanged constructs new Filter instances
         // via record `with` on each scrub -- mActiveFilter and the library entry share
         // a Name but not an instance until the next FilterAutoSaveDebounce_Tick syncs
         // them. Returns -1 when mActiveFilter has been removed from the library
@@ -542,30 +525,21 @@ namespace TargetPlanner
             return -1;
         }
 
-        // Push the profile's parameters into the Lorentzian controls. Raises
-        // mSuppressFilterEvents so the writes don't fire OnLorentzianControlChanged
+        // Push the profile's tolerance into the moon-limit spinner. Raises
+        // mSuppressFilterEvents so the write doesn't fire OnToleranceControlChanged
         // (which would recursively flip the menu to Custom). No-op when profile is null
         // -- "Disabled" doesn't have values to push, the controls just go grey.
-        private void WriteProfileToControls(MoonAvoidanceProfile profile)
+        private void WriteProfileToControls(MoonLimitProfile profile)
         {
             if (profile == null) return;
-            if (NumericUpDown_Moon_Separation == null) return;
+            if (NumericUpDown_Moon_Tolerance == null) return;
 
             bool wasSuppressed = mSuppressFilterEvents;
             mSuppressFilterEvents = true;
             try
             {
-                NumericUpDown_Moon_Separation.Value =
-                    ClampToRange(NumericUpDown_Moon_Separation, (decimal)profile.SeparationDeg);
-                NumericUpDown_Moon_Width.Value =
-                    ClampToRange(NumericUpDown_Moon_Width, (decimal)profile.WidthDays);
-                CheckBox_Moon_RelaxEnabled.Checked = profile.RelaxEnabled;
-                NumericUpDown_Moon_RelaxMin.Value =
-                    ClampToRange(NumericUpDown_Moon_RelaxMin, (decimal)profile.RelaxMinAltDeg);
-                NumericUpDown_Moon_RelaxMax.Value =
-                    ClampToRange(NumericUpDown_Moon_RelaxMax, (decimal)profile.RelaxMaxAltDeg);
-                NumericUpDown_Moon_RelaxScale.Value =
-                    ClampToRange(NumericUpDown_Moon_RelaxScale, (decimal)profile.RelaxScale);
+                NumericUpDown_Moon_Tolerance.Value =
+                    ClampToRange(NumericUpDown_Moon_Tolerance, (decimal)profile.ToleranceMag);
             }
             finally
             {
@@ -573,37 +547,25 @@ namespace TargetPlanner
             }
         }
 
-        // Enable/disable the moon-avoidance controls in a two-level hierarchy.
-        // The master CheckBox_Moon_AvoidanceEnable (passed as avoidanceEnabled)
-        // gates the Separation / Width controls and the Relaxation-Enable toggle.
-        // The relaxation Min/Max/Scale params (labels + spinners) sit one level
-        // deeper -- enabled only when avoidance is on AND CheckBox_Moon_RelaxEnabled
-        // is checked. CheckBox_Moon_AvoidanceEnable itself is never disabled here.
-        private void SetLorentzianControlsEnabled(bool avoidanceEnabled)
+        // Enable/disable the moon-limit controls. The master
+        // CheckBox_Moon_AvoidanceEnable (passed as avoidanceEnabled) gates the
+        // tolerance spinner + labels and the filter strip; the checkbox itself is
+        // never disabled here.
+        private void SetToleranceControlsEnabled(bool avoidanceEnabled)
         {
-            if (NumericUpDown_Moon_Separation == null) return;
+            if (NumericUpDown_Moon_Tolerance == null) return;
 
-            // Filter selection strip lives alongside the Lorentzian controls in
-            // the moon-avoidance UX cluster; disabling the GroupBox cascades to
+            // Filter selection strip lives alongside the tolerance control in
+            // the moon-limit UX cluster; disabling the GroupBox cascades to
             // every RadioButton + the Defaults button inside it. The menubar
             // Filters menu stays available -- mirrors the existing pattern where
-            // only in-form moon-avoidance widgets follow the master toggle.
+            // only in-form moon-limit widgets follow the master toggle.
             if (GroupBox_Moon_Filters != null)
                 GroupBox_Moon_Filters.Enabled = avoidanceEnabled;
 
-            Label_Moon_Separation.Enabled         = avoidanceEnabled;
-            NumericUpDown_Moon_Separation.Enabled  = avoidanceEnabled;
-            Label_Moon_Width.Enabled              = avoidanceEnabled;
-            NumericUpDown_Moon_Width.Enabled       = avoidanceEnabled;
-            CheckBox_Moon_RelaxEnabled.Enabled    = avoidanceEnabled;
-
-            bool relaxParamsEnabled = avoidanceEnabled && CheckBox_Moon_RelaxEnabled.Checked;
-            Label_Moon_RelaxMin.Enabled           = relaxParamsEnabled;
-            NumericUpDown_Moon_RelaxMin.Enabled   = relaxParamsEnabled;
-            Label_Moon_RelaxMax.Enabled           = relaxParamsEnabled;
-            NumericUpDown_Moon_RelaxMax.Enabled   = relaxParamsEnabled;
-            Label_Moon_RelaxScale.Enabled         = relaxParamsEnabled;
-            NumericUpDown_Moon_RelaxScale.Enabled = relaxParamsEnabled;
+            Label_Moon_Tolerance.Enabled          = avoidanceEnabled;
+            NumericUpDown_Moon_Tolerance.Enabled  = avoidanceEnabled;
+            Label_Moon_ToleranceUnits.Enabled     = avoidanceEnabled;
         }
     }
 }

@@ -121,20 +121,11 @@
             Button_AddTarget = new System.Windows.Forms.Button();
             Button_CheckedTargets = new System.Windows.Forms.Button();
             GroupBox_MoonAvoidance = new System.Windows.Forms.GroupBox();
-            Label_Moon_WidthDays = new System.Windows.Forms.Label();
             CheckBox_Moon_AvoidanceEnable = new System.Windows.Forms.CheckBox();
-            Label_Moon_Separation = new System.Windows.Forms.Label();
-            NumericUpDown_Moon_Separation = new System.Windows.Forms.NumericUpDown();
+            Label_Moon_Tolerance = new System.Windows.Forms.Label();
+            NumericUpDown_Moon_Tolerance = new System.Windows.Forms.NumericUpDown();
+            Label_Moon_ToleranceUnits = new System.Windows.Forms.Label();
             GroupBox_Moon_Filters = new System.Windows.Forms.GroupBox();
-            Label_Moon_Width = new System.Windows.Forms.Label();
-            NumericUpDown_Moon_Width = new System.Windows.Forms.NumericUpDown();
-            CheckBox_Moon_RelaxEnabled = new System.Windows.Forms.CheckBox();
-            Label_Moon_RelaxMin = new System.Windows.Forms.Label();
-            NumericUpDown_Moon_RelaxMin = new System.Windows.Forms.NumericUpDown();
-            Label_Moon_RelaxMax = new System.Windows.Forms.Label();
-            NumericUpDown_Moon_RelaxMax = new System.Windows.Forms.NumericUpDown();
-            Label_Moon_RelaxScale = new System.Windows.Forms.Label();
-            NumericUpDown_Moon_RelaxScale = new System.Windows.Forms.NumericUpDown();
             MenuStrip_MainForm = new System.Windows.Forms.MenuStrip();
             FileToolStripMenuItem_MainForm = new System.Windows.Forms.ToolStripMenuItem();
             FiltersToolStripMenuItem_MainForm = new System.Windows.Forms.ToolStripMenuItem();
@@ -165,11 +156,7 @@
             ((System.ComponentModel.ISupportInitialize)NumericUpDown_DecDegrees).BeginInit();
             GroupBox_Target.SuspendLayout();
             GroupBox_MoonAvoidance.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_Separation).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_Width).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_RelaxMin).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_RelaxMax).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_RelaxScale).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_Tolerance).BeginInit();
             MenuStrip_MainForm.SuspendLayout();
             GroupBox_Altitude.SuspendLayout();
             SuspendLayout();
@@ -1267,20 +1254,11 @@
             // 
             // GroupBox_MoonAvoidance
             // 
-            GroupBox_MoonAvoidance.Controls.Add(Label_Moon_WidthDays);
             GroupBox_MoonAvoidance.Controls.Add(CheckBox_Moon_AvoidanceEnable);
-            GroupBox_MoonAvoidance.Controls.Add(Label_Moon_Separation);
-            GroupBox_MoonAvoidance.Controls.Add(NumericUpDown_Moon_Separation);
+            GroupBox_MoonAvoidance.Controls.Add(Label_Moon_Tolerance);
+            GroupBox_MoonAvoidance.Controls.Add(NumericUpDown_Moon_Tolerance);
+            GroupBox_MoonAvoidance.Controls.Add(Label_Moon_ToleranceUnits);
             GroupBox_MoonAvoidance.Controls.Add(GroupBox_Moon_Filters);
-            GroupBox_MoonAvoidance.Controls.Add(Label_Moon_Width);
-            GroupBox_MoonAvoidance.Controls.Add(NumericUpDown_Moon_Width);
-            GroupBox_MoonAvoidance.Controls.Add(CheckBox_Moon_RelaxEnabled);
-            GroupBox_MoonAvoidance.Controls.Add(Label_Moon_RelaxMin);
-            GroupBox_MoonAvoidance.Controls.Add(NumericUpDown_Moon_RelaxMin);
-            GroupBox_MoonAvoidance.Controls.Add(Label_Moon_RelaxMax);
-            GroupBox_MoonAvoidance.Controls.Add(NumericUpDown_Moon_RelaxMax);
-            GroupBox_MoonAvoidance.Controls.Add(Label_Moon_RelaxScale);
-            GroupBox_MoonAvoidance.Controls.Add(NumericUpDown_Moon_RelaxScale);
             GroupBox_MoonAvoidance.Location = new System.Drawing.Point(26, 244);
             GroupBox_MoonAvoidance.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             GroupBox_MoonAvoidance.Name = "GroupBox_MoonAvoidance";
@@ -1288,19 +1266,10 @@
             GroupBox_MoonAvoidance.Size = new System.Drawing.Size(580, 139);
             GroupBox_MoonAvoidance.TabIndex = 42;
             GroupBox_MoonAvoidance.TabStop = false;
-            GroupBox_MoonAvoidance.Text = "Moon Avoidance";
-            // 
-            // Label_Moon_WidthDays
-            // 
-            Label_Moon_WidthDays.AutoSize = true;
-            Label_Moon_WidthDays.Location = new System.Drawing.Point(237, 51);
-            Label_Moon_WidthDays.Name = "Label_Moon_WidthDays";
-            Label_Moon_WidthDays.Size = new System.Drawing.Size(32, 15);
-            Label_Moon_WidthDays.TabIndex = 13;
-            Label_Moon_WidthDays.Text = "Days";
-            // 
+            GroupBox_MoonAvoidance.Text = "Moon Limit (K-S Δmag)";
+            //
             // CheckBox_Moon_AvoidanceEnable
-            // 
+            //
             CheckBox_Moon_AvoidanceEnable.AutoSize = true;
             CheckBox_Moon_AvoidanceEnable.Location = new System.Drawing.Point(19, 21);
             CheckBox_Moon_AvoidanceEnable.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
@@ -1310,32 +1279,42 @@
             CheckBox_Moon_AvoidanceEnable.Text = "Enable";
             CheckBox_Moon_AvoidanceEnable.UseVisualStyleBackColor = true;
             CheckBox_Moon_AvoidanceEnable.CheckedChanged += OnAvoidanceEnableChanged;
-            // 
-            // Label_Moon_Separation
-            // 
-            Label_Moon_Separation.AutoSize = true;
-            Label_Moon_Separation.Location = new System.Drawing.Point(19, 51);
-            Label_Moon_Separation.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
-            Label_Moon_Separation.Name = "Label_Moon_Separation";
-            Label_Moon_Separation.Size = new System.Drawing.Size(69, 15);
-            Label_Moon_Separation.TabIndex = 6;
-            Label_Moon_Separation.Text = "Separation: ";
-            // 
-            // NumericUpDown_Moon_Separation
-            // 
-            NumericUpDown_Moon_Separation.Increment = new decimal(new int[] { 5, 0, 0, 0 });
-            NumericUpDown_Moon_Separation.Location = new System.Drawing.Point(90, 47);
-            NumericUpDown_Moon_Separation.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            NumericUpDown_Moon_Separation.Maximum = new decimal(new int[] { 180, 0, 0, 0 });
-            NumericUpDown_Moon_Separation.Name = "NumericUpDown_Moon_Separation";
-            NumericUpDown_Moon_Separation.Size = new System.Drawing.Size(47, 23);
-            NumericUpDown_Moon_Separation.TabIndex = 0;
-            NumericUpDown_Moon_Separation.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            NumericUpDown_Moon_Separation.Value = new decimal(new int[] { 60, 0, 0, 0 });
-            NumericUpDown_Moon_Separation.ValueChanged += OnLorentzianControlChanged;
-            // 
+            //
+            // Label_Moon_Tolerance
+            //
+            Label_Moon_Tolerance.AutoSize = true;
+            Label_Moon_Tolerance.Location = new System.Drawing.Point(19, 51);
+            Label_Moon_Tolerance.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            Label_Moon_Tolerance.Name = "Label_Moon_Tolerance";
+            Label_Moon_Tolerance.Size = new System.Drawing.Size(63, 15);
+            Label_Moon_Tolerance.TabIndex = 6;
+            Label_Moon_Tolerance.Text = "Tolerance:";
+            //
+            // NumericUpDown_Moon_Tolerance
+            //
+            NumericUpDown_Moon_Tolerance.DecimalPlaces = 2;
+            NumericUpDown_Moon_Tolerance.Increment = new decimal(new int[] { 5, 0, 0, 131072 });
+            NumericUpDown_Moon_Tolerance.Location = new System.Drawing.Point(90, 47);
+            NumericUpDown_Moon_Tolerance.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            NumericUpDown_Moon_Tolerance.Maximum = new decimal(new int[] { 3, 0, 0, 0 });
+            NumericUpDown_Moon_Tolerance.Name = "NumericUpDown_Moon_Tolerance";
+            NumericUpDown_Moon_Tolerance.Size = new System.Drawing.Size(61, 23);
+            NumericUpDown_Moon_Tolerance.TabIndex = 0;
+            NumericUpDown_Moon_Tolerance.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            NumericUpDown_Moon_Tolerance.Value = new decimal(new int[] { 1, 0, 0, 0 });
+            NumericUpDown_Moon_Tolerance.ValueChanged += OnToleranceControlChanged;
+            //
+            // Label_Moon_ToleranceUnits
+            //
+            Label_Moon_ToleranceUnits.AutoSize = true;
+            Label_Moon_ToleranceUnits.Location = new System.Drawing.Point(158, 51);
+            Label_Moon_ToleranceUnits.Name = "Label_Moon_ToleranceUnits";
+            Label_Moon_ToleranceUnits.Size = new System.Drawing.Size(78, 15);
+            Label_Moon_ToleranceUnits.TabIndex = 13;
+            Label_Moon_ToleranceUnits.Text = "mag/arcsec²";
+            //
             // GroupBox_Moon_Filters
-            // 
+            //
             GroupBox_Moon_Filters.Location = new System.Drawing.Point(19, 83);
             GroupBox_Moon_Filters.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             GroupBox_Moon_Filters.Name = "GroupBox_Moon_Filters";
@@ -1344,109 +1323,6 @@
             GroupBox_Moon_Filters.TabIndex = 12;
             GroupBox_Moon_Filters.TabStop = false;
             GroupBox_Moon_Filters.Text = "Filters";
-            // 
-            // Label_Moon_Width
-            // 
-            Label_Moon_Width.AutoSize = true;
-            Label_Moon_Width.Location = new System.Drawing.Point(144, 51);
-            Label_Moon_Width.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
-            Label_Moon_Width.Name = "Label_Moon_Width";
-            Label_Moon_Width.Size = new System.Drawing.Size(42, 15);
-            Label_Moon_Width.TabIndex = 7;
-            Label_Moon_Width.Text = "Width:";
-            // 
-            // NumericUpDown_Moon_Width
-            // 
-            NumericUpDown_Moon_Width.Location = new System.Drawing.Point(188, 47);
-            NumericUpDown_Moon_Width.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            NumericUpDown_Moon_Width.Maximum = new decimal(new int[] { 30, 0, 0, 0 });
-            NumericUpDown_Moon_Width.Name = "NumericUpDown_Moon_Width";
-            NumericUpDown_Moon_Width.Size = new System.Drawing.Size(47, 23);
-            NumericUpDown_Moon_Width.TabIndex = 1;
-            NumericUpDown_Moon_Width.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            NumericUpDown_Moon_Width.Value = new decimal(new int[] { 7, 0, 0, 0 });
-            NumericUpDown_Moon_Width.ValueChanged += OnLorentzianControlChanged;
-            // 
-            // CheckBox_Moon_RelaxEnabled
-            // 
-            CheckBox_Moon_RelaxEnabled.AutoSize = true;
-            CheckBox_Moon_RelaxEnabled.Location = new System.Drawing.Point(285, 21);
-            CheckBox_Moon_RelaxEnabled.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            CheckBox_Moon_RelaxEnabled.Name = "CheckBox_Moon_RelaxEnabled";
-            CheckBox_Moon_RelaxEnabled.Size = new System.Drawing.Size(118, 19);
-            CheckBox_Moon_RelaxEnabled.TabIndex = 2;
-            CheckBox_Moon_RelaxEnabled.Text = "Relaxation Enable";
-            CheckBox_Moon_RelaxEnabled.UseVisualStyleBackColor = true;
-            CheckBox_Moon_RelaxEnabled.CheckedChanged += OnRelaxEnabledChanged;
-            // 
-            // Label_Moon_RelaxMin
-            // 
-            Label_Moon_RelaxMin.AutoSize = true;
-            Label_Moon_RelaxMin.Location = new System.Drawing.Point(285, 51);
-            Label_Moon_RelaxMin.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
-            Label_Moon_RelaxMin.Name = "Label_Moon_RelaxMin";
-            Label_Moon_RelaxMin.Size = new System.Drawing.Size(31, 15);
-            Label_Moon_RelaxMin.TabIndex = 8;
-            Label_Moon_RelaxMin.Text = "Min:";
-            // 
-            // NumericUpDown_Moon_RelaxMin
-            // 
-            NumericUpDown_Moon_RelaxMin.Location = new System.Drawing.Point(318, 47);
-            NumericUpDown_Moon_RelaxMin.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            NumericUpDown_Moon_RelaxMin.Maximum = new decimal(new int[] { 45, 0, 0, 0 });
-            NumericUpDown_Moon_RelaxMin.Minimum = new decimal(new int[] { 45, 0, 0, int.MinValue });
-            NumericUpDown_Moon_RelaxMin.Name = "NumericUpDown_Moon_RelaxMin";
-            NumericUpDown_Moon_RelaxMin.Size = new System.Drawing.Size(47, 23);
-            NumericUpDown_Moon_RelaxMin.TabIndex = 3;
-            NumericUpDown_Moon_RelaxMin.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            NumericUpDown_Moon_RelaxMin.Value = new decimal(new int[] { 15, 0, 0, int.MinValue });
-            NumericUpDown_Moon_RelaxMin.ValueChanged += OnLorentzianControlChanged;
-            // 
-            // Label_Moon_RelaxMax
-            // 
-            Label_Moon_RelaxMax.AutoSize = true;
-            Label_Moon_RelaxMax.Location = new System.Drawing.Point(372, 51);
-            Label_Moon_RelaxMax.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
-            Label_Moon_RelaxMax.Name = "Label_Moon_RelaxMax";
-            Label_Moon_RelaxMax.Size = new System.Drawing.Size(32, 15);
-            Label_Moon_RelaxMax.TabIndex = 9;
-            Label_Moon_RelaxMax.Text = "Max:";
-            // 
-            // NumericUpDown_Moon_RelaxMax
-            // 
-            NumericUpDown_Moon_RelaxMax.Location = new System.Drawing.Point(406, 47);
-            NumericUpDown_Moon_RelaxMax.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            NumericUpDown_Moon_RelaxMax.Maximum = new decimal(new int[] { 45, 0, 0, 0 });
-            NumericUpDown_Moon_RelaxMax.Minimum = new decimal(new int[] { 45, 0, 0, int.MinValue });
-            NumericUpDown_Moon_RelaxMax.Name = "NumericUpDown_Moon_RelaxMax";
-            NumericUpDown_Moon_RelaxMax.Size = new System.Drawing.Size(47, 23);
-            NumericUpDown_Moon_RelaxMax.TabIndex = 4;
-            NumericUpDown_Moon_RelaxMax.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            NumericUpDown_Moon_RelaxMax.Value = new decimal(new int[] { 5, 0, 0, 0 });
-            NumericUpDown_Moon_RelaxMax.ValueChanged += OnLorentzianControlChanged;
-            // 
-            // Label_Moon_RelaxScale
-            // 
-            Label_Moon_RelaxScale.AutoSize = true;
-            Label_Moon_RelaxScale.Location = new System.Drawing.Point(461, 51);
-            Label_Moon_RelaxScale.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
-            Label_Moon_RelaxScale.Name = "Label_Moon_RelaxScale";
-            Label_Moon_RelaxScale.Size = new System.Drawing.Size(37, 15);
-            Label_Moon_RelaxScale.TabIndex = 10;
-            Label_Moon_RelaxScale.Text = "Scale:";
-            // 
-            // NumericUpDown_Moon_RelaxScale
-            // 
-            NumericUpDown_Moon_RelaxScale.DecimalPlaces = 2;
-            NumericUpDown_Moon_RelaxScale.Increment = new decimal(new int[] { 25, 0, 0, 131072 });
-            NumericUpDown_Moon_RelaxScale.Location = new System.Drawing.Point(500, 47);
-            NumericUpDown_Moon_RelaxScale.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            NumericUpDown_Moon_RelaxScale.Maximum = new decimal(new int[] { 10, 0, 0, 0 });
-            NumericUpDown_Moon_RelaxScale.Name = "NumericUpDown_Moon_RelaxScale";
-            NumericUpDown_Moon_RelaxScale.Size = new System.Drawing.Size(61, 23);
-            NumericUpDown_Moon_RelaxScale.TabIndex = 5;
-            NumericUpDown_Moon_RelaxScale.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            NumericUpDown_Moon_RelaxScale.ValueChanged += OnLorentzianControlChanged;
             // 
             // MenuStrip_MainForm
             // 
@@ -1571,11 +1447,7 @@
             GroupBox_Target.PerformLayout();
             GroupBox_MoonAvoidance.ResumeLayout(false);
             GroupBox_MoonAvoidance.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_Separation).EndInit();
-            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_Width).EndInit();
-            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_RelaxMin).EndInit();
-            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_RelaxMax).EndInit();
-            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_RelaxScale).EndInit();
+            ((System.ComponentModel.ISupportInitialize)NumericUpDown_Moon_Tolerance).EndInit();
             MenuStrip_MainForm.ResumeLayout(false);
             MenuStrip_MainForm.PerformLayout();
             GroupBox_Altitude.ResumeLayout(false);
@@ -1674,17 +1546,9 @@
         private System.Windows.Forms.Button Button_VisibleTargets;
         private System.Windows.Forms.GroupBox GroupBox_MoonAvoidance;
         private System.Windows.Forms.CheckBox CheckBox_Moon_AvoidanceEnable;
-        private System.Windows.Forms.Label Label_Moon_Separation;
-        private System.Windows.Forms.NumericUpDown NumericUpDown_Moon_Separation;
-        private System.Windows.Forms.Label Label_Moon_Width;
-        private System.Windows.Forms.NumericUpDown NumericUpDown_Moon_Width;
-        private System.Windows.Forms.CheckBox CheckBox_Moon_RelaxEnabled;
-        private System.Windows.Forms.Label Label_Moon_RelaxMin;
-        private System.Windows.Forms.NumericUpDown NumericUpDown_Moon_RelaxMin;
-        private System.Windows.Forms.Label Label_Moon_RelaxMax;
-        private System.Windows.Forms.NumericUpDown NumericUpDown_Moon_RelaxMax;
-        private System.Windows.Forms.Label Label_Moon_RelaxScale;
-        private System.Windows.Forms.NumericUpDown NumericUpDown_Moon_RelaxScale;
+        private System.Windows.Forms.Label Label_Moon_Tolerance;
+        private System.Windows.Forms.NumericUpDown NumericUpDown_Moon_Tolerance;
+        private System.Windows.Forms.Label Label_Moon_ToleranceUnits;
         private System.Windows.Forms.Label Label_LocalMeters;
         private System.Windows.Forms.NumericUpDown NumericUpDown_LocalElevation;
         private System.Windows.Forms.Label Label_LocalElevation;
@@ -1701,7 +1565,6 @@
         private System.Windows.Forms.Button Button_BrowseLocalHorizon;
         private System.Windows.Forms.Label Label_HorizonPath;
         private System.Windows.Forms.ComboBox ComboBox_TimeZone;
-        public System.Windows.Forms.Label Label_Moon_WidthDays;
     }
 }
 

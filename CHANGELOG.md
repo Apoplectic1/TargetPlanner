@@ -8,6 +8,22 @@ were first archived out of CLAUDE.md's "Open follow-ups" / "What shipped" sectio
 that file under the perf-warning threshold, then relocated here; commit hashes preserved
 throughout for archaeology.)
 
+### 2026-07-24 — K-S Δmag moon gate migration (Library `9e16469`)
+
+The Library replaced the ACP/TS Lorentzian with the K-S Δmag gate; TP migrated per
+`docs/2026-07-24-ks-dmag-migration.md`. `Filter` record shrank 9 → 4 fields (five
+Lorentzian/Relax fields → one `ToleranceMag`; `CenterNm`/`BandwidthNm` kept for the Sky
+chart); builtins now NB 1.0 mag (H/O/S) / BB 0.30 (L/R/G/B) — the per-filter distinctions
+the old table hand-encoded (OIII stricter than Hα) now emerge from K-S wavelength physics.
+The Moon Avoidance group box collapsed 11 controls → 4 ("Moon Limit (K-S Δmag)": Enable,
+tolerance spinner, units label, filter strip — all Designer-declared, repositionable);
+`EditFiltersForm` 9 → 4 columns; `MigrateLegacyFields` deleted (no back-compat). The dead
+`MoonSweepSample`/`NightCacheEntry.MoonSamples`/`MoonAgeDays` year-sweep — written every
+pass, read nowhere — was deleted rather than ported. `filters.json` re-seeded from the new
+builtins. Expected chart shift (physics, not regression): stricter near full moon (strongly
+for broadband), more permissive at half/crescent; moonset boundary ~2 min later, now
+agreeing with the Sky chart. 184 tests pass.
+
 ### 2026-05-23 — `SessionSolvers` UI surfacing: Longest / Highest sort modes
 
 TP's UI surface for the `SessionSolvers` Library API (flagged "needs UX design" in "Currently open") shipped as two new `ComboBox_SortTargets` modes: **Longest** (`SessionSolvers.LongestDuration`) and **Highest** (`SessionSolvers.LowestHorizon`), alongside the existing sort modes. `MaybeResortForSessionSolversInputChange()` wires live re-ranking on any input the solvers depend on — Floor / Duration / Location / Filter / Moon / Horizon edits all trigger a re-sort while one of the two modes is active. Commit `fec33c9`; `Forms/Presenters/MainForm.SortPresenter.cs:242-296`.

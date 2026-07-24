@@ -41,7 +41,7 @@ Layout: `TargetPlanner.Tests\Tests\` for `[Fact]` classes. Ten classes, 89 tests
 | `ChartEvaluationTests.cs` | required `BrightnessInputsChanged`; record equality; `with` | 3 |
 | `TargetIdentityTests.cs` | `NormalizeName` (trim + " Stars" strip + case-insens, theory); `AreSameTarget` (~1 arcmin tol, 0h/24h seam, cos(dec) pole convergence, opposite hemispheres); `SelectNewTargets` dedup + bucket-by-name + existing-set screen + null skip + order preservation | 19 |
 | `SkyCentroidTests.cs` | empty/null → ArgumentException; single-point identity; 0h/24h seam (23.9h+0.1h → ~0h, not ~12h); pole; equator; antipodal-at-pole; RA wrap to [0,24); symmetric-meridian | 8 |
-| `FilterTests.cs` | `ToProfile` Lorentzian projection (drops Name/CenterNm/BandwidthNm); record `with`; field-by-field equality (Name, BandwidthNm) | 6 |
+| `FilterTests.cs` | `ToProfile` moon-gate projection (carries ToleranceMag/CenterNm, drops Name/BandwidthNm); record `with`; field-by-field equality (Name, BandwidthNm) | 6 |
 | `FilterLibraryTests.cs` (in-memory only) | Find / Add / RemoveAt / Replace / ReplaceAll / ReplaceAll(null) → clear; `BuiltinDefaults` H/O/S/L/R/G/B; `FindBuiltinDefault` case-insens; `DiffersFromBuiltinDefault` field-by-field; `DefaultLibrary` ≡ BuiltinDefaults | 16 |
 
 No test helpers needed in Phase 1 — Tier-A surface is TP-only types with no location fixtures.
