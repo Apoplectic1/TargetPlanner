@@ -4,7 +4,7 @@ namespace TargetPlanner.Caches
 {
     /// <summary>
     /// Cache key for per-(target, single-night) altitude curves. Identifies the
-    /// minute-spaced sampling window that <see cref="Astronomy.Core.AltitudeCurve"/>
+    /// minute-spaced sampling window that <see cref="Astronomy.Core.Session.AltitudeCurve"/>
     /// would produce, so a single (Target, DayWindowKey) entry uniquely names
     /// the altitude data shown on the Day chart for one night.
     /// </summary>
