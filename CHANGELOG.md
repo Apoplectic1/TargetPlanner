@@ -8,6 +8,25 @@ were first archived out of CLAUDE.md's "Open follow-ups" / "What shipped" sectio
 that file under the perf-warning threshold, then relocated here; commit hashes preserved
 throughout for archaeology.)
 
+### 2026-07-24 — DiagnosticsDialog thins to the WinForms shell over `ObservationSession` (Library `731a245`)
+
+The Ctrl+N observation orchestration — id minting, USER_OBS START/CAP/END/CANCEL sequencing with
+the single-terminator guarantee, capture counting, status wording, the hide → grab → reshow
+choreography, and the guarded context-provider call — moved to
+`Astronomy.Diagnostics.ObservationSession` (lifted from TSM's `DiagnosticsWindow`, the model; AL
+contract assumption #25). The dialog keeps only framework glue: the `Form`/controls, the
+`sCurrent` singleton, and three delegates (owner `Bounds` / `Hide()`+owner `Refresh()` /
+`Show()`+focus-notes) with `settleDelayMs: 0` (WinForms hide is synchronous — no DWM settle
+needed, unlike WinUI's 450 ms default). `mTerminationLogged` replaced by the idempotent
+`mSession.Cancel()` in `FormClosing`. **Three deliberate UX changes, unifying to TSM's
+conventions (decided 2026-07-24):** (1) Enter now types a newline and **Ctrl+Enter commits**
+(was inverted — `AcceptButton` dropped, Esc still cancels); (2) new **"Capture in 5 s"** button
+for shooting light-dismiss menus/dropdowns (dialog widened 420→480 px); (3) status text becomes
+the shared `captured N · HH:mm:ss` / `capture failed — see tp.log` wording (was ASCII `-`).
+Log-line grammar unchanged. Verified: sln builds, TargetPlanner.Tests 184/184; **visual pass
+pending** (both entry points, instant capture, no ghost/unrepainted hole, chart pixels in PNG,
+key semantics, delayed capture over an open menu, one-terminator log audit).
+
 ### 2026-07-24 — K-S Δmag moon gate migration (Library `9e16469`)
 
 The Library replaced the ACP/TS Lorentzian with the K-S Δmag gate; TP migrated per
