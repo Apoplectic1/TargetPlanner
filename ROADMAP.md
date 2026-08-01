@@ -62,7 +62,7 @@ Design notes preserved for the future implementation:
 
 ## Historical / archive
 
-The original 4-step sequencing plan (correctness audit → extract Astronomy.Core → in-place cleanup → NINA plugin) is complete or relocated. Step 4 (NINA plugin) moved to `..\IntervalScheduler\ROADMAP.md` on 2026-05-23 — it was IS/ISP work tracked here while there was no IS repo to receive it. The 2026-04-21 whole-repo CODE_REVIEW.md audit is closed (archived at `docs/archive/CODE_REVIEW-2026-04-21.md`); its final residual was Velopack which shipped 2026-05-22 and is now item 1 above. See the per-date entries in [CHANGELOG.md](CHANGELOG.md) for the substantive history.
+The original 4-step sequencing plan (correctness audit → extract Astronomy.Core → in-place cleanup → NINA plugin) is complete or relocated. Step 4 (NINA plugin) moved to `..\IntervalScheduler\ROADMAP.md` on 2026-05-23 — it was IS work tracked here while there was no IS repo to receive it. The 2026-04-21 whole-repo CODE_REVIEW.md audit is closed (archived at `docs/archive/CODE_REVIEW-2026-04-21.md`); its final residual was Velopack which shipped 2026-05-22 and is now item 1 above. See the per-date entries in [CHANGELOG.md](CHANGELOG.md) for the substantive history.
 
 ## Recently shipped (digest)
 

@@ -21,7 +21,7 @@ The author's four personal presets are checked into `Settings/PersonalDefaults.c
 - Imaging runs on the **BIRDWATCHER** PC (`\\BIRDWATCHER\…`) via **NINA** + the **Target Scheduler (TS)** plugin. The user moved off Sequence Generator Pro (SGP) to this NINA + TS workflow.
 - **TP's role** is planning, not capture: **TPP** = today's single-filter planning (current TP); **TPS** = a planned multi-filter scheduling mode. TP reads the same NINA `.json` sequence files and the `.xisf` image library that the capture pipeline produces.
 - Post-night, **XFM** (XisfFileManager) grades frames and writes graded counts back to the TS `scheduler.db`.
-- Full cross-repo data-flow (scheduler.db, Catalog.db, the IS/ISP scheduler family) lives in the parent [`..\CLAUDE.md`](../CLAUDE.md).
+- Full cross-repo data-flow (scheduler.db, Catalog.db, the IS/ISM scheduler pair) lives in the parent [`..\CLAUDE.md`](../CLAUDE.md).
 
 ## Planning strategy
 

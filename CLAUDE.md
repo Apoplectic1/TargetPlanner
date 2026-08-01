@@ -8,7 +8,7 @@ Windows Forms desktop tool for astrophotography planning, plotting target altitu
 
 ## Glossary
 
-**Apps & plugins (user's portfolio)** — the cross-repo vocabulary (**TP**, **TPP/TPS**, **NINA**, **TS/TSP**, **IS/ISP/ISS**, **XFM**, **TSM**, **AL**) is defined once in the parent [`..\CLAUDE.md`](../CLAUDE.md), which auto-loads in every astronomy subproject session. **TP** = TargetPlanner, *this* app.
+**Apps & plugins (user's portfolio)** — the cross-repo vocabulary (**TP**, **TPP/TPS**, **NINA**, **TS/TSP**, **IS/ISM**, **XFM**, **TSM**, **AL**) is defined once in the parent [`..\CLAUDE.md`](../CLAUDE.md), which auto-loads in every astronomy subproject session. **TP** = TargetPlanner, *this* app.
 
 **Architecture / refactor terms** (deep detail in [ARCHITECTURE.md](ARCHITECTURE.md)):
 - **VM** — view-model. Specifically `TargetSelection` (`State/TargetSelection.cs`).
@@ -82,7 +82,7 @@ The codebase is split at the repo boundary: **`Astronomy.Core`** in the sibling 
 
 ## Roadmap
 
-Recently shipped work and currently-open follow-ups (priority order, including TP `SessionSolvers` UI surfacing, Velopack bump, perf chasing) live in [ROADMAP.md](ROADMAP.md). IS / ISP / ISS roadmap moved to `..\IntervalScheduler\ROADMAP.md` on 2026-05-23.
+Recently shipped work and currently-open follow-ups (priority order, including TP `SessionSolvers` UI surfacing, Velopack bump, perf chasing) live in [ROADMAP.md](ROADMAP.md). IS roadmap moved to `..\IntervalScheduler\ROADMAP.md` on 2026-05-23; ISM's lives at `..\IntervalSchedulerManager\ROADMAP.md`.
 
 ## Core consumer contract
 
