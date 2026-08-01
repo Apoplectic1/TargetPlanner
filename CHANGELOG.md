@@ -51,7 +51,7 @@ TP's UI surface for the `SessionSolvers` Library API (flagged "needs UX design" 
 
 ### 2026-06-11 — Rename Ctrl+N "Observation" dialog → "Diagnostics"; drop helper label
 
-Mirrors the same-day TCM rename (TCM commit `ca97d89`) so both apps name the Ctrl+N
+Mirrors the same-day TSM rename (TSM commit `ca97d89`) so both apps name the Ctrl+N
 screenshot/notes feature "Diagnostics" — disambiguating it from TP's *domain* "observation"
 (the `ObservationMoment` / observing-the-sky vocabulary, untouched). The shared
 `Astronomy.Diagnostics` **log protocol keeps its `USER_OBS_*` marker names** (`UserObservationStart`/
