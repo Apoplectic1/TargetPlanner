@@ -18,7 +18,7 @@ namespace TargetPlanner.ImageLibrary
     // stars / per-frame .xisf files of one object into a single target lives in
     // TargetIdentity. TP consumes targets as bare geometry (name + RA + Dec), so
     // the rich per-frame data (exposure, filter, camera) is dropped at this
-    // boundary; surfacing it is deferred TPP/TPS work.
+    // boundary; surfacing it is deferred scheduler-era work.
     public static class ImageLibraryLoader
     {
         // Reads one .xisf header and builds a Target, or null when the file is

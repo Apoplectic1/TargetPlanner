@@ -970,7 +970,7 @@ frames across 70 targets — takes **1.4 s**, 0 parse failures
 scanning is fast enough that no database / cache is needed: the `.xisf` files
 are the source of truth, and the scan regenerates everything each run. A
 persistent DB would only ever be a home for *goals* (authored intent, not on
-disk) — a TPP/TPS feature.
+disk) — scheduler-manager territory (today: ISM's authored-intent-store charter).
 
 **Shipped (commit `fbfd3d9`).** A "Load Image Library" button gives TP a second
 target source alongside NINA `.json`. `ImageLibrary/ImageLibraryLoader.cs` calls
@@ -986,10 +986,10 @@ shared by both load paths. The Designer button was hand-placed in
 
 **Data model.** The image library and NINA `.json` are two independent target
 *lenses* (backward fact vs. forward intent); each load wholesale-replaces the
-set — they are never merged. Plan-vs-actual reconciliation is a future TPP/TPS
-concern.
+set — they are never merged. Plan-vs-actual reconciliation is
+scheduler-manager territory (since shipped in TSM).
 
-**Deferred to TPP/TPS** (no longer Phase C): the rich-type migration onto
+**Deferred to the scheduler era** (no longer Phase C): the rich-type migration onto
 `Astronomy.NINA.Target` and Sky-chart filter surfacing. The Library foundation
 (`Astronomy.NINA` rich types + scanner) shipped in Phases A/B, so deferring TP's
 consumption of the richness costs nothing.

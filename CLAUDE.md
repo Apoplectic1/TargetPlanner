@@ -8,7 +8,7 @@ Windows Forms desktop tool for astrophotography planning, plotting target altitu
 
 ## Glossary
 
-**Apps & plugins (user's portfolio)** — the cross-repo vocabulary (**TP**, **TPP/TPS**, **NINA**, **TS/TSP**, **IS/ISM**, **XFM**, **TSM**, **AL**) is defined once in the parent [`..\CLAUDE.md`](../CLAUDE.md), which auto-loads in every astronomy subproject session. **TP** = TargetPlanner, *this* app.
+**Apps & plugins (user's portfolio)** — the cross-repo vocabulary (**TP**, **NINA**, **TS/TSP**, **IS/ISM**, **XFM**, **TSM**, **AL**) is defined once in the parent [`..\CLAUDE.md`](../CLAUDE.md), which auto-loads in every astronomy subproject session. **TP** = TargetPlanner, *this* app.
 
 **Architecture / refactor terms** (deep detail in [ARCHITECTURE.md](ARCHITECTURE.md)):
 - **VM** — view-model. Specifically `TargetSelection` (`State/TargetSelection.cs`).

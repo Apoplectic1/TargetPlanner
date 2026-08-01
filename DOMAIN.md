@@ -19,7 +19,7 @@ The author's four personal presets are checked into `Settings/PersonalDefaults.c
 ## Capture workflow
 
 - Imaging runs on the **BIRDWATCHER** PC (`\\BIRDWATCHER\…`) via **NINA** + the **Target Scheduler (TS)** plugin. The user moved off Sequence Generator Pro (SGP) to this NINA + TS workflow.
-- **TP's role** is planning, not capture: **TPP** = today's single-filter planning (current TP); **TPS** = a planned multi-filter scheduling mode. TP reads the same NINA `.json` sequence files and the `.xisf` image library that the capture pipeline produces.
+- **TP's role** is planning, not capture — single-filter planning of tonight's targets; multi-filter scheduling belongs to the scheduler side of the portfolio (TS/TSM today, IS/ISM planned). TP reads the same NINA `.json` sequence files and the `.xisf` image library that the capture pipeline produces.
 - Post-night, **XFM** (XisfFileManager) grades frames and writes graded counts back to the TS `scheduler.db`.
 - Full cross-repo data-flow (scheduler.db, Catalog.db, the IS/ISM scheduler pair) lives in the parent [`..\CLAUDE.md`](../CLAUDE.md).
 
@@ -54,4 +54,4 @@ Default combo (Z183 @531 mm): ~0.93″/px, FOV ≈ **1.4° × 1.0°** (5496×367
 
 **Filters + wheel** — Starlight Xpress USB 7-position, 1.25″ (XFM `Keyword/KeywordList.cs`): Astrodon 3 nm Hα + [O III], Chroma 3 nm SII, Astrodon E-Series LRGB. TP's `Filters/FilterLibrary.cs` builtin `CenterNm`/`BandwidthNm` values (H 656.3/3, O 500.7/3, S 672.4/3, L 550/300, R 650/60, G 525/65, B 450/100) describe exactly this physical set — they're the K-S bandwidth inputs, so a filter swap on the wheel should be mirrored there.
 
-**Mount** — not recorded in any repo (NINA on BIRDWATCHER owns pointing/guiding; TP plans purely from sky geometry). Add here only if a planning decision comes to depend on it (e.g. meridian-flip windows in TPS).
+**Mount** — not recorded in any repo (NINA on BIRDWATCHER owns pointing/guiding; TP plans purely from sky geometry). Add here only if a planning decision comes to depend on it (e.g. meridian-flip windows).
