@@ -8,6 +8,21 @@ were first archived out of CLAUDE.md's "Open follow-ups" / "What shipped" sectio
 that file under the perf-warning threshold, then relocated here; commit hashes preserved
 throughout for archaeology.)
 
+### 2026-08-01 — zero-warning ratchet + the fixture drift it flushed out
+
+Both projects now build with `<TreatWarningsAsErrors>` (portfolio-wide ratchet, same day as AL/TSM; both
+were already warning-clean in Debug and Release, so it locks in the existing state — the next warning is a
+build break, and AL's ratchet also arrives transitively through the `ProjectReference`s).
+
+Running the suite for verification flushed out a **pre-existing** break: 6 XISF tests failing because
+`SyntheticXisf` — a deliberate cross-repo copy of AL's fixture, whose own comment says "sync if either
+drifts" — had drifted. AL made the `<Image>` `geometry` attribute mandatory on 2026-07-29 (mandatory per
+the XISF spec; present on all 18,650 real frames) and updated its fixture; TP's copy lagged, so
+`XisfHeaderReader` rejected every synthetic file and `ParseFileAsync` returned null. Fixed by writing
+`geometry="5496:3672:1"` like AL's fixture; the drift incident is now recorded in the fixture's comment.
+184/184 green. Lesson for the paired-commit convention: an AL contract change isn't fully landed until the
+consumers' *test fixtures* are re-run, not just their builds.
+
 ### 2026-07-24 — DiagnosticsDialog thins to the WinForms shell over `ObservationSession` (Library `731a245`)
 
 The Ctrl+N observation orchestration — id minting, USER_OBS START/CAP/END/CANCEL sequencing with

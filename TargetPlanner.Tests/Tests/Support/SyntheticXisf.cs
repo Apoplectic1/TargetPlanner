@@ -6,10 +6,12 @@ namespace TargetPlanner.Tests.Tests.Support
 {
     // Builds a minimal valid XISF file with the given FITS keywords. Adapted from
     // Library\Astronomy.XISF.Tests\XisfHeaderReaderTests.cs WriteSyntheticXisf
-    // helper -- cross-repo duplication, sync if either drifts. Header-only (no
-    // image attachment block) is enough for any caller that uses
-    // XisfHeaderReader: 8-byte ASCII signature + 4-byte LE XML length + 4-byte
-    // reserved + UTF-8 XML payload.
+    // helper -- cross-repo duplication, sync if either drifts. (It drifted once:
+    // AL made the <Image> `geometry` attribute mandatory on 2026-07-29 — it is
+    // mandatory per the XISF spec — and this copy lagged until 2026-08-01, failing
+    // six tests.) Header-only (no image attachment block) is enough for any caller
+    // that uses XisfHeaderReader: 8-byte ASCII signature + 4-byte LE XML length +
+    // 4-byte reserved + UTF-8 XML payload.
     //
     // RA / DEC values written here are FITS-standard degrees -- ImageLibraryLoader
     // divides RA by 15 to produce decimal hours.
@@ -20,7 +22,7 @@ namespace TargetPlanner.Tests.Tests.Support
             StringBuilder xml = new StringBuilder();
             xml.Append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
             xml.Append("<xisf version=\"1.0\" xmlns=\"http://www.pixinsight.com/xisf\">");
-            xml.Append("<Image>");
+            xml.Append("<Image geometry=\"5496:3672:1\">");
             foreach (KeyValuePair<string, string> kv in fitsKeywords)
             {
                 // Strings get FITS-quoted; numerics unquoted.

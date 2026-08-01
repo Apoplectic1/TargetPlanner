@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!-- Zero-warning ratchet (2026-08-01, portfolio-wide): a new warning is a build break. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <!-- Tests pass null literals at call sites to verify ArgumentNullException paths;
