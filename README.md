@@ -157,6 +157,11 @@ First-run defaults are seeded into `settings.json` from `PersonalDefaults.BuildS
 - Default selection in Multi mode: **none checked** after a NINA load.
 - NINA targets root: `settings.json`'s `NinaTargetsRoot`, seeded on first run; `MainForm.NinaTargetsRootPath` is the single read-site.
 
+## License
+
+[MIT](LICENSE). The [Astronomy Library](https://github.com/Apoplectic1/Astronomy-Library) it
+builds on is MIT as well.
+
 ## More documentation
 
 - [`CLAUDE.md`](CLAUDE.md) — coding-agent guidance: high-level architecture, conventions, glossary, Core consumer contract.

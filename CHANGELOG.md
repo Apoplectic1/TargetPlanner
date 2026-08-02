@@ -8,6 +8,11 @@ were first archived out of CLAUDE.md's "Open follow-ups" / "What shipped" sectio
 that file under the perf-warning threshold, then relocated here; commit hashes preserved
 throughout for archaeology.)
 
+
+### 2026-08-02 — MIT license adopted
+
+`LICENSE` added (MIT, © 2020–2026 Dan Stark) and linked from the README — same-day portfolio move with AL (also MIT) and TSM (copyright holder aligned). Repo was previously unlicensed (all rights reserved by default).
+
 ### 2026-08-02 — released v1.3.1: all Library DLLs ship Release (sln-membership fix)
 
 v1.3.0's payload carried **Debug** builds of `Astronomy.Catalog` and `Astronomy.Diagnostics`:
