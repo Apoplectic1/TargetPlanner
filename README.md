@@ -131,7 +131,14 @@ The app checks for updates on startup and prompts before downloading. You can al
 
 ## Build from source
 
-Requires Visual Studio 2022+ (or the .NET 10 SDK + MSBuild) plus the **Astronomy.Core** library, referenced via `ProjectReference`. The Library is its own git repo; clone it as a sibling of this repo (`..\Library\` next to `TargetPlanner\`) or the build fails.
+Requires Visual Studio 2022+ (or the .NET 10 SDK + MSBuild) plus the **Astronomy Library**, referenced via `ProjectReference`. The Library is its own git repo — [Apoplectic1/Astronomy-Library](https://github.com/Apoplectic1/Astronomy-Library) — and must be cloned as a sibling of this repo (`..\Library\` next to `TargetPlanner\`) or the build fails:
+
+```powershell
+git clone https://github.com/Apoplectic1/Astronomy-Library Library
+git clone https://github.com/Apoplectic1/TargetPlanner TargetPlanner
+```
+
+(TP consumes only the Library's managed projects; the Library's native PCL tier and its nested [PCL clone](https://github.com/Apoplectic1/PCL) are not needed to build TP.)
 
 The TP project targets `net10.0-windows10.0.19041` (the Win10 2004 contract version is required for SkiaSharp.Views.WindowsForms 3.119.0 — the bare `net10.0-windows` would fall back to a `net462` lib that doesn't load on .NET 10). See [`CLAUDE.md`](CLAUDE.md) for architecture and coding-agent guidance.
 
