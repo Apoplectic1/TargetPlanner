@@ -25,6 +25,10 @@ the only branch on origin.
   not on a schedule, and never mid-change. The working tree must be clean and the build/tests
   green at the published commit (see `VERIFICATION.md`). No tag → no push: the tag is what
   makes a `main` state a published state.
+- **Docs-only exception (2026-08-02):** a `main` push may omit the tag when the delta contains
+  only documentation/images — nothing that changes the built app — so the GitHub storefront
+  (README, screenshots) can update without minting a release. Any change to code or build
+  inputs keeps the full no-tag-no-push rule.
 
 ## Distribution: Velopack installers, built locally
 
