@@ -365,7 +365,7 @@ is preserved.";
             // Show the running version in the title bar so the user can read it without
             // opening About. Stripped of any build-metadata suffix (the +sha that MinVer
             // attaches for dev builds).
-            Text = "TargetPlanner v" + GetDisplayVersion();
+            Text = "TargetPlanner " + GetDisplayVersion();
 
             // File menu: extend the Designer-resident "File" menu with a Defaults
             // submenu. Edit launches the OS-default editor on settings.json (no

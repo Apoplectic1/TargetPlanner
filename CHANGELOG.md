@@ -8,6 +8,16 @@ were first archived out of CLAUDE.md's "Open follow-ups" / "What shipped" sectio
 that file under the perf-warning threshold, then relocated here; commit hashes preserved
 throughout for archaeology.)
 
+### 2026-08-02 — release conventions aligned with TSM/XFM (title, script, RELEASING)
+
+Portfolio-wide convention pass, applied the same day to XFM: window title is now app name +
+version (`TargetPlanner 1.2.0`, the `v` prefix dropped — TSM pattern, now a portfolio-general
+rule); RELEASING.md rewritten to the shared structure (charter, mirror, branch policy — `dev`
+never pushes, every `main` push carries a tag, ff-only merges — local-Velopack distribution,
+content rules); `release.ps1` header flow aligned (tag rides a `main` push, not a bare tag
+push). Dependency bumps riding along: Velopack `0.0.1589-ga2c5a97` → `1.2.0` (matching the
+vpk CLI; API surface unchanged) and Test SDK `18.6.0` → `18.8.1`.
+
 ### 2026-08-01 — zero-warning ratchet + the fixture drift it flushed out
 
 Both projects now build with `<TreatWarningsAsErrors>` (portfolio-wide ratchet, same day as AL/TSM; both

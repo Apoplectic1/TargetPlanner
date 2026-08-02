@@ -62,7 +62,7 @@
     </PackageReference>
     <PackageReference Include="LiveChartsCore.SkiaSharpView.WinForms" Version="2.1.0-dev-365" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-    <PackageReference Include="Velopack" Version="0.0.1589-ga2c5a97" />
+    <PackageReference Include="Velopack" Version="1.2.0" />
   </ItemGroup>
 
   <ItemGroup>

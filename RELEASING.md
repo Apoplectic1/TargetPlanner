@@ -1,58 +1,75 @@
-# Releasing TargetPlanner
+# RELEASING.md — publishing TP to GitHub
 
-Distribution: [GitHub Releases on Apoplectic1/TargetPlanner](https://github.com/Apoplectic1/TargetPlanner/releases) via [Velopack](https://velopack.io). Setup.exe installs to `%LocalAppData%\TargetPlanner` with Start Menu / Desktop shortcuts and an Apps & Features entry. Updates are checked at app startup (prompted) and via `Help → Check for Updates...`.
+> **Charter:** the rules for pushes to the public GitHub mirror. **The local repo is ground
+> truth; GitHub is the public face** — a distribution channel, never the canonical location.
+> Nothing here changes how development works; it only governs what the public sees and when.
 
-## One-time setup
+## The mirror
 
-1. Install the Velopack CLI (.NET tool, global install):
-   ```powershell
-   dotnet tool install -g vpk
-   ```
+`origin` = https://github.com/Apoplectic1/TargetPlanner (public). No other remotes. `main` is
+the only branch on origin.
 
-2. Generate a GitHub Personal Access Token with the `public_repo` scope at https://github.com/settings/tokens, and set it as an environment variable:
-   ```powershell
-   $env:GITHUB_TOKEN = "ghp_..."
-   ```
-   For permanent install: `setx GITHUB_TOKEN ghp_...` (re-open the shell to pick it up).
+## Branch policy
 
-## Per-release flow
+- **`dev` = working branch.** All work lands here. **`dev` never pushes.**
+- **`main` = distribution-ready ref, and every push of `main` carries a tag** — `vX.Y.Z`
+  (semver, `v`-prefixed; the portfolio convention). Publish = fast-forward `main` to the
+  chosen `dev` commit, tag it, push both:
+  ```bash
+  git checkout main && git merge --ff-only dev
+  git tag vX.Y.Z
+  git push origin main vX.Y.Z
+  git checkout dev
+  ```
+- Publish at natural completion points (a shipped unit of work, docs riding the same commit) —
+  not on a schedule, and never mid-change. The working tree must be clean and the build/tests
+  green at the published commit (see `VERIFICATION.md`). No tag → no push: the tag is what
+  makes a `main` state a published state.
 
-1. Make sure the working tree is clean and `dev`/`main` reflect the commits you want to ship.
-2. Tag the release commit with `vX.Y.Z` (semver, `v`-prefixed):
-   ```powershell
-   git tag v1.0.1
-   git push origin v1.0.1
-   ```
-3. Run the release script from the repo root:
-   ```powershell
-   .\scripts\release.ps1
-   ```
+## Distribution: Velopack installers, built locally
 
-   What it does:
-   - Reads the version from `git describe --tags --abbrev=0` (drops the `v`).
-   - Builds `Release|x64` (which MinVer stamps with the same version into the assembly).
-   - `vpk pack` produces `Releases/TargetPlanner-win-Setup.exe` plus a delta package and `RELEASES` manifest.
-   - `vpk upload github --publish` uploads everything to a new GitHub release.
+Installers ship as GitHub Releases **packed and uploaded from this machine** via
+`scripts\release.ps1` — the portfolio's one release mechanism (same model as TSM/XFM; the
+sibling Library repo stays unpublished, so only local builds resolve TP's
+`ProjectReference`s). Setup.exe installs to `%LocalAppData%\TargetPlanner` with Start Menu /
+Desktop shortcuts and an Apps & Features entry.
 
-4. Verify on https://github.com/Apoplectic1/TargetPlanner/releases that the release shows up with `TargetPlanner-win-Setup.exe`, `TargetPlanner-X.Y.Z-full.nupkg`, and `RELEASES`.
+One-time setup: `dotnet tool install -g vpk`, and `$env:GITHUB_TOKEN` = a PAT with
+`public_repo` scope (only needed for upload; `-NoUpload` dry-runs without it). For a
+permanent install: `setx GITHUB_TOKEN ghp_...` (re-open the shell to pick it up).
 
-5. Existing installs will detect the release on next launch (or via `Help → Check for Updates...`).
-
-## Local dry-run (no upload)
-
+Per-release flow:
 ```powershell
-.\scripts\release.ps1 -NoUpload
+# on main, at the published commit (see Branch policy)
+git tag vX.Y.Z
+git push origin main vX.Y.Z
+.\scripts\release.ps1          # build Release|x64 → vpk pack → upload to GitHub Releases
 ```
+- **Versions come from the tag** via MinVer (`<MinVerTagPrefix>v</MinVerTagPrefix>`, same as
+  TSM/XFM) — the same tag gates the `main` push, names the GitHub Release, stamps the
+  assembly, and shows in the window title (`TargetPlanner X.Y.Z`). No version files; untagged
+  commits shape as `-alpha` prereleases, which the updater's prerelease filter never offers
+  to installed copies.
+- **The installed app self-updates**: startup check of this repo's Releases via Velopack
+  (`Updates/UpdateService.cs`, prompted), plus a manual surface at
+  `Help → Check for Updates...`.
+- **Dry-run:** `.\scripts\release.ps1 -NoUpload` → artifacts in `Releases\` (gitignored); run
+  the Setup.exe there to test an install locally. vpk refuses to re-pack a version already
+  present in `Releases\` — delete that folder before repeating a dry-run at the same tag.
+- The app's `Velopack` NuGet package and the `vpk` CLI should stay on matching versions
+  (both 1.2.0 as of 2026-08-02) — `vpk pack` warns on skew.
 
-Output lands in `.\Releases\`. Run `.\Releases\TargetPlanner-win-Setup.exe` to install locally and confirm the install / shortcuts / Apps & Features entry. Bump the tag, rebuild, and re-launch the previously-installed app to verify the in-app update prompt.
+Latest released tag: **`v1.2.0`**.
 
-## Versioning notes
+## Content rules (what is deliberately public)
 
-- Versions are derived from git tags via the [MinVer](https://github.com/adamralph/minver) NuGet package (see `<MinVerTagPrefix>v</MinVerTagPrefix>` in `TargetPlanner/TargetPlanner.csproj`). No version files to edit.
-- Untagged commits past a tag get a prerelease shape like `1.0.1-alpha.0.5+sha`. Velopack `--prerelease=false` (the default in `UpdateService`) ignores these, so dev builds don't accidentally roll out to installed users.
-- The `Releases/` folder is in `.gitignore` — the artifacts live on GitHub, not in the repo.
-
-## What is NOT in scope
-
-- **Code signing.** Without a code signing certificate, Windows SmartScreen will warn on first install for new users. Acceptable for personal / lab use; revisit if distributing more broadly.
-- **Self-hosted update server.** Distribution is GitHub Releases. To switch later, change the `GithubSource` in `TargetPlanner/Updates/UpdateService.cs` and the `vpk upload` target in `scripts/release.ps1`.
+- **`README.md` is the storefront** — user-facing description (behaviour, defaults, chart
+  UX). Development/testing minutiae stay out.
+- **Site coordinates + personal presets ship** — a deliberate solo-consumer trade-off (see
+  `DOMAIN.md` → personal presets). If TP ever ships to others, split-to-gitignored is the
+  fix — not scrubbing history.
+- **Never in the repo, so never published:** tokens/credentials (none exist).
+- History publishes whole. Anything that must not be public must never be committed — there
+  is no post-hoc scrub step.
+- **No code signing.** Windows SmartScreen will warn on first install for new users —
+  acceptable for personal/lab use; revisit if distributing more broadly.

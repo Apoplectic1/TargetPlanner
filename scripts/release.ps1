@@ -5,10 +5,9 @@
 #   dotnet tool install -g vpk
 #   $env:GITHUB_TOKEN = "<personal-access-token-with-public_repo-scope>"
 #
-# Per-release flow:
-#   1. git tag vX.Y.Z   (e.g. git tag v1.0.1)
-#   2. git push origin vX.Y.Z
-#   3. .\scripts\release.ps1
+# Per-release flow (see RELEASING.md):
+#   1. git tag vX.Y.Z on main, push main + tag
+#   2. .\scripts\release.ps1
 #
 # The script reads the latest reachable tag via `git describe --tags --abbrev=0` and uses
 # that as the release version. MinVer (in TargetPlanner.csproj) reads the same tag at build
