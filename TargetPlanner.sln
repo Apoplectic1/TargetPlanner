@@ -11,6 +11,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Astronomy.XISF", "..\Librar
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Astronomy.NINA", "..\Library\Astronomy.NINA\Astronomy.NINA.csproj", "{C2A5D8E3-7F84-4B92-9D16-3E5A8C9B2D14}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Astronomy.Catalog", "..\Library\Astronomy.Catalog\Astronomy.Catalog.csproj", "{D9C4E7A2-5B31-4F68-8E29-1A7D4C8F3B65}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Astronomy.Diagnostics", "..\Library\Astronomy.Diagnostics\Astronomy.Diagnostics.csproj", "{E5B8D2C7-9A46-4E13-B7F8-2C5E9A1D6F34}"
+EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TargetPlanner.Tests", "TargetPlanner.Tests\TargetPlanner.Tests.csproj", "{A8E4F1B9-2D63-4C58-AE17-9F4B5E3D8A26}"
 EndProject
 Global
@@ -35,6 +39,14 @@ Global
 		{C2A5D8E3-7F84-4B92-9D16-3E5A8C9B2D14}.Debug|x64.Build.0 = Debug|x64
 		{C2A5D8E3-7F84-4B92-9D16-3E5A8C9B2D14}.Release|x64.ActiveCfg = Release|x64
 		{C2A5D8E3-7F84-4B92-9D16-3E5A8C9B2D14}.Release|x64.Build.0 = Release|x64
+		{D9C4E7A2-5B31-4F68-8E29-1A7D4C8F3B65}.Debug|x64.ActiveCfg = Debug|x64
+		{D9C4E7A2-5B31-4F68-8E29-1A7D4C8F3B65}.Debug|x64.Build.0 = Debug|x64
+		{D9C4E7A2-5B31-4F68-8E29-1A7D4C8F3B65}.Release|x64.ActiveCfg = Release|x64
+		{D9C4E7A2-5B31-4F68-8E29-1A7D4C8F3B65}.Release|x64.Build.0 = Release|x64
+		{E5B8D2C7-9A46-4E13-B7F8-2C5E9A1D6F34}.Debug|x64.ActiveCfg = Debug|x64
+		{E5B8D2C7-9A46-4E13-B7F8-2C5E9A1D6F34}.Debug|x64.Build.0 = Debug|x64
+		{E5B8D2C7-9A46-4E13-B7F8-2C5E9A1D6F34}.Release|x64.ActiveCfg = Release|x64
+		{E5B8D2C7-9A46-4E13-B7F8-2C5E9A1D6F34}.Release|x64.Build.0 = Release|x64
 		{A8E4F1B9-2D63-4C58-AE17-9F4B5E3D8A26}.Debug|x64.ActiveCfg = Debug|x64
 		{A8E4F1B9-2D63-4C58-AE17-9F4B5E3D8A26}.Debug|x64.Build.0 = Debug|x64
 		{A8E4F1B9-2D63-4C58-AE17-9F4B5E3D8A26}.Release|x64.ActiveCfg = Release|x64

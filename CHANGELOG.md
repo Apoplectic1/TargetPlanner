@@ -8,6 +8,18 @@ were first archived out of CLAUDE.md's "Open follow-ups" / "What shipped" sectio
 that file under the perf-warning threshold, then relocated here; commit hashes preserved
 throughout for archaeology.)
 
+### 2026-08-02 — released v1.3.1: all Library DLLs ship Release (sln-membership fix)
+
+v1.3.0's payload carried **Debug** builds of `Astronomy.Catalog` and `Astronomy.Diagnostics`:
+both were `ProjectReference`d but missing from `TargetPlanner.sln`, and MSBuild's sln
+semantics *unset* Configuration/Platform for references outside the solution — so they built
+with their own defaults (Debug|AnyCPU) in every sln-driven build since they were adopted.
+Fixed by adding both to the sln with `Release|x64` mappings; all five `Astronomy.*` DLLs now
+resolve from `bin\x64\Release`. (TSM is immune — its release publishes the *project*, so
+Configuration flows to all references; XFM has no Library refs.) Lesson: when a new
+`ProjectReference` crosses repo boundaries, add the project to the consuming sln too —
+`dotnet build <sln>` silently Debug-builds outside members.
+
 ### 2026-08-02 — released v1.3.0 (first published release since v1.0.0)
 
 First release under the aligned flow, and the first GitHub Release since April's `v1.0.0` —
