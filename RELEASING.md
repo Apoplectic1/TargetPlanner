@@ -59,7 +59,9 @@ git push origin main vX.Y.Z
 - The app's `Velopack` NuGet package and the `vpk` CLI should stay on matching versions
   (both 1.2.0 as of 2026-08-02) — `vpk pack` warns on skew.
 
-Latest released tag: **`v1.2.0`**.
+Latest released tag: **`v1.3.0`**. (Historical wrinkle: `v1.1.0`–`v1.2.0` were tagged but
+never published as GitHub Releases — `v1.0.0` was the only installable release before
+`v1.3.0`.)
 
 ## Content rules (what is deliberately public)
 

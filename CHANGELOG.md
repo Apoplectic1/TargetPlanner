@@ -8,6 +8,16 @@ were first archived out of CLAUDE.md's "Open follow-ups" / "What shipped" sectio
 that file under the perf-warning threshold, then relocated here; commit hashes preserved
 throughout for archaeology.)
 
+### 2026-08-02 — released v1.3.0 (first published release since v1.0.0)
+
+First release under the aligned flow, and the first GitHub Release since April's `v1.0.0` —
+`v1.1.0`/`v1.1.1`/`v1.2.0` had been tagged but never published, so installed copies (still
+1.0.0) jump straight to 1.3.0 via the Velopack delta (baseline verified byte-identical to the
+published 1.0.0 assets). Ships everything since: XISF cache work, zero-warning ratchet +
+fixture fix, the convention alignment below, Velopack 1.2.0. This also closes the
+release-cycle portion of ROADMAP item #1's Velopack smoke test; the in-app self-update prompt
+on an installed 1.0.0 is the remaining field check.
+
 ### 2026-08-02 — release conventions aligned with TSM/XFM (title, script, RELEASING)
 
 Portfolio-wide convention pass, applied the same day to XFM: window title is now app name +
