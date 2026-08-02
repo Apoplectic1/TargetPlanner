@@ -2,6 +2,8 @@
 
 Windows Forms desktop tool for astrophotography target planning. Plots a deep-sky target's altitude across a single night, scans a year for the best dates, and overlays multiple targets loaded from NINA sequence files or your `.xisf` image library.
 
+![Day chart — minute-by-minute altitude curves for a multi-target overlay, with twilight gradients, moon-altitude fill, and the 30° target floor](docs/images/day-chart.png)
+
 ## What it does
 
 - **Four chart areas** — *Day* (minute-by-minute altitude across the coming night, with twilight shading and a live "now" line), *Sky* (Krisciunas–Schaefer sky brightness in mag/arcsec² across the same night), *Year* (per-night altitude across 12 months), *Sessions* (Ceiling / Floor / Symmetric placement curves per night).
@@ -19,7 +21,11 @@ Four chart areas swap behind the **Day / Sky / Year / Sessions** radios beside t
 
 **Sky chart.** Per-target sky-brightness curves in mag/arcsec² on a reversed Y axis (brighter sky reads higher). Same time axis as Day. Y range is 16–26 mag/arcsec² (widened to cover narrowband K-S predictions, which run brighter than 22 at most Bortle classes). See [Sky brightness](#sky-brightness) below for the K-S model details.
 
+![Sky chart — Krisciunas–Schaefer sky-brightness curves across the night on a reversed mag/arcsec² axis, with twilight gradients and moon-altitude fill](docs/images/sky-chart.png)
+
 **Year chart.** Per-night session-floor altitude across 12 months, one curve per target. X axis runs from the 1st of the current month to the 1st of the same month next year, with month-boundary tick labels. Hover any point: tooltip shows `{Target}\n{date}\nFloor: {alt}°`, falling back to a no-fit message for nights where no D-hour window meets the active Horizon / Duration / Moon filter, or a `(polar period)` note for nights inside a polar-day/polar-night span where the window can't be evaluated at all.
+
+![Year chart — per-night session-floor altitude across 12 months, one curve per target, with the red now-line at the current date](docs/images/year-chart.png)
 
 **Sessions chart.** Three per-target curves describe how well a Duration-long imaging window fits inside each night's visibility arc, given your Horizon floor:
 - **Ceiling** — peak altitude reached inside any qualifying window.
