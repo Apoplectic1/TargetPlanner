@@ -23,7 +23,12 @@ the only branch on origin.
   ```
 - Publish at natural completion points (a shipped unit of work, docs riding the same commit) —
   not on a schedule, and never mid-change. The working tree must be clean and the build/tests
-  green at the published commit (see `VERIFICATION.md`). No tag → no push: the tag is what
+  green at the published commit (see `VERIFICATION.md`).
+- **AL coordination (pre-flight):** the installer embeds the sibling `..\Library` working tree
+  at pack time, unpinned. If AL is dirty or has moved past its last published tag, **publish AL
+  first** (see Library `RELEASING.md`) so the payload's `Astronomy.*` DLLs stamp a clean
+  `X.Y.Z` that exists on AL's public mirror. `release.ps1` enforces this — it aborts on a
+  dirty Library tree or an `-alpha` MinVer stamp in the payload. No tag → no push: the tag is what
   makes a `main` state a published state.
 - **Docs-only exception (2026-08-02):** a `main` push may omit the tag when the delta contains
   only documentation/images — nothing that changes the built app — so the GitHub storefront

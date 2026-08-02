@@ -39,6 +39,13 @@ try {
     $bin = Join-Path $repoRoot 'TargetPlanner\bin\x64\Release\net10.0-windows10.0.19041'
     if (-not (Test-Path $bin)) { throw "Build output not found at $bin" }
 
+    # AL coordination gate (see RELEASING.md): the payload embeds the sibling Library working
+    # tree at pack time, unpinned - it must be a published (tagged, clean) AL state.
+    $alDirty = git -C (Join-Path $repoRoot '..\Library') status --porcelain
+    if ($alDirty) { throw "..\Library working tree is dirty - commit and release AL first (Library\RELEASING.md)." }
+    $alVer = (Get-Item (Join-Path $bin 'Astronomy.Core.dll')).VersionInfo.ProductVersion
+    if ($alVer -match '-alpha') { throw "Embedded Astronomy.Core.dll stamps '$alVer' (untagged AL state) - release AL first (Library\RELEASING.md)." }
+
     Write-Host "`n--> vpk pack" -ForegroundColor Cyan
     vpk pack `
         -u TargetPlanner `
