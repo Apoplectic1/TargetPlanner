@@ -76,11 +76,13 @@ the tag must point at `HEAD` (all skipped under `-NoUpload`, which stays runnabl
 - The app's `Velopack` NuGet package and the `vpk` CLI should stay on matching versions
   (both 1.2.0 as of 2026-08-02) — `vpk pack` warns on skew.
 
-Latest released tag: **`v1.3.2`** (Ctrl+N dialog consumed from AL's `Astronomy.Diagnostics.WinForms`
-— payload gains that DLL, stamped `1.5.0`; MIT license; AL coordination gate staged). Prior:
-`v1.3.1`. (Historical wrinkle: `v1.1.0`–`v1.2.0` were tagged but
+Latest released tag: **`v1.3.3`** (release path hardened: script-owned pushes, publish gates,
+tag pushes only after a successful upload — the first release cut through the new flow; app
+payload unchanged from `v1.3.2` beyond the version stamp). Prior: `v1.3.2` (Ctrl+N dialog
+consumed from AL's `Astronomy.Diagnostics.WinForms` — payload gains that DLL, stamped `1.5.0`;
+MIT license). (Historical wrinkle: `v1.1.0`–`v1.2.0` were tagged but
 never published as GitHub Releases — `v1.0.0` was the only installable release before
-`v1.3.0`.)
+`v1.3.0`. The `v1.3.3` flow change makes a recurrence structurally impossible.)
 
 ## Content rules (what is deliberately public)
 
