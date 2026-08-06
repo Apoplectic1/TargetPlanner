@@ -9,6 +9,16 @@ that file under the perf-warning threshold, then relocated here; commit hashes p
 throughout for archaeology.)
 
 
+### 2026-08-06 — release path hardened: tag on origin ⇒ installable Release
+
+`scripts\release.ps1` now owns the pushes: publish gates up front (branch is `main`, clean
+tree, tag points at `HEAD` — all skipped under `-NoUpload`), then `push origin main` →
+`vpk upload` → `push origin <tag>` only after the upload succeeds. `main` must go up before
+the upload because vpk's createRelease names a not-yet-pushed tag and GitHub materialises it
+at the default-branch HEAD. Closes the tag-without-Release failure mode (the historical
+`v1.1.0`–`v1.2.0` wrinkle) by construction; RELEASING.md flow updated (tag locally, script
+pushes). Rode along: CLAUDE.md's stale `Velopack 0.0.1589` → `1.2.0`.
+
 ### 2026-08-06 — Ctrl+N dialog now consumed from AL (`adopt-shared-diagnostics-dialog`)
 
 `Forms\DiagnosticsDialog.cs` deleted in favour of AL's new `Astronomy.Diagnostics.WinForms`

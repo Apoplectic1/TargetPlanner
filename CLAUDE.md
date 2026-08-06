@@ -49,7 +49,7 @@ For C# symbol-level questions — "find every caller / implementation / definiti
 
 - **Astronomy library** is an external sibling at `E:\Projects\VisualStudio\Astronomy\Library\` (its own git repo). WinExe csproj `ProjectReference` paths are `..\..\Library\Astronomy.Core\Astronomy.Core.csproj` + `..\..\Library\Astronomy.NINA\Astronomy.NINA.csproj` + `..\..\Library\Astronomy.Diagnostics\Astronomy.Diagnostics.csproj`. Keep the Library repo cloned next to this one — a missing sibling breaks the build.
 - **LocalLib was dropped** in the .NET 10 migration. Its `OpenFolderDialog` (multi-select-folder picker via reflection on `System.Windows.Forms.FileDialogNative+IFileDialog` internals) didn't survive the modern WinForms rewrite — those internal types changed shape. `MainForm.Button_BrowseTargetList_Click` now uses the stock `FolderBrowserDialog` (single-folder only).
-- **NuGet packages** on the WinExe project: `Newtonsoft.Json 13.0.4`, `MinVer 7.0.0` (PrivateAssets=all; tag-derived `AssemblyVersion`), `Velopack 0.0.1589-ga2c5a97`. Newtonsoft is consumed by `Nina/TargetLoader.cs` (parses NINA `.json`) and `Settings/*`. CoordinateSharp was dropped in the CS-removal effort — Library is now pure-managed Meeus.
+- **NuGet packages** on the WinExe project: `Newtonsoft.Json 13.0.4`, `MinVer 7.0.0` (PrivateAssets=all; tag-derived `AssemblyVersion`), `Velopack 1.2.0`. Newtonsoft is consumed by `Nina/TargetLoader.cs` (parses NINA `.json`) and `Settings/*`. CoordinateSharp was dropped in the CS-removal effort — Library is now pure-managed Meeus.
 
 ## Architecture
 

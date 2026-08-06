@@ -14,13 +14,19 @@ the only branch on origin.
 - **`dev` = working branch.** All work lands here. **`dev` never pushes.**
 - **`main` = distribution-ready ref, and every push of `main` carries a tag** — `vX.Y.Z`
   (semver, `v`-prefixed; the portfolio convention). Publish = fast-forward `main` to the
-  chosen `dev` commit, tag it, push both:
+  chosen `dev` commit, tag it **locally**, and let `release.ps1` do the pushing:
   ```bash
   git checkout main && git merge --ff-only dev
-  git tag vX.Y.Z
-  git push origin main vX.Y.Z
+  git tag vX.Y.Z                 # local only — the script pushes
+  ./scripts/release.ps1          # build → gate → pack → push main → upload → push tag
   git checkout dev
   ```
+  The script pushes `main` before the installer upload and the tag only **after** a
+  successful upload, so **a tag on origin always has an installable GitHub Release** —
+  by construction, not by discipline (closes the historical `v1.1.0`–`v1.2.0`
+  tags-without-Releases wrinkle). If the upload fails midway, `main` is up but untagged;
+  re-run the script to finish (delete that version's artifacts from `Releases\` first if
+  `vpk pack` refuses the duplicate).
 - Publish at natural completion points (a shipped unit of work, docs riding the same commit) —
   not on a schedule, and never mid-change. The working tree must be clean and the build/tests
   green at the published commit (see `VERIFICATION.md`).
@@ -28,8 +34,9 @@ the only branch on origin.
   at pack time, unpinned. If AL is dirty or has moved past its last published tag, **publish AL
   first** (see Library `RELEASING.md`) so the payload's `Astronomy.*` DLLs stamp a clean
   `X.Y.Z` that exists on AL's public mirror. `release.ps1` enforces this — it aborts on a
-  dirty Library tree or an `-alpha` MinVer stamp in the payload. No tag → no push: the tag is what
-  makes a `main` state a published state.
+  dirty Library tree or an `-alpha` MinVer stamp in the payload. No tag → no push, and no
+  Release → no tag push: the tag is what makes a `main` state a published state, and the
+  script only pushes it once the installer is live.
 - **Docs-only exception (2026-08-02):** a `main` push may omit the tag when the delta contains
   only documentation/images — nothing that changes the built app — so the GitHub storefront
   (README, screenshots) can update without minting a release. Any change to code or build
@@ -49,11 +56,12 @@ permanent install: `setx GITHUB_TOKEN ghp_...` (re-open the shell to pick it up)
 
 Per-release flow:
 ```powershell
-# on main, at the published commit (see Branch policy)
-git tag vX.Y.Z
-git push origin main vX.Y.Z
-.\scripts\release.ps1          # build Release|x64 → vpk pack → upload to GitHub Releases
+# on main, at the publish commit (see Branch policy)
+git tag vX.Y.Z                 # local only — the script pushes
+.\scripts\release.ps1          # build Release|x64 → gates → vpk pack → push main → upload → push tag
 ```
+The script gates before pushing anything: branch must be `main`, working tree clean, and
+the tag must point at `HEAD` (all skipped under `-NoUpload`, which stays runnable anywhere).
 - **Versions come from the tag** via MinVer (`<MinVerTagPrefix>v</MinVerTagPrefix>`, same as
   TSM/XFM) — the same tag gates the `main` push, names the GitHub Release, stamps the
   assembly, and shows in the window title (`TargetPlanner X.Y.Z`). No version files; untagged
