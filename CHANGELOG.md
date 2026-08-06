@@ -9,6 +9,13 @@ that file under the perf-warning threshold, then relocated here; commit hashes p
 throughout for archaeology.)
 
 
+### 2026-08-06 — Ctrl+N dialog now consumed from AL (`adopt-shared-diagnostics-dialog`)
+
+`Forms\DiagnosticsDialog.cs` deleted in favour of AL's new `Astronomy.Diagnostics.WinForms`
+satellite (the dialog graduated there verbatim — TP was its origin). New `ProjectReference` + sln
+entry; the Ctrl+N `ProcessCmdKey` and App-menu call sites retarget; zero behavior change. XFM
+adopts the same shared dialog the same day. Tests 184.
+
 ### 2026-08-02 — MIT license adopted
 
 `LICENSE` added (MIT, © 2020–2026 Dan Stark) and linked from the README — same-day portfolio move with AL (also MIT) and TSM (copyright holder aligned). Repo was previously unlicensed (all rights reserved by default).

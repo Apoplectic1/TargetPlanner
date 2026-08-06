@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection;
 using System.Windows.Forms;
 using Astronomy.Core.Horizons;
+using Astronomy.Diagnostics.WinForms;
 using Astronomy.Core.Time;
 using Astronomy.NINA.Persistence;
 using TargetPlanner.Filters;
@@ -890,7 +891,7 @@ is preserved.";
         {
             if (keyData == (Keys.Control | Keys.N))
             {
-                Forms.DiagnosticsDialog.ShowOrFocus(this, GetDiagnosticsContext);
+                DiagnosticsDialog.ShowOrFocus(this, GetDiagnosticsContext);
                 return true;
             }
             return base.ProcessCmdKey(ref msg, keyData);

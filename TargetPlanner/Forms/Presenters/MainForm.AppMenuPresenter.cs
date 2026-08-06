@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Windows.Forms;
+using Astronomy.Diagnostics.WinForms;
 using TargetPlanner.Filters;
 using TargetPlanner.Forms;
 using TargetPlanner.Settings;
