@@ -52,6 +52,12 @@
          dev builds don't masquerade as a release. -->
     <MinVerTagPrefix>v</MinVerTagPrefix>
     <MinVerDefaultPreReleaseIdentifiers>alpha.0</MinVerDefaultPreReleaseIdentifiers>
+    <!-- MinVer 7's build cache keys on the option list only, not the repo — in a build graph
+         spanning two repos (this app + ..\Library via ProjectReference) identical options make
+         the app inherit the Library's version (XFM shipped v2.1.0-v2.2.0 stamping AL's 1.5.x
+         this way, 2026-08-06). An explicit verbosity (behavior-neutral) makes this project's
+         cache key unique. Keep it DIFFERENT from any MinVerVerbosity the Library might set. -->
+    <MinVerVerbosity>normal</MinVerVerbosity>
   </PropertyGroup>
 
   <!-- NuGet packages (formerly packages.config). Versions preserved exactly. -->

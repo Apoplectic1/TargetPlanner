@@ -68,6 +68,7 @@ The original 4-step sequencing plan (correctness audit → extract Astronomy.Cor
 
 Full dated history: [CHANGELOG.md](CHANGELOG.md) — the append-only shipped-history journal (entries relocated there 2026-07-12; git holds commit-level detail).
 
+- 2026-08-06 — MinVer cross-repo cache workaround (`<MinVerVerbosity>` key-split in csproj): AL ProjectReferences no longer leak the Library's version onto the exe (bug shipped in XFM v2.1.0–v2.2.0; latent here).
 - 2026-06-11 — Ctrl+N "Observation" dialog renamed "Diagnostics"; helper label dropped.
 - 2026-05-28 — MoonEphemeris + AltitudeCurve reshape; TP cache axes rekeyed to `NightDate`.
 - 2026-05-27 — verify-ui skill + Capture snapshot; MainForm partial-class decomposition (−42%); TP-side test project Phases 1–4 (187 tests).
