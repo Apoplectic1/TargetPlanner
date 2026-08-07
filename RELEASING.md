@@ -78,6 +78,10 @@ the tag must point at `HEAD` (all skipped under `-NoUpload`, which stays runnabl
   present in `Releases\` — delete that folder before repeating a dry-run at the same tag.
 - The app's `Velopack` NuGet package and the `vpk` CLI should stay on matching versions
   (both 1.2.0 as of 2026-08-02) — `vpk pack` warns on skew.
+- **Bare `vpk` commands: run from the repo root.** vpk reads `.\Releases\` of the *current
+  directory* with no repo/package cross-check — a wrong cwd uploads another app's payload
+  (2026-08-06: a drifted shell published TP 1.3.3 assets as XFM v2.2.1; caught and deleted in
+  a minute). `release.ps1` is immune — it pins the repo root.
 
 Latest released tag: **`v1.3.3`** (release path hardened: script-owned pushes, publish gates,
 tag pushes only after a successful upload — the first release cut through the new flow; app
