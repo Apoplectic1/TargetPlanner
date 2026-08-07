@@ -17,10 +17,13 @@ the only branch on origin.
   chosen `dev` commit, tag it **locally**, and let `release.ps1` do the pushing:
   ```bash
   git checkout main && git merge --ff-only dev
-  git tag vX.Y.Z                 # local only — the script pushes
+  git tag -a vX.Y.Z -m "one-line release summary"   # local only — the script pushes
   ./scripts/release.ps1          # build → gate → pack → push main → upload → push tag
   git checkout dev
   ```
+  Tags are **annotated** (`-a -m`, portfolio convention 2026-08-06) so the summary shows in
+  `git tag -n` and GUI clients; earlier tags are lightweight — cosmetic only, MinVer treats
+  both alike.
   The script pushes `main` before the installer upload and the tag only **after** a
   successful upload, so **a tag on origin always has an installable GitHub Release** —
   by construction, not by discipline (closes the historical `v1.1.0`–`v1.2.0`
@@ -57,7 +60,7 @@ permanent install: `setx GITHUB_TOKEN ghp_...` (re-open the shell to pick it up)
 Per-release flow:
 ```powershell
 # on main, at the publish commit (see Branch policy)
-git tag vX.Y.Z                 # local only — the script pushes
+git tag -a vX.Y.Z -m "one-line release summary"   # local only — the script pushes
 .\scripts\release.ps1          # build Release|x64 → gates → vpk pack → push main → upload → push tag
 ```
 The script gates before pushing anything: branch must be `main`, working tree clean, and
