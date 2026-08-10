@@ -30,6 +30,12 @@ the only branch on origin.
   tags-without-Releases wrinkle). If the upload fails midway, `main` is up but untagged;
   re-run the script to finish (delete that version's artifacts from `Releases\` first if
   `vpk pack` refuses the duplicate).
+  **Known wrinkle (bit v1.3.4, 2026-08-10):** publishing the GitHub Release makes GitHub mint a
+  *lightweight* tag at the commit, so the script's own annotated-tag push then fails with
+  "already exists". The Release is fine and the commit is right — finish with
+  `git push --force origin vX.Y.Z` to replace the lightweight tag with the local annotated one
+  (same commit; verify with `git ls-remote origin "refs/tags/vX.Y.Z*"` — the `^{}` line must
+  show the released commit).
 - Publish at natural completion points (a shipped unit of work, docs riding the same commit) —
   not on a schedule, and never mid-change. The working tree must be clean and the build/tests
   green at the published commit (see `VERIFICATION.md`).
