@@ -9,6 +9,14 @@
 `origin` = https://github.com/Apoplectic1/TargetPlanner (public). No other remotes. `main` is
 the only branch on origin.
 
+**The mirror MUST be public — a private mirror kills self-update with no visible symptom.** The
+installed app's Velopack updater is anonymous (`GithubSource(…, accessToken: null)`), and GitHub
+answers anonymous API calls on a private repo with 404; the startup check swallows failures
+silently by design, so the installed base just stops updating (bit 2026-08-10: the repo sat
+private and an installed v1.3.1 silently 404'd through five releases). Symptom → root cause is one
+grep away: `UpdateService.CheckOnStartupAsync swallowed exception … 404` in `tp.log`. Check:
+anonymous `https://api.github.com/repos/Apoplectic1/TargetPlanner` must return 200.
+
 ## Branch policy
 
 - **`dev` = working branch.** All work lands here. **`dev` never pushes.**
