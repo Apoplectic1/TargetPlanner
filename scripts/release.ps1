@@ -14,8 +14,9 @@
 #   - `main` pushes BEFORE upload: vpk's createRelease names a tag that doesn't exist on
 #     origin yet, so GitHub materialises the tag ref at the default branch HEAD -- which
 #     must already be the release commit.
-#   - The local tag pushes AFTER a successful upload (a no-op when it matches the ref
-#     GitHub just created). Upload fails -> no tag on origin.
+#   - The local tag pushes AFTER a successful upload. GitHub's tag from the upload is
+#     LIGHTWEIGHT, ours is annotated (same commit, different object), so the push step
+#     verifies the remote commit and force-replaces the tag. Upload fails -> no tag on origin.
 #
 # The script reads the latest reachable tag via `git describe --tags --abbrev=0` and uses
 # that as the release version. MinVer (in TargetPlanner.csproj) reads the same tag at build
@@ -58,8 +59,21 @@ try {
     dotnet build TargetPlanner.sln -c Release -p:Platform=x64 -nologo
     if ($LASTEXITCODE -ne 0) { throw "dotnet build failed" }
 
-    $bin = Join-Path $repoRoot 'TargetPlanner\bin\x64\Release\net10.0-windows10.0.19041'
+    # The output path derives from the csproj TFM — hardcoding it shipped stale payloads when
+    # the 2026-08-10 TFM raise left the old output dir on disk (v1.3.4/v1.3.5 packed v1.3.3
+    # bits; the path check passed against the leftover directory).
+    $tfm = [regex]::Match((Get-Content (Join-Path $repoRoot 'TargetPlanner\TargetPlanner.csproj') -Raw),
+        '<TargetFramework>([^<]+)</TargetFramework>').Groups[1].Value
+    if (-not $tfm) { throw "Could not read <TargetFramework> from TargetPlanner.csproj" }
+    $bin = Join-Path $repoRoot "TargetPlanner\bin\x64\Release\$tfm"
     if (-not (Test-Path $bin)) { throw "Build output not found at $bin" }
+
+    # Stamp gate (XFM model): the packed exe must stamp the tag's version — catches stale
+    # output dirs and MinVer cache leaks alike, making this class of failure unshippable.
+    $exeVer = (Get-Item (Join-Path $bin 'TargetPlanner.exe')).VersionInfo.ProductVersion
+    if (($exeVer -split '\+')[0] -ne $version) {
+        throw "Packed TargetPlanner.exe stamps '$exeVer' - expected '$version' from tag $tag (stale output dir or MinVer mismatch)."
+    }
 
     # AL coordination gate (see RELEASING.md): the payload embeds the sibling Library working
     # tree at pack time, unpinned - it must be a published (tagged, clean) AL state.
@@ -104,10 +118,26 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "vpk upload failed" }
 
     # Tag pushes only after a successful upload -- a tag on origin implies an installable
-    # Release. No-op when it matches the ref GitHub created during the upload.
+    # Release. GitHub's createRelease minted a LIGHTWEIGHT tag at this commit during the
+    # upload, so the plain push of our ANNOTATED tag is normally rejected as already-exists
+    # (same commit, different tag object -- bit v1.3.4 and v1.3.5, 2026-08-10). Handle it:
+    # verify the remote tag sits on the release commit, then force-replace it with the
+    # annotated tag. A force onto any OTHER commit is refused -- that is a real conflict.
     Write-Host "`n--> git push origin $tag" -ForegroundColor Cyan
     git push origin $tag
-    if ($LASTEXITCODE -ne 0) { throw "git push origin $tag failed (Release is live; push the tag manually)" }
+    if ($LASTEXITCODE -ne 0) {
+        $remoteLines = @(git ls-remote origin "refs/tags/$tag*")
+        $peeled = $remoteLines | Where-Object { $_ -match '\^\{\}$' } | Select-Object -First 1
+        $plain  = $remoteLines | Where-Object { $_ -notmatch '\^\{\}$' } | Select-Object -First 1
+        $remoteRef = if ($peeled) { $peeled } else { $plain }   # peeled line = annotated; absent for lightweight
+        $remoteCommit = ($remoteRef -split '\s+')[0]
+        if ($remoteCommit -ne $headCommit) {
+            throw "Remote tag $tag points at '$remoteCommit', not the release commit $($headCommit.Substring(0,8)) - resolve manually (Release is live)."
+        }
+        Write-Host "    remote $tag is GitHub's lightweight tag at the release commit - replacing with the annotated tag" -ForegroundColor Yellow
+        git push --force origin $tag
+        if ($LASTEXITCODE -ne 0) { throw "git push --force origin $tag failed (Release is live; push the tag manually)" }
+    }
 
     Write-Host "`nReleased TargetPlanner $version to GitHub." -ForegroundColor Green
 }

@@ -9,6 +9,18 @@ that file under the perf-warning threshold, then relocated here; commit hashes p
 throughout for archaeology.)
 
 
+### 2026-08-10 — v1.3.6: REMEDIATION — v1.3.4/v1.3.5 installers shipped v1.3.3 payloads
+
+`release.ps1` hardcoded the pack path at the old TFM (`net10.0-windows10.0.19041`); after the
+same-day TFM raise to `26100.0` the build wrote to the new directory while the script packed the
+**leftover** old one — its `Test-Path` and AL-alpha gates passed against stale v1.3.3 bits
+(AL 1.6.1), so both installers were mislabeled. Fixed structurally: the script now derives the
+path from the csproj `<TargetFramework>` **and** gates the packed exe's MinVer stamp against the
+tag (XFM's model) — a stale dir is now unshippable; the leftover output dir was deleted. The same
+commit also automates the GitHub-lightweight-tag race recovery (verify remote commit →
+force-replace with the annotated tag). v1.3.6 is the first installer actually carrying TFM
+`26100.0` and AL `1.7.1`.
+
 ### 2026-08-10 — v1.3.5: payload realigned to AL 1.7.1
 
 No app changes; AL cut a docs-only v1.7.1 (CONSUMERS.md records XFM as third consumer) after TP
