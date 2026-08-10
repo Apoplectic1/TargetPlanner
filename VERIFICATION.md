@@ -10,6 +10,12 @@ dotnet build "TargetPlanner.sln" -c Debug
 
 Pure-managed graph, so `dotnet build` is fine (auto-restores). `msbuild "TargetPlanner.sln" -restore -p:Configuration=Debug` is the fallback. Requires the sibling `..\Library\` repo cloned next to this one.
 
+**Trap — new AL `ProjectReference` without a sln entry fails silently.** The sln lists the cross-repo
+AL projects *explicitly*; MSBuild follows a new csproj `ProjectReference` regardless, so the build
+stays green while Solution Explorer silently omits the project (bit 2026-08-10 when the `.WinForms`
+shell gained its `Astronomy.Diagnostics.Windows` dep). When adding an AL project reference, add the
+matching sln `Project` entry + config rows (reuse the Library sln's project GUID) in the same commit.
+
 ## Tests
 
 ```bash
