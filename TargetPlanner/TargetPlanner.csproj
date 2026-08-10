@@ -10,8 +10,10 @@
          net8.0-windows10.0.19041 TFM. The default net10.0-windows (which resolves to
          net10.0-windows7.0) would fall all the way back to that package's net462 lib,
          which doesn't load on .NET 10. Win10 2004 is well past EOL of anything older;
-         safe floor. -->
-    <TargetFramework>net10.0-windows10.0.19041</TargetFramework>
+         safe floor. 2026-08-10: raised 19041 -> 26100.0 (portfolio app-TFM unification, rode AL's
+         diagnostics-portable-core) — any SDK-versioned TFM >= 19041 keeps satisfying the SkiaSharp
+         asset floor above; apps float high, Library layers floor low. -->
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>TargetPlanner</RootNamespace>
     <AssemblyName>TargetPlanner</AssemblyName>

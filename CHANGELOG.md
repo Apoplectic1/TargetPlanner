@@ -9,6 +9,15 @@ that file under the perf-warning threshold, then relocated here; commit hashes p
 throughout for archaeology.)
 
 
+### 2026-08-10 — app TFM raised 10.0.19041 → 10.0.26100.0 (portfolio unification)
+
+Rode AL's `diagnostics-portable-core` consumer window: app + Tests TFM raised to
+`net10.0-windows10.0.26100.0` so all three portfolio apps (TP/TSM/XFM) share one SDK surface. The
+SkiaSharp asset-floor rationale for the old 19041 pin still holds at any ≥ 19041 (comment updated in
+the csproj). AL's Diagnostics is now a layered stack (TFM-neutral core + `.Windows` capture +
+`.WinForms` shell) — TP's surface is unchanged, `DiagnosticsDialog.ShowOrFocus` as before, rebuilt
+against the new layering. 184/184 tests green, 0 warnings. Ctrl+N manual re-check pending.
+
 ### 2026-08-06 — release path hardened: tag on origin ⇒ installable Release
 
 `scripts\release.ps1` now owns the pushes: publish gates up front (branch is `main`, clean

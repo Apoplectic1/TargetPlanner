@@ -14,7 +14,7 @@
          SkiaSharp.Views.WindowsForms (transitive via LiveCharts2) only ships modern-.NET
          assets there; a consumer on bare net10.0-windows (which resolves to 7.0) would
          fail TFM compatibility against this ProjectReference. -->
-    <TargetFramework>net10.0-windows10.0.19041</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
     <Platforms>x64</Platforms>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
