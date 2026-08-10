@@ -9,6 +9,13 @@ that file under the perf-warning threshold, then relocated here; commit hashes p
 throughout for archaeology.)
 
 
+### 2026-08-10 — v1.3.5: payload realigned to AL 1.7.1
+
+No app changes; AL cut a docs-only v1.7.1 (CONSUMERS.md records XFM as third consumer) after TP
+v1.3.4 packed against 1.7.0, and all app payloads realigned on 1.7.1 the same day so embedded
+`Astronomy.*` stamps read identically across TP/TSM/XFM. Also carries the RELEASING.md note on the
+GitHub-mints-lightweight-tag race in release.ps1's final tag push (bit v1.3.4).
+
 ### 2026-08-10 — app TFM raised 10.0.19041 → 10.0.26100.0 (portfolio unification)
 
 Rode AL's `diagnostics-portable-core` consumer window: app + Tests TFM raised to
