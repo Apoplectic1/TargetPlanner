@@ -9,6 +9,15 @@ that file under the perf-warning threshold, then relocated here; commit hashes p
 throughout for archaeology.)
 
 
+### 2026-08-11 — v1.3.7: the Ctrl+N routing series + AL 1.8.0 payload
+
+Release cut carrying the day's three-part Ctrl+N arc (below): hotkey routed through an
+app-level message filter so it fires in MenuStrip menu mode and inside modal WinForms dialogs
+(obs f231), the invoke-capture ship-and-revert (capture-at-OK is the portfolio contract), and
+the wiring hoisted to AL's `DiagnosticsHotkey` (TP + XFM uniform by construction). Payload
+embeds AL `v1.8.0` — the first installer carrying `DiagnosticsHotkey`. Field-verified before
+cut: obs `dced` (Ctrl+N from inside the modal Filters editor, captures at Capture/OK only).
+
 ### 2026-08-11 — Ctrl+N wiring hoisted to the Library (`DiagnosticsHotkey`)
 
 Third of the day's Ctrl+N series: the morning's `Support/DiagnosticsKeyFilter.cs` (TP `1b12b89`)

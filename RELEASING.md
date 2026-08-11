@@ -97,9 +97,15 @@ the tag must point at `HEAD` (all skipped under `-NoUpload`, which stays runnabl
   (2026-08-06: a drifted shell published TP 1.3.3 assets as XFM v2.2.1; caught and deleted in
   a minute). `release.ps1` is immune — it pins the repo root.
 
-Latest released tag: **`v1.3.3`** (release path hardened: script-owned pushes, publish gates,
-tag pushes only after a successful upload — the first release cut through the new flow; app
-payload unchanged from `v1.3.2` beyond the version stamp). Prior: `v1.3.2` (Ctrl+N dialog
+Latest released tag: **`v1.3.7`** (the Ctrl+N routing series: hotkey via app-level message
+filter — fires in menu mode + modal dialogs — hoisted to AL `DiagnosticsHotkey`, uniform with
+XFM; capture-at-OK is the recorded portfolio contract. Payload embeds AL `v1.8.0`). Prior:
+`v1.3.6` (REMEDIATION: pack path derived from csproj TFM + MinVer stamp gate + tag-race
+auto-recovery — v1.3.4/v1.3.5 had packed stale v1.3.3 payloads; first installer actually
+carrying TFM `26100.0` + AL `1.7.1`); `v1.3.5` / `v1.3.4` (intended AL-realignment / TFM-raise
+cuts, both shipped stale payloads — superseded by v1.3.6); `v1.3.3` (release path hardened:
+script-owned pushes, publish gates, tag pushes only after a successful upload — the first
+release cut through the new flow); `v1.3.2` (Ctrl+N dialog
 consumed from AL's `Astronomy.Diagnostics.WinForms` — payload gains that DLL, stamped `1.5.0`;
 MIT license). (Historical wrinkle: `v1.1.0`–`v1.2.0` were tagged but
 never published as GitHub Releases — `v1.0.0` was the only installable release before
