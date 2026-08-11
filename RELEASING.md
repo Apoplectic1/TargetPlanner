@@ -97,9 +97,14 @@ the tag must point at `HEAD` (all skipped under `-NoUpload`, which stays runnabl
   (2026-08-06: a drifted shell published TP 1.3.3 assets as XFM v2.2.1; caught and deleted in
   a minute). `release.ps1` is immune — it pins the repo root.
 
-Latest released tag: **`v1.3.7`** (the Ctrl+N routing series: hotkey via app-level message
+Latest released tag: **`v1.3.8`** (AL-realignment cut: payload embeds AL `v1.9.0` — the IS-gap
+Core trio (`UtcInterval`+`Intervals` BREAKING, `Meridian`, `IClock`), scanner fail-fast, contract
+pins. TP code unchanged apart from dropping stale tracked `.vs/` state files; TP compiles
+unmigrated against the interval reshape via `.Start`/`.End` member-name compatibility — pinned in
+AL `CONSUMERS.md`). Prior:
+`v1.3.7` (the Ctrl+N routing series: hotkey via app-level message
 filter — fires in menu mode + modal dialogs — hoisted to AL `DiagnosticsHotkey`, uniform with
-XFM; capture-at-OK is the recorded portfolio contract. Payload embeds AL `v1.8.0`). Prior:
+XFM; capture-at-OK is the recorded portfolio contract. Payload embeds AL `v1.8.0`);
 `v1.3.6` (REMEDIATION: pack path derived from csproj TFM + MinVer stamp gate + tag-race
 auto-recovery — v1.3.4/v1.3.5 had packed stale v1.3.3 payloads; first installer actually
 carrying TFM `26100.0` + AL `1.7.1`); `v1.3.5` / `v1.3.4` (intended AL-realignment / TFM-raise
