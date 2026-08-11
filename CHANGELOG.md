@@ -9,6 +9,17 @@ that file under the perf-warning threshold, then relocated here; commit hashes p
 throughout for archaeology.)
 
 
+### 2026-08-11 — Ctrl+N captures at invoke (Library shell change)
+
+Follow-on to the message-filter rework the same day: `DiagnosticsDialog.ShowOrFocus` (the
+Library's `Astronomy.Diagnostics.WinForms` shell, AL `371c204`) now grabs the owner **before the
+dialog first shows**, synchronously, logged as the session's first `USER_OBS_CAP`. Combined with
+the filter, Ctrl+N over an open Filters menu now captures the dropdown in the shot — the actual
+obs f231 ask. Note: TSM does *not* capture at invoke (its screenshot lands at OK time); TP leads
+here, and the WinUI shell port is queued Library-side pending settle-timing verification. TP-side
+this rides the working-tree AL reference — no TP code change; CLAUDE.md's stale
+`Forms/DiagnosticsDialog.cs` pointer corrected to the Library shell in the same commit.
+
 ### 2026-08-11 — Ctrl+N works in menu mode + modal dialogs (TSM parity)
 
 User obs f231: Ctrl+N was dead while a MenuStrip dropdown was open — menu mode's
