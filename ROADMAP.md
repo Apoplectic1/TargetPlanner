@@ -68,7 +68,7 @@ The original 4-step sequencing plan (correctness audit → extract Astronomy.Cor
 
 Full dated history: [CHANGELOG.md](CHANGELOG.md) — the append-only shipped-history journal (entries relocated there 2026-07-12; git holds commit-level detail).
 
-- 2026-08-11 — Ctrl+N captures at invoke (AL `371c204`, WinForms shell): fresh open grabs the owner before the dialog shows, so an open menu survives into the shot — closes the obs f231 ask end-to-end.
+- 2026-08-11 — Ctrl+N invoke-capture shipped and reverted same day (AL `371c204` → `06500c4`, user decision): the uniform TSM/TP/XFM contract is capture at OK time only; open-menu shots stay on Capture-in-5s.
 - 2026-08-11 — Ctrl+N routed via app-level `IMessageFilter` (`Support/DiagnosticsKeyFilter.cs`): now fires in MenuStrip menu mode + modal WinForms dialogs (TSM parity; obs f231).
 - 2026-08-06 — MinVer cross-repo cache workaround (`<MinVerVerbosity>` key-split in csproj): AL ProjectReferences no longer leak the Library's version onto the exe (bug shipped in XFM v2.1.0–v2.2.0; latent here).
 - 2026-06-11 — Ctrl+N "Observation" dialog renamed "Diagnostics"; helper label dropped.
