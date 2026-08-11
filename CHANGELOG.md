@@ -9,6 +9,19 @@ that file under the perf-warning threshold, then relocated here; commit hashes p
 throughout for archaeology.)
 
 
+### 2026-08-11 — Ctrl+N works in menu mode + modal dialogs (TSM parity)
+
+User obs f231: Ctrl+N was dead while a MenuStrip dropdown was open — menu mode's
+`ModalMenuFilter` reroutes keyboard input to the dropdown window, so `MainForm.ProcessCmdKey`
+never ran (modal WinForms dialogs like the filter editor bypassed it the same way). Replaced the
+`ProcessCmdKey` override with an app-level `IMessageFilter`
+(`Support/DiagnosticsKeyFilter.cs`, registered in the MainForm ctor) that sees every thread
+`WM_KEYDOWN` before dispatch — one funnel covering normal state, menu mode, and modal dialogs,
+matching TSM's two-layer accelerator + `AppDialog.DiagnosticsHook` coverage. Boundaries: native
+modal loops (FolderBrowserDialog, MessageBox) never consult WinForms filters, and opening the
+dialog still ends menu mode (dropdown closes) — open-menu screenshots remain a
+dialog-first + "Capture in 5 s" workflow.
+
 ### 2026-08-10 — v1.3.6: REMEDIATION — v1.3.4/v1.3.5 installers shipped v1.3.3 payloads
 
 `release.ps1` hardcoded the pack path at the old TFM (`net10.0-windows10.0.19041`); after the

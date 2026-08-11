@@ -332,6 +332,15 @@ is preserved.";
 
             mAppSettings = SettingsStore.Load();
 
+            // Ctrl+N opens (or focuses) the modeless diagnostics dialog. An
+            // app-level message filter rather than a ProcessCmdKey override so
+            // the keystroke also works in MenuStrip menu mode and inside modal
+            // WinForms dialogs (filter editor) — both bypass the form's key
+            // chain (user obs f231). See Support/DiagnosticsKeyFilter remarks
+            // for the native-dialog boundary.
+            Application.AddMessageFilter(new Support.DiagnosticsKeyFilter(
+                () => DiagnosticsDialog.ShowOrFocus(this, GetDiagnosticsContext)));
+
             mLocation = PickStartupLocation();
             // Implicit "Now" snap at startup: mObservation = wall-clock-now under
             // the resolved site's TZ, DatePicker reseats to site-today. First-paint
@@ -881,20 +890,6 @@ is preserved.";
             if (found == null) return;
 
             mToolTip.SetToolTip(CheckedListBox_SelectedTargets, found.Directory);
-        }
-
-        // Ctrl+N opens (or focuses) the diagnostics dialog. Modeless +
-        // TopMost so the user can interact with the main UI while the dialog
-        // stays open; USER_OBS_START / USER_OBS_END / USER_OBS_CANCEL
-        // markers in tp.log bracket the user's actions chronologically.
-        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
-        {
-            if (keyData == (Keys.Control | Keys.N))
-            {
-                DiagnosticsDialog.ShowOrFocus(this, GetDiagnosticsContext);
-                return true;
-            }
-            return base.ProcessCmdKey(ref msg, keyData);
         }
 
         // Builds the context snapshot string included in the USER_OBS_END
