@@ -332,14 +332,12 @@ is preserved.";
 
             mAppSettings = SettingsStore.Load();
 
-            // Ctrl+N opens (or focuses) the modeless diagnostics dialog. An
-            // app-level message filter rather than a ProcessCmdKey override so
-            // the keystroke also works in MenuStrip menu mode and inside modal
-            // WinForms dialogs (filter editor) — both bypass the form's key
-            // chain (user obs f231). See Support/DiagnosticsKeyFilter remarks
-            // for the native-dialog boundary.
-            Application.AddMessageFilter(new Support.DiagnosticsKeyFilter(
-                () => DiagnosticsDialog.ShowOrFocus(this, GetDiagnosticsContext)));
+            // Ctrl+N opens (or focuses) the modeless diagnostics dialog. The
+            // Library's shared hotkey wiring (app-level message filter) covers
+            // MenuStrip menu mode + modal WinForms dialogs — states a
+            // ProcessCmdKey override misses (user obs f231). See
+            // DiagnosticsHotkey remarks for the native-dialog boundary.
+            DiagnosticsHotkey.Register(this, GetDiagnosticsContext);
 
             mLocation = PickStartupLocation();
             // Implicit "Now" snap at startup: mObservation = wall-clock-now under

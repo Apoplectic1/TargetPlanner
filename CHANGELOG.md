@@ -9,6 +9,17 @@ that file under the perf-warning threshold, then relocated here; commit hashes p
 throughout for archaeology.)
 
 
+### 2026-08-11 — Ctrl+N wiring hoisted to the Library (`DiagnosticsHotkey`)
+
+Third of the day's Ctrl+N series: the morning's `Support/DiagnosticsKeyFilter.cs` (TP `1b12b89`)
+was TP-local, making cross-consumer routing consistency a coincidence rather than a contract.
+Hoisted into `Astronomy.Diagnostics.WinForms` as `DiagnosticsHotkey.Register(owner,
+contextProvider)` (AL `f7d1423`); TP deleted the local filter and now makes the one Register call
+in the MainForm ctor, and XFM swapped its `ProcessCmdKey` override for the same call — WinForms
+consumers are uniform by construction (TSM's accelerator + `AppDialog` hook is the WinUI
+equivalent). Behavior in TP is unchanged from the morning: menu-mode + modal-dialog coverage,
+native modal loops out of reach.
+
 ### 2026-08-11 — Ctrl+N invoke-capture: shipped and REVERTED same day (Library-side)
 
 AL `371c204` briefly made the shared WinForms shell grab the owner before the dialog first shows
